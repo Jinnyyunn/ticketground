@@ -28,6 +28,21 @@ function money(value) {
   return Math.round(Number(value));
 }
 
+const PAYMENT_METHODS = {
+  BALANCE: { label: "충전금", requiresBalance: true, status: "PAID" },
+  CREDIT_CARD: { label: "신용카드", requiresBalance: false, status: "PAID" },
+  BANK_TRANSFER: { label: "계좌이체", requiresBalance: false, status: "PAID" },
+  BANK_DEPOSIT: { label: "무통장 입금", requiresBalance: false, status: "WAITING_DEPOSIT" },
+  MOBILE: { label: "휴대폰 결제", requiresBalance: false, status: "PAID" }
+};
+
+function resolvePaymentMethod(paymentMethod = "BALANCE") {
+  const key = String(paymentMethod || "BALANCE").toUpperCase();
+  const method = PAYMENT_METHODS[key];
+  if (!method) throw httpError(422, "UNSUPPORTED_PAYMENT_METHOD", "지원하지 않는 결제수단입니다.");
+  return { key, ...method };
+}
+
 function hash(input) {
   return crypto.createHash("sha256").update(input).digest("hex");
 }
@@ -197,22 +212,29 @@ function requireBody(body, keys) {
   }
 }
 
-function buyPrimary(db, { userId, ticketId }) {
+function buyPrimary(db, { userId, ticketId, paymentMethod }) {
   const user = findUser(db, userId);
   const ticket = db.tickets.find((item) => item.id === ticketId);
+  const payment = resolvePaymentMethod(paymentMethod);
   if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
   if (ticket.status !== "ON_SALE") throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
-  if (user.balance < ticket.faceValue) throw httpError(402, "INSUFFICIENT_BALANCE", "충전금이 부족합니다.");
+  if (payment.requiresBalance && user.balance < ticket.faceValue) {
+    throw httpError(402, "INSUFFICIENT_BALANCE", "충전금이 부족합니다. 다른 결제수단을 선택해주세요.");
+  }
 
-  user.balance -= ticket.faceValue;
+  if (payment.requiresBalance) user.balance -= ticket.faceValue;
   ticket.ownerId = user.id;
   ticket.status = "OWNED";
   appendLedger(db, user.id, "PRIMARY_PURCHASE", {
     ticketId: ticket.id,
     price: ticket.faceValue,
+    paymentMethod: payment.key,
+    paymentLabel: payment.label,
+    paymentStatus: payment.status,
+    approvalId: `${payment.key}-${id("pay").toUpperCase()}`,
     policy: "platform-signed-owner-assignment"
   });
-  return { user, ticket };
+  return { user, ticket, payment };
 }
 
 function listForResale(db, { sellerId, ticketId, price }) {

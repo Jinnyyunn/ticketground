@@ -10,8 +10,17 @@ const appState = {
   nicknameOverride: "",
   heroIndex: 0,
   heroTimer: null,
-  selectedSeatId: ""
+  selectedSeatId: "",
+  paymentMethod: "BALANCE"
 };
+
+const paymentMethods = [
+  { id: "BALANCE", label: "충전금", actionLabel: "충전금으로", note: "보유 충전금 즉시 차감" },
+  { id: "CREDIT_CARD", label: "신용카드", actionLabel: "신용카드로", note: "카드 승인 후 예매" },
+  { id: "BANK_TRANSFER", label: "계좌이체", actionLabel: "계좌이체로", note: "실시간 이체 승인" },
+  { id: "BANK_DEPOSIT", label: "무통장 입금", actionLabel: "무통장 입금으로", note: "입금대기 예매" },
+  { id: "MOBILE", label: "휴대폰 결제", actionLabel: "휴대폰 결제로", note: "통신사 결제 승인" }
+];
 
 const heroSlides = [
   {
@@ -416,6 +425,28 @@ function ensureSelectedSeat(tickets) {
   }
 }
 
+function renderPaymentMethods() {
+  return paymentMethods.map((method) => `
+    <button
+      class="payment-option ${appState.paymentMethod === method.id ? "active" : ""}"
+      type="button"
+      data-payment-method="${method.id}"
+      aria-pressed="${appState.paymentMethod === method.id ? "true" : "false"}"
+    >
+      <strong>${method.label}</strong>
+      <span>${method.note}</span>
+    </button>
+  `).join("");
+}
+
+function selectedPaymentLabel() {
+  return paymentMethods.find((method) => method.id === appState.paymentMethod)?.label || "충전금";
+}
+
+function selectedPaymentActionLabel() {
+  return paymentMethods.find((method) => method.id === appState.paymentMethod)?.actionLabel || "충전금으로";
+}
+
 function currentVenueMap() {
   const category = appState.route === "booking" ? appState.bookingCategory : appState.activeCategory;
   const type = category === "sports"
@@ -577,7 +608,10 @@ function renderSeatMap(tickets) {
           <span>선택 좌석</span>
           ${summary}
         </div>
-        <button data-buy-selected="true" ${selectedTicket ? "" : "disabled"}>선택 좌석 예매</button>
+        <div class="payment-methods" aria-label="결제수단 선택">
+          ${renderPaymentMethods()}
+        </div>
+        <button data-buy-selected="true" ${selectedTicket ? "" : "disabled"}>${selectedPaymentActionLabel()} 예매</button>
       </div>
     </div>
   `;
@@ -741,8 +775,15 @@ async function refresh() {
 }
 
 async function buyTicket(ticketId) {
-  await api("/api/tickets/buy", { userId: currentUser().id, ticketId });
-  toast("예매가 완료되었습니다. My 예매내역에서 확인하세요.");
+  const result = await api("/api/tickets/buy", {
+    userId: currentUser().id,
+    ticketId,
+    paymentMethod: appState.paymentMethod
+  });
+  const paymentLabel = result.payment?.label || selectedPaymentLabel();
+  const actionLabel = paymentMethods.find((method) => method.label === paymentLabel)?.actionLabel || selectedPaymentActionLabel();
+  const statusCopy = result.payment?.status === "WAITING_DEPOSIT" ? "입금대기 상태로 예매되었습니다." : "결제가 승인되었습니다.";
+  toast(`${actionLabel} ${statusCopy} My 예매내역에서 확인하세요.`);
   await refresh();
 }
 
@@ -809,6 +850,7 @@ document.addEventListener("click", async (event) => {
   const routeLink = target.closest("[data-route]");
   const seatZoneButton = target.closest("[data-seat-zone]");
   const seatButton = target.closest("[data-seat-id]");
+  const paymentButton = target.closest("[data-payment-method]");
 
   if (profileButton) {
     toggleProfile();
@@ -827,6 +869,11 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.closeMenu) toggleProfile(false);
   if (target.dataset.openProfileEdit) {
     $("#nicknameInput").focus();
+  }
+  if (paymentButton) {
+    appState.paymentMethod = paymentButton.dataset.paymentMethod;
+    renderTickets();
+    return;
   }
   if (target.dataset.heroDir) {
     setHeroSlide(appState.heroIndex + Number(target.dataset.heroDir));
