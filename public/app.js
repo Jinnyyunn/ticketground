@@ -84,6 +84,49 @@ const categoryEvents = {
   ]
 };
 
+const discoverySections = [
+  {
+    title: "오픈 예정",
+    more: "전체보기",
+    items: [
+      { title: "TIG Live: Neon Stage", meta: "오늘 20:00 티켓 오픈", tags: ["HOT", "단독판매"] },
+      { title: "Tig Summer Beat Festival", meta: "06.20(토) 14:00 오픈", tags: ["페스티벌", "얼리버드"] },
+      { title: "Midnight Sonata", meta: "06.24(수) 15:00 오픈", tags: ["뮤지컬", "좌석우위"] },
+      { title: "Seoul Tigers vs Busan Waves", meta: "06.28(일) 11:00 오픈", tags: ["스포츠", "공식판매"] }
+    ]
+  },
+  {
+    title: "장르별 랭킹",
+    more: "전체보기",
+    items: [
+      { title: "TIG Live: Neon Stage", meta: "콘서트 랭킹 1위", tags: ["콘서트"] },
+      { title: "The Golden Door", meta: "뮤지컬 랭킹 2위", tags: ["뮤지컬"] },
+      { title: "K-League Night Match", meta: "스포츠 랭킹 3위", tags: ["스포츠"] },
+      { title: "City Lights Music Camp", meta: "페스티벌 랭킹 4위", tags: ["페스티벌"] }
+    ]
+  },
+  {
+    title: "할인 중인 티켓",
+    more: "특가보기",
+    items: [
+      { title: "Indie Ground Festival", meta: "얼리버드 20% · 79,000원", tags: ["타임딜"] },
+      { title: "Midnight Sonata", meta: "프리뷰 15% · 93,500원", tags: ["할인"] },
+      { title: "The Golden Door", meta: "마감 임박 10% · 88,200원", tags: ["파이널콜"] },
+      { title: "City Lights Music Camp", meta: "양일권 25% · 119,000원", tags: ["페스티벌"] }
+    ]
+  },
+  {
+    title: "공연 보러 가기 좋은 요즘",
+    more: "추천 더보기",
+    items: [
+      { title: "감각적인 주말 페스티벌", meta: "야외에서 즐기는 음악 큐레이션", tags: ["추천"] },
+      { title: "관계와 몰입의 무대", meta: "스토리 중심 뮤지컬 모음", tags: ["큐레이션"] },
+      { title: "응원 열기 가득한 경기", meta: "주말 스포츠 티켓 모음", tags: ["스포츠"] },
+      { title: "첫 공연 입문 추천", meta: "가볍게 시작하기 좋은 공연", tags: ["입문"] }
+    ]
+  }
+];
+
 const $ = (selector) => document.querySelector(selector);
 const fmt = new Intl.NumberFormat("ko-KR");
 
@@ -218,6 +261,28 @@ function renderEventCatalog() {
       </div>
       <a class="event-cta" href="#booking" data-route="${item.route}">${item.cta}</a>
     </div>
+  `).join("");
+}
+
+function renderDiscoverySections() {
+  const image = "/assets/neon-stage-hero.png";
+  $("#ticketDiscovery").innerHTML = discoverySections.map((section) => `
+    <section class="discovery-section">
+      <div class="discovery-head">
+        <h3>${section.title}</h3>
+        <a href="#booking" data-route="booking">${section.more}</a>
+      </div>
+      <div class="discovery-grid">
+        ${section.items.map((item) => `
+          <article class="discovery-card">
+            <img src="${image}" alt="${item.title}" />
+            <div class="card-tags">${item.tags.map((tag) => `<em>${tag}</em>`).join("")}</div>
+            <strong>${item.title}</strong>
+            <span>${item.meta}</span>
+          </article>
+        `).join("")}
+      </div>
+    </section>
   `).join("");
 }
 
@@ -408,6 +473,7 @@ async function refresh() {
   renderUsers();
   renderAccount();
   renderEventCatalog();
+  renderDiscoverySections();
   renderZoneTabs();
   renderTickets();
   renderPools();
