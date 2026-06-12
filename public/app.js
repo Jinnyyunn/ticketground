@@ -6,6 +6,7 @@ const appState = {
   searchActive: false,
   qr: null,
   route: "concerts",
+  bookingCategory: "concert",
   nicknameOverride: "",
   heroIndex: 0,
   heroTimer: null,
@@ -15,6 +16,7 @@ const appState = {
 const heroSlides = [
   {
     tone: "concert",
+    category: "concert",
     eyebrow: "Tig 단독 오픈",
     title: "TIG Live: Neon Stage",
     copy: "공식 예매와 공식 재판매만 허용되는 팬 중심 클린 티켓 플랫폼",
@@ -26,6 +28,7 @@ const heroSlides = [
   },
   {
     tone: "festival",
+    category: "festival",
     eyebrow: "페스티벌 얼리버드",
     title: "Tig Summer Beat Festival",
     copy: "여름 야외 무대, 1일권과 양일권을 공식 판매 티켓으로 먼저 만나보세요.",
@@ -37,6 +40,7 @@ const heroSlides = [
   },
   {
     tone: "musical",
+    category: "musical",
     eyebrow: "뮤지컬 프리뷰",
     title: "Midnight Sonata",
     copy: "캐스팅, 가격, 좌석 정보를 한 화면에서 확인하고 원하는 좌석을 직접 선택하세요.",
@@ -48,6 +52,7 @@ const heroSlides = [
   },
   {
     tone: "sports",
+    category: "sports",
     eyebrow: "스포츠 공식 판매",
     title: "Seoul Tigers Match Day",
     copy: "인기 경기 티켓도 암표 걱정 없이 공식 구매와 제한된 공식 양도로 관리합니다.",
@@ -411,9 +416,97 @@ function ensureSelectedSeat(tickets) {
   }
 }
 
+function currentVenueMap() {
+  const category = appState.route === "booking" ? appState.bookingCategory : appState.activeCategory;
+  const type = category === "sports"
+    ? "stadium"
+    : category === "musical"
+      ? "theater"
+      : category === "festival"
+        ? "festival"
+        : "arena";
+  const maps = {
+    arena: {
+      type,
+      venue: "KSPO Dome",
+      stage: "CENTER STAGE",
+      helper: "콘서트형 아레나 좌석 배치도",
+      labels: [
+        { text: "VIP FLOOR", x: 50, y: 34 },
+        { text: "R SIDE", x: 24, y: 55 },
+        { text: "S UPPER", x: 76, y: 70 }
+      ]
+    },
+    festival: {
+      type,
+      venue: "난지한강공원",
+      stage: "MAIN STAGE",
+      helper: "페스티벌형 스탠딩/지정석 혼합 배치도",
+      labels: [
+        { text: "FRONT PASS", x: 50, y: 34 },
+        { text: "PICNIC R", x: 23, y: 58 },
+        { text: "LAWN S", x: 76, y: 66 }
+      ]
+    },
+    theater: {
+      type,
+      venue: "블루스퀘어",
+      stage: "PROSCENIUM STAGE",
+      helper: "뮤지컬형 극장 좌석 배치도",
+      labels: [
+        { text: "VIP ORCHESTRA", x: 50, y: 38 },
+        { text: "R MEZZANINE", x: 50, y: 58 },
+        { text: "S BALCONY", x: 50, y: 75 }
+      ]
+    },
+    stadium: {
+      type,
+      venue: "잠실야구장",
+      stage: "GROUND",
+      helper: "스포츠 경기장형 관람석 배치도",
+      labels: [
+        { text: "HOME VIP", x: 50, y: 70 },
+        { text: "R 1루/3루", x: 22, y: 48 },
+        { text: "S 외야", x: 78, y: 28 }
+      ]
+    }
+  };
+  return maps[type];
+}
+
+function seatCoordinates(ticket, zoneTickets, index, mapType) {
+  const zoneIndex = currentEvent().zones.findIndex((zone) => zone.id === ticket.zoneId);
+  const count = Math.max(zoneTickets.length - 1, 1);
+  const spread = count ? (index / count) - 0.5 : 0;
+  const byType = {
+    arena: [
+      { x: 50 + spread * 28, y: 42 + Math.abs(spread) * 6 },
+      { x: 28 + spread * 14, y: 60 + Math.abs(spread) * 7 },
+      { x: 72 + spread * 14, y: 72 + Math.abs(spread) * 5 }
+    ],
+    festival: [
+      { x: 50 + spread * 24, y: 40 },
+      { x: 34 + spread * 24, y: 61 + Math.abs(spread) * 5 },
+      { x: 66 + spread * 30, y: 72 + Math.abs(spread) * 4 }
+    ],
+    theater: [
+      { x: 50 + spread * 34, y: 44 },
+      { x: 50 + spread * 42, y: 61 },
+      { x: 50 + spread * 52, y: 78 }
+    ],
+    stadium: [
+      { x: 50 + spread * 20, y: 72 - Math.abs(spread) * 5 },
+      { x: 28 + spread * 42, y: 52 - Math.abs(spread) * 15 },
+      { x: 72 + spread * 36, y: 30 + Math.abs(spread) * 12 }
+    ]
+  };
+  return byType[mapType][zoneIndex] || byType.arena[zoneIndex] || { x: 50, y: 50 };
+}
+
 function renderSeatMap(tickets) {
   const zones = currentEvent().zones;
   const selectedTicket = currentSelectedTicket(tickets);
+  const venueMap = currentVenueMap();
   const zoneCards = zones.map((zone) => {
     const zoneTickets = tickets.filter((ticket) => ticket.zoneId === zone.id);
     const isActive = selectedTicket?.zoneId === zone.id || (!selectedTicket && appState.activeZone === zone.id);
@@ -426,30 +519,30 @@ function renderSeatMap(tickets) {
     `;
   }).join("");
 
-  const seatButtons = zones.map((zone) => {
+  const mapSeats = zones.flatMap((zone) => {
     const zoneTickets = appState.data.tickets.filter((ticket) => ticket.zoneId === zone.id);
-    return `
-      <div class="seat-zone-row" data-map-zone="${zone.id}">
-        <div class="seat-zone-label">${zone.name}</div>
-        <div class="seat-buttons" aria-label="${zone.name} 좌석">
-          ${zoneTickets.map((ticket) => {
-            const available = ticket.status === "ON_SALE";
-            const selected = ticket.id === appState.selectedSeatId;
-            return `
-              <button
-                class="map-seat ${selected ? "selected" : ""}"
-                type="button"
-                data-seat-id="${ticket.id}"
-                ${available ? "" : "disabled"}
-                aria-pressed="${selected ? "true" : "false"}"
-                aria-label="${ticket.seatLabel} ${available ? "선택 가능" : "선택 불가"}"
-              >${ticket.seatLabel.replace(/[^0-9]/g, "")}</button>
-            `;
-          }).join("")}
-        </div>
-      </div>
-    `;
+    return zoneTickets.map((ticket, index) => {
+      const available = ticket.status === "ON_SALE";
+      const selected = ticket.id === appState.selectedSeatId;
+      const point = seatCoordinates(ticket, zoneTickets, index, venueMap.type);
+      return `
+        <button
+          class="map-seat venue-seat zone-${ticket.zoneId} ${selected ? "selected" : ""}"
+          type="button"
+          data-seat-id="${ticket.id}"
+          style="--seat-x:${point.x}%; --seat-y:${point.y}%"
+          ${available ? "" : "disabled"}
+          aria-pressed="${selected ? "true" : "false"}"
+          aria-label="${ticket.seatLabel} ${available ? "즉시 예매 가능" : "예매 완료"}"
+          title="${ticket.seatLabel} · ${fmt.format(ticket.faceValue)}원"
+        >${ticket.seatLabel.replace(/[^0-9]/g, "")}</button>
+      `;
+    });
   }).join("");
+
+  const mapLabels = venueMap.labels.map((label) => `
+    <span class="venue-section-label" style="--label-x:${label.x}%; --label-y:${label.y}%">${label.text}</span>
+  `).join("");
 
   const summary = selectedTicket
     ? `
@@ -465,15 +558,26 @@ function renderSeatMap(tickets) {
     <div class="interpark-seat-flow">
       <div class="seat-grade-list" aria-label="좌석 등급 선택">${zoneCards}</div>
       <div class="seat-map-panel">
-        <div class="stage-label">STAGE</div>
-        <div class="seat-map" aria-label="좌석 배치도">${seatButtons}</div>
+        <div class="seat-map-head">
+          <div>
+            <strong>${venueMap.venue}</strong>
+            <span>${venueMap.helper}</span>
+          </div>
+          <em>좌석 클릭 시 바로 예매</em>
+        </div>
+        <div class="venue-map-canvas ${venueMap.type}" aria-label="${venueMap.helper}">
+          <div class="stage-label">${venueMap.stage}</div>
+          <div class="venue-field" aria-hidden="true"></div>
+          ${mapLabels}
+          ${mapSeats}
+        </div>
       </div>
       <div class="selected-seat-panel">
         <div>
           <span>선택 좌석</span>
           ${summary}
         </div>
-        <button data-buy-selected="true" ${selectedTicket ? "" : "disabled"}>예매하기</button>
+        <button data-buy-selected="true" ${selectedTicket ? "" : "disabled"}>선택 좌석 예매</button>
       </div>
     </div>
   `;
@@ -712,7 +816,12 @@ document.addEventListener("click", async (event) => {
   }
   if (routeLink) {
     event.preventDefault();
+    if (routeLink.dataset.route === "booking") {
+      const heroRoot = routeLink.closest(".hero");
+      appState.bookingCategory = heroRoot ? heroSlides[appState.heroIndex].category : appState.activeCategory;
+    }
     setRoute(routeLink.dataset.route);
+    if (routeLink.dataset.route === "booking") renderTickets();
   }
   if (!profileMenu) toggleProfile(false);
   if (target.dataset.closeMenu) toggleProfile(false);
@@ -741,6 +850,12 @@ document.addEventListener("click", async (event) => {
       if (selectedTicket) appState.activeZone = selectedTicket.zoneId;
       renderZoneTabs();
       renderTickets();
+      try {
+        await buyTicket(appState.selectedSeatId);
+      } catch (error) {
+        toast(error.message);
+        renderTickets();
+      }
       return;
     }
 
@@ -838,7 +953,11 @@ document.addEventListener("keydown", (event) => {
   const routeTarget = event.target.closest?.("[data-route]");
   if (!routeTarget) return;
   event.preventDefault();
+  if (routeTarget.dataset.route === "booking") {
+    appState.bookingCategory = appState.activeCategory;
+  }
   setRoute(routeTarget.dataset.route);
+  if (routeTarget.dataset.route === "booking") renderTickets();
 });
 
 $("#profileEditForm").addEventListener("submit", (event) => {

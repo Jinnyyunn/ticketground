@@ -1088,6 +1088,122 @@ p {
   overflow-wrap: anywhere;
 }
 
+.seat-map-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.seat-map-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.seat-map-head strong {
+  font-size: 15px;
+}
+
+.seat-map-head span,
+.seat-map-head em {
+  color: var(--sub);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.venue-map-canvas {
+  position: relative;
+  min-height: 330px;
+  border: 1px solid rgba(23, 20, 13, 0.12);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(255, 212, 0, 0.2), transparent 22%),
+    linear-gradient(180deg, #ffffff, #f5f7fb);
+  overflow: hidden;
+}
+
+.venue-map-canvas .stage-label {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  width: min(76%, 310px);
+  min-height: 34px;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.venue-field {
+  position: absolute;
+  inset: 22% 22% 20%;
+  border: 2px solid rgba(23, 20, 13, 0.16);
+  border-radius: 999px 999px 28px 28px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.venue-map-canvas.theater .venue-field {
+  inset: 30% 13% 12%;
+  border-radius: 24px 24px 70px 70px;
+}
+
+.venue-map-canvas.stadium .venue-field {
+  inset: 24% 25% 27%;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(0, 170, 255, 0.08), transparent 48%, rgba(0, 170, 255, 0.08)),
+    rgba(255, 255, 255, 0.62);
+}
+
+.venue-map-canvas.festival .venue-field {
+  inset: 28% 10% 14%;
+  border-radius: 34px 34px 110px 110px;
+}
+
+.venue-section-label {
+  position: absolute;
+  left: var(--label-x);
+  top: var(--label-y);
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: rgba(23, 20, 13, 0.6);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-weight: 950;
+  pointer-events: none;
+}
+
+.venue-seat {
+  position: absolute;
+  left: var(--seat-x);
+  top: var(--seat-y);
+  z-index: 3;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.venue-seat.zone-zone_vip {
+  border-color: #171717;
+  background: #ffd400;
+}
+
+.venue-seat.zone-zone_r {
+  background: #e5f6ff;
+}
+
+.venue-seat.zone-zone_s {
+  background: #fff;
+}
+
+.venue-seat:hover:not(:disabled) {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+
 .seat-card,
 .resale-card,
 .myticket-card,
