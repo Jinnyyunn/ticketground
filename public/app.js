@@ -6,8 +6,57 @@ const appState = {
   searchActive: false,
   qr: null,
   route: "concerts",
-  nicknameOverride: ""
+  nicknameOverride: "",
+  heroIndex: 0,
+  heroTimer: null
 };
+
+const heroSlides = [
+  {
+    tone: "concert",
+    eyebrow: "Tig 단독 오픈",
+    title: "TIG Live: Neon Stage",
+    copy: "공식 예매와 공식 재판매만 허용되는 팬 중심 클린 티켓 플랫폼",
+    primary: "지금 예매하기",
+    secondary: "내 예매내역 보기",
+    secondaryRoute: "my",
+    image: "/assets/neon-stage-hero.png",
+    alt: "콘서트 무대와 관객"
+  },
+  {
+    tone: "festival",
+    eyebrow: "페스티벌 얼리버드",
+    title: "Tig Summer Beat Festival",
+    copy: "여름 야외 무대, 1일권과 양일권을 공식 판매 티켓으로 먼저 만나보세요.",
+    primary: "페스티벌 예매",
+    secondary: "판매 티켓 둘러보기",
+    secondaryRoute: "concerts",
+    image: "/assets/neon-stage-hero.png",
+    alt: "페스티벌 조명이 비치는 야외 공연장"
+  },
+  {
+    tone: "musical",
+    eyebrow: "뮤지컬 프리뷰",
+    title: "Midnight Sonata",
+    copy: "캐스팅, 가격, 좌석 정보를 한 화면에서 확인하고 원하는 좌석을 직접 선택하세요.",
+    primary: "뮤지컬 예매",
+    secondary: "상세 정보 보기",
+    secondaryRoute: "booking",
+    image: "/assets/neon-stage-hero.png",
+    alt: "뮤지컬 무대 조명"
+  },
+  {
+    tone: "sports",
+    eyebrow: "스포츠 공식 판매",
+    title: "Seoul Tigers Match Day",
+    copy: "인기 경기 티켓도 암표 걱정 없이 공식 구매와 제한된 공식 양도로 관리합니다.",
+    primary: "스포츠 예매",
+    secondary: "공식 재판매 보기",
+    secondaryRoute: "resale",
+    image: "/assets/neon-stage-hero.png",
+    alt: "스포츠 경기장 조명"
+  }
+];
 
 const categoryEvents = {
   concert: [
@@ -129,6 +178,53 @@ const discoverySections = [
 
 const $ = (selector) => document.querySelector(selector);
 const fmt = new Intl.NumberFormat("ko-KR");
+
+function renderHero() {
+  const hero = $(".hero");
+  const slide = heroSlides[appState.heroIndex];
+  if (!hero || !slide) return;
+
+  hero.dataset.heroTone = slide.tone;
+  hero.classList.add("is-switching");
+  window.setTimeout(() => hero.classList.remove("is-switching"), 260);
+
+  const image = hero.querySelector("img");
+  image.src = slide.image;
+  image.alt = slide.alt;
+  hero.querySelector(".eyebrow").textContent = slide.eyebrow;
+  hero.querySelector("h1").textContent = slide.title;
+  hero.querySelector("p").textContent = slide.copy;
+  hero.querySelector(".primary-link").textContent = slide.primary;
+  const secondary = hero.querySelector(".ghost-link");
+  secondary.textContent = slide.secondary;
+  secondary.href = `#${slide.secondaryRoute}`;
+  secondary.dataset.route = slide.secondaryRoute;
+
+  const dots = $("#heroDots");
+  if (!dots) return;
+  dots.innerHTML = heroSlides.map((item, index) => `
+    <button
+      class="hero-dot ${index === appState.heroIndex ? "active" : ""}"
+      type="button"
+      data-hero-index="${index}"
+      aria-label="${item.title} 보기"
+      aria-current="${index === appState.heroIndex ? "true" : "false"}"
+    ></button>
+  `).join("");
+}
+
+function setHeroSlide(index, restart = true) {
+  appState.heroIndex = (index + heroSlides.length) % heroSlides.length;
+  renderHero();
+  if (restart) startHeroTimer();
+}
+
+function startHeroTimer() {
+  window.clearInterval(appState.heroTimer);
+  appState.heroTimer = window.setInterval(() => {
+    setHeroSlide(appState.heroIndex + 1, false);
+  }, 5500);
+}
 
 function toast(message) {
   const node = $("#toast");
@@ -467,6 +563,8 @@ async function refresh() {
   appState.data = await api("/api/state");
   renderUsers();
   renderAccount();
+  renderHero();
+  startHeroTimer();
   renderEventCatalog();
   renderDiscoverySections();
   renderZoneTabs();
@@ -574,6 +672,14 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.openProfileEdit) {
     $("#nicknameInput").focus();
   }
+  if (target.dataset.heroDir) {
+    setHeroSlide(appState.heroIndex + Number(target.dataset.heroDir));
+    return;
+  }
+  if (target.dataset.heroIndex) {
+    setHeroSlide(Number(target.dataset.heroIndex));
+    return;
+  }
 
   try {
     if (target.dataset.zone) {
@@ -661,6 +767,11 @@ $("#searchInput").addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.target.closest?.(".hero") && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+    event.preventDefault();
+    setHeroSlide(appState.heroIndex + (event.key === "ArrowRight" ? 1 : -1));
+    return;
+  }
   if (event.key !== "Enter") return;
   const routeTarget = event.target.closest?.("[data-route]");
   if (!routeTarget) return;
