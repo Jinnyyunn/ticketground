@@ -484,7 +484,7 @@ p {
   display: none;
 }
 
-.search-ticket-grid {
+.search-event-catalog {
   margin-bottom: 22px;
 }
 
@@ -597,6 +597,48 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 14px;
+}
+
+.purchase-card {
+  display: grid;
+  gap: 16px;
+}
+
+.purchase-event {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px;
+  border: 2px solid #17140d;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 6px 6px 0 #17140d;
+}
+
+.purchase-event img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 2px solid #17140d;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.seat-purchase-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 220px) 120px;
+  gap: 10px;
+  align-items: end;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff8d4;
+}
+
+.seat-purchase-row label {
+  display: grid;
+  gap: 6px;
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .seat-card,
@@ -840,6 +882,7 @@ p {
 @media (max-width: 1000px) {
   .search-band,
   .event-card,
+  .purchase-event,
   .booking-combo,
   .my-grid {
     grid-template-columns: 1fr;
@@ -894,6 +937,7 @@ p {
 
   .section-head,
   .search-box,
+  .seat-purchase-row,
   .guide-grid,
   .resale-actions {
     grid-template-columns: 1fr;

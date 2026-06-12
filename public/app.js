@@ -204,8 +204,10 @@ function renderEventCatalog() {
 }
 
 function renderZoneTabs() {
+  const zoneTabs = $("#zoneTabs");
+  if (!zoneTabs) return;
   const tabs = [{ id: "all", name: "전체" }, ...currentEvent().zones.map((zone) => ({ id: zone.id, name: zone.name }))];
-  $("#zoneTabs").innerHTML = tabs.map((zone) => `
+  zoneTabs.innerHTML = tabs.map((zone) => `
     <button class="zone-tab ${appState.activeZone === zone.id ? "active" : ""}" data-zone="${zone.id}">
       ${zone.name}
     </button>
@@ -225,54 +227,40 @@ function filteredTickets() {
 }
 
 function renderTickets() {
-  const tickets = filteredTickets();
-  $("#ticketGrid").innerHTML = tickets.map((ticket) => {
-    const available = ticket.status === "ON_SALE";
-    const zone = zoneById(ticket.zoneId);
-    return `
-      <article class="seat-card">
-        <div class="seat-top">
-          <div>
-            <div class="seat-name">${ticket.seatLabel}</div>
-            <p>${zone.name} · ${currentEvent().venue}</p>
-          </div>
-          <span class="seat-status ${available ? "" : "closed"}">${statusLabel(ticket)}</span>
-        </div>
-        <div class="seat-meta">
-          <span>가격 ${fmt.format(ticket.faceValue)}원</span>
-          <span>재판매 허용 ${fmt.format(ticket.minPrice)}원 ~ ${fmt.format(ticket.maxPrice)}원</span>
-          <span>소유 상태 ${ownerName(ticket.ownerId)}</span>
-        </div>
-        <button ${available ? "" : "disabled"} data-buy="${ticket.id}">
-          ${available ? "예매하기" : "예매 불가"}
-        </button>
-      </article>
-    `;
-  }).join("") || `<p>조건에 맞는 좌석이 없습니다.</p>`;
-}
+  const tickets = filteredTickets().filter((ticket) => ticket.status === "ON_SALE");
+  const zoneOptions = currentEvent().zones.map((zone) => {
+    const availableCount = tickets.filter((ticket) => ticket.zoneId === zone.id).length;
+    return `<option value="${zone.id}" ${availableCount ? "" : "disabled"}>${zone.name} · ${fmt.format(zone.faceValue)}원 · ${availableCount}석</option>`;
+  }).join("");
+  const seatOptions = tickets.map((ticket) => `
+    <option value="${ticket.id}" data-zone="${ticket.zoneId}">
+      ${ticket.seatLabel} · ${fmt.format(ticket.faceValue)}원
+    </option>
+  `).join("");
 
-function ticketCard(ticket, options = {}) {
-  const available = ticket.status === "ON_SALE";
-  const zone = zoneById(ticket.zoneId);
-  return `
-    <article class="seat-card">
-      <div class="seat-top">
-        <div>
-          <div class="seat-name">${ticket.seatLabel}</div>
-          <p>${zone.name} · ${currentEvent().venue}</p>
+  $("#ticketGrid").innerHTML = `
+    <article class="purchase-event">
+      <img src="/assets/neon-stage-hero.png" alt="${currentEvent().title} 포스터" />
+      <div class="event-info">
+        <span class="badge">공식 1차 판매</span>
+        <h3>${currentEvent().title}</h3>
+        <p>${new Date(currentEvent().date).toLocaleString("ko-KR")} · ${currentEvent().venue}</p>
+        <div class="event-stats">${renderStats()}</div>
+        <div class="seat-purchase-row">
+          <label>
+            구역 선택
+            <select id="purchaseZoneSelect">${zoneOptions}</select>
+          </label>
+          <label>
+            좌석 선택
+            <select id="purchaseSeatSelect">${seatOptions || `<option value="">예매 가능한 좌석 없음</option>`}</select>
+          </label>
+          <button data-buy-selected="true" ${seatOptions ? "" : "disabled"}>예매하기</button>
         </div>
-        <span class="seat-status ${available ? "" : "closed"}">${statusLabel(ticket)}</span>
       </div>
-      <div class="seat-meta">
-        <span>공연 ${currentEvent().title}</span>
-        <span>가격 ${fmt.format(ticket.faceValue)}원</span>
-        <span>재판매 허용 ${fmt.format(ticket.minPrice)}원 ~ ${fmt.format(ticket.maxPrice)}원</span>
-      </div>
-      <button ${available ? "" : "disabled"} data-buy="${ticket.id}">
-        ${available ? options.buyLabel || "예매하기" : "예매 불가"}
-      </button>
     </article>
   `;
+  syncPurchaseSeats();
 }
 
 function renderSearchResults() {
@@ -282,13 +270,31 @@ function renderSearchResults() {
     return;
   }
 
-  const tickets = filteredTickets().filter((ticket) => ticket.status === "ON_SALE");
   const queryText = appState.query.trim() || "전체";
+  const normalizedQuery = queryText.toLowerCase();
+  const matchedEvents = Object.values(categoryEvents)
+    .flat()
+    .filter((item) => `${item.title} ${item.meta} ${item.badge}`.toLowerCase().includes(normalizedQuery));
+  const events = matchedEvents.length ? matchedEvents : categoryEvents[appState.activeCategory];
   container.hidden = false;
-  $("#searchResultCopy").textContent = `"${queryText}" 검색 조건에 맞는 판매 티켓입니다.`;
-  $("#saleTicketResults").innerHTML = tickets.length
-    ? tickets.map((ticket) => ticketCard(ticket, { buyLabel: "바로 예매" })).join("")
-    : `<p>검색 조건에 맞는 판매 티켓이 없습니다.</p>`;
+  $("#searchResultCopy").textContent = `"${queryText}" 검색 조건에 맞는 판매 공연입니다. 좌석은 예매 단계에서 선택합니다.`;
+  $("#saleTicketResults").innerHTML = events.map((item, index) => `
+    <div class="event-card">
+      <img src="${item.image}" alt="${item.title} 포스터" />
+      <div class="event-info">
+        <span class="badge">${item.badge}</span>
+        <h3>${item.title}</h3>
+        <p>${item.meta}</p>
+        <div class="event-stats">
+          ${index === 0 && item.title === currentEvent().title
+            ? renderStats()
+            : ["공식 티켓 판매", "구매 단계 좌석 선택", "공식 양도 허용"].map((text) => `<span class="stat-pill">${text}</span>`).join("")
+          }
+        </div>
+      </div>
+      <a class="event-cta" href="#booking" data-route="booking">예매하기</a>
+    </div>
+  `).join("");
 
   const openPools = appState.data.resalePools.filter((pool) => pool.status === "OPEN");
   $("#resalePreviewList").innerHTML = openPools.length ? openPools.map((pool) => {
@@ -399,6 +405,21 @@ async function buyTicket(ticketId) {
   await refresh();
 }
 
+function syncPurchaseSeats() {
+  const zoneSelect = $("#purchaseZoneSelect");
+  const seatSelect = $("#purchaseSeatSelect");
+  if (!zoneSelect || !seatSelect) return;
+  const selectedZone = zoneSelect.value;
+  let firstVisible = "";
+  [...seatSelect.options].forEach((option) => {
+    const isVisible = !option.value || option.dataset.zone === selectedZone;
+    option.hidden = !isVisible;
+    option.disabled = !isVisible;
+    if (isVisible && option.value && !firstVisible) firstVisible = option.value;
+  });
+  if (firstVisible) seatSelect.value = firstVisible;
+}
+
 async function listForResale() {
   const ticketId = $("#sellTicketSelect").value;
   const price = Number($("#sellPriceInput").value);
@@ -503,6 +524,14 @@ document.addEventListener("click", async (event) => {
       renderEventCatalog();
     }
     if (target.dataset.buy) await buyTicket(target.dataset.buy);
+    if (target.dataset.buySelected) {
+      const seatId = $("#purchaseSeatSelect")?.value;
+      if (!seatId) {
+        toast("예매할 좌석을 선택해주세요.");
+      } else {
+        await buyTicket(seatId);
+      }
+    }
     if (target.dataset.join) await joinPool(target.dataset.join);
     if (target.dataset.draw) await drawPool(target.dataset.draw);
     if (target.dataset.qr) await issueQr(target.dataset.qr);
@@ -530,6 +559,9 @@ $("#sellTicketSelect").addEventListener("change", () => {
 
 $("#sellBtn").addEventListener("click", () => listForResale().catch((error) => toast(error.message)));
 $("#verifyQrBtn").addEventListener("click", () => verifyQr().catch((error) => toast(error.message)));
+document.addEventListener("change", (event) => {
+  if (event.target.id === "purchaseZoneSelect") syncPurchaseSeats();
+});
 $("#searchBtn").addEventListener("click", () => {
   appState.query = $("#searchInput").value;
   appState.searchActive = true;
