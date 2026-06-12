@@ -14,7 +14,7 @@
       </a>
       <nav class="main-nav" aria-label="주요 메뉴">
         <a href="#concerts" data-route="concerts">공연</a>
-        <a href="#booking" data-route="booking">티켓 예매</a>
+        <a href="#resale" data-route="resale">공식 재판매 티켓 예매</a>
         <a href="#my" data-route="my">My 예매내역</a>
       </nav>
       <div class="profile-menu">
@@ -102,33 +102,114 @@
         </section>
       </section>
 
-      <section class="page section booking-section" id="booking" data-page="booking">
+      <section class="page section product-page" id="booking" data-page="booking">
         <div class="section-head">
           <div>
             <h2>티켓 예매</h2>
-            <p>처음 판매되는 공식 티켓을 예매하고, 구매 단계에서 구역과 좌석을 선택하세요.</p>
+            <p>공연 상세 정보를 확인한 뒤 구역과 좌석을 선택해 예매합니다.</p>
           </div>
           <div class="mini-summary">
             <span id="summaryUser">-</span>
             <strong id="summaryBalance">-</strong>
           </div>
         </div>
-        <div class="booking-combo">
-          <div>
+        <div class="product-hero">
+          <img src="/assets/neon-stage-hero.png" alt="TIG Live Neon Stage 포스터" />
+          <div class="product-summary">
+            <span class="badge">K-POP · 단독 판매</span>
+            <h3>TIG Live: Neon Stage</h3>
+            <div class="rating-line">
+              <strong>4.8</strong>
+              <span>리뷰 128개 · 예매 만족도 96%</span>
+            </div>
+            <div class="product-facts">
+              <div><span>장소</span><strong>KSPO Dome</strong></div>
+              <div><span>기간</span><strong>2026.09.19</strong></div>
+              <div><span>시간</span><strong>120분</strong></div>
+              <div><span>연령</span><strong>8세 이상</strong></div>
+            </div>
+            <div class="product-tags">
+              <em>단독판매</em>
+              <em>콘서트 랭킹 1위</em>
+              <em>동적 QR</em>
+              <em>공식 양도 가능</em>
+            </div>
+          </div>
+        </div>
+
+        <div class="product-tabs">
+          <a href="#productNotice">공지사항</a>
+          <a href="#productCast">캐스팅</a>
+          <a href="#productDetail">상품상세</a>
+          <a href="#productPrice">가격/할인</a>
+          <a href="#productGuide">이용안내</a>
+          <a href="#productRefund">취소/환불</a>
+          <a href="#productPlace">장소</a>
+        </div>
+
+        <div class="booking-combo primary-booking-layout">
+          <div class="product-detail-stack">
+            <section class="product-info-block" id="productNotice">
+              <h3>필수 확인 사항</h3>
+              <p>예매자는 공연 관람 안내, 관람 연령, 티켓 수령, 취소 및 환불 규정을 확인한 것으로 간주됩니다. 불법 거래와 사설 양도는 보호받을 수 없으며, Ticketground 공식 경로만 이용해주세요.</p>
+            </section>
+            <section class="product-info-block" id="productCast">
+              <h3>캐스팅</h3>
+              <div class="cast-list">
+                <span>MAIN STAGE · TIG</span>
+                <span>VOCAL UNIT · Neon Crew</span>
+                <span>DANCE UNIT · Ground Move</span>
+              </div>
+            </section>
+            <section class="product-info-block" id="productDetail">
+              <h3>상품 상세</h3>
+              <p>강렬한 LED 무대, 팬 라이트 연출, 실시간 QR 입장을 결합한 Ticketground 단독 오픈 콘서트입니다.</p>
+            </section>
+            <section class="product-info-block" id="productPrice">
+              <h3>가격/할인정보</h3>
+              <div class="price-table">
+                <div><span>VIP</span><strong>154,000원</strong></div>
+                <div><span>R석</span><strong>121,000원</strong></div>
+                <div><span>S석</span><strong>99,000원</strong></div>
+              </div>
+            </section>
+            <section class="product-info-block" id="productGuide">
+              <h3>이용안내</h3>
+              <p>관람 3시간 전까지 예매 가능하며, 입장 QR은 공연 당일 앱에서 동적으로 발급됩니다.</p>
+            </section>
+            <section class="product-info-block" id="productRefund">
+              <h3>취소 및 환불 규정</h3>
+              <p>예매 당일 자정 전 취소는 수수료 없이 가능하며, 관람일이 가까워질수록 취소 수수료가 적용됩니다.</p>
+            </section>
+            <section class="product-info-block" id="productPlace">
+              <h3>장소</h3>
+              <p>KSPO Dome · 서울특별시 송파구 올림픽로 424</p>
+            </section>
+          </div>
+          <aside class="booking-widget">
             <div class="sub-head">
-              <h3>정가 예매</h3>
-              <p>공연을 확인한 뒤 구매 단계에서 좌석을 선택합니다.</p>
+              <h3>예매하기</h3>
+              <p>구역과 좌석을 선택해주세요.</p>
             </div>
             <div class="purchase-card" id="ticketGrid"></div>
-          </div>
-          <aside class="resale-side">
-            <div class="sub-head">
-              <h3>공식 양도/재판매</h3>
-              <p>암표 예방을 위해 플랫폼 안에서만 제한적으로 허용됩니다.</p>
-            </div>
-            <a class="plain-link" href="#my" data-route="my">내 티켓 판매하기</a>
-            <div class="resale-list" id="poolList"></div>
           </aside>
+        </div>
+      </section>
+
+      <section class="page section booking-section" id="resale" data-page="resale">
+        <div class="section-head">
+          <div>
+            <h2>공식 재판매 티켓 예매</h2>
+            <p>Ticketground에서 예매된 티켓만 공식 양도/재판매 풀을 통해 안전하게 거래됩니다.</p>
+          </div>
+        </div>
+        <div class="resale-side full">
+          <div class="sub-head">
+            <h3>공식 양도/재판매</h3>
+            <p>암표 예방을 위해 판매자 지정 없이 플랫폼 안에서만 제한적으로 허용됩니다.</p>
+          </div>
+          <a class="plain-link" href="#my" data-route="my">내 티켓 판매하기</a>
+          <div class="resale-list" id="poolList"></div>
         </div>
       </section>
 

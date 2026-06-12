@@ -211,10 +211,8 @@ function renderAccount() {
 }
 
 function setRoute(route, updateHash = true) {
-  const aliases = { resale: "booking" };
-  const wasAlias = Boolean(aliases[route]);
-  const nextRoute = aliases[route] || route;
-  const validRoutes = ["concerts", "booking", "my", "guide"];
+  const nextRoute = route;
+  const validRoutes = ["concerts", "booking", "resale", "my", "guide"];
   appState.route = validRoutes.includes(nextRoute) ? nextRoute : "concerts";
   document.querySelectorAll("[data-page]").forEach((page) => {
     page.classList.toggle("active", page.dataset.page === appState.route);
@@ -224,9 +222,6 @@ function setRoute(route, updateHash = true) {
   });
   if (updateHash && window.location.hash !== `#${appState.route}`) {
     history.pushState(null, "", `#${appState.route}`);
-  }
-  if (!updateHash && wasAlias && window.location.hash !== `#${appState.route}`) {
-    history.replaceState(null, "", `#${appState.route}`);
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -259,7 +254,7 @@ function renderEventCatalog() {
           }
         </div>
       </div>
-      <a class="event-cta" href="#booking" data-route="${item.route}">${item.cta}</a>
+      <a class="event-cta" href="#booking" data-route="booking">${item.cta}</a>
     </div>
   `).join("");
 }
@@ -329,7 +324,7 @@ function renderTickets() {
         <h3>${currentEvent().title}</h3>
         <p>${new Date(currentEvent().date).toLocaleString("ko-KR")} · ${currentEvent().venue}</p>
         <div class="event-stats">${renderStats()}</div>
-        <div class="seat-purchase-row">
+        <div class="seat-purchase-row compact">
           <label>
             구역 선택
             <select id="purchaseZoneSelect">${zoneOptions}</select>
