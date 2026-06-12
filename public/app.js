@@ -8,7 +8,8 @@ const appState = {
   route: "concerts",
   nicknameOverride: "",
   heroIndex: 0,
-  heroTimer: null
+  heroTimer: null,
+  selectedSeatId: ""
 };
 
 const heroSlides = [
@@ -400,17 +401,87 @@ function filteredTickets() {
   });
 }
 
+function currentSelectedTicket(tickets = appState.data.tickets) {
+  return tickets.find((ticket) => ticket.id === appState.selectedSeatId && ticket.status === "ON_SALE");
+}
+
+function ensureSelectedSeat(tickets) {
+  if (!currentSelectedTicket(tickets)) {
+    appState.selectedSeatId = tickets[0]?.id || "";
+  }
+}
+
+function renderSeatMap(tickets) {
+  const zones = currentEvent().zones;
+  const selectedTicket = currentSelectedTicket(tickets);
+  const zoneCards = zones.map((zone) => {
+    const zoneTickets = tickets.filter((ticket) => ticket.zoneId === zone.id);
+    const isActive = selectedTicket?.zoneId === zone.id || (!selectedTicket && appState.activeZone === zone.id);
+    return `
+      <button class="seat-grade ${isActive ? "active" : ""}" type="button" data-seat-zone="${zone.id}">
+        <span>${zone.name}</span>
+        <strong>${fmt.format(zone.faceValue)}원</strong>
+        <em>${zoneTickets.length}석</em>
+      </button>
+    `;
+  }).join("");
+
+  const seatButtons = zones.map((zone) => {
+    const zoneTickets = appState.data.tickets.filter((ticket) => ticket.zoneId === zone.id);
+    return `
+      <div class="seat-zone-row" data-map-zone="${zone.id}">
+        <div class="seat-zone-label">${zone.name}</div>
+        <div class="seat-buttons" aria-label="${zone.name} 좌석">
+          ${zoneTickets.map((ticket) => {
+            const available = ticket.status === "ON_SALE";
+            const selected = ticket.id === appState.selectedSeatId;
+            return `
+              <button
+                class="map-seat ${selected ? "selected" : ""}"
+                type="button"
+                data-seat-id="${ticket.id}"
+                ${available ? "" : "disabled"}
+                aria-pressed="${selected ? "true" : "false"}"
+                aria-label="${ticket.seatLabel} ${available ? "선택 가능" : "선택 불가"}"
+              >${ticket.seatLabel.replace(/[^0-9]/g, "")}</button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const summary = selectedTicket
+    ? `
+      <strong>${selectedTicket.seatLabel}</strong>
+      <span>${zoneById(selectedTicket.zoneId)?.name || ""} · ${fmt.format(selectedTicket.faceValue)}원</span>
+    `
+    : `
+      <strong>선택된 좌석 없음</strong>
+      <span>등급과 좌석을 선택해주세요.</span>
+    `;
+
+  return `
+    <div class="interpark-seat-flow">
+      <div class="seat-grade-list" aria-label="좌석 등급 선택">${zoneCards}</div>
+      <div class="seat-map-panel">
+        <div class="stage-label">STAGE</div>
+        <div class="seat-map" aria-label="좌석 배치도">${seatButtons}</div>
+      </div>
+      <div class="selected-seat-panel">
+        <div>
+          <span>선택 좌석</span>
+          ${summary}
+        </div>
+        <button data-buy-selected="true" ${selectedTicket ? "" : "disabled"}>예매하기</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderTickets() {
   const tickets = filteredTickets().filter((ticket) => ticket.status === "ON_SALE");
-  const zoneOptions = currentEvent().zones.map((zone) => {
-    const availableCount = tickets.filter((ticket) => ticket.zoneId === zone.id).length;
-    return `<option value="${zone.id}" ${availableCount ? "" : "disabled"}>${zone.name} · ${fmt.format(zone.faceValue)}원 · ${availableCount}석</option>`;
-  }).join("");
-  const seatOptions = tickets.map((ticket) => `
-    <option value="${ticket.id}" data-zone="${ticket.zoneId}">
-      ${ticket.seatLabel} · ${fmt.format(ticket.faceValue)}원
-    </option>
-  `).join("");
+  ensureSelectedSeat(tickets);
 
   $("#ticketGrid").innerHTML = `
     <article class="purchase-event">
@@ -420,21 +491,10 @@ function renderTickets() {
         <h3>${currentEvent().title}</h3>
         <p>${new Date(currentEvent().date).toLocaleString("ko-KR")} · ${currentEvent().venue}</p>
         <div class="event-stats">${renderStats()}</div>
-        <div class="seat-purchase-row compact">
-          <label>
-            구역 선택
-            <select id="purchaseZoneSelect">${zoneOptions}</select>
-          </label>
-          <label>
-            좌석 선택
-            <select id="purchaseSeatSelect">${seatOptions || `<option value="">예매 가능한 좌석 없음</option>`}</select>
-          </label>
-          <button data-buy-selected="true" ${seatOptions ? "" : "disabled"}>예매하기</button>
-        </div>
+        ${renderSeatMap(tickets)}
       </div>
     </article>
   `;
-  syncPurchaseSeats();
 }
 
 function renderSearchResults() {
@@ -582,21 +642,6 @@ async function buyTicket(ticketId) {
   await refresh();
 }
 
-function syncPurchaseSeats() {
-  const zoneSelect = $("#purchaseZoneSelect");
-  const seatSelect = $("#purchaseSeatSelect");
-  if (!zoneSelect || !seatSelect) return;
-  const selectedZone = zoneSelect.value;
-  let firstVisible = "";
-  [...seatSelect.options].forEach((option) => {
-    const isVisible = !option.value || option.dataset.zone === selectedZone;
-    option.hidden = !isVisible;
-    option.disabled = !isVisible;
-    if (isVisible && option.value && !firstVisible) firstVisible = option.value;
-  });
-  if (firstVisible) seatSelect.value = firstVisible;
-}
-
 async function listForResale() {
   const ticketId = $("#sellTicketSelect").value;
   const price = Number($("#sellPriceInput").value);
@@ -658,6 +703,8 @@ document.addEventListener("click", async (event) => {
   const profileButton = target.closest("#profileButton");
   const profileMenu = target.closest(".profile-menu");
   const routeLink = target.closest("[data-route]");
+  const seatZoneButton = target.closest("[data-seat-zone]");
+  const seatButton = target.closest("[data-seat-id]");
 
   if (profileButton) {
     toggleProfile();
@@ -676,14 +723,32 @@ document.addEventListener("click", async (event) => {
     setHeroSlide(appState.heroIndex + Number(target.dataset.heroDir));
     return;
   }
-  if (target.dataset.heroIndex) {
-    setHeroSlide(Number(target.dataset.heroIndex));
-    return;
-  }
+    if (target.dataset.heroIndex) {
+      setHeroSlide(Number(target.dataset.heroIndex));
+      return;
+    }
+    if (seatZoneButton) {
+      appState.activeZone = seatZoneButton.dataset.seatZone;
+      const firstSeat = appState.data.tickets.find((ticket) => ticket.zoneId === appState.activeZone && ticket.status === "ON_SALE");
+      appState.selectedSeatId = firstSeat?.id || "";
+      renderZoneTabs();
+      renderTickets();
+      return;
+    }
+    if (seatButton) {
+      appState.selectedSeatId = seatButton.dataset.seatId;
+      const selectedTicket = appState.data.tickets.find((ticket) => ticket.id === appState.selectedSeatId);
+      if (selectedTicket) appState.activeZone = selectedTicket.zoneId;
+      renderZoneTabs();
+      renderTickets();
+      return;
+    }
 
   try {
     if (target.dataset.zone) {
       appState.activeZone = target.dataset.zone;
+      const firstSeat = filteredTickets().find((ticket) => ticket.status === "ON_SALE");
+      appState.selectedSeatId = firstSeat?.id || "";
       renderZoneTabs();
       renderTickets();
       renderSearchResults();
@@ -710,7 +775,7 @@ document.addEventListener("click", async (event) => {
     }
     if (target.dataset.buy) await buyTicket(target.dataset.buy);
     if (target.dataset.buySelected) {
-      const seatId = $("#purchaseSeatSelect")?.value;
+      const seatId = appState.selectedSeatId;
       if (!seatId) {
         toast("예매할 좌석을 선택해주세요.");
       } else {
@@ -744,9 +809,6 @@ $("#sellTicketSelect").addEventListener("change", () => {
 
 $("#sellBtn").addEventListener("click", () => listForResale().catch((error) => toast(error.message)));
 $("#verifyQrBtn").addEventListener("click", () => verifyQr().catch((error) => toast(error.message)));
-document.addEventListener("change", (event) => {
-  if (event.target.id === "purchaseZoneSelect") syncPurchaseSeats();
-});
 $("#searchBtn").addEventListener("click", () => {
   appState.query = $("#searchInput").value;
   appState.searchActive = true;

@@ -936,6 +936,158 @@ p {
   font-weight: 900;
 }
 
+.interpark-seat-flow {
+  display: grid;
+  gap: 14px;
+}
+
+.seat-grade-list {
+  display: grid;
+  gap: 8px;
+}
+
+.seat-grade {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: #fff;
+  text-align: left;
+  box-shadow: none;
+}
+
+.seat-grade span {
+  font-weight: 950;
+}
+
+.seat-grade strong {
+  justify-self: end;
+  font-size: 13px;
+}
+
+.seat-grade em {
+  grid-column: 1 / -1;
+  color: var(--sub);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.seat-grade.active,
+.seat-grade:hover {
+  border-color: #d9b800;
+  background: var(--tig);
+}
+
+.seat-map-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, #fffdf5, #ffffff);
+}
+
+.stage-label {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border-radius: 999px;
+  color: #fff;
+  background: #171717;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.seat-map {
+  display: grid;
+  gap: 11px;
+}
+
+.seat-zone-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.seat-zone-label {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.seat-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(34px, 1fr));
+  gap: 7px;
+}
+
+.map-seat {
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid #d7dce4;
+  border-radius: 8px;
+  color: #171717;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow: none;
+}
+
+.map-seat:hover:not(:disabled) {
+  border-color: #171717;
+  background: #e5f6ff;
+}
+
+.map-seat.selected {
+  border-color: #171717;
+  color: #171717;
+  background: var(--tig);
+  box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.28);
+}
+
+.map-seat:disabled {
+  color: #a3a8b0;
+  background: #edf0f3;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.selected-seat-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #f1df8b;
+  border-radius: 12px;
+  background: #fffaf0;
+}
+
+.selected-seat-panel div {
+  display: grid;
+  gap: 3px;
+}
+
+.selected-seat-panel span {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.selected-seat-panel strong {
+  overflow-wrap: anywhere;
+}
+
 .seat-card,
 .resale-card,
 .myticket-card,
@@ -2081,5 +2233,77 @@ h3 {
 
   .hero-dot.active {
     width: 26px;
+  }
+}
+
+/* Interpark-style primary seat picker */
+.interpark-seat-flow {
+  gap: var(--space-4);
+}
+
+.seat-grade,
+.seat-map-panel,
+.selected-seat-panel {
+  border-color: var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.seat-grade {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.seat-grade.active,
+.seat-grade:hover {
+  border-color: transparent;
+  background: var(--color-accent-primary);
+}
+
+.seat-map-panel {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(0, 170, 255, 0.12), transparent 34%),
+    linear-gradient(180deg, #ffffff, #fffaf0);
+}
+
+.stage-label {
+  min-height: 38px;
+  background:
+    linear-gradient(90deg, #111111, #303030 48%, #111111);
+}
+
+.map-seat {
+  border-color: var(--color-border-subtle);
+}
+
+.map-seat:hover:not(:disabled) {
+  border-color: var(--color-accent-blue);
+  background: var(--color-surface-tint);
+}
+
+.map-seat.selected {
+  border-color: var(--color-surface-base);
+  background: var(--color-accent-primary);
+}
+
+.selected-seat-panel {
+  background:
+    linear-gradient(135deg, #fff8d8, #ffffff);
+}
+
+@media (max-width: 640px) {
+  .seat-zone-row,
+  .selected-seat-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .seat-zone-label {
+    text-align: left;
+  }
+
+  .seat-buttons {
+    grid-template-columns: repeat(4, minmax(36px, 1fr));
+  }
+
+  .selected-seat-panel button {
+    width: 100%;
   }
 }
