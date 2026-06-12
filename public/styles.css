@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap");
 
 :root {
   --ink: #171717;
@@ -1257,5 +1257,142 @@ p {
     left: 0;
     right: auto;
     width: min(300px, calc(100vw - 36px));
+  }
+}
+
+/* Editorial polish inspired by Sublime: softer surfaces, generous spacing, curated cards. */
+:root {
+  --ink: #1d1a14;
+  --sub: #71685a;
+  --line: #e5dccb;
+  --paper: #f6f0df;
+  --shadow: 0 18px 44px rgba(57, 44, 25, 0.13);
+  --soft-shadow: 0 8px 22px rgba(57, 44, 25, 0.09);
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(255, 212, 0, 0.26), transparent 25%),
+    radial-gradient(circle at 86% 10%, rgba(22, 156, 183, 0.13), transparent 24%),
+    linear-gradient(180deg, #fff8d8 0%, var(--paper) 390px, #fbfaf5 100%);
+}
+
+.site-header {
+  background: rgba(250, 247, 238, 0.9);
+  border-bottom-color: rgba(229, 220, 203, 0.78);
+  box-shadow: none;
+}
+
+.brand,
+h1,
+h2,
+h3 {
+  font-family: "Fraunces", "Noto Sans KR", serif;
+}
+
+.brand {
+  font-size: 21px;
+}
+
+.main-nav a {
+  border-radius: 999px;
+}
+
+.main-nav a:hover {
+  background: rgba(255, 212, 0, 0.28);
+}
+
+.hero {
+  width: min(1180px, calc(100% - 48px));
+  min-height: 620px;
+  margin: 22px auto 0;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.hero h1 {
+  max-width: 860px;
+  font-size: clamp(48px, 7vw, 92px);
+  line-height: 0.98;
+}
+
+.hero-content {
+  width: min(1060px, calc(100% - 48px));
+}
+
+.search-band,
+.search-results,
+.booking-section,
+.product-hero,
+.product-info-block,
+.booking-widget,
+.resale-side,
+.event-card,
+.discovery-card,
+.seat-card,
+.resale-card,
+.myticket-card,
+.my-panel,
+.guide-grid article {
+  border-color: rgba(229, 220, 203, 0.92);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.search-band {
+  margin-top: 28px;
+  padding: 18px;
+}
+
+.section {
+  margin-top: 72px;
+  margin-bottom: 72px;
+}
+
+h2 {
+  font-size: clamp(30px, 4vw, 48px);
+}
+
+.event-card,
+.discovery-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.event-card:hover {
+  transform: translateY(-4px) rotate(-0.25deg);
+}
+
+.discovery-card:hover {
+  transform: translateY(-4px) rotate(0.35deg);
+}
+
+.event-card img,
+.discovery-card img,
+.product-hero > img,
+.purchase-event img {
+  border-radius: 16px;
+}
+
+.category-tab,
+.product-tabs,
+.eyebrow,
+.badge {
+  border-radius: 999px;
+}
+
+.product-tabs {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.my-section {
+  border-radius: 26px;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    width: min(100% - 28px, 1180px);
+    min-height: 560px;
   }
 }
