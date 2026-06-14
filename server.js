@@ -7,9 +7,11 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, "public");
+const adminDir = path.join(__dirname, "admin");
 const dataDir = path.join(__dirname, "data");
 const dbPath = path.join(dataDir, "db.json");
 const PORT = Number(process.env.PORT || 4173);
+const ADMIN_PORT = Number(process.env.ADMIN_PORT || 50084);
 const SECRET = process.env.TIG_SECRET || "local-dev-secret-change-me";
 
 const MIME = {
@@ -17,8 +19,41 @@ const MIME = {
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml"
+  ".svg": "image/svg+xml",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png"
 };
+
+const VENUES = [
+  {
+    id: "jamsil-indoor",
+    name: "잠실 실내체육관",
+    category: "concert",
+    mapId: "jamsil-indoor",
+    mapTitle: "잠실 실내체육관 도면",
+    mapImage: "/admin-assets/jamsil-indoor.svg",
+    description: "원형 실내 공연장 좌석 배치도입니다."
+  },
+  {
+    id: "jamsil-main-stadium",
+    name: "잠실 올림픽주경기장",
+    category: "sports",
+    mapId: "jamsil-main-stadium",
+    mapTitle: "잠실 올림픽주경기장 도면",
+    mapImage: "/admin-assets/jamsil-main-stadium.svg",
+    description: "대형 경기장형 관람석 배치도입니다."
+  },
+  {
+    id: "jamsil-aux-field",
+    name: "잠실 보조 경기장",
+    category: "festival",
+    mapId: "jamsil-aux-field",
+    mapTitle: "잠실 보조 경기장 도면",
+    mapImage: "/admin-assets/jamsil-aux-field.svg",
+    description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치도입니다."
+  }
+];
 
 function now() {
   return new Date().toISOString();
@@ -99,7 +134,8 @@ function seedDb() {
       {
         id: "event_kpop_001",
         title: "TIG Live: Neon Stage",
-        venue: "KSPO Dome",
+        venue: "잠실 실내체육관",
+        venueId: "jamsil-indoor",
         date: "2026-09-19T19:00:00+09:00",
         organizer: "TIG Entertainment",
         zones: [
@@ -194,6 +230,163 @@ function eventZone(db, eventId, zoneId) {
   const zone = event.zones.find((item) => item.id === zoneId);
   if (!zone) throw httpError(404, "ZONE_NOT_FOUND", "구역을 찾을 수 없습니다.");
   return { event, zone };
+}
+
+function venueById(venueId) {
+  const venue = VENUES.find((item) => item.id === venueId);
+  if (!venue) throw httpError(404, "VENUE_NOT_FOUND", "공연장을 찾을 수 없습니다.");
+  return venue;
+}
+
+function resolveEventVenue(event) {
+  return venueById(event.venueId || "jamsil-indoor");
+}
+
+function adminVenues(db) {
+  const event = db.events[0];
+  if (event && !event.venueId) {
+    event.venueId = "jamsil-indoor";
+    event.venue = "잠실 실내체육관";
+  }
+  return {
+    venues: VENUES.map(({ id, name, category, mapId, mapTitle }) => ({ id, name, category, mapId, mapTitle })),
+    event
+  };
+}
+
+function updateEventVenue(db, { eventId, venueId }) {
+  const event = db.events.find((item) => item.id === eventId) || db.events[0];
+  if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
+  const venue = venueById(venueId);
+  event.venueId = venue.id;
+  event.venue = venue.name;
+  appendLedger(db, "SYSTEM", "EVENT_VENUE_UPDATED", {
+    eventId: event.id,
+    venueId: venue.id,
+    venueName: venue.name,
+    mapId: venue.mapId
+  });
+  return { event, venue };
+}
+
+function adminSummary(db) {
+  const ledgerCheck = verifyLedger(db);
+  const openPools = db.resalePools.filter((pool) => pool.status === "OPEN");
+  const watchUsers = db.users.filter((user) => user.status === "WATCHLIST" || user.trustScore < 50);
+  return {
+    stats: {
+      totalTickets: db.tickets.length,
+      onSaleTickets: db.tickets.filter((ticket) => ticket.status === "ON_SALE").length,
+      ownedTickets: db.tickets.filter((ticket) => ticket.status === "OWNED").length,
+      resalePools: openPools.length,
+      watchUsers: watchUsers.length,
+      ledgerEntries: db.ledger.length,
+      ledgerVerified: ledgerCheck.ok
+    },
+    event: db.events[0],
+    users: db.users,
+    tickets: db.tickets,
+    resalePools: db.resalePools,
+    ledger: db.ledger.slice(-12).reverse(),
+    ledgerCheck
+  };
+}
+
+function updateUserStatus(db, { userId, status, reason }) {
+  const allowed = ["ACTIVE", "WATCHLIST", "BANNED"];
+  if (!allowed.includes(status)) {
+    throw httpError(422, "INVALID_USER_STATUS", "지원하지 않는 계정 상태입니다.");
+  }
+  const user = db.users.find((item) => item.id === userId);
+  if (!user) throw httpError(404, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.");
+  user.status = status;
+  if (status === "WATCHLIST") user.trustScore = Math.min(user.trustScore, 39);
+  if (status === "BANNED") user.trustScore = Math.min(user.trustScore, 10);
+  user.sanctions.push({
+    id: id("sanction"),
+    reason: reason || `운영자 계정 상태 변경: ${status}`,
+    penalty: `status-${status.toLowerCase()}`,
+    at: now()
+  });
+  appendLedger(db, "SYSTEM", "USER_STATUS_UPDATED", {
+    userId: user.id,
+    status,
+    reason: reason || "operator-review"
+  });
+  return user;
+}
+
+function updateTicketStatus(db, { ticketId, status }) {
+  const allowed = ["ON_SALE", "ADMIN_HOLD"];
+  if (!allowed.includes(status)) {
+    throw httpError(422, "INVALID_TICKET_STATUS", "지원하지 않는 티켓 상태입니다.");
+  }
+  const ticket = db.tickets.find((item) => item.id === ticketId);
+  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
+  if (ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status)) {
+    throw httpError(409, "TICKET_LOCKED", "소유자 또는 거래 상태가 있는 티켓은 재고 상태만 변경할 수 없습니다.");
+  }
+  ticket.status = status;
+  appendLedger(db, "SYSTEM", "TICKET_STATUS_UPDATED", {
+    ticketId: ticket.id,
+    status,
+    policy: "operator-inventory-control"
+  });
+  return ticket;
+}
+
+function seatMap(db, { category, venueId }) {
+  const event = db.events[0];
+  const venue = venueId ? venueById(venueId) : resolveEventVenue(event);
+  const zones = event.zones.map((zone) => ({
+    id: zone.id,
+    name: zone.name,
+    price: zone.faceValue,
+    available: db.tickets.filter((ticket) => ticket.zoneId === zone.id && ticket.status === "ON_SALE").length
+  }));
+  const seats = db.tickets.map((ticket, index) => {
+    const zone = event.zones.find((item) => item.id === ticket.zoneId);
+    const angle = (index / Math.max(db.tickets.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    const radius = ticket.zoneId === "zone_vip" ? 28 : ticket.zoneId === "zone_r" ? 35 : 42;
+    return {
+      id: ticket.id,
+      label: ticket.seatLabel.replace(/^.*-/, ""),
+      displayCode: ticket.seatLabel.replace(/^.*-/, ""),
+      zoneId: ticket.zoneId,
+      zoneName: zone?.name || ticket.zoneId,
+      price: ticket.faceValue,
+      status: ticket.status,
+      available: ticket.status === "ON_SALE",
+      mapPosition: {
+        x: Number((50 + Math.cos(angle) * radius).toFixed(1)),
+        y: Number((52 + Math.sin(angle) * radius * 0.82).toFixed(1)),
+        width: 5.4,
+        height: 7.2,
+        rotate: Math.round((angle * 180) / Math.PI + 90),
+        shape: "actual-map"
+      }
+    };
+  });
+  return {
+    category: category || venue.category,
+    date: "",
+    event: {
+      id: event.id,
+      title: event.title,
+      venueId: venue.id,
+      venue: venue.name,
+      originalVenue: venue.name
+    },
+    map: {
+      id: venue.mapId,
+      venue: venue.name,
+      title: venue.mapTitle,
+      image: venue.mapImage,
+      description: venue.description
+    },
+    zones,
+    seats
+  };
 }
 
 function httpError(status, code, message, detail = {}) {
@@ -412,6 +605,14 @@ async function handleApi(req, res, db) {
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/ledger/verify") return verifyLedger(db);
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
+  if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
+  if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
+  if (req.method === "GET" && url.pathname === "/api/seat-map") {
+    return seatMap(db, {
+      category: url.searchParams.get("category"),
+      venueId: url.searchParams.get("venueId")
+    });
+  }
 
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
@@ -441,24 +642,35 @@ async function handleApi(req, res, db) {
     requireBody(body, ["ticketId", "ownerId", "expiresAt", "nonce", "signature"]);
     return verifyQr(db, body);
   }
+  if (req.method === "POST" && url.pathname === "/api/admin/events/venue") {
+    requireBody(body, ["eventId", "venueId"]);
+    return updateEventVenue(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/users/status") {
+    requireBody(body, ["userId", "status"]);
+    return updateUserStatus(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/tickets/status") {
+    requireBody(body, ["ticketId", "status"]);
+    return updateTicketStatus(db, body);
+  }
 
   throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
 }
 
-async function serveStatic(req, res) {
+async function serveStatic(req, res, rootDir, fallback = "/index.html") {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const requested = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+  const requested = url.pathname === "/" ? fallback : decodeURIComponent(url.pathname);
   const safePath = path.normalize(requested).replace(/^(\.\.[/\\])+/, "");
-  const filePath = path.join(publicDir, safePath);
-  if (!filePath.startsWith(publicDir)) throw httpError(403, "FORBIDDEN", "잘못된 경로입니다.");
+  const filePath = path.join(rootDir, safePath);
+  if (!filePath.startsWith(rootDir)) throw httpError(403, "FORBIDDEN", "잘못된 경로입니다.");
+  if (!existsSync(filePath)) throw httpError(404, "NOT_FOUND", "요청한 파일이 없습니다.");
   const file = await readFile(filePath);
   res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
   res.end(file);
 }
 
-const db = await loadDb();
-
-http.createServer(async (req, res) => {
+async function handleRequest(req, res, db, staticDir, fallback) {
   try {
     if (req.url.startsWith("/api/")) {
       const result = await handleApi(req, res, db);
@@ -467,7 +679,7 @@ http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true, data: result }, null, 2));
       return;
     }
-    await serveStatic(req, res);
+    await serveStatic(req, res, staticDir, fallback);
   } catch (error) {
     const status = error.status || 500;
     if (!req.url.startsWith("/api/") && status === 404) {
@@ -485,6 +697,18 @@ http.createServer(async (req, res) => {
       }
     }, null, 2));
   }
+}
+
+const db = await loadDb();
+
+http.createServer((req, res) => {
+  handleRequest(req, res, db, publicDir, "/index.html");
 }).listen(PORT, () => {
   console.log(`Ticketground MVP running at http://localhost:${PORT}`);
+});
+
+http.createServer((req, res) => {
+  handleRequest(req, res, db, adminDir, "/admin.html");
+}).listen(ADMIN_PORT, () => {
+  console.log(`Ticketground console running at http://localhost:${ADMIN_PORT}`);
 });

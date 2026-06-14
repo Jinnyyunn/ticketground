@@ -10,6 +10,8 @@ const appState = {
   nicknameOverride: "",
   heroIndex: 0,
   heroTimer: null,
+  selectedPerformanceDate: "",
+  bookingStarted: false,
   selectedSeatId: "",
   paymentMethod: "BALANCE"
 };
@@ -271,6 +273,83 @@ function currentEvent() {
   return appState.data.events[0];
 }
 
+function eventDateKey() {
+  return currentEvent().date.slice(0, 10);
+}
+
+function selectedBookingDate() {
+  return appState.selectedPerformanceDate || eventDateKey();
+}
+
+function bookingMonthDates() {
+  const eventDate = new Date(`${eventDateKey()}T00:00:00+09:00`);
+  const year = eventDate.getFullYear();
+  const month = eventDate.getMonth();
+  const first = new Date(year, month, 1);
+  const start = new Date(first);
+  start.setDate(first.getDate() - first.getDay());
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function renderBookingCalendar() {
+  const eventKey = eventDateKey();
+  const selectedKey = selectedBookingDate();
+  const eventDate = new Date(`${eventKey}T00:00:00+09:00`);
+  const weekday = ["일", "월", "화", "수", "목", "금", "토"];
+  const dates = bookingMonthDates();
+  return `
+    <section class="booking-date-panel">
+      <div class="booking-date-head">
+        <div>
+          <strong>01 관람일 선택</strong>
+          <span>${eventDate.getFullYear()}년 ${eventDate.getMonth() + 1}월</span>
+        </div>
+        <em>${currentEvent().venue}</em>
+      </div>
+      <div class="booking-weekdays" aria-hidden="true">
+        ${weekday.map((day) => `<span>${day}</span>`).join("")}
+      </div>
+      <div class="booking-calendar" aria-label="예매 날짜 선택">
+        ${dates.map((date) => {
+          const key = dateKey(date);
+          const isEventDate = key === eventKey;
+          const isCurrentMonth = date.getMonth() === eventDate.getMonth();
+          const classes = [
+            "date-cell",
+            isCurrentMonth ? "" : "outside",
+            isEventDate ? "available" : "disabled",
+            key === selectedKey ? "selected" : ""
+          ].filter(Boolean).join(" ");
+          return `
+            <button
+              class="${classes}"
+              type="button"
+              data-booking-date="${isEventDate ? key : ""}"
+              ${isEventDate ? "" : "disabled"}
+              aria-pressed="${key === selectedKey ? "true" : "false"}"
+            >${date.getDate()}</button>
+          `;
+        }).join("")}
+      </div>
+      <div class="booking-date-footer">
+        <div>
+          <span>선택 관람일</span>
+          <strong>${selectedKey} ${new Date(`${selectedKey}T00:00:00+09:00`).toLocaleDateString("ko-KR", { weekday: "short" })}</strong>
+        </div>
+        <button type="button" data-start-booking="true">${appState.bookingStarted ? "예매일 다시 선택" : "예매하기"}</button>
+      </div>
+    </section>
+  `;
+}
+
 function zoneById(zoneId) {
   return currentEvent().zones.find((zone) => zone.id === zoneId);
 }
@@ -349,6 +428,24 @@ function renderStats() {
   ].map((text) => `<span class="stat-pill">${text}</span>`).join("");
 }
 
+function renderProductDetails() {
+  const event = currentEvent();
+  const eventDate = new Date(event.date);
+  $("#productVenue").textContent = event.venue;
+  $("#productDate").textContent = eventDate.toLocaleDateString("ko-KR");
+  $("#productPlaceCopy").textContent = `${event.venue} · 관리자 콘솔에서 연결된 공연장 좌석도 기준`;
+  for (const zone of event.zones) {
+    const target = zone.id === "zone_vip"
+      ? $("#productVipPrice")
+      : zone.id === "zone_r"
+        ? $("#productRPrice")
+        : zone.id === "zone_s"
+          ? $("#productSPrice")
+          : null;
+    if (target) target.textContent = `${fmt.format(zone.faceValue)}원`;
+  }
+}
+
 function renderEventCatalog() {
   const events = categoryEvents[appState.activeCategory] || categoryEvents.concert;
   $("#eventCatalog").innerHTML = events.map((item, index) => `
@@ -421,7 +518,7 @@ function currentSelectedTicket(tickets = appState.data.tickets) {
 
 function ensureSelectedSeat(tickets) {
   if (!currentSelectedTicket(tickets)) {
-    appState.selectedSeatId = tickets[0]?.id || "";
+    appState.selectedSeatId = "";
   }
 }
 
@@ -543,9 +640,10 @@ function renderSeatMap(tickets) {
     const isActive = selectedTicket?.zoneId === zone.id || (!selectedTicket && appState.activeZone === zone.id);
     return `
       <button class="seat-grade ${isActive ? "active" : ""}" type="button" data-seat-zone="${zone.id}">
+        <i class="seat-grade-swatch zone-${zone.id}" aria-hidden="true"></i>
         <span>${zone.name}</span>
-        <strong>${fmt.format(zone.faceValue)}원</strong>
         <em>${zoneTickets.length}석</em>
+        <strong>${fmt.format(zone.faceValue)}원</strong>
       </button>
     `;
   }).join("");
@@ -577,24 +675,35 @@ function renderSeatMap(tickets) {
 
   const summary = selectedTicket
     ? `
-      <strong>${selectedTicket.seatLabel}</strong>
-      <span>${zoneById(selectedTicket.zoneId)?.name || ""} · ${fmt.format(selectedTicket.faceValue)}원</span>
+      <span class="selected-count">총 1석 선택되었습니다.</span>
+      <div class="selected-seat-table">
+        <div><span>좌석등급</span><strong>${zoneById(selectedTicket.zoneId)?.name || ""}</strong></div>
+        <div><span>좌석번호</span><strong>${selectedTicket.seatLabel}</strong></div>
+      </div>
+      <strong class="selected-price">${fmt.format(selectedTicket.faceValue)}원</strong>
     `
     : `
-      <strong>선택된 좌석 없음</strong>
-      <span>등급과 좌석을 선택해주세요.</span>
+      <span class="selected-count">총 0석 선택되었습니다.</span>
+      <div class="selected-seat-table">
+        <div><span>좌석등급</span><strong>-</strong></div>
+        <div><span>좌석번호</span><strong>좌석을 선택해주세요</strong></div>
+      </div>
+      <strong class="selected-price">좌석을 선택하면 가격이 표시됩니다.</strong>
     `;
 
   return `
     <div class="interpark-seat-flow">
-      <div class="seat-grade-list" aria-label="좌석 등급 선택">${zoneCards}</div>
+      <div class="seat-step-banner">
+        <strong>02 좌석 선택</strong>
+        <span>${currentEvent().title} · ${new Date(currentEvent().date).toLocaleDateString("ko-KR")} · ${currentEvent().venue}</span>
+      </div>
       <div class="seat-map-panel">
         <div class="seat-map-head">
           <div>
             <strong>${venueMap.venue}</strong>
             <span>${venueMap.helper}</span>
           </div>
-          <em>좌석 클릭 시 바로 예매</em>
+          <em>좌석 클릭 후 우측에서 선택을 완료하세요.</em>
         </div>
         <div class="venue-map-canvas ${venueMap.type}" aria-label="${venueMap.helper}">
           <div class="stage-label">${venueMap.stage}</div>
@@ -604,14 +713,28 @@ function renderSeatMap(tickets) {
         </div>
       </div>
       <div class="selected-seat-panel">
-        <div>
-          <span>선택 좌석</span>
+        <div class="seat-side-title">
+          <strong>좌석도 전체보기</strong>
+          <span>원하시는 좌석위치를 선택하세요</span>
+        </div>
+        <div class="seat-grade-head">
+          <strong>좌석등급 / 잔여석</strong>
+          <button type="button" class="mini-price-button" data-price-summary="true">가격 전체보기</button>
+        </div>
+        <div class="seat-grade-list" aria-label="좌석 등급 선택">${zoneCards}</div>
+        <div class="selected-seat-head">
+          <strong>선택좌석</strong>
           ${summary}
         </div>
         <div class="payment-methods" aria-label="결제수단 선택">
           ${renderPaymentMethods()}
         </div>
-        <button data-buy-selected="true" ${selectedTicket ? "" : "disabled"}>${selectedPaymentActionLabel()} 예매</button>
+        <button data-buy-selected="true" ${selectedTicket ? "" : "disabled"}>좌석선택완료</button>
+        <div class="seat-flow-actions">
+          <button type="button" class="secondary" data-previous-booking-step="true">이전단계</button>
+          <button type="button" class="secondary" data-reset-seat="true">좌석 다시 선택</button>
+        </div>
+        <button type="button" class="seat-caution-button" data-seat-caution="true">좌석 선택시 유의사항</button>
       </div>
     </div>
   `;
@@ -620,6 +743,14 @@ function renderSeatMap(tickets) {
 function renderTickets() {
   const tickets = filteredTickets().filter((ticket) => ticket.status === "ON_SALE");
   ensureSelectedSeat(tickets);
+  const seatStep = appState.bookingStarted
+    ? renderSeatMap(tickets)
+    : `
+      <div class="booking-standby">
+        <strong>관람일 선택 후 예매하기를 눌러주세요.</strong>
+        <span>좌석 선택과 결제는 다음 단계에서 진행됩니다.</span>
+      </div>
+    `;
 
   $("#ticketGrid").innerHTML = `
     <article class="purchase-event">
@@ -629,7 +760,8 @@ function renderTickets() {
         <h3>${currentEvent().title}</h3>
         <p>${new Date(currentEvent().date).toLocaleString("ko-KR")} · ${currentEvent().venue}</p>
         <div class="event-stats">${renderStats()}</div>
-        ${renderSeatMap(tickets)}
+        ${renderBookingCalendar()}
+        ${seatStep}
       </div>
     </article>
   `;
@@ -763,6 +895,7 @@ async function refresh() {
   renderAccount();
   renderHero();
   startHeroTimer();
+  renderProductDetails();
   renderEventCatalog();
   renderDiscoverySections();
   renderZoneTabs();
@@ -851,6 +984,7 @@ document.addEventListener("click", async (event) => {
   const seatZoneButton = target.closest("[data-seat-zone]");
   const seatButton = target.closest("[data-seat-id]");
   const paymentButton = target.closest("[data-payment-method]");
+  const bookingDateButton = target.closest("[data-booking-date]");
 
   if (profileButton) {
     toggleProfile();
@@ -875,6 +1009,20 @@ document.addEventListener("click", async (event) => {
     renderTickets();
     return;
   }
+  if (bookingDateButton?.dataset.bookingDate) {
+    appState.selectedPerformanceDate = bookingDateButton.dataset.bookingDate;
+    appState.bookingStarted = false;
+    appState.selectedSeatId = "";
+    renderTickets();
+    return;
+  }
+  if (target.dataset.startBooking) {
+    appState.selectedPerformanceDate = selectedBookingDate();
+    appState.bookingStarted = !appState.bookingStarted;
+    appState.selectedSeatId = "";
+    renderTickets();
+    return;
+  }
   if (target.dataset.heroDir) {
     setHeroSlide(appState.heroIndex + Number(target.dataset.heroDir));
     return;
@@ -885,8 +1033,7 @@ document.addEventListener("click", async (event) => {
     }
     if (seatZoneButton) {
       appState.activeZone = seatZoneButton.dataset.seatZone;
-      const firstSeat = appState.data.tickets.find((ticket) => ticket.zoneId === appState.activeZone && ticket.status === "ON_SALE");
-      appState.selectedSeatId = firstSeat?.id || "";
+      appState.selectedSeatId = "";
       renderZoneTabs();
       renderTickets();
       return;
@@ -897,20 +1044,13 @@ document.addEventListener("click", async (event) => {
       if (selectedTicket) appState.activeZone = selectedTicket.zoneId;
       renderZoneTabs();
       renderTickets();
-      try {
-        await buyTicket(appState.selectedSeatId);
-      } catch (error) {
-        toast(error.message);
-        renderTickets();
-      }
       return;
     }
 
   try {
     if (target.dataset.zone) {
       appState.activeZone = target.dataset.zone;
-      const firstSeat = filteredTickets().find((ticket) => ticket.status === "ON_SALE");
-      appState.selectedSeatId = firstSeat?.id || "";
+      appState.selectedSeatId = "";
       renderZoneTabs();
       renderTickets();
       renderSearchResults();
@@ -927,6 +1067,25 @@ document.addEventListener("click", async (event) => {
       setRoute("concerts");
       $("#searchResults").scrollIntoView({ behavior: "smooth", block: "start" });
     }
+    if (target.dataset.resetSeat) {
+      appState.selectedSeatId = "";
+      renderTickets();
+      return;
+    }
+    if (target.dataset.previousBookingStep) {
+      appState.bookingStarted = false;
+      appState.selectedSeatId = "";
+      renderTickets();
+      return;
+    }
+    if (target.dataset.priceSummary) {
+      toast("좌석 등급별 잔여석과 가격을 확인해주세요.");
+      return;
+    }
+    if (target.dataset.seatCaution) {
+      toast("좌석은 선택 후 좌석선택완료 버튼을 눌러야 예매가 진행됩니다.");
+      return;
+    }
     const categoryButton = target.closest("[data-category]");
     if (categoryButton) {
       appState.activeCategory = categoryButton.dataset.category;
@@ -938,7 +1097,9 @@ document.addEventListener("click", async (event) => {
     if (target.dataset.buy) await buyTicket(target.dataset.buy);
     if (target.dataset.buySelected) {
       const seatId = appState.selectedSeatId;
-      if (!seatId) {
+      if (!appState.bookingStarted) {
+        toast("예매하기 버튼을 먼저 눌러 좌석 선택 단계로 이동해주세요.");
+      } else if (!seatId) {
         toast("예매할 좌석을 선택해주세요.");
       } else {
         await buyTicket(seatId);

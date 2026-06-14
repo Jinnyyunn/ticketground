@@ -1,0 +1,410 @@
+:root {
+  --ink: #161719;
+  --sub: #626a76;
+  --line: #d9dee7;
+  --panel: #ffffff;
+  --paper: #eef2f6;
+  --red: #d72822;
+  --blue: #0f6fb5;
+  --yellow: #ffd84a;
+  --green: #127a49;
+  font-family: Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.admin-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.admin-header span {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.admin-header h1,
+.admin-header p,
+.panel-head h2,
+.panel-head p {
+  margin: 0;
+}
+
+.admin-header h1 {
+  margin-top: 4px;
+  font-size: 30px;
+}
+
+.admin-header p,
+.panel-head p,
+.status-copy,
+.event-summary span,
+.api-preview span {
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.console-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.console-tabs button,
+.admin-header button,
+button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 4px;
+  color: #fff;
+  background: var(--red);
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.console-tabs button {
+  min-width: 140px;
+  padding: 0 14px;
+  color: var(--ink);
+  background: #f3f5f8;
+}
+
+.console-tabs button.active {
+  color: #17140d;
+  background: var(--yellow);
+}
+
+button:hover {
+  filter: brightness(0.96);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: grid;
+  gap: 16px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card,
+.admin-panel,
+.venue-preview {
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.metric-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.metric-card span {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.metric-card strong {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.metric-card p {
+  margin: 0;
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-grid.wide-main {
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
+}
+
+.admin-panel,
+.venue-preview {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.panel-head {
+  display: grid;
+  gap: 6px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.event-summary,
+.api-preview {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #f0d68a;
+  background: #fffaf0;
+}
+
+.event-summary p {
+  margin: 0;
+  color: var(--sub);
+  font-weight: 800;
+}
+
+.venue-preview img {
+  width: 100%;
+  max-height: 560px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.api-preview code,
+.ledger-item code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--blue);
+  font-weight: 950;
+}
+
+.console-link {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 4px;
+  color: #ffffff;
+  background: #171717;
+  font-size: 13px;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+}
+
+th,
+td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  font-size: 14px;
+}
+
+th {
+  color: var(--sub);
+  background: #f7f9fb;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.empty {
+  color: var(--sub);
+  font-weight: 800;
+  text-align: center;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: #1f2933;
+  background: #eef1f5;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.pill.open,
+.pill.on_sale,
+.pill.active {
+  color: #fff;
+  background: var(--green);
+}
+
+.pill.watchlist,
+.pill.admin_hold {
+  background: var(--yellow);
+}
+
+.pill.banned {
+  color: #fff;
+  background: var(--red);
+}
+
+.mini {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.mini.neutral {
+  color: #fff;
+  background: var(--green);
+}
+
+.mini.warn {
+  color: #17140d;
+  background: var(--yellow);
+}
+
+.mini.danger {
+  color: #fff;
+  background: var(--red);
+}
+
+.ledger-list,
+.user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ledger-item,
+.user-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #fbfcfe;
+}
+
+.ledger-item strong,
+.user-card strong {
+  font-size: 15px;
+}
+
+.ledger-item span,
+.user-card span {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inventory-panel {
+  margin-top: 0;
+}
+
+.toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  transform: translateY(20px);
+  max-width: 360px;
+  padding: 13px 15px;
+  border-radius: 4px;
+  color: #fff;
+  background: #171719;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+@media (max-width: 1000px) {
+  .metric-grid,
+  .admin-grid,
+  .admin-grid.wide-main,
+  .admin-header {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-shell {
+    padding: 14px;
+  }
+
+  .console-tabs button {
+    flex: 1 1 150px;
+  }
+}

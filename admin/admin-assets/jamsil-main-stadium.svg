@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-labelledby="title desc">
+  <title id="title">잠실 올림픽주경기장 도면</title>
+  <desc id="desc">대형 경기장형 관람석 배치도</desc>
+  <rect width="900" height="620" fill="#f3f7fb"/>
+  <ellipse cx="450" cy="320" rx="370" ry="245" fill="#fff" stroke="#cbd3df" stroke-width="10"/>
+  <ellipse cx="450" cy="320" rx="275" ry="175" fill="#eaf8e5" stroke="#79b66a" stroke-width="5"/>
+  <rect x="285" y="230" width="330" height="180" rx="28" fill="#79b66a"/>
+  <path d="M295 320h310M450 240v160" stroke="#fff" stroke-width="5"/>
+  <text x="450" y="324" text-anchor="middle" fill="#fff" font-family="Arial" font-size="30" font-weight="700">GROUND</text>
+  <text x="450" y="120" text-anchor="middle" fill="#171719" font-family="Arial" font-size="24" font-weight="700">HOME VIP</text>
+  <text x="760" y="325" text-anchor="middle" fill="#171719" font-family="Arial" font-size="22" font-weight="700">R</text>
+  <text x="140" y="325" text-anchor="middle" fill="#171719" font-family="Arial" font-size="22" font-weight="700">R</text>
+  <text x="450" y="570" text-anchor="middle" fill="#171719" font-family="Arial" font-size="22" font-weight="700">S</text>
+</svg>

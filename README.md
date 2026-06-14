@@ -38,6 +38,12 @@ npm start
 http://localhost:4173
 ```
 
+운영 콘솔은 별도 포트에서 확인합니다.
+
+```text
+http://localhost:50084
+```
+
 ## 화면 구성
 
 ### 공연
