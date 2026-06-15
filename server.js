@@ -830,10 +830,10 @@ function adminVenueRecord(venue) {
     },
     venue_bluesquare: {
       category: "musical",
-      mapId: "jamsil-indoor",
-      mapTitle: "블루스퀘어 극장형 도면",
-      mapImage: "/admin-assets/jamsil-indoor.svg",
-      description: "뮤지컬형 극장 좌석 배치도입니다."
+      mapId: "blue-square-theater",
+      mapTitle: "블루스퀘어 좌석도",
+      mapImage: "/좌석 도면/블루스퀘어/블루스퀘어 1층.png",
+      description: "블루스퀘어 1층·2층·3층 도면 기반 극장형 좌석 배치도입니다."
     }
   };
   return {
@@ -1096,8 +1096,14 @@ async function serveStatic(req, res, rootDir, fallback = "/index.html") {
     "/좌석 도면/잠실 올림픽 경기장/좌석선택.dc.html": path.join(jamsilOlympicSeatMapDir, "좌석선택.dc.html"),
     "/좌석 도면/잠실 올림픽 경기장/support.js": path.join(jamsilOlympicSeatMapDir, "support.js")
   } : {};
-  const specialPath = dcStatic[requested];
   const safePath = path.normalize(requested).replace(/^(\.\.[/\\])+/, "");
+  const relativeSafePath = safePath.replace(/^[/\\]+/, "");
+  let specialPath = dcStatic[requested];
+  if (!specialPath && rootDir === publicDir && requested.startsWith("/좌석 도면/")) {
+    const seatMapPath = path.join(__dirname, relativeSafePath);
+    if (!seatMapPath.startsWith(seatMapDir)) throw httpError(403, "FORBIDDEN", "잘못된 경로입니다.");
+    specialPath = seatMapPath;
+  }
   const filePath = specialPath || path.join(rootDir, safePath);
   if (!specialPath && !filePath.startsWith(rootDir)) throw httpError(403, "FORBIDDEN", "잘못된 경로입니다.");
   let file;

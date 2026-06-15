@@ -515,10 +515,17 @@ function renderDateSelection() {
   `;
 }
 
+function seatSelectorPath(event) {
+  if (event.venueId === "venue_bluesquare" || event.venue?.includes("블루스퀘어")) {
+    return "/좌석 도면/블루스퀘어/좌석선택.dc.html";
+  }
+  return "/좌석 도면/잠실 올림픽 경기장/좌석선택.dc.html";
+}
+
 function seatSelectorUrl() {
   const event = currentEvent();
   const date = currentDate();
-  const url = new URL("/좌석 도면/잠실 올림픽 경기장/좌석선택.dc.html", window.location.origin);
+  const url = new URL(seatSelectorPath(event), window.location.origin);
   url.searchParams.set("eventTitle", event.title);
   url.searchParams.set("eventSub", event.badge || categoryLabels[event.category] || "Ticketground");
   url.searchParams.set("eventVenue", event.venue);
