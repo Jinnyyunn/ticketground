@@ -165,6 +165,10 @@ select:focus {
 
 .profile-menu {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .profile-button {
@@ -177,6 +181,25 @@ select:focus {
   background: #fff;
   border: 1px solid var(--line);
   box-shadow: none;
+}
+
+.profile-summary {
+  display: grid;
+  gap: 2px;
+  min-width: 128px;
+  text-align: right;
+}
+
+.profile-summary span {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profile-summary strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 950;
 }
 
 .avatar {

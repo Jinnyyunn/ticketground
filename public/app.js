@@ -314,6 +314,8 @@ function renderAccount() {
   $("#profileNickname").textContent = name;
   $("#dropdownName").textContent = `${name}님`;
   $("#dropdownBalance").textContent = `충전금 ${fmt.format(user.balance)}원`;
+  $("#headerLoginStatus").textContent = `${name}님 로그인`;
+  $("#headerBalance").textContent = `충전금 ${fmt.format(user.balance)}원`;
   $("#summaryUser").textContent = `${name}님 로그인`;
   $("#summaryBalance").textContent = `충전금 ${fmt.format(user.balance)}원`;
   $("#loginName").textContent = name;
