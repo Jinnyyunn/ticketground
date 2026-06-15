@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#050507}
+@keyframes tgpop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes tgfade{from{opacity:0}to{opacity:1}}
+@keyframes tgtoast{from{transform:transl(0,14px);opacity:0}to{transform:translate(0,0);opacity:1}}
+::selection{background:#00aaff;color:#fff}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:999px}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="min-height:100vh;height:100vh;display:flex;flex-direction:column;background:#050507;color:#f1f3f5;font-family:'Helvetica Neue',Helvetica,ui-sans-serif,system-ui,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden">
+
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:0 26px;height:62px;flex:0 0 auto;border-bottom:1px solid rgba(255,255,255,.08);background:#000000">
+    <div style="display:flex;align-items:center;gap:14px;min-width:0">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:14px;height:14px;border-radius:5px;background:#00aaff"></div>
+        <span style="font-size:19px;font-weight:700;letter-spacing:-.4px;color:#ffffff">ticketground</span>
+      </div>
+      <div style="width:1px;height:20px;background:rgba(255,255,255,.14)"></div>
+      <div style="display:flex;flex-direction:column;min-width:0">
+        <span style="font-size:14px;font-weight:600;color:#f1f3f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ eventTitle }}</span>
+        <span style="font-size:11.5px;color:#908f8e;white-space:nowrap">{{ eventVenue }} · {{ eventDate }}</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="padding:7px 15px;border-radius:999px;background:#00aaff;color:#00131f;font-size:12.5px;font-weight:700">1 좌석 선택</div>
+      <div style="color:#5b5e64;font-size:12px">›</div>
+      <div style="padding:7px 15px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:#908f8e;font-size:12.5px;font-weight:500">2 가격·할인</div>
+      <div style="color:#5b5e64;font-size:12px">›</div>
+      <div style="padding:7px 15px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:#908f8e;font-size:12.5px;font-weight:500">3 결제</div>
+    </div>
+  </header>
+
+  <main style="flex:1 1 auto;min-height:0;display:flex;gap:18px;padding:18px">
+
+    <section style="flex:1 1 auto;min-width:0;position:relative;display:flex;flex-direction:column;background:radial-gradient(120% 120% at 50% 38%,#0d0d14 0%,#070709 70%);border:1px solid rgba(255,255,255,.08);border-radius:20px;overflow:hidden">
+      <div style="position:absolute;top:16px;left:16px;z-index:3;display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:14px;background:rgba(7,7,12,.82);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px);min-height:42px">
+        <sc-if value="{{ hasHover }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:14px;font-weight:700;color:#00aaff">{{ hoverInfo.num }}</span>
+          <span style="font-size:12.5px;color:#a29e9c">{{ hoverInfo.text }}</span>
+        </sc-if>
+        <sc-if value="{{ noHover }}" hint-placeholder-val="{{ true }}">
+          <span style="font-size:12.5px;color:#7e828a">구역에 마우스를 올리면 잔여석이 표시됩니다</span>
+        </sc-if>
+      </div>
+
+      <div style="flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px 8px 2px">
+        <svg viewBox="0 0 940 760" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%">
+          <defs>
+            <radialGradient id="pitchg" cx="50%" cy="42%" r="70%">
+              <stop offset="0%" stop-color="#3a9560"></stop>
+              <stop offset="100%" stop-color="#256b43"></stop>
+            </radialGradient>
+          </defs>
+
+          <ellipse cx="470" cy="372" rx="164" ry="135" fill="#6e372c"></ellipse>
+          <ellipse cx="470" cy="372" rx="126" ry="103" fill="url(#pitchg)"></ellipse>
+          <ellipse cx="470" cy="372" rx="126" ry="103" fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1.2"></ellipse>
+          <line x1="470" y1="270" x2="470" y2="474" stroke="rgba(255,255,255,.42)" strokeWidth="1.4"></line>
+          <ellipse cx="470" cy="372" rx="27" ry="22" fill="none" stroke="rgba(255,255,255,.42)" strokeWidth="1.4"></ellipse>
+          <text x="470" y="430" textAnchor="middle" fontSize="10" fill="rgba(255,255,255,.34)" style="letter-spacing:3px;font-weight:600">JAMSIL MAIN STADIUM</text>
+
+          <sc-for list="{{ blocksVis }}" as="b" hint-placeholder-count="40">
+            <path d="{{ b.d }}" fill="{{ b.fill }}" stroke="{{ b.stroke }}" strokeWidth="{{ b.strokeWidth }}" strokeLinejoin="round" onClick="{{ b.onClick }}" onMouseEnter="{{ b.onEnter }}" onMouseLeave="{{ b.onLeave }}" style="cursor:pointer" style-hover="filter:brightness(1.12)"></path>
+          </sc-for>
+          {{ overlay }}
+
+          <g style="pointer-events:none">
+            <rect x="28" y="310" width="48" height="124" rx="12" fill="#0b0b10" stroke="rgba(255,255,255,.18)"></rect>
+            <text x="52" y="338" textAnchor="middle" fontSize="14" fill="#cdd2d6" style="font-weight:700">전</text>
+            <text x="52" y="372" textAnchor="middle" fontSize="14" fill="#cdd2d6" style="font-weight:700">광</text>
+            <text x="52" y="406" textAnchor="middle" fontSize="14" fill="#cdd2d6" style="font-weight:700">판</text>
+
+            <rect x="226" y="305" width="46" height="30" rx="8" fill="#0e0e15" stroke="rgba(255,255,255,.2)"></rect>
+            <text x="249" y="320" textAnchor="middle" dominantBaseline="central" fontSize="10.5" fill="#dfe3e7" style="font-weight:700">남직문</text>
+            <rect x="668" y="305" width="46" height="30" rx="8" fill="#0e0e15" stroke="rgba(255,255,255,.2)"></rect>
+            <text x="691" y="320" textAnchor="middle" dominantBaseline="central" fontSize="10.5" fill="#dfe3e7" style="font-weight:700">북직문</text>
+
+            <text x="340" y="430" textAnchor="middle" fontSize="9.5" fill="#ffb59c" style="font-weight:700">성화대</text>
+            <circle cx="340" cy="446" r="7" fill="#ff5a2b"></circle>
+            <circle cx="340" cy="446" r="7" fill="none" stroke="rgba(255,255,255,.6)" strokeWidth="1.2"></circle>
+          </g>
+        </svg>
+      </div>
+
+      <div style="flex:0 0 auto;text-align:center;padding:6px 0 14px;font-size:12px;color:#6f737a">구역을 클릭하면 해당 구역의 좌석을 선택할 수 있어요</div>
+    </section>
+
+    <aside style="flex:0 0 384px;width:384px;display:flex;flex-direction:column;background:#0d0d12;border:1px solid rgba(255,255,255,.08);border-radius:20px;overflow:hidden">
+      <div style="flex:0 0 auto;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#00aaff;margin-bottom:6px">{{ eventSub }}</div>
+        <div style="font-size:18px;font-weight:700;letter-spacing:-.3px;color:#f4f6f8">{{ eventTitle }}</div>
+        <div style="font-size:12.5px;color:#908f8e;margin-top:5px">{{ eventVenue }} · {{ eventDate }}</div>
+      </div>
+
+      <div style="flex:1 1 auto;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:22px">
+
+        <div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:.4px;color:#a29e9c;margin-bottom:11px">좌석 등급</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <sc-for list="{{ legend }}" as="g" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:12px;background:#111118;border:1px solid rgba(255,255,255,.06)">
+                <div style="{{ g.swStyle }}"></div>
+                <div style="flex:1 1 auto;min-width:0">
+                  <div style="font-size:13px;font-weight:700;color:#eef1f3">{{ g.name }}</div>
+                  <div style="font-size:11px;color:#7e828a">잔여 {{ g.rem }}석</div>
+                </div>
+                <div style="font-size:13px;font-weight:700;color:#cdd2d6">{{ g.price }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+            <div style="font-size:12px;font-weight:700;letter-spacing:.4px;color:#a29e9c">선택한 좌석</div>
+            <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ onClear }}" style="background:none;border:none;color:#7e828a;font-size:11.5px;cursor:pointer;padding:2px 4px" style-hover="color:#f1f3f5">전체 해제</button>
+            </sc-if>
+          </div>
+          <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <sc-for list="{{ selList }}" as="s" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:12px;background:rgba(0,170,255,.08);border:1px solid rgba(0,170,255,.22)">
+                  <div style="{{ s.dotStyle }}"></div>
+                  <div style="flex:1 1 auto;min-width:0">
+                    <div style="font-size:13px;font-weight:700;color:#eef1f3">{{ s.blockLabel }} · {{ s.seatLabel }}</div>
+                    <div style="font-size:11px;color:#7e828a">{{ s.gradeName }} · {{ s.price }}</div>
+                  </div>
+                  <button onClick="{{ s.onRemove }}" style="flex:0 0 auto;width:22px;height:22px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#a29e9c;cursor:pointer;font-size:13px;line-height:1" style-hover="background:rgba(255,255,255,.08);color:#fff">×</button>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noSel }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:22px 14px;border-radius:12px;border:1px dashed rgba(255,255,255,.12);text-align:center;color:#6f737a;font-size:12.5px">아직 선택한 좌석이 없어요.<br>경기장에서 구역을 골라 보세요.</div>
+          </sc-if>
+        </div>
+
+        <div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:.4px;color:#a29e9c;margin-bottom:11px">경기장 정보</div>
+          <div style="display:flex;flex-direction:column;gap:0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.06)">
+            <sc-for list="{{ infoRows }}" as="r" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:{{ r.bg }};font-size:12px">
+                <span style="color:#908f8e">{{ r.k }}</span>
+                <span style="color:#dfe2e6;font-weight:600">{{ r.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="flex:0 0 auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);background:#0a0a0f">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:12.5px;color:#a29e9c">{{ countLabel }}</span>
+          <span style="font-size:20px;font-weight:800;color:#ffffff">{{ totalPrice }}</span>
+        </div>
+        <button onClick="{{ onCheckout }}" style="width:100%;padding:14px;border:none;border-radius:999px;background:#00aaff;color:#00131f;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:-.2px" style-hover="filter:brightness(1.07)">예매하기</button>
+      </div>
+    </aside>
+  </main>
+
+  <sc-if value="{{ detailOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseDetail }}" style="position:fixed;inset:0;z-index:40;background:rgba(2,2,5,.68);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;animation:tgfade .14s ease">
+      <div onClick="{{ stop }}" style="width:min(760px,95vw);max-height:90vh;display:flex;flex-direction:column;background:#101016;border:1px solid rgba(255,255,255,.1);border-radius:20px;overflow:hidden;animation:tgpop .16s cubic-bezier(.2,.8,.3,1)">
+        <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.08)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="{{ detail.chipStyle }}"></div>
+            <div>
+              <div style="font-size:17px;font-weight:800;color:#f4f6f8">{{ detail.num }}</div>
+              <div style="font-size:12px;color:#908f8e">{{ detail.gradeName }} · {{ detail.price }} · 잔여 {{ detail.remaining }}석 / 총 {{ detail.total }}석</div>
+            </div>
+          </div>
+          <button onClick="{{ onCloseDetail }}" style="width:32px;height:32px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#cdd2d6;font-size:17px;cursor:pointer;line-height:1" style-hover="background:rgba(255,255,255,.08);color:#fff">×</button>
+        </div>
+
+        <div style="flex:0 0 auto;display:flex;align-items:center;gap:18px;padding:11px 20px;border-bottom:1px solid rgba(255,255,255,.06);font-size:11.5px;color:#908f8e">
+          <div style="display:flex;align-items:center;gap:7px"><div style="{{ detail.swAvail }}"></div>예매 가능</div>
+          <div style="display:flex;align-items:center;gap:7px"><div style="width:14px;height:14px;border-radius:3px;background:#ffffff;border:1.5px solid #00aaff"></div>선택</div>
+          <div style="display:flex;align-items:center;gap:7px"><div style="width:14px;height:14px;border-radius:3px;background:#2b2b33"></div>매진</div>
+        </div>
+
+        <div style="flex:1 1 auto;min-height:0;overflow:auto;padding:20px;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <sc-for list="{{ detail.rows }}" as="row" hint-placeholder-count="10">
+            <div style="display:flex;align-items:center;gap:3px">
+              <div style="width:18px;text-align:right;font-size:9.5px;color:#6f737a;margin-right:5px;flex:0 0 auto">{{ row.label }}</div>
+              <sc-for list="{{ row.seats }}" as="s" hint-placeholder-count="18">
+                <div onClick="{{ s.onClick }}" style="{{ s.style }}" style-hover="filter:brightness(1.1)">{{ s.label }}</div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:10px;padding:9px;background:linear-gradient(#1a6b42,#13502f);color:rgba(255,255,255,.92);font-size:11.5px;font-weight:700;letter-spacing:6px">◀  경기장 · FIELD  ▶</div>
+
+        <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-top:1px solid rgba(255,255,255,.08)">
+          <span style="font-size:13px;color:#a29e9c">이 구역 선택 <b style="color:#00aaff">{{ detail.count }}</b>석 · {{ countLabel }}</span>
+          <button onClick="{{ onCloseDetail }}" style="padding:11px 22px;border:none;border-radius:999px;background:#ffffff;color:#0a0a0f;font-size:14px;font-weight:800;cursor:pointer" style-hover="filter:brightness(.94)">선택 완료</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:60;padding:13px 22px;border-radius:999px;background:#1a1a22;border:1px solid rgba(255,255,255,.14);color:#f1f3f5;font-size:13.5px;font-weight:600;box-shadow:0 12px 40px rgba(0,0,0,.5);animation:tgtoast .2s ease">{{ toast }}</div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;eventTitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;대한민국 vs 우루과이&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eventSub&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2026 국제친선경기&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eventVenue&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;잠실 올림픽 주경기장&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eventDate&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2026.06.20 (토) 20:00&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;maxTickets&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;min&quot;:1,&quot;max&quot;:8,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.state = { detail:null, selections:{}, hover:null, toast:null };
+    this.CX = 470; this.CY = 372; this.ASP = 0.82;
+    this.COLORS = { VIP:'#00aaff', R:'#2f8fe0', S:'#6fb4ec', A:'#a9d2f5', B:'#d6e9fb', press:'#34343c' };
+    this.GNAME  = { VIP:'VIP석', R:'R석', S:'S석', A:'A석', B:'B석' };
+    this.PRICE  = { VIP:150000, R:110000, S:80000, A:55000, B:35000 };
+    this.blocks = this.buildBlocks();
+  }
+  rng(seed){ let s=(seed*2654435761)>>>0; return ()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+  pt(a,r){ return [ this.CX + r*Math.cos(a), this.CY + r*Math.sin(a)*this.ASP ]; }
+  sector(a0,a1,ri,ro){
+    const p0=this.pt(a0,ro), p1=this.pt(a1,ro), p2=this.pt(a1,ri), p3=this.pt(a0,ri);
+    const f=(n)=>n.toFixed(2), A=this.ASP;
+    return 'M '+f(p0[0])+' '+f(p0[1])
+      +' A '+f(ro)+' '+f(ro*A)+' 0 0 1 '+f(p1[0])+' '+f(p1[1])
+      +' L '+f(p2[0])+' '+f(p2[1])
+      +' A '+f(ri)+' '+f(ri*A)+' 0 0 0 '+f(p3[0])+' '+f(p3[1])+' Z';
+  }
+  buildBlocks(){
+    const rings = [
+      { name:'1F', ri:174, ro:228, N:34, grade:'R', cols:16, rows:9,  topType:'press' },
+      { name:'2F', ri:238, ro:302, N:38, grade:'S', cols:18, rows:11, topType:'vip' },
+      { name:'3F', ri:314, ro:386, N:38, grade:'A', cols:23, rows:14 },
+    ];
+    const top = -Math.PI/2, out = [];
+    let uid = 0;
+    rings.forEach(ring => {
+      const step = 2*Math.PI/ring.N, gap = step*0.18;
+      for(let i=0;i<ring.N;i++){
+        const center = top + i*step;
+        const a0 = center-(step-gap)/2, a1 = center+(step-gap)/2;
+        let type='normal', grade=ring.grade, num=String(i+1);
+        if(i===0 && ring.topType==='press'){ type='press'; grade='press'; num=''; }
+        else if(i===0 && ring.topType==='vip'){ type='vip'; grade='VIP'; num='V'; }
+        if(ring.name==='3F'){
+          let deg=((center-top)*180/Math.PI)%360; if(deg<0) deg+=360;
+          grade = (deg<58||deg>302||(deg>122&&deg<238)) ? 'A' : 'B';
+        }
+        let cols=ring.cols+((i%3)-1), rows=ring.rows+(i%2);
+        if(type==='vip'){ cols=14; rows=7; }
+        if(type==='press'){ cols=0; rows=0; }
+        const total=cols*rows, r=this.rng(uid+17), ratio=0.16+r()*0.5;
+        const soldSet=new Set();
+        if(total){ for(let rr=0;rr<rows;rr++) for(let cc=0;cc<cols;cc++){ if(r()<ratio) soldSet.add(rr+'-'+cc); } }
+        const cen=this.pt(center,(ring.ri+ring.ro)/2), badge=this.pt(center, ring.ro-13);
+        out.push({ id:'b'+uid, ring:ring.name, type, grade, num,
+          d:this.sector(a0,a1,ring.ri,ring.ro),
+          lx:cen[0], ly:cen[1], bx:badge[0], by:badge[1],
+          cols, rows, total, soldSet, remaining: total-soldSet.size,
+          fs: ring.name==='3F'?12.5:(ring.name==='2F'?11.5:10.5) });
+        uid++;
+      }
+    });
+    return out;
+  }
+  byId(id){ return this.blocks.find(b=>b.id===id); }
+  totalSel(){ return Object.values(this.state.selections).reduce((a,v)=>a+v.length,0); }
+  openDetail(id){ this.setState({ detail:id }); }
+  closeDetail(){ this.setState({ detail:null }); }
+  clearAll(){ this.setState({ selections:{} }); }
+  showToast(msg){ this.setState({ toast:msg }); clearTimeout(this._tt); this._tt=setTimeout(()=>this.setState({toast:null}),2200); }
+  checkout(){ if(this.totalSel()===0){ this.showToast('좌석을 먼저 선택해 주세요'); return; } this.showToast('예매 정보가 확인되었어요 (프로토타입)'); }
+  toggleSeat(bid, sid){
+    const sel=this.state.selections, arr=sel[bid]?sel[bid].slice():[], idx=arr.indexOf(sid);
+    const max=this.props.maxTickets ?? 4;
+    if(idx<0 && this.totalSel()>=max){ this.showToast('최대 '+max+'매까지 선택할 수 있어요'); return; }
+    const nsel=Object.assign({}, sel);
+    if(idx>=0) arr.splice(idx,1); else arr.push(sid);
+    if(arr.length) nsel[bid]=arr; else delete nsel[bid];
+    this.setState({ selections:nsel });
+  }
+  fmt(n){ return '₩'+n.toLocaleString('ko-KR'); }
+  renderVals(){
+    const max=this.props.maxTickets ?? 4, sel=this.state.selections, hover=this.state.hover;
+    const blocksVis=this.blocks.map(b=>{
+      const selCount=(sel[b.id]||[]).length;
+      const soldOut=b.type!=='press' && b.remaining===0;
+      const fill=b.type==='press'?this.COLORS.press:(soldOut?'#3a3a42':this.COLORS[b.grade]);
+      const hovered=hover===b.id;
+      const stroke=(selCount>0||hovered)?'#ffffff':'rgba(5,5,10,.35)';
+      let labelFill;
+      if(b.type==='press') labelFill='#9aa0a8';
+      else if(soldOut) labelFill='#8c9098';
+      else if(b.grade==='R') labelFill='#ffffff';
+      else if(b.grade==='VIP') labelFill='#06243a';
+      else labelFill='#0a2435';
+      return { id:b.id, d:b.d, fill, stroke, strokeWidth:selCount>0?2.6:(hovered?2:0.8),
+        num:b.num, lx:b.lx, ly:b.ly, fs:b.fs, labelFill,
+        hasSel:selCount>0, selCount, bx:b.bx, by:b.by,
+        onClick: b.type==='press'?undefined:()=>this.openDetail(b.id),
+        onEnter: ()=>this.setState({hover:b.id}),
+        onLeave: ()=>this.setState(s=> s.hover===b.id?{hover:null}:null) };
+    });
+    const ce=React.createElement;
+    const overlay=ce('g',{style:{pointerEvents:'none'}}, blocksVis.flatMap(b=>{
+      const a=[];
+      if(b.num) a.push(ce('text',{key:b.id+'n',x:b.lx,y:b.ly,fill:b.labelFill,fontSize:b.fs,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:700}},b.num));
+      if(b.hasSel){
+        a.push(ce('circle',{key:b.id+'c',cx:b.bx,cy:b.by,r:9.5,fill:'#00aaff',stroke:'#ffffff',strokeWidth:1.5}));
+        a.push(ce('text',{key:b.id+'t',x:b.bx,y:b.by,fill:'#ffffff',fontSize:11,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:800}},String(b.selCount)));
+      }
+      return a;
+    }));
+    let hoverInfo=null;
+    if(hover){ const hb=this.byId(hover); if(hb){
+      hoverInfo = hb.type==='press'
+        ? { num:'PRESS', text:'기자석 · 관계자 전용' }
+        : { num:(hb.type==='vip'?'VIP':hb.num+'구역'), text:this.GNAME[hb.grade]+' · 잔여 '+hb.remaining+'석 / 총 '+hb.total+'석' };
+    }}
+    const legend=['VIP','R','S','A','B'].map(g=>{
+      const bs=this.blocks.filter(b=>b.grade===g), rem=bs.reduce((a,b)=>a+b.remaining,0);
+      return { key:g, name:this.GNAME[g], price:this.fmt(this.PRICE[g]), rem,
+        swStyle:{ width:'15px', height:'15px', borderRadius:'5px', flex:'0 0 auto', background:this.COLORS[g], boxShadow:'0 0 0 1px rgba(255,255,255,.12) inset' } };
+    });
+    const selList=[];
+    Object.keys(sel).forEach(bid=>{ const b=this.byId(bid);
+      (sel[bid]||[]).slice().sort((x,y)=>{ const [a,c]=x.split('-').map(Number),[d,e]=y.split('-').map(Number); return a-d||c-e; }).forEach(sid=>{
+        const [rr,cc]=sid.split('-').map(Number);
+        selList.push({ key:bid+sid, blockLabel:(b.type==='vip'?'VIP':b.num+'구역'), gradeName:this.GNAME[b.grade],
+          seatLabel:(rr+1)+'열 '+(cc+1)+'번', price:this.fmt(this.PRICE[b.grade]),
+          dotStyle:{ width:'11px', height:'11px', borderRadius:'4px', flex:'0 0 auto', background:this.COLORS[b.grade] },
+          onRemove:()=>this.toggleSeat(bid,sid) });
+      });
+    });
+    const totalPrice=Object.keys(sel).reduce((a,bid)=>{ const b=this.byId(bid); return a+sel[bid].length*this.PRICE[b.grade]; },0);
+    const totalCount=this.totalSel();
+    let detail=null;
+    if(this.state.detail){ const b=this.byId(this.state.detail); if(b){
+      const selSet=new Set(sel[b.id]||[]), rows=[];
+      for(let r=0;r<b.rows;r++){ const seats=[];
+        for(let c=0;c<b.cols;c++){ const id=r+'-'+c, sold=b.soldSet.has(id), isSel=selSet.has(id);
+          seats.push({ key:id, label:String(c+1), onClick: sold?undefined:()=>this.toggleSeat(b.id,id),
+            style:{ width:'22px', height:'19px', borderRadius:'4px',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'9px', fontWeight:'700', lineHeight:'1', flex:'0 0 auto',
+              background: sold?'#2b2b33':(isSel?'#ffffff':this.COLORS[b.grade]),
+              color: sold?'#55585f':(isSel?'#0084c7':'#06243a'),
+              border:'1.5px solid '+(isSel?'#00aaff':'transparent'),
+              cursor: sold?'default':'pointer' } });
+        }
+        rows.push({ key:'r'+r, label:String(r+1), seats });
+      }
+      detail={ num:(b.type==='vip'?'VIP석':b.num+'구역'), gradeName:this.GNAME[b.grade], price:this.fmt(this.PRICE[b.grade]),
+        remaining:b.remaining, total:b.total, count:(sel[b.id]||[]).length, rows,
+        chipStyle:{ width:'34px', height:'34px', borderRadius:'9px', background:this.COLORS[b.grade], boxShadow:'0 0 0 1px rgba(255,255,255,.14) inset' },
+        swAvail:{ width:'14px', height:'14px', borderRadius:'3px', background:this.COLORS[b.grade] } };
+    }}
+    const infoRows=[
+      { k:'총 면적', v:'132,200㎡' },
+      { k:'총 좌석', v:'65,599석 · 112블럭' },
+      { k:'1층', v:'12,693석 · 34블럭' },
+      { k:'2층', v:'15,125석 · 39블럭' },
+      { k:'중2층 VIP', v:'976석 · 1블럭' },
+      { k:'3층', v:'36,805석 · 38블럭' },
+      { k:'출입구', v:'외측 68 · 내측 75' },
+    ].map((r,i)=>({ k:r.k, v:r.v, bg: i%2? 'rgba(255,255,255,.02)':'transparent' }));
+    return {
+      eventTitle:this.props.eventTitle ?? '대한민국 vs 우루과이',
+      eventSub:this.props.eventSub ?? '2026 국제친선경기',
+      eventVenue:this.props.eventVenue ?? '잠실 올림픽 주경기장',
+      eventDate:this.props.eventDate ?? '2026.06.20 (토) 20:00',
+      blocksVis, overlay, hoverInfo, hasHover:!!hoverInfo, noHover:!hoverInfo,
+      legend, selList, hasSel:selList.length>0, noSel:selList.length===0,
+      totalCount, totalPrice:this.fmt(totalPrice), countLabel:totalCount+'석 선택 · 최대 '+max+'매',
+      detailOpen:!!detail, detail, infoRows,
+      toast:this.state.toast, hasToast:!!this.state.toast,
+      stop:(e)=>{ e.stopPropagation(); },
+      onCloseDetail:()=>this.closeDetail(), onClear:()=>this.clearAll(), onCheckout:()=>this.checkout(),
+    };
+  }
+}
+</script>
+</body>
+</html>
