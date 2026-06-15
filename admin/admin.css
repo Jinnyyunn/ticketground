@@ -126,7 +126,7 @@ button:disabled {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 12px;
 }
 
@@ -233,6 +233,30 @@ select {
   overflow-wrap: anywhere;
   color: var(--blue);
   font-weight: 950;
+}
+
+.account-table {
+  min-width: 980px;
+}
+
+.account-table td span {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.trust-rules {
+  display: grid;
+  gap: 8px;
+}
+
+.trust-rules span {
+  padding: 10px 12px;
+  border: 1px solid #f0d68a;
+  background: #fffaf0;
+  color: #4c3b00;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .console-link {
@@ -356,6 +380,14 @@ th {
   color: var(--sub);
   font-size: 12px;
   font-weight: 800;
+}
+
+.user-card p {
+  margin: 4px 0 0;
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .button-row {

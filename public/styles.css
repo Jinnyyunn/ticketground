@@ -777,6 +777,16 @@ p {
   background: #f1f3f5;
 }
 
+.product-tabs a.active,
+.product-tabs a[aria-selected="true"] {
+  color: #17140d;
+  background: var(--tig);
+}
+
+.product-info-block[hidden] {
+  display: none;
+}
+
 .primary-booking-layout {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
 }
@@ -2403,6 +2413,11 @@ h3 {
   background: var(--color-surface-tint);
 }
 
+.product-tabs a.active,
+.product-tabs a[aria-selected="true"] {
+  background: var(--color-accent-primary);
+}
+
 .primary-booking-layout {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
   gap: var(--space-6);
@@ -2984,51 +2999,6 @@ h3 {
   font-weight: 850;
 }
 
-.admin-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-}
-
-.admin-panel {
-  align-content: start;
-}
-
-.admin-panel label {
-  display: grid;
-  gap: 6px;
-  color: var(--sub);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.admin-panel select {
-  width: 100%;
-}
-
-.admin-map-preview {
-  display: grid;
-  gap: 6px;
-  min-height: 132px;
-  padding: 16px;
-  border: 1px dashed var(--color-border-subtle, #d7dce4);
-  border-radius: var(--radius-sm, 10px);
-  background:
-    radial-gradient(circle at 20% 20%, rgba(255, 212, 0, 0.24), transparent 28%),
-    linear-gradient(135deg, #ffffff, #f5f7fb);
-}
-
-.admin-map-preview strong {
-  font-size: 18px;
-}
-
-.admin-map-preview span,
-.admin-map-preview em {
-  color: var(--sub);
-  font-size: 13px;
-  font-style: normal;
-  font-weight: 850;
-}
 
 @media (max-width: 640px) {
   .booking-progress {

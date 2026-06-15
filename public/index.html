@@ -16,7 +16,6 @@
         <a href="#concerts" data-route="concerts">공연</a>
         <a href="#resale" data-route="resale">공식 재판매 티켓 예매</a>
         <a href="#my" data-route="my">My 예매내역</a>
-        <a href="#admin" data-route="admin">관리자</a>
       </nav>
       <div class="profile-menu">
         <div class="profile-summary" aria-live="polite">
@@ -143,23 +142,23 @@
           </div>
         </div>
 
-        <div class="product-tabs">
-          <a href="#productNotice">공지사항</a>
-          <a href="#productCast">캐스팅</a>
-          <a href="#productDetail">상품상세</a>
-          <a href="#productPrice">가격/할인</a>
-          <a href="#productGuide">이용안내</a>
-          <a href="#productRefund">취소/환불</a>
-          <a href="#productPlace">장소</a>
+        <div class="product-tabs" role="tablist" aria-label="상품 상세 메뉴">
+          <a class="active" href="#productNotice" data-product-tab="productNotice" role="tab" aria-selected="true" aria-controls="productNotice">공지사항</a>
+          <a href="#productCast" data-product-tab="productCast" role="tab" aria-selected="false" aria-controls="productCast">캐스팅</a>
+          <a href="#productDetail" data-product-tab="productDetail" role="tab" aria-selected="false" aria-controls="productDetail">상품상세</a>
+          <a href="#productPrice" data-product-tab="productPrice" role="tab" aria-selected="false" aria-controls="productPrice">가격/할인</a>
+          <a href="#productGuide" data-product-tab="productGuide" role="tab" aria-selected="false" aria-controls="productGuide">이용안내</a>
+          <a href="#productRefund" data-product-tab="productRefund" role="tab" aria-selected="false" aria-controls="productRefund">취소/환불</a>
+          <a href="#productPlace" data-product-tab="productPlace" role="tab" aria-selected="false" aria-controls="productPlace">장소</a>
         </div>
 
         <div class="booking-combo primary-booking-layout">
           <div class="product-detail-stack">
-            <section class="product-info-block" id="productNotice">
+            <section class="product-info-block" id="productNotice" data-product-panel="productNotice" role="tabpanel">
               <h3>필수 확인 사항</h3>
               <p>예매자는 공연 관람 안내, 관람 연령, 티켓 수령, 취소 및 환불 규정을 확인한 것으로 간주됩니다. 불법 거래와 사설 양도는 보호받을 수 없으며, Ticketground 공식 경로만 이용해주세요.</p>
             </section>
-            <section class="product-info-block" id="productCast">
+            <section class="product-info-block" id="productCast" data-product-panel="productCast" role="tabpanel" hidden>
               <h3>캐스팅</h3>
               <div class="cast-list">
                 <span>MAIN STAGE · TIG</span>
@@ -167,11 +166,11 @@
                 <span>DANCE UNIT · Ground Move</span>
               </div>
             </section>
-            <section class="product-info-block" id="productDetail">
+            <section class="product-info-block" id="productDetail" data-product-panel="productDetail" role="tabpanel" hidden>
               <h3>상품 상세</h3>
               <p>강렬한 LED 무대, 팬 라이트 연출, 실시간 QR 입장을 결합한 Ticketground 단독 오픈 콘서트입니다.</p>
             </section>
-            <section class="product-info-block" id="productPrice">
+            <section class="product-info-block" id="productPrice" data-product-panel="productPrice" role="tabpanel" hidden>
               <h3>가격/할인정보</h3>
               <div class="price-table">
                 <div><span>VIP</span><strong id="productVipPrice">154,000원</strong></div>
@@ -179,15 +178,15 @@
                 <div><span>S석</span><strong id="productSPrice">99,000원</strong></div>
               </div>
             </section>
-            <section class="product-info-block" id="productGuide">
+            <section class="product-info-block" id="productGuide" data-product-panel="productGuide" role="tabpanel" hidden>
               <h3>이용안내</h3>
               <p>관람 3시간 전까지 예매 가능하며, 입장 QR은 공연 당일 앱에서 동적으로 발급됩니다.</p>
             </section>
-            <section class="product-info-block" id="productRefund">
+            <section class="product-info-block" id="productRefund" data-product-panel="productRefund" role="tabpanel" hidden>
               <h3>취소 및 환불 규정</h3>
               <p>예매 당일 자정 전 취소는 수수료 없이 가능하며, 관람일이 가까워질수록 취소 수수료가 적용됩니다.</p>
             </section>
-            <section class="product-info-block" id="productPlace">
+            <section class="product-info-block" id="productPlace" data-product-panel="productPlace" role="tabpanel" hidden>
               <h3>장소</h3>
               <p id="productPlaceCopy">KSPO Dome · 서울특별시 송파구 올림픽로 424</p>
             </section>
@@ -275,30 +274,6 @@
         </div>
       </section>
 
-      <section class="page section admin-section" id="admin" data-page="admin">
-        <div class="section-head">
-          <div>
-            <h2>관리자 페이지</h2>
-            <p>행사별 개최 장소를 설정하면 사용자 예매 화면의 좌석 도면 API가 해당 공연장으로 전환됩니다.</p>
-          </div>
-        </div>
-        <div class="admin-grid">
-          <article class="my-panel admin-panel">
-            <h3>행사 개최 장소 설정</h3>
-            <p id="adminVenueCurrent">현재 개최 장소를 불러오는 중입니다.</p>
-            <label for="adminEventSelect">행사</label>
-            <select id="adminEventSelect"></select>
-            <label for="adminVenueSelect">개최 장소</label>
-            <select id="adminVenueSelect"></select>
-            <button id="saveVenueBtn" type="button">개최 장소 저장</button>
-          </article>
-          <article class="my-panel admin-panel">
-            <h3>도면 API 미리보기</h3>
-            <div class="admin-map-preview" id="adminMapPreview"></div>
-            <p>잠실 올림픽 주 경기장 선택 시 서울종합운동장 도면 이미지를 배경으로 불러오고, Ticketground 좌석 좌표를 오버레이해 좌석별 클릭 예매를 제공합니다.</p>
-          </article>
-        </div>
-      </section>
       <section class="page section guide" id="guide" data-page="guide">
         <div class="section-head">
           <div>

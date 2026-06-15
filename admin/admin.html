@@ -19,6 +19,7 @@
 
       <nav class="console-tabs" aria-label="운영 콘솔 메뉴">
         <button class="active" type="button" data-tab="overview">운영 현황</button>
+        <button type="button" data-tab="accounts">계정 관리</button>
         <button type="button" data-tab="moderation">암표 대응</button>
         <button type="button" data-tab="catalog">공연/재고 관리</button>
       </nav>
@@ -52,6 +53,47 @@
               <p id="ledgerHealth">원장 상태 확인 중</p>
             </div>
             <div class="ledger-list" id="ledgerRows"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="accounts">
+        <div class="admin-grid wide-main">
+          <section class="admin-panel">
+            <div class="panel-head">
+              <h2>계정 관리</h2>
+              <p>회원 상태, 충전금, 신뢰 점수와 제재 이력을 한 화면에서 관리합니다.</p>
+            </div>
+            <div class="table-wrap">
+              <table class="account-table">
+                <thead>
+                  <tr>
+                    <th>계정</th>
+                    <th>상태</th>
+                    <th>신뢰 점수</th>
+                    <th>충전금</th>
+                    <th>제재</th>
+                    <th>산정 근거</th>
+                    <th>액션</th>
+                  </tr>
+                </thead>
+                <tbody id="accountRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="admin-panel">
+            <div class="panel-head">
+              <h2>신뢰 점수 산정 근거</h2>
+              <p>현재 점수는 초기 계정 점수, 운영자 상태 변경, 지정 양도 차단 기록을 기준으로 표시됩니다.</p>
+            </div>
+            <div class="trust-rules">
+              <span>WATCHLIST 또는 50점 미만: 의심 계정 큐 노출</span>
+              <span>지정 양도 시도: 신뢰 점수 18점 차감</span>
+              <span>주의 전환: 최대 39점으로 제한</span>
+              <span>차단 전환: 최대 10점으로 제한</span>
+            </div>
+            <div class="ledger-list" id="accountAuditRows"></div>
           </section>
         </div>
       </section>
@@ -101,6 +143,10 @@
               <p>장소를 선택하면 해당 좌석도 API가 예매 창에 연결됩니다.</p>
             </div>
 
+            <label for="eventSelect">
+              행사
+              <select id="eventSelect" name="eventId"></select>
+            </label>
             <label for="venueSelect">
               공연장
               <select id="venueSelect" name="venueId"></select>
@@ -154,7 +200,9 @@
       const state = {
         summary: null,
         venues: [],
-        event: null
+        events: [],
+        event: null,
+        eventId: ""
       };
 
       async function api(path, body) {
@@ -178,8 +226,20 @@
         return state.summary.users.find((user) => user.id === userId)?.name || "-";
       }
 
-      function zoneName(zoneId) {
-        return state.summary.event.zones.find((zone) => zone.id === zoneId)?.name || zoneId;
+      function eventById(eventId) {
+        return state.events.find((eventItem) => eventItem.id === eventId)
+          || (state.summary?.event?.id === eventId ? state.summary.event : null)
+          || state.summary?.event
+          || state.event;
+      }
+
+      function selectedEvent() {
+        return eventById(state.eventId || $("#eventSelect")?.value || state.event?.id);
+      }
+
+      function zoneName(zoneId, eventId) {
+        const eventItem = eventById(eventId);
+        return eventItem?.zones?.find((zone) => zone.id === zoneId)?.name || zoneId;
       }
 
       function statusText(status) {
@@ -195,6 +255,16 @@
           ADMIN_HOLD: "운영 보류"
         };
         return labels[status] || status;
+      }
+
+      function categoryText(category) {
+        const labels = {
+          concert: "콘서트",
+          festival: "페스티벌",
+          musical: "뮤지컬",
+          sports: "스포츠"
+        };
+        return labels[category] || category;
       }
 
       function selectedVenue() {
@@ -245,19 +315,66 @@
         `).join("");
       }
 
+      function trustBasis(user) {
+        const reasons = [];
+        if (user.status === "WATCHLIST") reasons.push("주의 상태");
+        if (user.status === "BANNED") reasons.push("차단 상태");
+        if (user.trustScore < 50) reasons.push("50점 미만");
+        if (user.sanctions?.length) reasons.push(`제재 ${user.sanctions.length}건`);
+        return reasons.length ? reasons.join(" · ") : "정상 범위";
+      }
+
+      function latestSanctions(user) {
+        const sanctions = [...(user.sanctions || [])].slice(-3).reverse();
+        return sanctions.length
+          ? sanctions.map((item) => `${item.reason} / ${item.penalty} / ${new Date(item.at).toLocaleString("ko-KR")}`).join("<br>")
+          : "제재 이력 없음";
+      }
+
+      function userActionButtons(user) {
+        return `
+          <div class="button-row">
+            <button class="mini neutral" type="button" data-user-status="${user.id}:ACTIVE">정상</button>
+            <button class="mini warn" type="button" data-user-status="${user.id}:WATCHLIST">주의</button>
+            <button class="mini danger" type="button" data-user-status="${user.id}:BANNED">차단</button>
+          </div>
+        `;
+      }
+
       function renderUsers() {
-        const sorted = [...state.summary.users].sort((a, b) => a.trustScore - b.trustScore);
-        $("#userRows").innerHTML = sorted.map((user) => `
+        const sorted = [...state.summary.users]
+          .filter((user) => user.status === "WATCHLIST" || user.status === "BANNED" || user.trustScore < 50)
+          .sort((a, b) => a.trustScore - b.trustScore);
+        $("#userRows").innerHTML = sorted.length ? sorted.map((user) => `
           <article class="user-card">
             <div>
               <strong>${user.name}</strong>
-              <span>${statusText(user.status)} · 신뢰 ${user.trustScore}점 · 제재 ${user.sanctions.length}건</span>
+              <span>${statusText(user.status)} · 신뢰 ${user.trustScore}점 · ${trustBasis(user)}</span>
+              <p>${latestSanctions(user)}</p>
             </div>
-            <div class="button-row">
-              <button class="mini neutral" type="button" data-user-status="${user.id}:ACTIVE">정상</button>
-              <button class="mini warn" type="button" data-user-status="${user.id}:WATCHLIST">주의</button>
-              <button class="mini danger" type="button" data-user-status="${user.id}:BANNED">차단</button>
-            </div>
+            ${userActionButtons(user)}
+          </article>
+        `).join("") : `<p class="empty">주의 계정이 없습니다.</p>`;
+      }
+
+      function renderAccounts() {
+        const users = [...state.summary.users].sort((a, b) => a.trustScore - b.trustScore);
+        $("#accountRows").innerHTML = users.map((user) => `
+          <tr>
+            <td><strong>${user.name}</strong><br><span>${user.id}</span></td>
+            <td><span class="pill ${user.status.toLowerCase()}">${statusText(user.status)}</span></td>
+            <td>${user.trustScore}점</td>
+            <td>${fmt.format(user.balance)}원</td>
+            <td>${user.sanctions?.length || 0}건</td>
+            <td>${trustBasis(user)}</td>
+            <td>${userActionButtons(user)}</td>
+          </tr>
+        `).join("");
+        $("#accountAuditRows").innerHTML = users.map((user) => `
+          <article class="ledger-item">
+            <strong>${user.name} · 신뢰 ${user.trustScore}점</strong>
+            <span>${trustBasis(user)}</span>
+            <code>${latestSanctions(user)}</code>
           </article>
         `).join("");
       }
@@ -275,48 +392,60 @@
       }
 
       function renderVenueForm() {
+        const currentEvent = selectedEvent();
+        $("#eventSelect").innerHTML = state.events.map((eventItem) => `
+          <option value="${eventItem.id}">${eventItem.title} · ${categoryText(eventItem.category)}</option>
+        `).join("");
+        $("#eventSelect").value = currentEvent?.id || state.events[0]?.id || "";
+        state.eventId = $("#eventSelect").value;
+        state.event = selectedEvent();
+
         $("#venueSelect").innerHTML = state.venues.map((venue) => `
           <option value="${venue.id}">${venue.name}</option>
         `).join("");
-        $("#venueSelect").value = state.event?.venueId || "jamsil-indoor";
+        $("#venueSelect").value = state.event?.venueId || state.venues[0]?.id || "";
+        const venue = selectedVenue();
         $("#eventSummary").innerHTML = `
-          <span>대상 공연</span>
-          <strong>${state.event?.title || "TIG Live: Neon Stage"}</strong>
-          <p>${state.event?.venue || "잠실 실내체육관"} · 사용자 예매 페이지에 즉시 반영</p>
+          <span>대상 행사</span>
+          <strong>${state.event?.title || "행사 선택 필요"}</strong>
+          <p>${venue?.name || state.event?.venue || "공연장 미지정"} · 사용자 예매 페이지에 즉시 반영</p>
         `;
       }
 
       async function renderPreview() {
         const venue = selectedVenue();
+        const currentEvent = selectedEvent();
         if (!venue) return;
         const payload = await api(`/api/seat-map?category=${encodeURIComponent(venue.category)}&venueId=${encodeURIComponent(venue.id)}`);
-        $("#previewMeta").textContent = `${venue.name} · ${payload.map.title}`;
+        $("#previewMeta").textContent = `${currentEvent?.title || "행사"} · ${venue.name} · ${payload.map.title}`;
         $("#seatMapPreview").src = payload.map.image;
         $("#seatMapPreview").alt = payload.map.title;
         $("#apiPreview").innerHTML = `
           <strong>연동 API</strong>
           <code>/api/seat-map?category=${venue.category}&venueId=${venue.id}</code>
           <span>${payload.seats.length}개 좌석 영역 · ${payload.map.id}</span>
-          <a class="console-link" href="http://localhost:4273/#booking" target="_blank" rel="noreferrer">사용자 예매 화면에서 확인</a>
+          <a class="console-link" href="http://localhost:4174/#booking" target="_blank" rel="noreferrer">사용자 예매 화면에서 확인</a>
         `;
       }
 
       function renderTickets() {
-        $("#ticketRows").innerHTML = state.summary.tickets.map((ticket) => {
+        const currentEvent = selectedEvent();
+        const tickets = state.summary.tickets.filter((ticket) => !currentEvent?.id || ticket.eventId === currentEvent.id);
+        $("#ticketRows").innerHTML = tickets.length ? tickets.map((ticket) => {
           const locked = ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status);
           const nextStatus = ticket.status === "ADMIN_HOLD" ? "ON_SALE" : "ADMIN_HOLD";
           const action = ticket.status === "ADMIN_HOLD" ? "판매 전환" : "보류";
           return `
             <tr>
               <td>${ticket.seatLabel}</td>
-              <td>${zoneName(ticket.zoneId)}</td>
+              <td>${zoneName(ticket.zoneId, ticket.eventId)}</td>
               <td>${fmt.format(ticket.faceValue)}원</td>
               <td>${ticket.ownerId ? userName(ticket.ownerId) : "-"}</td>
               <td><span class="pill ${ticket.status.toLowerCase()}">${statusText(ticket.status)}</span></td>
               <td><button class="mini" type="button" data-ticket-status="${ticket.id}:${nextStatus}" ${locked ? "disabled" : ""}>${action}</button></td>
             </tr>
           `;
-        }).join("");
+        }).join("") : `<tr><td colspan="6" class="empty">선택한 행사의 좌석 재고가 없습니다.</td></tr>`;
       }
 
       async function loadConsole() {
@@ -326,11 +455,16 @@
         ]);
         state.summary = summary;
         state.venues = venueData.venues;
-        state.event = venueData.event;
+        state.events = venueData.events || [venueData.event || summary.event].filter(Boolean);
+        state.eventId = state.eventId && state.events.some((eventItem) => eventItem.id === state.eventId)
+          ? state.eventId
+          : (venueData.event?.id || state.events[0]?.id || "");
+        state.event = selectedEvent();
         renderMetrics();
         renderPools();
         renderLedger();
         renderUsers();
+        renderAccounts();
         renderModerationForm();
         renderVenueForm();
         renderTickets();
@@ -371,7 +505,19 @@
 
       $("#refreshBtn").addEventListener("click", () => loadConsole().then(() => toast("최신 현황을 불러왔습니다.")).catch((error) => toast(error.message)));
 
+      $("#eventSelect").addEventListener("change", () => {
+        state.eventId = $("#eventSelect").value;
+        state.event = selectedEvent();
+        renderVenueForm();
+        renderTickets();
+        renderPreview().catch((error) => {
+          $("#catalogStatus").textContent = error.message;
+        });
+      });
+
       $("#venueSelect").addEventListener("change", () => {
+        const venue = selectedVenue();
+        $("#eventSummary p").textContent = `${venue?.name || "공연장 미지정"} · 사용자 예매 페이지에 즉시 반영`;
         renderPreview().catch((error) => {
           $("#catalogStatus").textContent = error.message;
         });
@@ -381,11 +527,13 @@
         eventSubmit.preventDefault();
         try {
           const result = await api("/api/admin/events/venue", {
-            eventId: state.event?.id,
+            eventId: selectedEvent()?.id,
             venueId: $("#venueSelect").value
           });
           state.event = result.event;
-          $("#catalogStatus").textContent = `${result.venue.name} 좌석도 API가 연결되었습니다.`;
+          state.eventId = result.event.id;
+          state.events = state.events.map((eventItem) => eventItem.id === result.event.id ? result.event : eventItem);
+          $("#catalogStatus").textContent = `${result.event.title} · ${result.venue.name} 좌석도 API가 연결되었습니다.`;
           await loadConsole();
         } catch (error) {
           $("#catalogStatus").textContent = error.message;

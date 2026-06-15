@@ -15,7 +15,8 @@ const appState = {
   selectedSeatId: "",
   paymentMethod: "BALANCE",
   seatMap: null,
-  seatMapEventId: ""
+  seatMapEventId: "",
+  activeProductTab: "productNotice"
 };
 
 const paymentMethods = [
@@ -345,7 +346,7 @@ function renderAccount() {
 
 function setRoute(route, updateHash = true) {
   const nextRoute = route;
-  const validRoutes = ["concerts", "booking", "resale", "my", "admin", "guide"];
+  const validRoutes = ["concerts", "booking", "resale", "my", "guide"];
   appState.route = validRoutes.includes(nextRoute) ? nextRoute : "concerts";
   document.querySelectorAll("[data-page]").forEach((page) => {
     page.classList.toggle("active", page.dataset.page === appState.route);
@@ -700,6 +701,21 @@ function renderProductSummary() {
   $("#productPlace p").textContent = `${venue.name} · ${venue.address || event.venue}`;
 }
 
+function renderProductTabs() {
+  const activeTab = document.querySelector(`[data-product-panel="${appState.activeProductTab}"]`)
+    ? appState.activeProductTab
+    : "productNotice";
+  appState.activeProductTab = activeTab;
+  document.querySelectorAll("[data-product-tab]").forEach((tab) => {
+    const isActive = tab.dataset.productTab === activeTab;
+    tab.classList.toggle("active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+  });
+  document.querySelectorAll("[data-product-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.productPanel !== activeTab;
+  });
+}
+
 function renderTickets() {
   ensureBookingSelection();
   renderProductSummary();
@@ -835,28 +851,6 @@ function renderMyTickets() {
   }).join("") : `<p>아직 보유한 티켓이 없습니다. 날짜 선택과 좌석 선택 후 결제해보세요.</p>`;
 }
 
-function renderAdminPanel() {
-  const eventSelect = $("#adminEventSelect");
-  const venueSelect = $("#adminVenueSelect");
-  if (!eventSelect || !venueSelect) return;
-  const previousEvent = eventSelect.value || appState.selectedEventId;
-  eventSelect.innerHTML = appState.data.events.map((event) => `
-    <option value="${event.id}">${event.title} · ${categoryLabels[event.category] || event.category}</option>
-  `).join("");
-  eventSelect.value = appState.data.events.some((event) => event.id === previousEvent) ? previousEvent : appState.selectedEventId;
-  const selectedEvent = eventById(eventSelect.value);
-  venueSelect.innerHTML = appState.data.venues.map((venue) => `
-    <option value="${venue.id}">${venue.name}</option>
-  `).join("");
-  venueSelect.value = selectedEvent.venueId;
-  const selectedVenue = venueById(venueSelect.value);
-  $("#adminVenueCurrent").textContent = `${selectedEvent.title} 현재 개최 장소: ${selectedVenue?.name || selectedEvent.venue}`;
-  $("#adminMapPreview").innerHTML = `
-    <strong>${selectedVenue?.name || "공연장"}</strong>
-    <span>${selectedVenue?.address || "주소 정보 없음"}</span>
-    <em>${selectedVenue?.mapType || "map"} 도면 API가 사용자 예매 화면에 연결됩니다.</em>
-  `;
-}
 
 async function refresh() {
   appState.data = await api("/api/state");
@@ -874,7 +868,7 @@ async function refresh() {
   renderSearchResults();
   renderSellForm();
   renderMyTickets();
-  renderAdminPanel();
+  renderProductTabs();
   setRoute(window.location.hash.replace("#", "") || appState.route, false);
 }
 
@@ -943,16 +937,6 @@ async function verifyQr() {
   await refresh();
 }
 
-async function updateVenue() {
-  const eventId = $("#adminEventSelect").value;
-  const venueId = $("#adminVenueSelect").value;
-  await api("/api/admin/events/venue", { eventId, venueId });
-  appState.selectedEventId = eventId;
-  appState.bookingStep = "date";
-  appState.selectedSeatId = "";
-  toast("관리자 설정이 저장되었습니다. 사용자 예매 화면에 새 도면 API가 적용됩니다.");
-  await refresh();
-}
 
 function toggleProfile(open) {
   const dropdown = $("#profileDropdown");
@@ -966,6 +950,7 @@ async function selectEventForBooking(eventId) {
   appState.bookingStep = "date";
   appState.selectedSeatId = "";
   appState.activeZone = "all";
+  appState.activeProductTab = "productNotice";
   ensureBookingSelection();
   await loadSeatMap();
   renderTickets();
@@ -981,7 +966,7 @@ document.addEventListener("click", async (event) => {
   const seatZoneButton = target.closest("[data-seat-zone]");
   const seatButton = target.closest("[data-seat-id]");
   const paymentButton = target.closest("[data-payment-method]");
-
+  const productTab = target.closest("[data-product-tab]");
   if (profileButton) {
     toggleProfile();
     return;
@@ -996,6 +981,13 @@ document.addEventListener("click", async (event) => {
         await selectEventForBooking(eventId);
       }
       setRoute(routeLink.dataset.route);
+      return;
+    }
+
+    if (productTab) {
+      event.preventDefault();
+      appState.activeProductTab = productTab.dataset.productTab;
+      renderProductTabs();
       return;
     }
 
@@ -1133,9 +1125,6 @@ $("#searchInput").addEventListener("keydown", (event) => {
   }
 });
 
-$("#saveVenueBtn").addEventListener("click", () => updateVenue().catch((error) => toast(error.message)));
-$("#adminEventSelect").addEventListener("change", () => renderAdminPanel());
-$("#adminVenueSelect").addEventListener("change", () => renderAdminPanel());
 
 document.addEventListener("keydown", async (event) => {
   if (event.target.closest?.(".hero") && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {

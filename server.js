@@ -880,6 +880,7 @@ function adminVenues(db) {
   const event = db.events[0];
   return {
     venues: db.venues.map(adminVenueRecord),
+    events: db.events,
     event
   };
 }
