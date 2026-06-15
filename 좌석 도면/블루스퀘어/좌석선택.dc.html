@@ -71,11 +71,13 @@ body{background:#050507}
               <stop offset="100%" stop-color="#0076a8"></stop>
             </linearGradient>
           </defs>
-          {{ floorSketch }}
-          <sc-for list="{{ sectionsVis }}" as="s" hint-placeholder-count="10">
-            <path d="{{ s.d }}" fill="{{ s.fill }}" stroke="{{ s.stroke }}" strokeWidth="{{ s.strokeWidth }}" strokeLinejoin="round" onClick="{{ s.onClick }}" onMouseEnter="{{ s.onEnter }}" onMouseLeave="{{ s.onLeave }}" style="cursor:pointer" style-hover="filter:brightness(1.14)"></path>
-          </sc-for>
-          {{ overlay }}
+          <g transform="{{ mapTransform }}">
+            <sc-for list="{{ sectionsVis }}" as="s" hint-placeholder-count="10">
+              <path d="{{ s.d }}" fill="{{ s.fill }}" stroke="{{ s.stroke }}" strokeWidth="{{ s.strokeWidth }}" strokeLinejoin="round" onClick="{{ s.onClick }}" onMouseEnter="{{ s.onEnter }}" onMouseLeave="{{ s.onLeave }}" style="cursor:pointer" style-hover="filter:brightness(1.14)"></path>
+            </sc-for>
+            {{ floorSketch }}
+            {{ overlay }}
+          </g>
         </svg>
       </div>
 
@@ -238,24 +240,24 @@ class Component extends DCLogic {
   buildSections(){
     const out=[]; let uid=0;
     [
-      {floor:'1F', label:'1층 좌측 GATE 1 전방', grade:'R', cx:278, cy:322, w:205, h:102, rot:13, skew:-16, rows:7, cols:13, seatBase:3},
-      {floor:'1F', label:'1층 중앙 전방', grade:'VIP', cx:550, cy:326, w:285, h:88, rows:7, cols:16, seatBase:16},
-      {floor:'1F', label:'1층 우측 GATE 2 전방', grade:'R', cx:822, cy:322, w:205, h:102, rot:-13, skew:16, rows:7, cols:13, seatBase:34},
-      {floor:'1F', label:'1층 좌측 GATE 1', grade:'R', cx:276, cy:515, w:320, h:244, rot:7, skew:-18, rows:14, cols:15, seatBase:1},
-      {floor:'1F', label:'1층 중앙', grade:'VIP', cx:550, cy:520, w:326, h:330, rows:22, cols:16, seatBase:16},
-      {floor:'1F', label:'1층 우측 GATE 2', grade:'R', cx:824, cy:515, w:320, h:244, rot:-7, skew:18, rows:14, cols:15, seatBase:34},
-      {floor:'1F', label:'1층 좌측 박스', grade:'BOX', cx:285, cy:686, w:230, h:40, rot:9, skew:20, rows:1, cols:9, seatBase:1},
-      {floor:'1F', label:'1층 좌측 A', grade:'A', cx:304, cy:728, w:185, h:34, rot:10, skew:16, rows:1, cols:7, seatBase:1},
-      {floor:'1F', label:'1층 우측 박스', grade:'BOX', cx:815, cy:686, w:230, h:40, rot:-9, skew:-20, rows:1, cols:9, seatBase:10},
-      {floor:'1F', label:'1층 우측 A', grade:'A', cx:796, cy:728, w:185, h:34, rot:-10, skew:-16, rows:1, cols:7, seatBase:8},
-      {floor:'2F', label:'2층 좌측 GATE 1', grade:'S', cx:285, cy:435, w:315, h:178, rot:9, skew:-20, rows:10, cols:15, seatBase:1},
-      {floor:'2F', label:'2층 중앙', grade:'S', cx:550, cy:450, w:290, h:158, rows:9, cols:16, seatBase:16},
-      {floor:'2F', label:'2층 우측 GATE 2', grade:'S', cx:815, cy:435, w:315, h:178, rot:-9, skew:20, rows:10, cols:15, seatBase:32},
-      {floor:'2F', label:'2층 좌측 사이드', grade:'A', cx:205, cy:555, w:94, h:40, rot:8, rows:2, cols:3, seatBase:1},
-      {floor:'2F', label:'2층 우측 사이드', grade:'A', cx:895, cy:555, w:94, h:40, rot:-8, rows:2, cols:3, seatBase:44},
-      {floor:'3F', label:'3층 좌측 GATE 1', grade:'A', cx:285, cy:500, w:300, h:136, rot:12, skew:-20, rows:6, cols:15, seatBase:2},
-      {floor:'3F', label:'3층 중앙', grade:'A', cx:550, cy:505, w:285, h:118, rows:6, cols:16, seatBase:17},
-      {floor:'3F', label:'3층 우측 GATE 2', grade:'A', cx:815, cy:500, w:300, h:136, rot:-12, skew:20, rows:6, cols:16, seatBase:33}
+      {floor:'1F', label:'1층 좌측 GATE 1 전방', mapLabel:'G1 전방', grade:'R', cx:278, cy:310, w:190, h:92, rot:13, skew:-16, rows:7, cols:13, seatBase:3},
+      {floor:'1F', label:'1층 중앙 전방', mapLabel:'1F 중앙 전방', grade:'VIP', cx:550, cy:310, w:270, h:92, rows:7, cols:16, seatBase:16},
+      {floor:'1F', label:'1층 우측 GATE 6 전방', mapLabel:'G6 전방', grade:'R', cx:822, cy:310, w:190, h:92, rot:-13, skew:16, rows:7, cols:13, seatBase:34},
+      {floor:'1F', label:'1층 좌측 GATE 2', mapLabel:'G2 좌측', grade:'R', cx:276, cy:520, w:300, h:218, rot:7, skew:-18, rows:14, cols:15, seatBase:1},
+      {floor:'1F', label:'1층 중앙', mapLabel:'1F 중앙', grade:'VIP', cx:550, cy:535, w:240, h:235, rows:22, cols:16, seatBase:16},
+      {floor:'1F', label:'1층 우측 GATE 5', mapLabel:'G5 우측', grade:'R', cx:824, cy:520, w:300, h:218, rot:-7, skew:18, rows:14, cols:15, seatBase:34},
+      {floor:'1F', label:'1층 좌측 GATE 3 박스', mapLabel:'G3 BOX', grade:'BOX', cx:285, cy:686, w:218, h:36, rot:9, skew:20, rows:1, cols:9, seatBase:1},
+      {floor:'1F', label:'1층 좌측 GATE 3 A', mapLabel:'G3 A', grade:'A', cx:304, cy:728, w:176, h:32, rot:10, skew:16, rows:1, cols:7, seatBase:1},
+      {floor:'1F', label:'1층 우측 GATE 4 박스', mapLabel:'G4 BOX', grade:'BOX', cx:815, cy:686, w:218, h:36, rot:-9, skew:-20, rows:1, cols:9, seatBase:10},
+      {floor:'1F', label:'1층 우측 GATE 4 A', mapLabel:'G4 A', grade:'A', cx:796, cy:728, w:176, h:32, rot:-10, skew:-16, rows:1, cols:7, seatBase:8},
+      {floor:'2F', label:'2층 좌측 GATE 2', mapLabel:'2F G2 좌측', grade:'S', cx:285, cy:435, w:300, h:168, rot:9, skew:-20, rows:10, cols:15, seatBase:1},
+      {floor:'2F', label:'2층 중앙', mapLabel:'2F 중앙', grade:'S', cx:550, cy:450, w:276, h:148, rows:9, cols:16, seatBase:16},
+      {floor:'2F', label:'2층 우측 GATE 5', mapLabel:'2F G5 우측', grade:'S', cx:815, cy:435, w:300, h:168, rot:-9, skew:20, rows:10, cols:15, seatBase:32},
+      {floor:'2F', label:'2층 좌측 GATE 3 사이드', mapLabel:'G3 사이드', grade:'A', cx:205, cy:555, w:90, h:38, rot:8, rows:2, cols:3, seatBase:1},
+      {floor:'2F', label:'2층 우측 GATE 4 사이드', mapLabel:'G4 사이드', grade:'A', cx:895, cy:555, w:90, h:38, rot:-8, rows:2, cols:3, seatBase:44},
+      {floor:'3F', label:'3층 좌측 GATE 2', mapLabel:'3F G2 좌측', grade:'A', cx:285, cy:500, w:286, h:130, rot:12, skew:-20, rows:6, cols:15, seatBase:2},
+      {floor:'3F', label:'3층 중앙', mapLabel:'3F 중앙', grade:'A', cx:550, cy:505, w:270, h:110, rows:6, cols:16, seatBase:17},
+      {floor:'3F', label:'3층 우측 GATE 5', mapLabel:'3F G5 우측', grade:'A', cx:815, cy:500, w:286, h:130, rot:-12, skew:20, rows:6, cols:16, seatBase:33}
     ].forEach(s=>this.add(s,out,uid++));
     return out;
   }
@@ -285,14 +287,14 @@ class Component extends DCLogic {
       ce('text',{key:'stage',x:550,y:138,fill:'#f1f3f5',fontSize:30,textAnchor:'middle',style:{fontWeight:800,letterSpacing:1}},stageLabel)
     ];
     if(floor==='1F') parts.push(ce('rect',{key:'pit',x:455,y:188,width:190,height:58,rx:8,fill:'#de951c',stroke:'rgba(255,255,255,.7)',strokeWidth:2}),ce('text',{key:'pitText',x:550,y:222,fill:'#fff',fontSize:18,textAnchor:'middle',style:{fontWeight:900}},'ORCHESTRA PIT'));
-    const gateLabel=(key,x,y,text,anchor='middle')=>ce('text',{key,x,y,fill:'#f1f3f5',fontSize:20,textAnchor:anchor,style:{fontWeight:900,letterSpacing:.5}},text);
+    const gateLabel=(key,x,y,text)=>ce('text',{key,x,y,fill:'#f1f3f5',fontSize:18,textAnchor:'middle',style:{fontWeight:900,letterSpacing:.5}},text);
     parts.push(
-      gateLabel('g1',92,474,'GATE 1'),
-      gateLabel('g2',1008,474,'GATE 2'),
-      gateLabel('g3',164,650,'GATE 3'),
-      gateLabel('g4',936,650,'GATE 4'),
-      gateLabel('g5',128,246,'GATE 5'),
-      gateLabel('g6',972,246,'GATE 6')
+      gateLabel('g1',120,230,'GATE 1'),
+      gateLabel('g2',58,475,'GATE 2'),
+      gateLabel('g3',110,665,'GATE 3'),
+      gateLabel('g4',990,665,'GATE 4'),
+      gateLabel('g5',1042,475,'GATE 5'),
+      gateLabel('g6',980,230,'GATE 6')
     );
     return ce('g',{style:{pointerEvents:'none'}},parts);
   }
@@ -300,10 +302,10 @@ class Component extends DCLogic {
     const ce=React.createElement, floor=this.state.floor, hover=this.state.hover, max=this.props.maxTickets ?? 4, sel=this.state.selections;
     const sectionsVis=this.sections.filter(s=>s.floor===floor).map(s=>{
       const selCount=(sel[s.id]||[]).length, hovered=hover===s.id, soldOut=s.remaining===0;
-      return { id:s.id, d:s.d, fill:soldOut?'#3a3a42':this.COLORS[s.grade], stroke:(selCount||hovered)?'#fff':'rgba(4,4,9,.45)', strokeWidth:selCount?2.6:(hovered?2:1), onClick:()=>this.openDetail(s.id), onEnter:()=>this.setState({hover:s.id}), onLeave:()=>this.setState(st=>st.hover===s.id?{hover:null}:null), label:s.label, cx:s.cx, cy:s.cy, grade:s.grade, count:selCount };
+      return { id:s.id, d:s.d, fill:soldOut?'#3a3a42':this.COLORS[s.grade], stroke:(selCount||hovered)?'#fff':'rgba(4,4,9,.45)', strokeWidth:selCount?2.6:(hovered?2:1), onClick:()=>this.openDetail(s.id), onEnter:()=>this.setState({hover:s.id}), onLeave:()=>this.setState(st=>st.hover===s.id?{hover:null}:null), label:s.label, mapLabel:s.mapLabel, cx:s.cx, cy:s.cy, grade:s.grade, count:selCount };
     });
     const overlay=ce('g',{style:{pointerEvents:'none'}},sectionsVis.flatMap(s=>{
-      const a=[ce('text',{key:s.id+'l',x:s.cx,y:s.cy-6,fill:s.grade==='A'||s.grade==='BOX'?'#111827':'#ffffff',fontSize:14,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:800}},s.label.replace('블루스퀘어 ','').replace('층 ', 'F ')),ce('text',{key:s.id+'g',x:s.cx,y:s.cy+14,fill:s.grade==='A'||s.grade==='BOX'?'#1f2933':'#e6f8ff',fontSize:11,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:700}},this.GNAME[s.grade])];
+      const a=[ce('text',{key:s.id+'l',x:s.cx,y:s.cy-6,fill:s.grade==='A'||s.grade==='BOX'?'#111827':'#ffffff',fontSize:13,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:800}},s.mapLabel||s.label.replace('블루스퀘어 ','').replace('층 ', 'F ')),ce('text',{key:s.id+'g',x:s.cx,y:s.cy+14,fill:s.grade==='A'||s.grade==='BOX'?'#1f2933':'#e6f8ff',fontSize:10.5,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:700}},this.GNAME[s.grade])];
       if(s.count){ a.push(ce('circle',{key:s.id+'c',cx:s.cx+s.count*0+42,cy:s.cy-30,r:9,fill:'#00aaff',stroke:'#fff',strokeWidth:1.5}),ce('text',{key:s.id+'ct',x:s.cx+42,y:s.cy-30,fill:'#fff',fontSize:11,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:900}},String(s.count))); }
       return a;
     }));
@@ -321,7 +323,8 @@ class Component extends DCLogic {
     }}
     const infoRows=[{k:'공연장',v:'블루스퀘어'}, {k:'도면 기준',v:'1층·2층·3층 이미지'}, {k:'선택 가능 구역',v:this.sections.length+'개 구역'}, {k:'현재 층',v:floor.replace('F','층')}, {k:'선택 제한',v:'최대 '+max+'매'}, {k:'좌석 방식',v:'구역 선택 후 좌석 지정'}].map((r,i)=>({ k:r.k, v:r.v, bg:i%2?'rgba(255,255,255,.02)':'transparent' }));
     const sourceImages=[{key:'1',label:'1층',src:'./블루스퀘어 1층.png',alt:'블루스퀘어 1층 도면'}, {key:'2',label:'2층',src:'./블루스퀘어 2층.png',alt:'블루스퀘어 2층 도면'}, {key:'3',label:'3층',src:'./블루스퀘어 3층.png',alt:'블루스퀘어 3층 도면'}];
-    return { eventTitle:this.props.eventTitle ?? 'Midnight Sonata', eventSub:this.props.eventSub ?? '블루스퀘어 뮤지컬', eventVenue:this.props.eventVenue ?? '블루스퀘어', eventDate:this.props.eventDate ?? '2026.11.02 (월) 19:30', floorButtons, floorSketch:this.floorSketch(floor), sectionsVis, overlay, hoverInfo, hasHover:!!hoverInfo, noHover:!hoverInfo, legend, selList, hasSel:selList.length>0, noSel:selList.length===0, totalCount, totalPrice:this.fmt(totalPrice), countLabel:totalCount+'석 선택 · 최대 '+max+'매', detailOpen:!!detail, detail, infoRows, sourceImages, toast:this.state.toast, hasToast:!!this.state.toast, stop:(e)=>{e.stopPropagation();}, onCloseDetail:()=>this.closeDetail(), onClear:()=>this.clearAll(), onCheckout:()=>this.checkout() };
+    const mapTransform='translate(55 42) scale(.9)';
+    return { eventTitle:this.props.eventTitle ?? 'Midnight Sonata', eventSub:this.props.eventSub ?? '블루스퀘어 뮤지컬', eventVenue:this.props.eventVenue ?? '블루스퀘어', eventDate:this.props.eventDate ?? '2026.11.02 (월) 19:30', floorButtons, mapTransform, floorSketch:this.floorSketch(floor), sectionsVis, overlay, hoverInfo, hasHover:!!hoverInfo, noHover:!hoverInfo, legend, selList, hasSel:selList.length>0, noSel:selList.length===0, totalCount, totalPrice:this.fmt(totalPrice), countLabel:totalCount+'석 선택 · 최대 '+max+'매', detailOpen:!!detail, detail, infoRows, sourceImages, toast:this.state.toast, hasToast:!!this.state.toast, stop:(e)=>{e.stopPropagation();}, onCloseDetail:()=>this.closeDetail(), onClear:()=>this.clearAll(), onCheckout:()=>this.checkout() };
   }
 }
 </script>
