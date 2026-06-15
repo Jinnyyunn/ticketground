@@ -2868,7 +2868,7 @@ h3 {
 
 .booking-step-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
 }
 

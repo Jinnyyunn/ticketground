@@ -490,7 +490,7 @@ function renderDateSelection() {
         `).join("")}
       </div>
       <div class="booking-step-actions">
-        <button type="button" onclick="window.openSeatSelector()">예매하기</button>
+        <button type="button" onclick="window.openSeatSelector()">좌석 선택</button>
       </div>
     </div>
   `;
