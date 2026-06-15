@@ -2872,6 +2872,12 @@ h3 {
   gap: 10px;
 }
 
+.date-step-panel .booking-step-actions > button {
+  min-height: 56px;
+  min-width: 168px;
+  padding-inline: 34px;
+}
+
 .booking-step-actions.split {
   justify-content: space-between;
 }
