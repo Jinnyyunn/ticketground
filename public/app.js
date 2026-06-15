@@ -16,7 +16,10 @@ const appState = {
   paymentMethod: "BALANCE",
   seatMap: null,
   seatMapEventId: "",
-  activeProductTab: "all"
+  activeProductTab: "all",
+  supportOpen: false,
+  activeSupportThreadId: "",
+  supportPollTimer: null
 };
 
 const paymentMethods = [
@@ -171,6 +174,21 @@ function toast(message) {
   node.textContent = message;
   node.classList.add("show");
   window.setTimeout(() => node.classList.remove("show"), 3000);
+}
+
+function escapeAttr(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 async function api(path, body) {
@@ -346,7 +364,7 @@ function renderAccount() {
 
 function setRoute(route, updateHash = true) {
   const nextRoute = route;
-  const validRoutes = ["concerts", "booking", "resale", "my", "guide"];
+  const validRoutes = ["concerts", "booking", "resale", "my", "guide", "support"];
   appState.route = validRoutes.includes(nextRoute) ? nextRoute : "concerts";
   document.querySelectorAll("[data-page]").forEach((page) => {
     page.classList.toggle("active", page.dataset.page === appState.route);
@@ -488,6 +506,8 @@ function renderBookingProgress() {
 function renderDateSelection() {
   const event = currentEvent();
   const dates = event.dates || [];
+  const selectedDate = currentDate();
+  const selectorHref = selectedDate ? seatSelectorUrl() : "#";
   return `
     <div class="date-step-panel">
       <div class="booking-step-copy">
@@ -509,7 +529,13 @@ function renderDateSelection() {
         `).join("")}
       </div>
       <div class="booking-step-actions">
-        <button type="button" onclick="window.openSeatSelector()">좌석 선택</button>
+        <a
+          class="seat-selector-link"
+          href="${escapeAttr(selectorHref)}"
+          target="_blank"
+          rel="noreferrer"
+          data-open-seat-selector="true"
+        >좌석 선택</a>
       </div>
     </div>
   `;
@@ -534,22 +560,58 @@ function seatSelectorUrl() {
   return url.toString();
 }
 
-window.openSeatSelector = function openSeatSelector() {
+window.seatSelectorUrl = seatSelectorUrl;
+
+function popupFeatures(width = 1100, height = 760) {
+  const screenLeft = window.screenLeft ?? window.screenX ?? 0;
+  const screenTop = window.screenTop ?? window.screenY ?? 0;
+  const viewportWidth = window.outerWidth || document.documentElement.clientWidth || screen.width;
+  const viewportHeight = window.outerHeight || document.documentElement.clientHeight || screen.height;
+  const left = Math.max(0, Math.round(screenLeft + (viewportWidth - width) / 2));
+  const top = Math.max(0, Math.round(screenTop + (viewportHeight - height) / 2));
+  return [
+    "popup=yes",
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    "menubar=no",
+    "toolbar=no",
+    "location=no",
+    "status=no",
+    "resizable=yes",
+    "scrollbars=yes"
+  ].join(",");
+}
+
+function openSeatSelectorPopup(url) {
+  const popup = window.open(
+    url,
+    "ticketground-seat-selector",
+    popupFeatures()
+  );
+  if (!popup) return null;
+  popup.focus();
+  return popup;
+}
+
+function shouldUseFullPageSeatSelector() {
+  return window.matchMedia?.("(max-width: 760px)")?.matches || window.innerWidth < 760;
+}
+
+function openSeatSelector() {
   if (!currentDate()) {
     toast("예매 날짜를 먼저 선택해주세요.");
     return;
   }
-  const popup = window.open(
-    seatSelectorUrl(),
-    "ticketground-seat-selector",
-    "popup=yes,width=1280,height=860,menubar=no,toolbar=no,location=no,status=no"
-  );
+  const popup = openSeatSelectorPopup(seatSelectorUrl());
   if (!popup) {
     toast("팝업이 차단되었습니다. 브라우저 팝업 허용 후 다시 예매하기를 눌러주세요.");
     return;
   }
-  popup.focus();
-};
+}
+
+window.openSeatSelector = openSeatSelector;
 
 function renderSeatMap(tickets) {
   const event = currentEvent();
@@ -859,6 +921,121 @@ function renderMyTickets() {
   }).join("") : `<p>아직 보유한 티켓이 없습니다. 날짜 선택과 좌석 선택 후 결제해보세요.</p>`;
 }
 
+function supportStatusLabel(status) {
+  const labels = { OPEN: "답변 대기", ANSWERED: "답변 완료", CLOSED: "상담 종료" };
+  return labels[status] || status;
+}
+
+function supportThreadsForUser() {
+  const user = currentUser();
+  return (appState.data.supportThreads || [])
+    .filter((thread) => thread.userId === user.id)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+}
+
+function currentSupportThread() {
+  const threads = supportThreadsForUser();
+  return threads.find((thread) => thread.id === appState.activeSupportThreadId)
+    || threads.find((thread) => thread.status !== "CLOSED")
+    || threads[0];
+}
+
+function renderSupportThreads() {
+  const node = $("#supportThreadList");
+  if (!node) return;
+  const threads = supportThreadsForUser();
+  node.innerHTML = threads.length ? threads.map((thread) => {
+    const lastMessage = thread.messages.at(-1);
+    return `
+      <button class="support-thread-card" type="button" data-support-thread="${thread.id}">
+        <span>${supportStatusLabel(thread.status)}</span>
+        <strong>${escapeHtml(thread.subject)}</strong>
+        <em>${lastMessage ? escapeHtml(lastMessage.body) : "메시지 없음"}</em>
+      </button>
+    `;
+  }).join("") : `<p class="empty">아직 문의 내역이 없습니다. 우측 하단 고객센터를 눌러 문의를 남겨보세요.</p>`;
+}
+
+function renderSupportChat() {
+  const chat = $("#supportChat");
+  if (!chat) return;
+  chat.hidden = !appState.supportOpen;
+  const thread = currentSupportThread();
+  if (thread) appState.activeSupportThreadId = thread.id;
+  const messages = thread?.messages || [];
+  $("#supportChatMessages").innerHTML = messages.length ? messages.map((message) => `
+    <div class="support-message ${message.role === "ADMIN" ? "admin" : "customer"}">
+      <span>${message.role === "ADMIN" ? "상담원" : displayName()} · ${new Date(message.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>
+      <p>${escapeHtml(message.body)}</p>
+    </div>
+  `).join("") : `
+    <div class="support-empty">
+      <strong>무엇을 도와드릴까요?</strong>
+      <p>예매, 좌석, 결제, 환불 관련 문의를 남겨주세요.</p>
+    </div>
+  `;
+  $("#supportSubjectInput").hidden = !!thread;
+  $("#supportSubjectInput").disabled = !!thread;
+  $("#supportMessageInput").placeholder = thread ? "추가 메시지를 입력해주세요" : "문의 내용을 입력해주세요";
+  $("#supportChatMessages").scrollTop = $("#supportChatMessages").scrollHeight;
+}
+
+function renderSupport() {
+  renderSupportThreads();
+  renderSupportChat();
+}
+
+async function reloadSupportThreads() {
+  const user = currentUser();
+  const threads = await api(`/api/support/threads?userId=${encodeURIComponent(user.id)}`);
+  const otherThreads = (appState.data.supportThreads || []).filter((thread) => thread.userId !== user.id);
+  appState.data.supportThreads = [...threads, ...otherThreads];
+  renderSupport();
+}
+
+function openSupportChat(threadId = "") {
+  appState.supportOpen = true;
+  if (threadId) appState.activeSupportThreadId = threadId;
+  renderSupport();
+  clearInterval(appState.supportPollTimer);
+  appState.supportPollTimer = window.setInterval(() => reloadSupportThreads().catch(() => {}), 3000);
+}
+
+function closeSupportChat() {
+  appState.supportOpen = false;
+  clearInterval(appState.supportPollTimer);
+  renderSupportChat();
+}
+
+async function submitSupportMessage() {
+  const thread = currentSupportThread();
+  const message = $("#supportMessageInput").value.trim();
+  const subject = $("#supportSubjectInput").value.trim() || "1:1 실시간 문의";
+  if (!message) {
+    toast("문의 내용을 입력해주세요.");
+    return;
+  }
+  if (thread && thread.status !== "CLOSED") {
+    await api("/api/support/messages", {
+      threadId: thread.id,
+      actorId: currentUser().id,
+      role: "CUSTOMER",
+      message
+    });
+  } else {
+    const created = await api("/api/support/threads", {
+      userId: currentUser().id,
+      subject,
+      message
+    });
+    appState.activeSupportThreadId = created.id;
+  }
+  $("#supportMessageInput").value = "";
+  $("#supportSubjectInput").value = "";
+  await reloadSupportThreads();
+  toast("문의가 고객센터로 전달되었습니다.");
+}
+
 
 async function refresh() {
   appState.data = await api("/api/state");
@@ -876,6 +1053,8 @@ async function refresh() {
   renderSearchResults();
   renderSellForm();
   renderMyTickets();
+  await reloadSupportThreads();
+  renderSupport();
   renderProductTabs();
   setRoute(window.location.hash.replace("#", "") || appState.route, false);
 }
@@ -975,6 +1154,7 @@ document.addEventListener("click", async (event) => {
   const seatButton = target.closest("[data-seat-id]");
   const paymentButton = target.closest("[data-payment-method]");
   const productTab = target.closest("[data-product-tab]");
+  const supportThreadButton = target.closest("[data-support-thread]");
   if (profileButton) {
     toggleProfile();
     return;
@@ -1006,6 +1186,41 @@ document.addEventListener("click", async (event) => {
     if (paymentButton) {
       appState.paymentMethod = paymentButton.dataset.paymentMethod;
       renderTickets();
+      return;
+    }
+
+    if (target.closest("[data-open-seat-selector]")) {
+      if (!currentDate()) {
+        event.preventDefault();
+        toast("예매 날짜를 먼저 선택해주세요.");
+        return;
+      }
+      if (shouldUseFullPageSeatSelector()) {
+        event.preventDefault();
+        window.location.href = seatSelectorUrl();
+        return;
+      }
+      const popup = openSeatSelectorPopup(seatSelectorUrl());
+      if (popup) {
+        event.preventDefault();
+      } else {
+        toast("팝업이 차단되어 새 탭으로 열립니다.");
+      }
+      return;
+    }
+
+    if (target.closest("[data-open-support-chat]")) {
+      openSupportChat();
+      return;
+    }
+
+    if (target.closest("[data-close-support-chat]")) {
+      closeSupportChat();
+      return;
+    }
+
+    if (supportThreadButton) {
+      openSupportChat(supportThreadButton.dataset.supportThread);
       return;
     }
 
@@ -1102,9 +1317,11 @@ document.addEventListener("click", async (event) => {
 
 $("#userSelect").addEventListener("change", () => {
   appState.nicknameOverride = "";
+  appState.activeSupportThreadId = "";
   renderAccount();
   renderSellForm();
   renderMyTickets();
+  renderSupport();
 });
 
 $("#sellTicketSelect").addEventListener("change", () => {
@@ -1131,6 +1348,11 @@ $("#searchInput").addEventListener("keydown", (event) => {
     setRoute("concerts");
     $("#searchResults").scrollIntoView({ behavior: "smooth", block: "start" });
   }
+});
+
+$("#supportChatForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitSupportMessage().catch((error) => toast(error.message));
 });
 
 

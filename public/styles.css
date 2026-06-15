@@ -54,7 +54,8 @@ select {
 
 button,
 .primary-link,
-.event-cta {
+.event-cta,
+.seat-selector-link {
   min-height: 44px;
   border: 0;
   border-radius: 6px;
@@ -64,11 +65,15 @@ button,
   font-weight: 800;
   text-decoration: none;
   box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button:hover,
 .primary-link:hover,
-.event-cta:hover {
+.event-cta:hover,
+.seat-selector-link:hover {
   background: #ffe45c;
 }
 
@@ -2894,10 +2899,209 @@ h3 {
   gap: 10px;
 }
 
-.date-step-panel .booking-step-actions > button {
+.date-step-panel .booking-step-actions > button,
+.date-step-panel .booking-step-actions > .seat-selector-link {
   min-height: 56px;
   min-width: 168px;
   padding-inline: 34px;
+}
+
+.support-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1fr) minmax(280px, 0.9fr);
+  gap: 16px;
+}
+
+.support-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.support-panel.live {
+  background: #17140d;
+  color: #fff;
+}
+
+.support-panel h3,
+.support-panel p {
+  margin: 0;
+}
+
+.faq-list {
+  display: grid;
+  gap: 10px;
+}
+
+.faq-list details {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.faq-list summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.support-thread-list {
+  display: grid;
+  gap: 8px;
+}
+
+.support-thread-card {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  width: 100%;
+  min-height: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: #f8fafc;
+  text-align: left;
+}
+
+.support-thread-card span {
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.support-thread-card em {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--sub);
+  font-size: 13px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.support-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 60;
+  min-width: 124px;
+  box-shadow: 0 14px 34px rgba(23, 20, 13, 0.24);
+}
+
+.support-chat {
+  position: fixed;
+  right: 22px;
+  bottom: 82px;
+  z-index: 70;
+  display: grid;
+  grid-template-rows: auto minmax(220px, 360px) auto;
+  width: min(390px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid rgba(23, 20, 13, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(23, 20, 13, 0.22);
+}
+
+.support-chat[hidden] {
+  display: none;
+}
+
+.support-chat-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  color: #fff;
+  background: #17140d;
+}
+
+.support-chat-head div,
+.support-chat-form {
+  display: grid;
+  gap: 6px;
+}
+
+.support-chat-head span {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 12px;
+}
+
+.icon-button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.2);
+  background: transparent;
+  color: #fff;
+}
+
+.support-chat-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  overflow: auto;
+  padding: 14px;
+  background: #f5f6f8;
+}
+
+.support-message {
+  max-width: 82%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.support-message.customer {
+  justify-self: end;
+  background: var(--tig);
+}
+
+.support-message.admin {
+  justify-self: start;
+}
+
+.support-message span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sub);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.support-message p,
+.support-empty p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.support-empty {
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+}
+
+.support-chat-form {
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+
+.support-chat-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 84px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
 }
 
 .booking-step-actions.split {

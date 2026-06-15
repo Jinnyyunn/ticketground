@@ -384,6 +384,7 @@ function normalizeDb(db) {
   db.events ||= [];
   db.tickets ||= [];
   db.resalePools ||= [];
+  db.supportThreads ||= [];
   db.ledger ||= [];
 
   if (!db.venues?.length) {
@@ -499,6 +500,7 @@ function publicState(db) {
     })),
     tickets: db.tickets,
     resalePools: db.resalePools,
+    supportThreads: [],
     ledger: {
       totalEntries: db.ledger.length,
       latestHash: db.ledger.at(-1)?.hash || null,
@@ -519,6 +521,7 @@ function seedDb() {
     events: eventBlueprints(),
     tickets: [],
     resalePools: [],
+    supportThreads: [],
     ledger: []
   };
   for (const event of db.events) ensureTicketsForEvent(db, event);
@@ -889,12 +892,14 @@ function adminSummary(db) {
   const ledgerCheck = verifyLedger(db);
   const openPools = db.resalePools.filter((pool) => pool.status === "OPEN");
   const watchUsers = db.users.filter((user) => user.status === "WATCHLIST" || user.trustScore < 50);
+  const openSupportThreads = db.supportThreads.filter((thread) => thread.status !== "CLOSED");
   return {
     stats: {
       totalTickets: db.tickets.length,
       onSaleTickets: db.tickets.filter((ticket) => ticket.status === "ON_SALE").length,
       ownedTickets: db.tickets.filter((ticket) => ticket.status === "OWNED").length,
       resalePools: openPools.length,
+      supportOpen: openSupportThreads.length,
       watchUsers: watchUsers.length,
       ledgerEntries: db.ledger.length,
       ledgerVerified: ledgerCheck.ok
@@ -903,9 +908,88 @@ function adminSummary(db) {
     users: db.users,
     tickets: db.tickets,
     resalePools: db.resalePools,
+    supportThreads: db.supportThreads,
     ledger: db.ledger.slice(-12).reverse(),
     ledgerCheck
   };
+}
+
+function supportThreadForUser(db, userId) {
+  findUser(db, userId);
+  return db.supportThreads
+    .filter((thread) => thread.userId === userId)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+}
+
+function createSupportThread(db, { userId, subject, message }) {
+  const user = findUser(db, userId);
+  const cleanMessage = String(message || "").trim();
+  if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "문의 내용을 입력해주세요.");
+  const thread = {
+    id: id("support"),
+    userId: user.id,
+    subject: String(subject || "1:1 실시간 문의").trim().slice(0, 80) || "1:1 실시간 문의",
+    status: "OPEN",
+    priority: "NORMAL",
+    createdAt: now(),
+    updatedAt: now(),
+    messages: [
+      {
+        id: id("msg"),
+        actorId: user.id,
+        role: "CUSTOMER",
+        body: cleanMessage.slice(0, 1000),
+        at: now()
+      }
+    ]
+  };
+  db.supportThreads.unshift(thread);
+  appendLedger(db, user.id, "SUPPORT_THREAD_CREATED", {
+    threadId: thread.id,
+    subject: thread.subject
+  });
+  return thread;
+}
+
+function addSupportMessage(db, { threadId, actorId, role, message }) {
+  const thread = db.supportThreads.find((item) => item.id === threadId);
+  if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
+  const cleanMessage = String(message || "").trim();
+  if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "메시지를 입력해주세요.");
+  const normalizedRole = role === "ADMIN" ? "ADMIN" : "CUSTOMER";
+  if (normalizedRole === "CUSTOMER" && actorId !== thread.userId) {
+    throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
+  }
+  if (normalizedRole === "CUSTOMER") findUser(db, actorId);
+  const entry = {
+    id: id("msg"),
+    actorId: normalizedRole === "ADMIN" ? "ADMIN" : actorId,
+    role: normalizedRole,
+    body: cleanMessage.slice(0, 1000),
+    at: now()
+  };
+  thread.messages.push(entry);
+  thread.status = normalizedRole === "ADMIN" ? "ANSWERED" : "OPEN";
+  thread.updatedAt = now();
+  appendLedger(db, entry.actorId, "SUPPORT_MESSAGE_ADDED", {
+    threadId: thread.id,
+    role: entry.role
+  });
+  return thread;
+}
+
+function updateSupportStatus(db, { threadId, status }) {
+  const allowed = ["OPEN", "ANSWERED", "CLOSED"];
+  if (!allowed.includes(status)) throw httpError(422, "INVALID_SUPPORT_STATUS", "지원하지 않는 문의 상태입니다.");
+  const thread = db.supportThreads.find((item) => item.id === threadId);
+  if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
+  thread.status = status;
+  thread.updatedAt = now();
+  appendLedger(db, "ADMIN", "SUPPORT_STATUS_UPDATED", {
+    threadId: thread.id,
+    status
+  });
+  return thread;
 }
 
 function updateUserStatus(db, { userId, status, reason }) {
@@ -1030,6 +1114,11 @@ async function handleApi(req, res, db) {
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
   if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
+  if (req.method === "GET" && url.pathname === "/api/support/threads") {
+    const userId = url.searchParams.get("userId");
+    if (!userId) throw httpError(400, "MISSING_FIELD", "userId 값이 필요합니다.");
+    return supportThreadForUser(db, userId);
+  }
   if (req.method === "GET" && url.pathname === "/api/seat-map") {
     return seatMap(db, {
       category: url.searchParams.get("category"),
@@ -1037,6 +1126,15 @@ async function handleApi(req, res, db) {
     });
   }
   if (req.method === "GET" && seatMapMatch) return venueMapForEvent(db, decodeURIComponent(seatMapMatch[1]));
+
+  if (req.method === "POST" && url.pathname === "/api/support/threads") {
+    requireBody(body, ["userId", "message"]);
+    return createSupportThread(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/support/messages") {
+    requireBody(body, ["threadId", "actorId", "message"]);
+    return addSupportMessage(db, body);
+  }
 
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
@@ -1077,6 +1175,14 @@ async function handleApi(req, res, db) {
   if (req.method === "POST" && url.pathname === "/api/admin/tickets/status") {
     requireBody(body, ["ticketId", "status"]);
     return updateTicketStatus(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/support/messages") {
+    requireBody(body, ["threadId", "message"]);
+    return addSupportMessage(db, { ...body, actorId: "ADMIN", role: "ADMIN" });
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/support/status") {
+    requireBody(body, ["threadId", "status"]);
+    return updateSupportStatus(db, body);
   }
 
   throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");

@@ -16,6 +16,7 @@
         <a href="#concerts" data-route="concerts">공연</a>
         <a href="#resale" data-route="resale">공식 재판매 티켓 예매</a>
         <a href="#my" data-route="my">My 예매내역</a>
+        <a href="#support" data-route="support">고객센터</a>
       </nav>
       <div class="profile-menu">
         <div class="profile-summary" aria-live="polite">
@@ -300,6 +301,44 @@
           </article>
         </div>
       </section>
+
+      <section class="page section support-section" id="support" data-page="support">
+        <div class="section-head">
+          <div>
+            <h2>고객센터</h2>
+            <p>예매, 좌석 선택, 결제, 환불 문의를 한 곳에서 확인하고 상담원 답변을 받을 수 있습니다.</p>
+          </div>
+        </div>
+        <div class="support-grid">
+          <article class="support-panel live">
+            <span class="badge">실시간 문의</span>
+            <h3>1:1 문의 응대</h3>
+            <p>문의 내용을 남기면 운영 콘솔의 고객 문의 탭으로 바로 전달됩니다.</p>
+            <button type="button" data-open-support-chat="true">문의하기</button>
+          </article>
+          <article class="support-panel">
+            <h3>자주 묻는 질문</h3>
+            <div class="faq-list">
+              <details open>
+                <summary>좌석 선택 창이 열리지 않아요</summary>
+                <p>브라우저 팝업 허용을 확인해주세요. 모바일에서는 좌석 선택 화면으로 바로 이동합니다.</p>
+              </details>
+              <details>
+                <summary>결제는 실제로 진행되나요?</summary>
+                <p>현재는 프로토타입이며, 실제 결제는 PG사 연동 후 승인/취소 처리가 가능합니다.</p>
+              </details>
+              <details>
+                <summary>공식 재판매는 어떻게 진행되나요?</summary>
+                <p>보유 티켓을 My 예매내역에서 공식 풀에 등록하면 대기자 중 랜덤 매칭됩니다.</p>
+              </details>
+            </div>
+          </article>
+          <article class="support-panel">
+            <h3>내 문의 내역</h3>
+            <div class="support-thread-list" id="supportThreadList"></div>
+          </article>
+        </div>
+      </section>
     </main>
 
     <footer class="site-footer">
@@ -308,6 +347,22 @@
     </footer>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <button class="support-fab" type="button" data-open-support-chat="true" aria-label="실시간 문의 열기">고객센터</button>
+    <section class="support-chat" id="supportChat" aria-label="실시간 문의" hidden>
+      <div class="support-chat-head">
+        <div>
+          <strong>실시간 문의</strong>
+          <span>운영자 답변은 이 창과 고객센터 내역에 표시됩니다.</span>
+        </div>
+        <button class="icon-button" type="button" data-close-support-chat="true" aria-label="닫기">×</button>
+      </div>
+      <div class="support-chat-body" id="supportChatMessages"></div>
+      <form class="support-chat-form" id="supportChatForm">
+        <input id="supportSubjectInput" type="text" maxlength="80" placeholder="문의 제목" />
+        <textarea id="supportMessageInput" rows="3" maxlength="1000" placeholder="문의 내용을 입력해주세요"></textarea>
+        <button type="submit">보내기</button>
+      </form>
+    </section>
     <script src="/app.js" type="module"></script>
   </body>
 </html>

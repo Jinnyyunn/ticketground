@@ -191,7 +191,6 @@ body{background:#050507}
         <div style="flex:0 0 auto;display:flex;align-items:center;gap:18px;padding:11px 20px;border-bottom:1px solid rgba(255,255,255,.06);font-size:11.5px;color:#908f8e">
           <div style="display:flex;align-items:center;gap:7px"><div style="{{ detail.swAvail }}"></div>예매 가능</div>
           <div style="display:flex;align-items:center;gap:7px"><div style="width:14px;height:14px;border-radius:3px;background:#ffffff;border:1.5px solid #00aaff"></div>선택</div>
-          <div style="display:flex;align-items:center;gap:7px"><div style="width:14px;height:14px;border-radius:3px;background:#2b2b33"></div>매진</div>
         </div>
 
         <div style="flex:1 1 auto;min-height:0;overflow:auto;padding:20px;display:flex;flex-direction:column;align-items:center;gap:4px">
@@ -265,14 +264,13 @@ class Component extends DCLogic {
         let cols=ring.cols+((i%3)-1), rows=ring.rows+(i%2);
         if(type==='vip'){ cols=14; rows=7; }
         if(type==='press'){ cols=0; rows=0; }
-        const total=cols*rows, r=this.rng(uid+17), ratio=0.16+r()*0.5;
+        const total=cols*rows;
         const soldSet=new Set();
-        if(total){ for(let rr=0;rr<rows;rr++) for(let cc=0;cc<cols;cc++){ if(r()<ratio) soldSet.add(rr+'-'+cc); } }
         const cen=this.pt(center,(ring.ri+ring.ro)/2), badge=this.pt(center, ring.ro-13);
         out.push({ id:'b'+uid, ring:ring.name, type, grade, num,
           d:this.sector(a0,a1,ring.ri,ring.ro),
           lx:cen[0], ly:cen[1], bx:badge[0], by:badge[1],
-          cols, rows, total, soldSet, remaining: total-soldSet.size,
+          cols, rows, total, soldSet, remaining: total,
           fs: ring.name==='3F'?12.5:(ring.name==='2F'?11.5:10.5) });
         uid++;
       }
@@ -354,15 +352,15 @@ class Component extends DCLogic {
     if(this.state.detail){ const b=this.byId(this.state.detail); if(b){
       const selSet=new Set(sel[b.id]||[]), rows=[];
       for(let r=0;r<b.rows;r++){ const seats=[];
-        for(let c=0;c<b.cols;c++){ const id=r+'-'+c, sold=b.soldSet.has(id), isSel=selSet.has(id);
-          seats.push({ key:id, label:String(c+1), onClick: sold?undefined:()=>this.toggleSeat(b.id,id),
+        for(let c=0;c<b.cols;c++){ const id=r+'-'+c, isSel=selSet.has(id);
+          seats.push({ key:id, label:String(c+1), onClick:()=>this.toggleSeat(b.id,id),
             style:{ width:'22px', height:'19px', borderRadius:'4px',
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:'9px', fontWeight:'700', lineHeight:'1', flex:'0 0 auto',
-              background: sold?'#2b2b33':(isSel?'#ffffff':this.COLORS[b.grade]),
-              color: sold?'#55585f':(isSel?'#0084c7':'#06243a'),
+              background: isSel?'#ffffff':this.COLORS[b.grade],
+              color: isSel?'#0084c7':'#06243a',
               border:'1.5px solid '+(isSel?'#00aaff':'transparent'),
-              cursor: sold?'default':'pointer' } });
+              cursor:'pointer' } });
         }
         rows.push({ key:'r'+r, label:String(r+1), seats });
       }

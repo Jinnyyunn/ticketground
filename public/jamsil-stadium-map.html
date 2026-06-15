@@ -217,11 +217,10 @@
             let cols=ring.cols+((i%3)-1), rows=ring.rows+(i%2);
             if(type==='vip'){ cols=14; rows=7; }
             if(type==='press'){ cols=0; rows=0; }
-            const total=cols*rows, random=rng(uid+17), ratio=0.16+random()*0.5;
+            const total=cols*rows;
             const soldSet=new Set();
-            if(total){ for(let rr=0;rr<rows;rr++) for(let cc=0;cc<cols;cc++){ if(random()<ratio) soldSet.add(rr+'-'+cc); } }
             const cen=pt(center,(ring.ri+ring.ro)/2), badge=pt(center, ring.ro-13);
-            out.push({ id:'b'+uid, ring:ring.name, type, grade, num, d:sector(a0,a1,ring.ri,ring.ro), lx:cen[0], ly:cen[1], bx:badge[0], by:badge[1], cols, rows, total, soldSet, remaining: total-soldSet.size, fs:ring.name==='3F'?12.5:(ring.name==='2F'?11.5:10.5) });
+            out.push({ id:'b'+uid, ring:ring.name, type, grade, num, d:sector(a0,a1,ring.ri,ring.ro), lx:cen[0], ly:cen[1], bx:badge[0], by:badge[1], cols, rows, total, soldSet, remaining: total, fs:ring.name==='3F'?12.5:(ring.name==='2F'?11.5:10.5) });
             uid++;
           }
         });
@@ -330,12 +329,12 @@
         for(let r=0;r<b.rows;r++){
           let seats='';
           for(let c=0;c<b.cols;c++){
-            const id=r+'-'+c, sold=b.soldSet.has(id), isSel=selSet.has(id);
-            seats += `<button class="seat ${sold?'sold':''} ${isSel?'selected':''}" data-seat="${id}" ${sold?'disabled':''}>${c+1}</button>`;
+            const id=r+'-'+c, isSel=selSet.has(id);
+            seats += `<button class="seat ${isSel?'selected':''}" data-seat="${id}">${c+1}</button>`;
           }
           rows += `<div class="seat-row"><div class="row-label">${r+1}</div>${seats}</div>`;
         }
-        host.innerHTML=`<div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"><div class="modal-head"><div class="modal-title"><div class="modal-chip" style="--c:${COLORS[b.grade]}"></div><div><strong>${blockLabel(b)}</strong><span>${GNAME[b.grade]} · ${fmt(PRICE[b.grade])} · 잔여 ${b.remaining}석 / 총 ${b.total}석</span></div></div><button class="close" id="closeModal">×</button></div><div class="modal-legend"><span><div class="mini-seat" style="--c:${COLORS[b.grade]}"></div>예매 가능</span><span><div class="mini-seat" style="background:#fff;border:1.5px solid #00aaff"></div>선택</span><span><div class="mini-seat" style="background:#2b2b33"></div>매진</span></div><div class="seat-area">${rows}</div><div class="field-strip">◀  경기장 · FIELD  ▶</div><div class="modal-foot"><span>이 구역 선택 <b style="color:#00aaff">${selSet.size}</b>석 · ${totalSel()}석 선택 · 최대 ${config.maxTickets}매</span><button id="doneModal">선택 완료</button></div></div></div>`;
+        host.innerHTML=`<div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"><div class="modal-head"><div class="modal-title"><div class="modal-chip" style="--c:${COLORS[b.grade]}"></div><div><strong>${blockLabel(b)}</strong><span>${GNAME[b.grade]} · ${fmt(PRICE[b.grade])} · 잔여 ${b.remaining}석 / 총 ${b.total}석</span></div></div><button class="close" id="closeModal">×</button></div><div class="modal-legend"><span><div class="mini-seat" style="--c:${COLORS[b.grade]}"></div>예매 가능</span><span><div class="mini-seat" style="background:#fff;border:1.5px solid #00aaff"></div>선택</span></div><div class="seat-area">${rows}</div><div class="field-strip">◀  경기장 · FIELD  ▶</div><div class="modal-foot"><span>이 구역 선택 <b style="color:#00aaff">${selSet.size}</b>석 · ${totalSel()}석 선택 · 최대 ${config.maxTickets}매</span><button id="doneModal">선택 완료</button></div></div></div>`;
         document.querySelector('#modalBackdrop').addEventListener('click', () => setState({ detail:null }));
         document.querySelector('#modal').addEventListener('click', e => e.stopPropagation());
         document.querySelector('#closeModal').addEventListener('click', () => setState({ detail:null }));
