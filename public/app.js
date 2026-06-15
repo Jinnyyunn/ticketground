@@ -316,8 +316,6 @@ function renderAccount() {
   $("#dropdownBalance").textContent = `충전금 ${fmt.format(user.balance)}원`;
   $("#headerLoginStatus").textContent = `${name}님 로그인`;
   $("#headerBalance").textContent = `충전금 ${fmt.format(user.balance)}원`;
-  $("#summaryUser").textContent = `${name}님 로그인`;
-  $("#summaryBalance").textContent = `충전금 ${fmt.format(user.balance)}원`;
   $("#loginName").textContent = name;
   $("#loginStatus").textContent = user.status;
   $("#loginTrust").textContent = `${user.trustScore}점`;
@@ -501,7 +499,7 @@ function renderDateSelection() {
 function seatSelectorUrl() {
   const event = currentEvent();
   const date = currentDate();
-  const url = new URL("/좌석선택.dc.html", window.location.origin);
+  const url = new URL("/좌석 도면/잠실 올림픽 경기장/좌석선택.dc.html", window.location.origin);
   url.searchParams.set("eventTitle", event.title);
   url.searchParams.set("eventSub", event.badge || categoryLabels[event.category] || "Ticketground");
   url.searchParams.set("eventVenue", event.venue);

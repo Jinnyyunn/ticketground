@@ -846,22 +846,6 @@ p {
   box-shadow: var(--soft-shadow);
 }
 
-.mini-summary {
-  display: grid;
-  gap: 3px;
-  min-width: 190px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: var(--soft-shadow);
-}
-
-.mini-summary span {
-  color: var(--sub);
-  font-size: 13px;
-  font-weight: 800;
-}
 
 .zone-tabs {
   display: flex;

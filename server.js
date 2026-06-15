@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, "public");
 const adminDir = path.join(__dirname, "admin");
+const seatMapDir = path.join(__dirname, "좌석 도면");
+const jamsilOlympicSeatMapDir = path.join(seatMapDir, "잠실 올림픽 경기장");
 const dataDir = path.join(__dirname, "data");
 const dbPath = path.join(dataDir, "db.json");
 const PORT = Number(process.env.PORT || 4173);
@@ -1088,8 +1090,10 @@ async function serveStatic(req, res, rootDir, fallback = "/index.html") {
     return;
   }
   const dcStatic = rootDir === publicDir ? {
-    "/좌석선택.dc.html": path.join(__dirname, "좌석선택.dc.html"),
-    "/support.js": path.join(__dirname, "support.js")
+    "/좌석선택.dc.html": path.join(jamsilOlympicSeatMapDir, "좌석선택.dc.html"),
+    "/support.js": path.join(jamsilOlympicSeatMapDir, "support.js"),
+    "/좌석 도면/잠실 올림픽 경기장/좌석선택.dc.html": path.join(jamsilOlympicSeatMapDir, "좌석선택.dc.html"),
+    "/좌석 도면/잠실 올림픽 경기장/support.js": path.join(jamsilOlympicSeatMapDir, "support.js")
   } : {};
   const specialPath = dcStatic[requested];
   const safePath = path.normalize(requested).replace(/^(\.\.[/\\])+/, "");
