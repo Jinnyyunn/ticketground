@@ -22,38 +22,19 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
-  ".png": "image/png"
+  ".png": "image/png",
+  ".webp": "image/webp"
 };
 
-const VENUES = [
-  {
-    id: "jamsil-indoor",
-    name: "잠실 실내체육관",
-    category: "concert",
-    mapId: "jamsil-indoor",
-    mapTitle: "잠실 실내체육관 도면",
-    mapImage: "/admin-assets/jamsil-indoor.svg",
-    description: "원형 실내 공연장 좌석 배치도입니다."
-  },
-  {
-    id: "jamsil-main-stadium",
-    name: "잠실 올림픽주경기장",
-    category: "sports",
-    mapId: "jamsil-main-stadium",
-    mapTitle: "잠실 올림픽주경기장 도면",
-    mapImage: "/admin-assets/jamsil-main-stadium.svg",
-    description: "대형 경기장형 관람석 배치도입니다."
-  },
-  {
-    id: "jamsil-aux-field",
-    name: "잠실 보조 경기장",
-    category: "festival",
-    mapId: "jamsil-aux-field",
-    mapTitle: "잠실 보조 경기장 도면",
-    mapImage: "/admin-assets/jamsil-aux-field.svg",
-    description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치도입니다."
-  }
-];
+const PAYMENT_METHODS = {
+  BALANCE: { label: "충전금", requiresBalance: true, status: "PAID" },
+  CREDIT_CARD: { label: "신용카드", requiresBalance: false, status: "PAID" },
+  BANK_TRANSFER: { label: "계좌이체", requiresBalance: false, status: "PAID" },
+  BANK_DEPOSIT: { label: "무통장 입금", requiresBalance: false, status: "WAITING_DEPOSIT" },
+  MOBILE: { label: "휴대폰 결제", requiresBalance: false, status: "PAID" }
+};
+
+const JAMSIL_OLYMPIC_STADIUM_IMAGE = "/assets/jamsil-olympic-main-stadium.svg";
 
 function now() {
   return new Date().toISOString();
@@ -63,13 +44,9 @@ function money(value) {
   return Math.round(Number(value));
 }
 
-const PAYMENT_METHODS = {
-  BALANCE: { label: "충전금", requiresBalance: true, status: "PAID" },
-  CREDIT_CARD: { label: "신용카드", requiresBalance: false, status: "PAID" },
-  BANK_TRANSFER: { label: "계좌이체", requiresBalance: false, status: "PAID" },
-  BANK_DEPOSIT: { label: "무통장 입금", requiresBalance: false, status: "WAITING_DEPOSIT" },
-  MOBILE: { label: "휴대폰 결제", requiresBalance: false, status: "PAID" }
-};
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
 
 function resolvePaymentMethod(paymentMethod = "BALANCE") {
   const key = String(paymentMethod || "BALANCE").toUpperCase();
@@ -90,6 +67,10 @@ function id(prefix) {
   return `${prefix}_${crypto.randomBytes(5).toString("hex")}`;
 }
 
+function stableId(prefix, ...parts) {
+  return `${prefix}_${hash(parts.join(":")) .slice(0, 12)}`;
+}
+
 function sortJson(value) {
   if (Array.isArray(value)) return value.map(sortJson);
   if (value && typeof value === "object") {
@@ -101,9 +82,411 @@ function sortJson(value) {
   return value;
 }
 
+function zoneBlueprints(overrides = {}) {
+  return [
+    { id: "zone_vip", name: "VIP", faceValue: overrides.vip ?? 154000, resaleFeeRate: 0.08, maxTransferCount: 1 },
+    { id: "zone_r", name: "R석", faceValue: overrides.r ?? 121000, resaleFeeRate: 0.07, maxTransferCount: 1 },
+    { id: "zone_s", name: "S석", faceValue: overrides.s ?? 99000, resaleFeeRate: 0.06, maxTransferCount: 1 }
+  ];
+}
+
+function venueBlueprints() {
+  return [
+    {
+      id: "venue_jamsil_olympic",
+      name: "잠실 올림픽 주 경기장",
+      address: "서울특별시 송파구 올림픽로 25",
+      map: {
+        type: "olympic-stadium",
+        imageUrl: JAMSIL_OLYMPIC_STADIUM_IMAGE,
+        imageSource: "서울종합운동장 좌석 도면",
+        stage: "MAIN STAGE / FIELD",
+        helper: "잠실 올림픽 주 경기장 도면 기반 좌석 선택",
+        labels: [
+          { text: "VIP FLOOR", x: 50, y: 63 },
+          { text: "R 1층 좌측", x: 24, y: 48 },
+          { text: "R 1층 우측", x: 76, y: 48 },
+          { text: "S 상단 관람석", x: 50, y: 24 }
+        ]
+      }
+    },
+    {
+      id: "venue_kspo_dome",
+      name: "KSPO Dome",
+      address: "서울특별시 송파구 올림픽로 424",
+      map: {
+        type: "arena",
+        imageUrl: "",
+        imageSource: "Ticketground 기본 아레나 도면",
+        stage: "CENTER STAGE",
+        helper: "콘서트형 아레나 좌석 배치도",
+        labels: [
+          { text: "VIP FLOOR", x: 50, y: 37 },
+          { text: "R SIDE", x: 25, y: 58 },
+          { text: "S UPPER", x: 75, y: 70 }
+        ]
+      }
+    },
+    {
+      id: "venue_bluesquare",
+      name: "블루스퀘어",
+      address: "서울특별시 용산구 이태원로 294",
+      map: {
+        type: "theater",
+        imageUrl: "",
+        imageSource: "Ticketground 기본 극장 도면",
+        stage: "PROSCENIUM STAGE",
+        helper: "뮤지컬형 극장 좌석 배치도",
+        labels: [
+          { text: "VIP ORCHESTRA", x: 50, y: 40 },
+          { text: "R MEZZANINE", x: 50, y: 58 },
+          { text: "S BALCONY", x: 50, y: 75 }
+        ]
+      }
+    },
+    {
+      id: "venue_nanjipark",
+      name: "난지한강공원",
+      address: "서울특별시 마포구 한강난지로 162",
+      map: {
+        type: "festival",
+        imageUrl: "",
+        imageSource: "Ticketground 기본 페스티벌 도면",
+        stage: "MAIN STAGE",
+        helper: "페스티벌형 스탠딩/지정석 혼합 배치도",
+        labels: [
+          { text: "FRONT PASS", x: 50, y: 36 },
+          { text: "PICNIC R", x: 32, y: 61 },
+          { text: "LAWN S", x: 68, y: 72 }
+        ]
+      }
+    }
+  ];
+}
+
+function eventBlueprints() {
+  return [
+    {
+      id: "event_kpop_001",
+      category: "concert",
+      title: "TIG Live: Neon Stage",
+      venueId: "venue_jamsil_olympic",
+      venue: "잠실 올림픽 주 경기장",
+      date: "2026-09-19T19:00:00+09:00",
+      dates: [
+        { id: "perf_kpop_20260919_1900", startsAt: "2026-09-19T19:00:00+09:00", label: "1회차" },
+        { id: "perf_kpop_20260920_1800", startsAt: "2026-09-20T18:00:00+09:00", label: "2회차" }
+      ],
+      organizer: "TIG Entertainment",
+      image: "/assets/neon-stage-hero.png",
+      badge: "K-POP · 단독 판매",
+      durationMinutes: 120,
+      ageLimit: "8세 이상",
+      rating: "4.8",
+      zones: zoneBlueprints()
+    },
+    {
+      id: "event_musical_001",
+      category: "musical",
+      title: "Midnight Sonata",
+      venueId: "venue_bluesquare",
+      venue: "블루스퀘어",
+      date: "2026-11-02T19:30:00+09:00",
+      dates: [
+        { id: "perf_musical_20261102_1930", startsAt: "2026-11-02T19:30:00+09:00", label: "월요일" },
+        { id: "perf_musical_20261103_1930", startsAt: "2026-11-03T19:30:00+09:00", label: "화요일" },
+        { id: "perf_musical_20261107_1500", startsAt: "2026-11-07T15:00:00+09:00", label: "토요일 낮" }
+      ],
+      organizer: "Blue Stage Company",
+      image: "/assets/neon-stage-hero.png",
+      badge: "뮤지컬 · VIP/R/S",
+      durationMinutes: 145,
+      ageLimit: "12세 이상",
+      rating: "4.7",
+      zones: zoneBlueprints({ vip: 132000, r: 110000, s: 88000 })
+    },
+    {
+      id: "event_sports_001",
+      category: "sports",
+      title: "Seoul Tigers vs Busan Waves",
+      venueId: "venue_jamsil_olympic",
+      venue: "잠실 올림픽 주 경기장",
+      date: "2026-08-14T18:30:00+09:00",
+      dates: [
+        { id: "perf_sports_20260814_1830", startsAt: "2026-08-14T18:30:00+09:00", label: "금요일 경기" },
+        { id: "perf_sports_20260815_1700", startsAt: "2026-08-15T17:00:00+09:00", label: "토요일 경기" }
+      ],
+      organizer: "Seoul Tigers",
+      image: "/assets/neon-stage-hero.png",
+      badge: "스포츠 · 공식 판매",
+      durationMinutes: 180,
+      ageLimit: "전체 관람",
+      rating: "4.6",
+      zones: zoneBlueprints({ vip: 88000, r: 66000, s: 44000 })
+    },
+    {
+      id: "event_festival_001",
+      category: "festival",
+      title: "Tig Summer Beat Festival",
+      venueId: "venue_nanjipark",
+      venue: "난지한강공원",
+      date: "2026-07-25T14:00:00+09:00",
+      dates: [
+        { id: "perf_festival_20260725_1400", startsAt: "2026-07-25T14:00:00+09:00", label: "1일권" },
+        { id: "perf_festival_20260726_1400", startsAt: "2026-07-26T14:00:00+09:00", label: "2일차" }
+      ],
+      organizer: "TIG Festival",
+      image: "/assets/neon-stage-hero.png",
+      badge: "페스티벌 · 1일권/양일권",
+      durationMinutes: 420,
+      ageLimit: "전체 관람",
+      rating: "4.5",
+      zones: zoneBlueprints({ vip: 119000, r: 89000, s: 69000 })
+    }
+  ];
+}
+
+function addSeat(seats, zoneId, prefix, number, x, y, section) {
+  seats.push({
+    zoneId,
+    seatLabel: `${prefix}-${String(number).padStart(2, "0")}`,
+    number,
+    x: Number(x.toFixed(2)),
+    y: Number(y.toFixed(2)),
+    section
+  });
+}
+
+function addGridSeats(seats, zoneId, prefix, startNumber, rows, cols, startX, startY, gapX, gapY, section) {
+  let number = startNumber;
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      addSeat(seats, zoneId, prefix, number, startX + col * gapX, startY + row * gapY, section);
+      number += 1;
+    }
+  }
+  return number;
+}
+
+function buildOlympicMainSeats() {
+  const seats = [];
+  addGridSeats(seats, "zone_vip", "VIP", 1, 3, 8, 34, 58, 4.6, 5.2, "필드 중앙 VIP");
+  addGridSeats(seats, "zone_r", "R석", 1, 4, 5, 17, 38, 4.1, 6.1, "1층 좌측 R");
+  addGridSeats(seats, "zone_r", "R석", 21, 4, 5, 66, 38, 4.1, 6.1, "1층 우측 R");
+  addGridSeats(seats, "zone_s", "S석", 1, 4, 12, 20, 18, 5.4, 4.1, "상단 S 관람석");
+  return seats;
+}
+
+function buildArenaSeats() {
+  const seats = [];
+  addGridSeats(seats, "zone_vip", "VIP", 1, 3, 8, 33, 39, 4.8, 5.5, "플로어 VIP");
+  addGridSeats(seats, "zone_r", "R석", 1, 4, 10, 27, 58, 5.1, 4.3, "아레나 R");
+  addGridSeats(seats, "zone_s", "S석", 1, 4, 12, 19, 73, 5.4, 3.8, "상단 S");
+  return seats;
+}
+
+function buildTheaterSeats() {
+  const seats = [];
+  addGridSeats(seats, "zone_vip", "VIP", 1, 3, 8, 33, 38, 4.8, 5.2, "오케스트라 VIP");
+  addGridSeats(seats, "zone_r", "R석", 1, 4, 10, 25, 56, 5.5, 4.7, "메자닌 R");
+  addGridSeats(seats, "zone_s", "S석", 1, 4, 12, 18, 74, 5.6, 3.9, "발코니 S");
+  return seats;
+}
+
+function buildFestivalSeats() {
+  const seats = [];
+  addGridSeats(seats, "zone_vip", "VIP", 1, 3, 8, 33, 36, 4.8, 5.5, "프론트 패스");
+  addGridSeats(seats, "zone_r", "R석", 1, 4, 10, 25, 57, 5.5, 4.8, "피크닉 R");
+  addGridSeats(seats, "zone_s", "S석", 1, 4, 12, 18, 75, 5.6, 3.9, "잔디 S");
+  return seats;
+}
+
+function seatLayoutForVenue(venueId) {
+  if (venueId === "venue_jamsil_olympic") return buildOlympicMainSeats();
+  if (venueId === "venue_bluesquare") return buildTheaterSeats();
+  if (venueId === "venue_nanjipark") return buildFestivalSeats();
+  return buildArenaSeats();
+}
+
+function primaryDate(event) {
+  if (!event.dates?.length) {
+    event.dates = [{ id: stableId("perf", event.id, event.date || now()), startsAt: event.date || now(), label: "1회차" }];
+  }
+  return event.dates[0];
+}
+
+function ticketIdFor(event, performanceDateId, seat) {
+  return stableId("ticket", event.id, performanceDateId, seat.zoneId, seat.seatLabel);
+}
+
+function eventZone(db, eventId, zoneId) {
+  const event = db.events.find((item) => item.id === eventId);
+  if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
+  const zone = event.zones.find((item) => item.id === zoneId);
+  if (!zone) throw httpError(404, "ZONE_NOT_FOUND", "구역을 찾을 수 없습니다.");
+  return { event, zone };
+}
+
+function eventDate(event, performanceDateId) {
+  const performanceDate = event.dates?.find((item) => item.id === performanceDateId);
+  if (!performanceDate) throw httpError(404, "EVENT_DATE_NOT_FOUND", "예매 날짜를 찾을 수 없습니다.");
+  return performanceDate;
+}
+
+function ensureTicketsForEvent(db, event) {
+  let changed = false;
+  const seats = seatLayoutForVenue(event.venueId);
+  for (const performanceDate of event.dates || [primaryDate(event)]) {
+    for (const seat of seats) {
+      const { zone } = eventZone(db, event.id, seat.zoneId);
+      const existing = db.tickets.find((ticket) =>
+        ticket.eventId === event.id
+        && ticket.performanceDateId === performanceDate.id
+        && ticket.zoneId === seat.zoneId
+        && ticket.seatLabel === seat.seatLabel
+      );
+      if (existing) continue;
+      db.tickets.push({
+        id: ticketIdFor(event, performanceDate.id, seat),
+        eventId: event.id,
+        performanceDateId: performanceDate.id,
+        zoneId: seat.zoneId,
+        seatLabel: seat.seatLabel,
+        ownerId: null,
+        status: "ON_SALE",
+        faceValue: zone.faceValue,
+        minPrice: Math.ceil(zone.faceValue * 0.5),
+        maxPrice: Math.ceil(zone.faceValue * (1 + zone.resaleFeeRate)),
+        transferCount: 0,
+        maxTransferCount: zone.maxTransferCount,
+        currentQr: null,
+        issuedAt: now()
+      });
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function syncEventVenue(db, event) {
+  const venue = db.venues.find((item) => item.id === event.venueId)
+    || db.venues.find((item) => item.name === event.venue)
+    || db.venues[0];
+  event.venueId = venue.id;
+  event.venue = venue.name;
+}
+
+function normalizeDb(db) {
+  let changed = false;
+  db.users ||= [];
+  db.events ||= [];
+  db.tickets ||= [];
+  db.resalePools ||= [];
+  db.ledger ||= [];
+
+  if (!db.venues?.length) {
+    db.venues = venueBlueprints();
+    changed = true;
+  } else {
+    for (const venue of venueBlueprints()) {
+      const existing = db.venues.find((item) => item.id === venue.id);
+      if (!existing) {
+        db.venues.push(venue);
+        changed = true;
+      } else {
+        const before = JSON.stringify(existing);
+        existing.name = venue.name;
+        existing.address = venue.address;
+        existing.map = venue.map;
+        if (JSON.stringify(existing) !== before) changed = true;
+      }
+    }
+  }
+
+  for (const blueprint of eventBlueprints()) {
+    const existing = db.events.find((event) => event.id === blueprint.id);
+    if (!existing) {
+      db.events.push(clone(blueprint));
+      changed = true;
+      continue;
+    }
+    const before = JSON.stringify(existing);
+    existing.category ||= blueprint.category;
+    existing.image ||= blueprint.image;
+    existing.badge ||= blueprint.badge;
+    existing.durationMinutes ||= blueprint.durationMinutes;
+    existing.ageLimit ||= blueprint.ageLimit;
+    existing.rating ||= blueprint.rating;
+    existing.organizer ||= blueprint.organizer;
+    existing.zones ||= clone(blueprint.zones);
+    if (existing.id === "event_kpop_001" && (!existing.venueId || existing.venue === "KSPO Dome")) {
+      existing.venueId = "venue_jamsil_olympic";
+      existing.venue = "잠실 올림픽 주 경기장";
+    }
+    existing.venueId ||= blueprint.venueId;
+    existing.venue ||= blueprint.venue;
+    if (!existing.dates?.length) {
+      existing.dates = clone(blueprint.dates || [{ id: stableId("perf", existing.id, existing.date), startsAt: existing.date, label: "1회차" }]);
+    }
+    existing.date = existing.dates[0]?.startsAt || existing.date || blueprint.date;
+    syncEventVenue(db, existing);
+    if (JSON.stringify(existing) !== before) changed = true;
+  }
+
+  for (const event of db.events) {
+    primaryDate(event);
+    syncEventVenue(db, event);
+    if (ensureTicketsForEvent(db, event)) changed = true;
+  }
+
+  for (const ticket of db.tickets) {
+    const event = db.events.find((item) => item.id === ticket.eventId) || db.events[0];
+    if (!event) continue;
+    const performanceDate = primaryDate(event);
+    const { zone } = eventZone(db, event.id, ticket.zoneId || event.zones[0].id);
+    const before = JSON.stringify(ticket);
+    ticket.eventId ||= event.id;
+    ticket.performanceDateId ||= performanceDate.id;
+    ticket.zoneId ||= zone.id;
+    ticket.faceValue ||= zone.faceValue;
+    ticket.minPrice ||= Math.ceil(ticket.faceValue * 0.5);
+    ticket.maxPrice ||= Math.ceil(ticket.faceValue * (1 + zone.resaleFeeRate));
+    ticket.maxTransferCount ||= zone.maxTransferCount;
+    ticket.transferCount ||= 0;
+    ticket.currentQr ||= null;
+    ticket.issuedAt ||= now();
+    if (JSON.stringify(ticket) !== before) changed = true;
+  }
+
+  for (const pool of db.resalePools) {
+    const ticket = db.tickets.find((item) => item.id === pool.ticketId);
+    if (ticket && !pool.performanceDateId) {
+      pool.performanceDateId = ticket.performanceDateId;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    appendLedger(db, "SYSTEM", "DATA_MIGRATION", {
+      version: "booking-date-seat-map-v1",
+      events: db.events.length,
+      venues: db.venues.length,
+      tickets: db.tickets.length
+    });
+  }
+  return changed;
+}
+
 function publicState(db) {
   return {
     events: db.events,
+    venues: db.venues.map(({ id, name, address, map }) => ({
+      id,
+      name,
+      address,
+      mapType: map?.type,
+      imageUrl: map?.imageUrl || ""
+    })),
     users: db.users.map(({ id, name, balance, status, trustScore, sanctions }) => ({
       id,
       name,
@@ -123,63 +506,34 @@ function publicState(db) {
 }
 
 function seedDb() {
-  return {
+  const db = {
     users: [
       { id: "user_fan_a", name: "민서", balance: 180000, status: "ACTIVE", trustScore: 92, sanctions: [] },
       { id: "user_fan_b", name: "지후", balance: 135000, status: "ACTIVE", trustScore: 88, sanctions: [] },
       { id: "user_seller", name: "하린", balance: 30000, status: "ACTIVE", trustScore: 95, sanctions: [] },
       { id: "user_scalper", name: "의심 계정", balance: 500000, status: "WATCHLIST", trustScore: 34, sanctions: [] }
     ],
-    events: [
-      {
-        id: "event_kpop_001",
-        title: "TIG Live: Neon Stage",
-        venue: "잠실 실내체육관",
-        venueId: "jamsil-indoor",
-        date: "2026-09-19T19:00:00+09:00",
-        organizer: "TIG Entertainment",
-        zones: [
-          { id: "zone_vip", name: "VIP", faceValue: 154000, resaleFeeRate: 0.08, maxTransferCount: 1 },
-          { id: "zone_r", name: "R석", faceValue: 121000, resaleFeeRate: 0.07, maxTransferCount: 1 },
-          { id: "zone_s", name: "S석", faceValue: 99000, resaleFeeRate: 0.06, maxTransferCount: 1 }
-        ]
-      }
-    ],
+    venues: venueBlueprints(),
+    events: eventBlueprints(),
     tickets: [],
     resalePools: [],
     ledger: []
   };
+  for (const event of db.events) ensureTicketsForEvent(db, event);
+  appendLedger(db, "SYSTEM", "BOOTSTRAP", { message: "Initial event, venue map and ticket minting snapshot" });
+  return db;
 }
 
 async function loadDb() {
   await mkdir(dataDir, { recursive: true });
   if (!existsSync(dbPath)) {
     const db = seedDb();
-    for (const zone of db.events[0].zones) {
-      for (let i = 1; i <= 4; i += 1) {
-        const ticket = {
-          id: id("ticket"),
-          eventId: db.events[0].id,
-          zoneId: zone.id,
-          seatLabel: `${zone.name}-${String(i).padStart(2, "0")}`,
-          ownerId: null,
-          status: "ON_SALE",
-          faceValue: zone.faceValue,
-          minPrice: Math.ceil(zone.faceValue * 0.5),
-          maxPrice: Math.ceil(zone.faceValue * (1 + zone.resaleFeeRate)),
-          transferCount: 0,
-          maxTransferCount: zone.maxTransferCount,
-          currentQr: null,
-          issuedAt: now()
-        };
-        db.tickets.push(ticket);
-      }
-    }
-    appendLedger(db, "SYSTEM", "BOOTSTRAP", { message: "Initial event and ticket minting snapshot" });
     await saveDb(db);
     return db;
   }
-  return JSON.parse(await readFile(dbPath, "utf8"));
+  const db = JSON.parse(await readFile(dbPath, "utf8"));
+  if (normalizeDb(db)) await saveDb(db);
+  return db;
 }
 
 async function saveDb(db) {
@@ -224,171 +578,6 @@ function findUser(db, userId) {
   return user;
 }
 
-function eventZone(db, eventId, zoneId) {
-  const event = db.events.find((item) => item.id === eventId);
-  if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
-  const zone = event.zones.find((item) => item.id === zoneId);
-  if (!zone) throw httpError(404, "ZONE_NOT_FOUND", "구역을 찾을 수 없습니다.");
-  return { event, zone };
-}
-
-function venueById(venueId) {
-  const venue = VENUES.find((item) => item.id === venueId);
-  if (!venue) throw httpError(404, "VENUE_NOT_FOUND", "공연장을 찾을 수 없습니다.");
-  return venue;
-}
-
-function resolveEventVenue(event) {
-  return venueById(event.venueId || "jamsil-indoor");
-}
-
-function adminVenues(db) {
-  const event = db.events[0];
-  if (event && !event.venueId) {
-    event.venueId = "jamsil-indoor";
-    event.venue = "잠실 실내체육관";
-  }
-  return {
-    venues: VENUES.map(({ id, name, category, mapId, mapTitle }) => ({ id, name, category, mapId, mapTitle })),
-    event
-  };
-}
-
-function updateEventVenue(db, { eventId, venueId }) {
-  const event = db.events.find((item) => item.id === eventId) || db.events[0];
-  if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
-  const venue = venueById(venueId);
-  event.venueId = venue.id;
-  event.venue = venue.name;
-  appendLedger(db, "SYSTEM", "EVENT_VENUE_UPDATED", {
-    eventId: event.id,
-    venueId: venue.id,
-    venueName: venue.name,
-    mapId: venue.mapId
-  });
-  return { event, venue };
-}
-
-function adminSummary(db) {
-  const ledgerCheck = verifyLedger(db);
-  const openPools = db.resalePools.filter((pool) => pool.status === "OPEN");
-  const watchUsers = db.users.filter((user) => user.status === "WATCHLIST" || user.trustScore < 50);
-  return {
-    stats: {
-      totalTickets: db.tickets.length,
-      onSaleTickets: db.tickets.filter((ticket) => ticket.status === "ON_SALE").length,
-      ownedTickets: db.tickets.filter((ticket) => ticket.status === "OWNED").length,
-      resalePools: openPools.length,
-      watchUsers: watchUsers.length,
-      ledgerEntries: db.ledger.length,
-      ledgerVerified: ledgerCheck.ok
-    },
-    event: db.events[0],
-    users: db.users,
-    tickets: db.tickets,
-    resalePools: db.resalePools,
-    ledger: db.ledger.slice(-12).reverse(),
-    ledgerCheck
-  };
-}
-
-function updateUserStatus(db, { userId, status, reason }) {
-  const allowed = ["ACTIVE", "WATCHLIST", "BANNED"];
-  if (!allowed.includes(status)) {
-    throw httpError(422, "INVALID_USER_STATUS", "지원하지 않는 계정 상태입니다.");
-  }
-  const user = db.users.find((item) => item.id === userId);
-  if (!user) throw httpError(404, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.");
-  user.status = status;
-  if (status === "WATCHLIST") user.trustScore = Math.min(user.trustScore, 39);
-  if (status === "BANNED") user.trustScore = Math.min(user.trustScore, 10);
-  user.sanctions.push({
-    id: id("sanction"),
-    reason: reason || `운영자 계정 상태 변경: ${status}`,
-    penalty: `status-${status.toLowerCase()}`,
-    at: now()
-  });
-  appendLedger(db, "SYSTEM", "USER_STATUS_UPDATED", {
-    userId: user.id,
-    status,
-    reason: reason || "operator-review"
-  });
-  return user;
-}
-
-function updateTicketStatus(db, { ticketId, status }) {
-  const allowed = ["ON_SALE", "ADMIN_HOLD"];
-  if (!allowed.includes(status)) {
-    throw httpError(422, "INVALID_TICKET_STATUS", "지원하지 않는 티켓 상태입니다.");
-  }
-  const ticket = db.tickets.find((item) => item.id === ticketId);
-  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
-  if (ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status)) {
-    throw httpError(409, "TICKET_LOCKED", "소유자 또는 거래 상태가 있는 티켓은 재고 상태만 변경할 수 없습니다.");
-  }
-  ticket.status = status;
-  appendLedger(db, "SYSTEM", "TICKET_STATUS_UPDATED", {
-    ticketId: ticket.id,
-    status,
-    policy: "operator-inventory-control"
-  });
-  return ticket;
-}
-
-function seatMap(db, { category, venueId }) {
-  const event = db.events[0];
-  const venue = venueId ? venueById(venueId) : resolveEventVenue(event);
-  const zones = event.zones.map((zone) => ({
-    id: zone.id,
-    name: zone.name,
-    price: zone.faceValue,
-    available: db.tickets.filter((ticket) => ticket.zoneId === zone.id && ticket.status === "ON_SALE").length
-  }));
-  const seats = db.tickets.map((ticket, index) => {
-    const zone = event.zones.find((item) => item.id === ticket.zoneId);
-    const angle = (index / Math.max(db.tickets.length, 1)) * Math.PI * 2 - Math.PI / 2;
-    const radius = ticket.zoneId === "zone_vip" ? 28 : ticket.zoneId === "zone_r" ? 35 : 42;
-    return {
-      id: ticket.id,
-      label: ticket.seatLabel.replace(/^.*-/, ""),
-      displayCode: ticket.seatLabel.replace(/^.*-/, ""),
-      zoneId: ticket.zoneId,
-      zoneName: zone?.name || ticket.zoneId,
-      price: ticket.faceValue,
-      status: ticket.status,
-      available: ticket.status === "ON_SALE",
-      mapPosition: {
-        x: Number((50 + Math.cos(angle) * radius).toFixed(1)),
-        y: Number((52 + Math.sin(angle) * radius * 0.82).toFixed(1)),
-        width: 5.4,
-        height: 7.2,
-        rotate: Math.round((angle * 180) / Math.PI + 90),
-        shape: "actual-map"
-      }
-    };
-  });
-  return {
-    category: category || venue.category,
-    date: "",
-    event: {
-      id: event.id,
-      title: event.title,
-      venueId: venue.id,
-      venue: venue.name,
-      originalVenue: venue.name
-    },
-    map: {
-      id: venue.mapId,
-      venue: venue.name,
-      title: venue.mapTitle,
-      image: venue.mapImage,
-      description: venue.description
-    },
-    zones,
-    seats
-  };
-}
-
 function httpError(status, code, message, detail = {}) {
   const error = new Error(message);
   error.status = status;
@@ -411,6 +600,8 @@ function buyPrimary(db, { userId, ticketId, paymentMethod }) {
   const payment = resolvePaymentMethod(paymentMethod);
   if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
   if (ticket.status !== "ON_SALE") throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
+  const { event, zone } = eventZone(db, ticket.eventId, ticket.zoneId);
+  const performanceDate = eventDate(event, ticket.performanceDateId);
   if (payment.requiresBalance && user.balance < ticket.faceValue) {
     throw httpError(402, "INSUFFICIENT_BALANCE", "충전금이 부족합니다. 다른 결제수단을 선택해주세요.");
   }
@@ -420,14 +611,18 @@ function buyPrimary(db, { userId, ticketId, paymentMethod }) {
   ticket.status = "OWNED";
   appendLedger(db, user.id, "PRIMARY_PURCHASE", {
     ticketId: ticket.id,
+    eventId: event.id,
+    performanceDateId: performanceDate.id,
+    seatLabel: ticket.seatLabel,
+    zone: zone.name,
     price: ticket.faceValue,
     paymentMethod: payment.key,
     paymentLabel: payment.label,
     paymentStatus: payment.status,
     approvalId: `${payment.key}-${id("pay").toUpperCase()}`,
-    policy: "platform-signed-owner-assignment"
+    policy: "date-selected-seat-owner-assignment"
   });
-  return { user, ticket, payment };
+  return { user, ticket, event, performanceDate, payment };
 }
 
 function listForResale(db, { sellerId, ticketId, price }) {
@@ -451,6 +646,7 @@ function listForResale(db, { sellerId, ticketId, price }) {
   const pool = {
     id: id("pool"),
     eventId: ticket.eventId,
+    performanceDateId: ticket.performanceDateId,
     zoneId: ticket.zoneId,
     ticketId: ticket.id,
     sellerId: seller.id,
@@ -587,6 +783,229 @@ function verifyQr(db, { ticketId, ownerId, expiresAt, nonce, signature }) {
   return { valid };
 }
 
+function venueMapForEvent(db, eventId) {
+  const event = db.events.find((item) => item.id === eventId);
+  if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
+  const venue = db.venues.find((item) => item.id === event.venueId);
+  if (!venue) throw httpError(404, "VENUE_NOT_FOUND", "공연장 정보를 찾을 수 없습니다.");
+  return {
+    eventId: event.id,
+    venueId: venue.id,
+    venue: venue.name,
+    address: venue.address,
+    type: venue.map.type,
+    imageUrl: venue.map.imageUrl,
+    imageSource: venue.map.imageSource,
+    stage: venue.map.stage,
+    helper: venue.map.helper,
+    labels: venue.map.labels,
+    seats: seatLayoutForVenue(venue.id)
+  };
+}
+
+function adminVenueRecord(venue) {
+  const mapByVenue = {
+    venue_kspo_dome: {
+      category: "concert",
+      mapId: "jamsil-indoor",
+      mapTitle: "잠실 실내체육관 도면",
+      mapImage: "/admin-assets/jamsil-indoor.svg",
+      description: "원형 실내 공연장 좌석 배치도입니다."
+    },
+    venue_jamsil_olympic: {
+      category: "sports",
+      mapId: "jamsil-main-stadium",
+      mapTitle: "잠실 올림픽주경기장 도면",
+      mapImage: "/admin-assets/jamsil-main-stadium.svg",
+      description: "대형 경기장형 관람석 배치도입니다."
+    },
+    venue_nanjipark: {
+      category: "festival",
+      mapId: "jamsil-aux-field",
+      mapTitle: "잠실 보조 경기장 도면",
+      mapImage: "/admin-assets/jamsil-aux-field.svg",
+      description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치도입니다."
+    },
+    venue_bluesquare: {
+      category: "musical",
+      mapId: "jamsil-indoor",
+      mapTitle: "블루스퀘어 극장형 도면",
+      mapImage: "/admin-assets/jamsil-indoor.svg",
+      description: "뮤지컬형 극장 좌석 배치도입니다."
+    }
+  };
+  return {
+    id: venue.id,
+    name: venue.name,
+    category: mapByVenue[venue.id]?.category || venue.map?.type || "concert",
+    mapId: mapByVenue[venue.id]?.mapId || venue.map?.type || venue.id,
+    mapTitle: mapByVenue[venue.id]?.mapTitle || venue.map?.imageSource || `${venue.name} 도면`,
+    mapImage: mapByVenue[venue.id]?.mapImage || venue.map?.imageUrl || "/admin-assets/jamsil-main-stadium.svg",
+    description: mapByVenue[venue.id]?.description || venue.map?.helper || `${venue.name} 좌석 배치도입니다.`
+  };
+}
+
+function resolveVenue(db, venueId) {
+  const legacyMap = {
+    "jamsil-indoor": "venue_kspo_dome",
+    "jamsil-main-stadium": "venue_jamsil_olympic",
+    "jamsil-aux-field": "venue_nanjipark"
+  };
+  const idValue = legacyMap[venueId] || venueId;
+  const venue = db.venues.find((item) => item.id === idValue);
+  if (!venue) throw httpError(404, "VENUE_NOT_FOUND", "공연장을 찾을 수 없습니다.");
+  return venue;
+}
+
+function updateEventVenue(db, { eventId, venueId }) {
+  const event = db.events.find((item) => item.id === eventId);
+  if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
+  const venue = resolveVenue(db, venueId);
+  if (!venue) throw httpError(404, "VENUE_NOT_FOUND", "공연장을 찾을 수 없습니다.");
+  event.venueId = venue.id;
+  event.venue = venue.name;
+  ensureTicketsForEvent(db, event);
+  appendLedger(db, "ADMIN", "EVENT_VENUE_UPDATED", {
+    eventId: event.id,
+    venueId: venue.id,
+    venue: venue.name,
+    mapType: venue.map.type
+  });
+  return { event, venue, seatMap: venueMapForEvent(db, event.id) };
+}
+
+function adminVenues(db) {
+  const event = db.events[0];
+  return {
+    venues: db.venues.map(adminVenueRecord),
+    event
+  };
+}
+
+function adminSummary(db) {
+  const ledgerCheck = verifyLedger(db);
+  const openPools = db.resalePools.filter((pool) => pool.status === "OPEN");
+  const watchUsers = db.users.filter((user) => user.status === "WATCHLIST" || user.trustScore < 50);
+  return {
+    stats: {
+      totalTickets: db.tickets.length,
+      onSaleTickets: db.tickets.filter((ticket) => ticket.status === "ON_SALE").length,
+      ownedTickets: db.tickets.filter((ticket) => ticket.status === "OWNED").length,
+      resalePools: openPools.length,
+      watchUsers: watchUsers.length,
+      ledgerEntries: db.ledger.length,
+      ledgerVerified: ledgerCheck.ok
+    },
+    event: db.events[0],
+    users: db.users,
+    tickets: db.tickets,
+    resalePools: db.resalePools,
+    ledger: db.ledger.slice(-12).reverse(),
+    ledgerCheck
+  };
+}
+
+function updateUserStatus(db, { userId, status, reason }) {
+  const allowed = ["ACTIVE", "WATCHLIST", "BANNED"];
+  if (!allowed.includes(status)) {
+    throw httpError(422, "INVALID_USER_STATUS", "지원하지 않는 계정 상태입니다.");
+  }
+  const user = db.users.find((item) => item.id === userId);
+  if (!user) throw httpError(404, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.");
+  user.status = status;
+  if (status === "WATCHLIST") user.trustScore = Math.min(user.trustScore, 39);
+  if (status === "BANNED") user.trustScore = Math.min(user.trustScore, 10);
+  user.sanctions.push({
+    id: id("sanction"),
+    reason: reason || `운영자 계정 상태 변경: ${status}`,
+    penalty: `status-${status.toLowerCase()}`,
+    at: now()
+  });
+  appendLedger(db, "ADMIN", "USER_STATUS_UPDATED", {
+    userId: user.id,
+    status,
+    reason: reason || "operator-review"
+  });
+  return user;
+}
+
+function updateTicketStatus(db, { ticketId, status }) {
+  const allowed = ["ON_SALE", "ADMIN_HOLD"];
+  if (!allowed.includes(status)) {
+    throw httpError(422, "INVALID_TICKET_STATUS", "지원하지 않는 티켓 상태입니다.");
+  }
+  const ticket = db.tickets.find((item) => item.id === ticketId);
+  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
+  if (ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status)) {
+    throw httpError(409, "TICKET_LOCKED", "소유자 또는 거래 상태가 있는 티켓은 재고 상태만 변경할 수 없습니다.");
+  }
+  ticket.status = status;
+  appendLedger(db, "ADMIN", "TICKET_STATUS_UPDATED", {
+    ticketId: ticket.id,
+    status,
+    policy: "operator-inventory-control"
+  });
+  return ticket;
+}
+
+function seatMap(db, { category, venueId }) {
+  const event = db.events[0];
+  const venue = venueId ? resolveVenue(db, venueId) : resolveVenue(db, event.venueId);
+  const adminVenue = adminVenueRecord(venue);
+  const zones = event.zones.map((zone) => ({
+    id: zone.id,
+    name: zone.name,
+    price: zone.faceValue,
+    available: db.tickets.filter((ticket) =>
+      ticket.eventId === event.id && ticket.zoneId === zone.id && ticket.status === "ON_SALE"
+    ).length
+  }));
+  const eventTickets = db.tickets.filter((ticket) => ticket.eventId === event.id);
+  const seats = eventTickets.map((ticket, index) => {
+    const zone = event.zones.find((item) => item.id === ticket.zoneId);
+    const angle = (index / Math.max(eventTickets.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    const radius = ticket.zoneId === "zone_vip" ? 28 : ticket.zoneId === "zone_r" ? 35 : 42;
+    return {
+      id: ticket.id,
+      label: ticket.seatLabel.replace(/^.*-/, ""),
+      displayCode: ticket.seatLabel.replace(/^.*-/, ""),
+      zoneId: ticket.zoneId,
+      zoneName: zone?.name || ticket.zoneId,
+      price: ticket.faceValue,
+      status: ticket.status,
+      available: ticket.status === "ON_SALE",
+      mapPosition: {
+        x: Number((50 + Math.cos(angle) * radius).toFixed(1)),
+        y: Number((52 + Math.sin(angle) * radius * 0.82).toFixed(1)),
+        width: 5.4,
+        height: 7.2,
+        rotate: Math.round((angle * 180) / Math.PI + 90),
+        shape: "actual-map"
+      }
+    };
+  });
+  return {
+    category: category || adminVenue.category,
+    date: event.dates?.[0]?.startsAt || event.date,
+    event: {
+      id: event.id,
+      title: event.title,
+      venueId: venue.id,
+      venue: venue.name,
+      originalVenue: venue.name
+    },
+    map: {
+      id: adminVenue.mapId,
+      venue: venue.name,
+      title: adminVenue.mapTitle,
+      image: adminVenue.mapImage,
+      description: adminVenue.description
+    },
+    zones,
+    seats
+  };
+}
+
 async function parseBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -601,6 +1020,7 @@ async function parseBody(req) {
 async function handleApi(req, res, db) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const body = req.method === "POST" ? await parseBody(req) : {};
+  const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
 
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/ledger/verify") return verifyLedger(db);
@@ -613,6 +1033,7 @@ async function handleApi(req, res, db) {
       venueId: url.searchParams.get("venueId")
     });
   }
+  if (req.method === "GET" && seatMapMatch) return venueMapForEvent(db, decodeURIComponent(seatMapMatch[1]));
 
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
@@ -661,11 +1082,21 @@ async function handleApi(req, res, db) {
 async function serveStatic(req, res, rootDir, fallback = "/index.html") {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const requested = url.pathname === "/" ? fallback : decodeURIComponent(url.pathname);
+  if (requested === "/favicon.ico") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
   const safePath = path.normalize(requested).replace(/^(\.\.[/\\])+/, "");
   const filePath = path.join(rootDir, safePath);
   if (!filePath.startsWith(rootDir)) throw httpError(403, "FORBIDDEN", "잘못된 경로입니다.");
-  if (!existsSync(filePath)) throw httpError(404, "NOT_FOUND", "요청한 파일이 없습니다.");
-  const file = await readFile(filePath);
+  let file;
+  try {
+    file = await readFile(filePath);
+  } catch (error) {
+    if (error.code === "ENOENT") throw httpError(404, "NOT_FOUND", "파일을 찾을 수 없습니다.");
+    throw error;
+  }
   res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
   res.end(file);
 }

@@ -16,6 +16,7 @@
         <a href="#concerts" data-route="concerts">공연</a>
         <a href="#resale" data-route="resale">공식 재판매 티켓 예매</a>
         <a href="#my" data-route="my">My 예매내역</a>
+        <a href="#admin" data-route="admin">관리자</a>
       </nav>
       <div class="profile-menu">
         <button class="profile-button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown">
@@ -111,7 +112,7 @@
         <div class="section-head">
           <div>
             <h2>티켓 예매</h2>
-            <p>공연 상세 정보를 확인한 뒤 구역과 좌석을 선택해 예매합니다.</p>
+            <p>예매하기 → 날짜 선택 → 좌석 선택 → 결제 순서로 진행합니다.</p>
           </div>
           <div class="mini-summary">
             <span id="summaryUser">-</span>
@@ -274,6 +275,30 @@
         </div>
       </section>
 
+      <section class="page section admin-section" id="admin" data-page="admin">
+        <div class="section-head">
+          <div>
+            <h2>관리자 페이지</h2>
+            <p>행사별 개최 장소를 설정하면 사용자 예매 화면의 좌석 도면 API가 해당 공연장으로 전환됩니다.</p>
+          </div>
+        </div>
+        <div class="admin-grid">
+          <article class="my-panel admin-panel">
+            <h3>행사 개최 장소 설정</h3>
+            <p id="adminVenueCurrent">현재 개최 장소를 불러오는 중입니다.</p>
+            <label for="adminEventSelect">행사</label>
+            <select id="adminEventSelect"></select>
+            <label for="adminVenueSelect">개최 장소</label>
+            <select id="adminVenueSelect"></select>
+            <button id="saveVenueBtn" type="button">개최 장소 저장</button>
+          </article>
+          <article class="my-panel admin-panel">
+            <h3>도면 API 미리보기</h3>
+            <div class="admin-map-preview" id="adminMapPreview"></div>
+            <p>잠실 올림픽 주 경기장 선택 시 서울종합운동장 도면 이미지를 배경으로 불러오고, Ticketground 좌석 좌표를 오버레이해 좌석별 클릭 예매를 제공합니다.</p>
+          </article>
+        </div>
+      </section>
       <section class="page section guide" id="guide" data-page="guide">
         <div class="section-head">
           <div>
