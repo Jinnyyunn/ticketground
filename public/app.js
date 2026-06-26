@@ -13,7 +13,7 @@ const appState = {
   heroIndex: 0,
   heroTimer: null,
   selectedSeatId: "",
-  paymentMethod: "BALANCE",
+  paymentMethod: "CREDIT_CARD",
   seatMap: null,
   seatMapEventId: "",
   activeProductTab: "all",
@@ -31,7 +31,6 @@ const DEMO_USER_STORAGE_KEY = "ticketground.demoUserId";
 const DEMO_LOGGED_OUT_KEY = "ticketground.demoLoggedOut";
 
 const paymentMethods = [
-  { id: "BALANCE", label: "충전금", actionLabel: "충전금으로", note: "보유 충전금 즉시 차감" },
   { id: "CREDIT_CARD", label: "신용카드", actionLabel: "신용카드로", note: "카드 승인 후 예매" },
   { id: "BANK_TRANSFER", label: "계좌이체", actionLabel: "계좌이체로", note: "실시간 이체 승인" },
   { id: "BANK_DEPOSIT", label: "무통장 입금", actionLabel: "무통장 입금으로", note: "입금대기 예매" },
@@ -400,15 +399,14 @@ function renderUsers() {
 function renderAccount() {
   const user = currentUser();
   const name = displayName();
-  const balance = isLoggedIn() ? fmt.format(user.balance || 0) : "-";
   const status = isLoggedIn() ? user.status : "LOGGED_OUT";
   const trustScore = isLoggedIn() ? `${user.trustScore}점` : "-";
   document.body.classList.toggle("is-logged-out", !isLoggedIn());
   $("#profileNickname").textContent = name;
   $("#dropdownName").textContent = isLoggedIn() ? `${name}님` : "데모 로그인";
-  $("#dropdownBalance").textContent = isLoggedIn() ? `충전금 ${balance}원` : "사용자를 선택해 로그인해주세요.";
+  $("#dropdownBalance").textContent = isLoggedIn() ? `계정 상태 ${status}` : "사용자를 선택해 로그인해주세요.";
   $("#headerLoginStatus").textContent = isLoggedIn() ? `${name}님 로그인` : "로그아웃 상태";
-  $("#headerBalance").textContent = isLoggedIn() ? `충전금 ${balance}원` : "로그인 필요";
+  $("#headerBalance").textContent = isLoggedIn() ? `신뢰 점수 ${trustScore}` : "로그인 필요";
   $("#loginName").textContent = name;
   $("#loginStatus").textContent = status;
   $("#loginTrust").textContent = trustScore;
@@ -638,11 +636,11 @@ function renderPaymentMethods() {
 }
 
 function selectedPaymentLabel() {
-  return paymentMethods.find((method) => method.id === appState.paymentMethod)?.label || "충전금";
+  return paymentMethods.find((method) => method.id === appState.paymentMethod)?.label || "신용카드";
 }
 
 function selectedPaymentActionLabel() {
-  return paymentMethods.find((method) => method.id === appState.paymentMethod)?.actionLabel || "충전금으로";
+  return paymentMethods.find((method) => method.id === appState.paymentMethod)?.actionLabel || "신용카드로";
 }
 
 function renderBookingProgress() {
@@ -1273,7 +1271,7 @@ async function purchaseResaleTicket(poolId) {
     paymentMethod: appState.paymentMethod
   });
   if (result.skipped) {
-    toast("충전금이 부족해 재판매 티켓 구매가 완료되지 않았습니다. 다른 결제수단을 선택해주세요.");
+    toast("결제가 완료되지 않았습니다. 다른 결제수단을 선택해주세요.");
     await refresh();
     return;
   }

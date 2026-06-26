@@ -3,7 +3,6 @@ export function createSessionBackend({ appendLedger, findUser, httpError, now })
     return {
       id: user.id,
       name: user.name,
-      balance: user.balance,
       status: user.status,
       trustScore: user.trustScore
     };

@@ -28,11 +28,7 @@ export function createCommerceBackend({
       throw httpError(409, "EVENT_NOT_ON_SALE", `${saleSummary(event).label} 티켓은 아직 예매할 수 없습니다.`);
     }
     const performanceDate = eventDate(event, ticket.performanceDateId);
-    if (payment.requiresBalance && user.balance < ticket.faceValue) {
-      throw httpError(402, "INSUFFICIENT_BALANCE", "충전금이 부족합니다. 다른 결제수단을 선택해주세요.");
-    }
 
-    if (payment.requiresBalance) user.balance -= ticket.faceValue;
     ticket.ownerId = user.id;
     ticket.status = "OWNED";
     ticket.virtualQr = {
@@ -141,13 +137,6 @@ export function createCommerceBackend({
     const buyerTotal = pool.price + fee;
     const sellerSettlement = pool.price;
 
-    if (payment.requiresBalance && buyer.balance < buyerTotal) {
-      pool.buyers = pool.buyers.filter((idValue) => idValue !== buyer.id);
-      appendLedger(db, buyer.id, "MATCH_SKIPPED_INSUFFICIENT_BALANCE", { poolId: pool.id });
-      return { pool, skipped: buyer.id };
-    }
-
-    if (payment.requiresBalance) buyer.balance -= buyerTotal;
     seller.balance += sellerSettlement;
     ticket.ownerId = buyer.id;
     ticket.transferCount += 1;
@@ -219,6 +208,7 @@ export function createCommerceBackend({
     const buyer = findUser(db, buyerId);
     const pool = openResalePool(db, poolId);
     if (pool.sellerId === buyer.id) throw httpError(409, "SELF_PURCHASE_BLOCKED", "본인 티켓은 구매할 수 없습니다.");
+    const payment = resolvePaymentMethod(paymentMethod);
     if (!pool.buyers.includes(buyer.id)) pool.buyers.push(buyer.id);
     appendLedger(db, buyer.id, "POOL_JOINED", {
       poolId: pool.id,
@@ -229,7 +219,7 @@ export function createCommerceBackend({
     return completeResaleMatch(db, {
       pool,
       buyer,
-      paymentMethod,
+      paymentMethod: payment.key,
       seed,
       ledgerAction: "RESALE_PURCHASE_MATCHED",
       policy: "single-click-zone-pool-assignment"

@@ -213,7 +213,7 @@ test("public demo session supports login profile lookup and nickname update with
   const session = await api(baseUrl, "/api/users/user_fan_a/session");
   assert.equal(session.data.id, "user_fan_a");
   assert.equal(session.data.name, "민서");
-  assert.equal(typeof session.data.balance, "number");
+  assert.equal(session.data.balance, undefined);
   assert.equal(session.data.status, "ACTIVE");
   assert.equal(typeof session.data.trustScore, "number");
 
@@ -319,7 +319,7 @@ test("backend resale draw applies official fee policy and settlement fields", as
   assert.equal(match.payload.feeRate, 0.05);
 });
 
-test("backend resale draw keeps pool open when balance buyer cannot pay", async (t) => {
+test("backend rejects removed balance payment method without mutating resale pool", async (t) => {
   const { baseUrl, adminUrl } = await startServer(t);
   const { ticket } = await buyFirstTicket(baseUrl);
   const pool = await api(baseUrl, "/api/resale/list", {
@@ -328,24 +328,18 @@ test("backend resale draw keeps pool open when balance buyer cannot pay", async 
     price: ticket.faceValue
   });
 
-  await api(baseUrl, "/api/resale/join", {
+  const rejected = await api(baseUrl, "/api/resale/purchase", {
     buyerId: "user_fan_b",
-    poolId: pool.data.id
-  });
-
-  const draw = await api(baseUrl, "/api/resale/draw", {
     poolId: pool.data.id,
     paymentMethod: "BALANCE"
-  });
-  assert.equal(draw.data.skipped, true);
-  assert.equal(draw.data.reason, "INSUFFICIENT_BALANCE");
-  assert.equal(draw.data.pool.status, "OPEN");
-  assert.equal(draw.data.pool.buyerFee, null);
-  assert.equal(draw.data.ticket, undefined);
+  }, 422);
+  assert.equal(rejected.error.code, "UNSUPPORTED_PAYMENT_METHOD");
 
   const admin = await api(adminUrl, "/api/admin/summary");
   const poolState = admin.data.resalePools.find((item) => item.id === pool.data.id);
+  const ticketState = admin.data.tickets.find((item) => item.id === ticket.id);
+  assert.equal(poolState.status, "OPEN");
   assert.deepEqual(poolState.buyers, []);
-  const skip = admin.data.ledger.find((entry) => entry.action === "MATCH_SKIPPED_INSUFFICIENT_BALANCE");
-  assert.equal(skip.payload.poolId, pool.data.id);
+  assert.equal(ticketState.status, "IN_RESALE_POOL");
+  assert.equal(poolState.winnerId, undefined);
 });

@@ -77,13 +77,6 @@ function publicPurchaseResult(result) {
 }
 
 function publicResaleDrawResult(result) {
-  if (result.skipped) {
-    return {
-      pool: publicResalePool(result.pool),
-      skipped: true,
-      reason: "INSUFFICIENT_BALANCE"
-    };
-  }
   return {
     pool: publicResalePool(result.pool),
     ticket: publicTicket(result.ticket),

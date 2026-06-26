@@ -1,11 +1,10 @@
 import crypto from "node:crypto";
 
 const PAYMENT_METHODS = {
-  BALANCE: { label: "충전금", requiresBalance: true, status: "PAID" },
-  CREDIT_CARD: { label: "신용카드", requiresBalance: false, status: "PAID" },
-  BANK_TRANSFER: { label: "계좌이체", requiresBalance: false, status: "PAID" },
-  BANK_DEPOSIT: { label: "무통장 입금", requiresBalance: false, status: "WAITING_DEPOSIT" },
-  MOBILE: { label: "휴대폰 결제", requiresBalance: false, status: "PAID" }
+  CREDIT_CARD: { label: "신용카드", status: "PAID" },
+  BANK_TRANSFER: { label: "계좌이체", status: "PAID" },
+  BANK_DEPOSIT: { label: "무통장 입금", status: "WAITING_DEPOSIT" },
+  MOBILE: { label: "휴대폰 결제", status: "PAID" }
 };
 
 export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
@@ -41,8 +40,8 @@ export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
     return error;
   }
 
-  function resolvePaymentMethod(paymentMethod = "BALANCE") {
-    const key = String(paymentMethod || "BALANCE").toUpperCase();
+  function resolvePaymentMethod(paymentMethod = "CREDIT_CARD") {
+    const key = String(paymentMethod || "CREDIT_CARD").toUpperCase();
     const method = PAYMENT_METHODS[key];
     if (!method) throw httpError(422, "UNSUPPORTED_PAYMENT_METHOD", "지원하지 않는 결제수단입니다.");
     return { key, ...method };
