@@ -184,12 +184,31 @@ button:disabled {
   gap: 6px;
 }
 
+.panel-head:has(.account-save) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.account-save {
+  min-width: 92px;
+}
+
 label {
   display: grid;
   gap: 8px;
   color: var(--sub);
   font-size: 13px;
   font-weight: 950;
+}
+
+.sale-form {
+  align-content: start;
+}
+
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 input,
@@ -202,6 +221,12 @@ select {
   background: #fff;
   color: var(--ink);
   font-weight: 900;
+}
+
+.account-status-select {
+  min-width: 108px;
+  min-height: 38px;
+  padding: 0 10px;
 }
 
 .event-summary,
@@ -543,5 +568,324 @@ th {
 
   .console-tabs button {
     flex: 1 1 150px;
+  }
+
+  .price-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Modern operations console layer: focused, dense, and aligned with public brand. */
+:root {
+  --ops-ink: #17191d;
+  --ops-muted: #687180;
+  --ops-bg: #f4f6f8;
+  --ops-panel: #ffffff;
+  --ops-line: #dfe4eb;
+  --ops-line-strong: #bac3cf;
+  --ops-yellow: #ffd400;
+  --ops-red: #d9291f;
+  --ops-blue: #146eb4;
+  --ops-green: #168050;
+  --ops-radius: 8px;
+  --ops-shadow: 0 12px 28px rgba(23, 25, 29, 0.08);
+}
+
+body {
+  color: var(--ops-ink);
+  background: var(--ops-bg);
+}
+
+.admin-shell {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.admin-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 16px;
+  padding: 22px 24px;
+  border: 1px solid var(--ops-line);
+  border-radius: var(--ops-radius);
+  background: var(--ops-panel);
+  box-shadow: var(--ops-shadow);
+}
+
+.admin-header span {
+  color: var(--ops-red);
+  letter-spacing: 0.06em;
+}
+
+.admin-header h1 {
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.admin-header p,
+.panel-head p,
+.status-copy,
+.event-summary span,
+.api-preview span,
+.metric-card p {
+  color: var(--ops-muted);
+}
+
+.console-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 8px;
+  border: 1px solid var(--ops-line);
+  border-radius: var(--ops-radius);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 20px rgba(23, 25, 29, 0.06);
+}
+
+.console-tabs button,
+.admin-header button,
+button {
+  border-radius: 6px;
+  font-weight: 950;
+}
+
+.console-tabs button {
+  min-width: 132px;
+  color: #343a43;
+  background: transparent;
+}
+
+.console-tabs button:hover {
+  background: #f0f3f7;
+}
+
+.console-tabs button.active {
+  color: var(--ops-ink);
+  background: var(--ops-yellow);
+}
+
+.admin-header button,
+button {
+  color: #fff;
+  background: var(--ops-red);
+}
+
+button.secondary,
+.mini.neutral {
+  background: var(--ops-green);
+}
+
+.mini.warn {
+  color: var(--ops-ink);
+  background: var(--ops-yellow);
+}
+
+.mini.danger {
+  background: var(--ops-red);
+}
+
+.metric-grid {
+  gap: 14px;
+}
+
+.metric-card,
+.admin-panel,
+.venue-preview {
+  border: 1px solid var(--ops-line);
+  border-radius: var(--ops-radius);
+  background: var(--ops-panel);
+  box-shadow: var(--ops-shadow);
+}
+
+.metric-card {
+  padding: 18px;
+}
+
+.metric-card span {
+  color: var(--ops-muted);
+}
+
+.metric-card strong {
+  font-size: 32px;
+}
+
+.admin-grid {
+  gap: 18px;
+}
+
+.admin-panel,
+.venue-preview {
+  padding: 20px;
+}
+
+.panel-head {
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+.panel-head h2 {
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+label {
+  color: #424a56;
+}
+
+input,
+select,
+textarea,
+.support-reply-form textarea {
+  border-color: var(--ops-line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.support-reply-form textarea:focus {
+  outline: none;
+  border-color: var(--ops-ink);
+  box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.22);
+}
+
+.event-summary,
+.api-preview,
+.trust-rules span {
+  border-color: #efd45c;
+  border-radius: 6px;
+  background: #fffaf0;
+}
+
+.console-link {
+  border-radius: 6px;
+  color: #fff;
+  background: var(--ops-ink);
+}
+
+.table-wrap {
+  border: 1px solid var(--ops-line);
+  border-radius: var(--ops-radius);
+  background: #fff;
+}
+
+table {
+  min-width: 720px;
+}
+
+th,
+td {
+  padding: 13px 12px;
+  border-bottom-color: var(--ops-line);
+}
+
+th {
+  color: #56606e;
+  background: #f7f9fb;
+  letter-spacing: 0.02em;
+}
+
+tbody tr:hover td {
+  background: #fbfcfe;
+}
+
+.pill {
+  min-height: 28px;
+  border-radius: 999px;
+  font-weight: 950;
+}
+
+.pill.open,
+.pill.on_sale,
+.pill.active {
+  background: var(--ops-green);
+}
+
+.pill.watchlist,
+.pill.admin_hold {
+  background: var(--ops-yellow);
+}
+
+.pill.banned {
+  background: var(--ops-red);
+}
+
+.ledger-list,
+.user-list,
+.support-queue {
+  gap: 10px;
+}
+
+.ledger-item,
+.user-card,
+.support-queue-item {
+  border: 1px solid var(--ops-line);
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.support-queue-item {
+  color: var(--ops-ink);
+}
+
+.support-queue-item.active {
+  border-color: var(--ops-red);
+  background: #fff6f5;
+}
+
+.support-queue-item span {
+  color: var(--ops-red);
+}
+
+.support-detail {
+  border-color: var(--ops-line);
+  border-radius: var(--ops-radius);
+  background: #f6f8fb;
+}
+
+.support-message-row {
+  border-radius: 8px;
+}
+
+.support-message-row.admin {
+  border-color: #cbe0f6;
+  background: #eef6ff;
+}
+
+.toast {
+  border-radius: var(--ops-radius);
+  background: var(--ops-ink);
+  box-shadow: var(--ops-shadow);
+}
+
+@media (max-width: 1000px) {
+  .admin-shell {
+    padding: 18px;
+  }
+
+  .console-tabs {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-shell {
+    padding: 12px;
+  }
+
+  .admin-header,
+  .admin-panel,
+  .venue-preview {
+    padding: 16px;
+  }
+
+  .admin-header h1 {
+    font-size: 26px;
   }
 }

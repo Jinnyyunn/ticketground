@@ -25,6 +25,12 @@ html {
   scroll-behavior: smooth;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -352,6 +358,30 @@ main {
   font-size: 12px;
   font-weight: 900;
   box-shadow: none;
+}
+
+.sale-state {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 9px;
+  border: 1px solid rgba(0, 170, 255, 0.24);
+  border-radius: 4px;
+  color: #075272;
+  background: #e5f6ff;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.event-card.is-upcoming,
+.purchase-event.is-upcoming {
+  border-color: rgba(0, 170, 255, 0.24);
+}
+
+.event-cta.disabled,
+.seat-selector-link.disabled {
+  color: #6b6252;
+  background: #eee7d5;
+  pointer-events: none;
 }
 
 .hero h1 {
@@ -1550,6 +1580,12 @@ p {
   padding: 15px;
 }
 
+.ticket-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .seat-top,
 .resale-top,
 .myticket-top,
@@ -1706,12 +1742,44 @@ p {
 }
 
 .qr-token {
+  position: relative;
+  isolation: isolate;
   display: grid;
   gap: 8px;
   color: var(--ink);
   font-family: "Cascadia Code", Consolas, monospace;
   font-size: 12px;
   text-align: left;
+}
+
+.qr-token::before {
+  content: attr(data-watermark);
+  position: absolute;
+  inset: 22px 0 auto;
+  z-index: -1;
+  color: rgba(204, 0, 0, 0.16);
+  font: 900 15px var(--font-family-primary, system-ui);
+  text-align: center;
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
+
+.qr-token code {
+  display: block;
+  min-height: 104px;
+  padding: 14px;
+  border: 8px solid #17140d;
+  background:
+    linear-gradient(90deg, #17140d 10px, transparent 10px) 0 0 / 20px 20px,
+    linear-gradient(#17140d 10px, transparent 10px) 0 0 / 20px 20px,
+    #fff;
+  color: transparent;
+  user-select: none;
+}
+
+.qr-token.virtual code {
+  border-color: #8a8170;
+  opacity: 0.78;
 }
 
 .info-row {
@@ -2012,9 +2080,9 @@ h2 {
   --space-7: 30px;
   --space-8: 35px;
   --radius-xs: 5px;
-  --radius-sm: 15px;
-  --radius-md: 20px;
-  --radius-lg: 40px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
   --radius-pill: 999px;
   --color-surface-base: #000000;
   --color-surface-page: #f7f4ea;
@@ -3223,5 +3291,737 @@ h3 {
     min-width: 20px;
     height: 20px;
     min-height: 20px;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-header,
+  .hero-content,
+  .section,
+  .search-band {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .main-nav,
+  .hero-actions,
+  .ticket-action-grid,
+  .booking-step-actions,
+  .booking-step-actions.split {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .event-card {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .event-card img,
+  .purchase-event img {
+    width: 100%;
+  }
+
+  .product-summary h3,
+  h2 {
+    font-size: 32px;
+  }
+
+  .booking-date-grid,
+  .payment-methods,
+  .my-grid,
+  .support-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .phone-shell {
+    max-width: 100%;
+  }
+
+  .qr-preview {
+    min-height: 220px;
+  }
+
+  .myticket-top,
+  .seat-top,
+  .resale-top,
+  .info-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .support-chat {
+    right: 14px;
+    bottom: 78px;
+    width: calc(100vw - 28px);
+  }
+}
+
+/* Major ticketing visual system: restrained, modern, and dense where it matters. */
+:root {
+  --tg-ink: #141416;
+  --tg-muted: #69707d;
+  --tg-soft: #f4f6f8;
+  --tg-card: #ffffff;
+  --tg-border: #dfe4eb;
+  --tg-border-strong: #b9c1cc;
+  --tg-yellow: #ffd400;
+  --tg-yellow-soft: #fff3a3;
+  --tg-red: #d9291f;
+  --tg-blue: #146eb4;
+  --tg-green: #168050;
+  --tg-radius: 8px;
+  --tg-shadow: 0 14px 34px rgba(20, 20, 22, 0.1);
+  --tg-shadow-low: 0 6px 16px rgba(20, 20, 22, 0.07);
+  --tg-page-gutter: 12px;
+  --tg-section-gutter: 18px;
+  --tg-wide-shell: 1400px;
+  --font-family-primary: "Noto Sans KR", Inter, Pretendard, "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  color: var(--tg-ink);
+  background: var(--tg-soft);
+  font-family: var(--font-family-primary);
+}
+
+.site-header {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 28px;
+  min-height: 74px;
+  padding: 14px max(var(--tg-page-gutter), calc((100vw - var(--tg-wide-shell)) / 2));
+  border-bottom: 1px solid rgba(20, 20, 22, 0.1);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(20, 20, 22, 0.06);
+}
+
+.brand {
+  font-family: var(--font-family-primary);
+  letter-spacing: 0;
+}
+
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  color: var(--tg-ink);
+  background: var(--tg-yellow);
+}
+
+.main-nav {
+  justify-content: center;
+  gap: 4px;
+}
+
+.main-nav a,
+.profile-dropdown a {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: #30343b;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.main-nav a:hover,
+.profile-dropdown a:hover {
+  background: #f0f2f5;
+}
+
+.main-nav a.active {
+  color: var(--tg-ink);
+  background: var(--tg-yellow);
+  box-shadow: none;
+}
+
+.profile-button {
+  min-width: 150px;
+  border: 1px solid var(--tg-border);
+  border-radius: 999px;
+  color: var(--tg-ink);
+  background: #fff;
+}
+
+.profile-dropdown,
+.support-chat,
+.search-results,
+.booking-widget,
+.product-info-block,
+.resale-side,
+.my-panel,
+.guide-grid article,
+.event-card,
+.discovery-card,
+.purchase-event,
+.resale-card,
+.myticket-card {
+  border: 1px solid var(--tg-border);
+  border-radius: var(--tg-radius);
+  background: var(--tg-card);
+  box-shadow: var(--tg-shadow-low);
+}
+
+.hero {
+  min-height: 620px;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.hero::before {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.34) 48%, rgba(0, 0, 0, 0.18));
+}
+
+.hero::after {
+  height: 28%;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.58));
+}
+
+.hero-content {
+  width: min(1240px, calc(100% - 48px));
+  padding-bottom: 82px;
+}
+
+.hero h1 {
+  max-width: 850px;
+  font-family: var(--font-family-primary);
+  font-size: clamp(44px, 6vw, 86px);
+  line-height: 1.02;
+  text-shadow: 0 12px 34px rgba(0, 0, 0, 0.34);
+}
+
+.hero p {
+  max-width: 650px;
+  font-size: 20px;
+  line-height: 1.62;
+}
+
+.eyebrow,
+.badge,
+.sale-state,
+.card-tags em,
+.product-tags em,
+.stat-pill {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.eyebrow,
+.badge {
+  color: var(--tg-ink);
+  background: var(--tg-yellow);
+}
+
+.sale-state {
+  color: #0c4a73;
+  border: 1px solid #cce3f4;
+  background: #e9f5ff;
+}
+
+button,
+.primary-link,
+.event-cta,
+.seat-selector-link {
+  border-radius: 6px;
+  color: var(--tg-ink);
+  background: var(--tg-yellow);
+  font-weight: 950;
+}
+
+button:hover,
+.primary-link:hover,
+.event-cta:hover,
+.seat-selector-link:hover {
+  background: #ffe05d;
+}
+
+button.secondary,
+.ghost-link,
+.dropdown-logout {
+  color: #fff;
+  background: var(--tg-ink);
+}
+
+button.secondary:hover,
+.ghost-link:hover,
+.dropdown-logout:hover {
+  background: #2d3035;
+}
+
+input,
+select,
+textarea {
+  border-color: var(--tg-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--tg-ink);
+  box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.24);
+}
+
+.search-band {
+  width: min(1240px, calc(100% - 48px));
+  margin-top: -38px;
+  border-radius: var(--tg-radius);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--tg-shadow);
+}
+
+.search-copy strong,
+.section-head h2,
+.discovery-head h3,
+.event-info h3,
+.product-summary h3 {
+  font-family: var(--font-family-primary);
+}
+
+.section {
+  width: min(1240px, calc(100% - 48px));
+  margin-top: 72px;
+  margin-bottom: 72px;
+}
+
+.section-head {
+  align-items: end;
+  margin-bottom: 22px;
+}
+
+.section-head h2,
+h2 {
+  font-size: clamp(30px, 3vw, 46px);
+}
+
+.category-tabs,
+.quick-filters {
+  gap: 8px;
+}
+
+.chip,
+.category-tab,
+.zone-tab {
+  border: 1px solid var(--tg-border);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.chip.active,
+.category-tab.active,
+.zone-tab.active {
+  color: var(--tg-ink);
+  background: var(--tg-yellow);
+}
+
+.event-card {
+  grid-template-columns: 236px minmax(0, 1fr) 132px;
+  gap: 24px;
+  padding: 18px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.event-card:hover,
+.discovery-card:hover,
+.resale-card:hover,
+.myticket-card:hover {
+  border-color: var(--tg-border-strong);
+  box-shadow: var(--tg-shadow);
+  transform: translateY(-2px);
+}
+
+.event-card img {
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+}
+
+.event-info {
+  align-content: start;
+  gap: 8px;
+}
+
+.event-info h3 {
+  margin: 2px 0;
+  font-size: 25px;
+  line-height: 1.25;
+}
+
+.event-info p,
+.discovery-card span,
+.search-copy span,
+.seat-meta,
+.product-facts span,
+.price-table span,
+.support-empty p {
+  color: var(--tg-muted);
+}
+
+.event-stats {
+  gap: 6px;
+}
+
+.stat-pill {
+  color: #2f3743;
+  border: 1px solid var(--tg-border);
+  background: #f7f9fb;
+}
+
+.event-cta {
+  align-self: center;
+  min-width: 120px;
+}
+
+.ticket-discovery {
+  gap: 28px;
+}
+
+.discovery-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.discovery-card {
+  padding: 14px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.discovery-card img {
+  border-radius: 6px;
+}
+
+.product-hero {
+  gap: 28px;
+  padding: 22px;
+  background: #fff;
+}
+
+.product-tabs {
+  top: 92px;
+  border: 1px solid var(--tg-border);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.product-tabs a.active,
+.product-tabs a[aria-selected="true"] {
+  color: var(--tg-ink);
+  background: var(--tg-yellow);
+}
+
+.booking-widget {
+  top: 156px;
+}
+
+.booking-progress li {
+  border-radius: 8px;
+}
+
+.booking-progress li.active {
+  border-color: var(--tg-yellow);
+  background: #fff8ce;
+}
+
+.booking-date,
+.payment-option,
+.seat-grade {
+  border-radius: 8px;
+}
+
+.booking-date.active,
+.payment-option.active,
+.seat-grade.active {
+  border-color: var(--tg-yellow);
+  background: #fff8ce;
+}
+
+.seat-purchase-row {
+  border-color: #f1d35a;
+  background: #fffaf0;
+}
+
+.seat-status {
+  color: #063f26;
+  background: #dff7e8;
+}
+
+.seat-status.closed {
+  color: #5d6570;
+  background: #eceff3;
+}
+
+.my-section {
+  padding: 32px;
+  background: var(--tg-ink);
+}
+
+.my-section .section-head h2,
+.my-section .section-head p {
+  color: #fff;
+}
+
+.phone-shell {
+  border-radius: 8px;
+}
+
+.support-fab {
+  border-radius: 999px;
+  color: var(--tg-ink);
+  background: var(--tg-yellow);
+  box-shadow: var(--tg-shadow);
+}
+
+.support-chat {
+  border-radius: 8px;
+}
+
+.toast {
+  border-radius: 8px;
+  color: #fff;
+  background: var(--tg-ink);
+}
+
+@media (max-width: 1000px) {
+  .event-card {
+    grid-template-columns: 1fr;
+  }
+
+  .event-cta {
+    width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-header {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    min-height: auto;
+    padding: 12px 16px;
+  }
+
+  .main-nav {
+    justify-content: stretch;
+  }
+
+  .main-nav a {
+    justify-content: center;
+  }
+
+  .profile-menu {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .profile-summary {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .profile-button {
+    width: 100%;
+  }
+
+  .hero {
+    min-height: 560px;
+  }
+
+  .hero-content,
+  .section,
+  .search-band {
+    width: min(100% - 28px, 1240px);
+  }
+
+  .hero h1 {
+    font-size: 42px;
+  }
+
+  .hero p {
+    font-size: 16px;
+  }
+
+  .search-band {
+    margin-top: 16px;
+  }
+
+  .event-card,
+  .product-hero,
+  .my-section {
+    padding: 16px;
+  }
+}
+
+/* Final system hardening: keep the ticketing surface crisp and production-like. */
+body {
+  background:
+    linear-gradient(180deg, #fff8d7 0, #f4f6f8 260px, #f4f6f8 100%);
+}
+
+.hero-sparks {
+  display: none;
+}
+
+.hero-overlay,
+.hero[data-hero-tone="concert"] .hero-overlay,
+.hero[data-hero-tone="festival"] .hero-overlay,
+.hero[data-hero-tone="musical"] .hero-overlay,
+.hero[data-hero-tone="sports"] .hero-overlay {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.76), rgba(0, 0, 0, 0.34) 56%, rgba(0, 0, 0, 0.12)),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.58), transparent 60%);
+}
+
+.venue-map-canvas,
+.venue-map-canvas.olympic-stadium,
+.seat-map-panel {
+  border-radius: var(--tg-radius);
+  background: linear-gradient(180deg, #ffffff, #f7f9fb);
+}
+
+.my-section {
+  background: var(--tg-ink);
+}
+
+.hero,
+.search-band,
+.search-results,
+.booking-section,
+.product-hero,
+.product-info-block,
+.booking-widget,
+.resale-side,
+.event-card,
+.discovery-card,
+.seat-card,
+.resale-card,
+.myticket-card,
+.my-panel,
+.support-panel,
+.support-chat,
+.guide-grid article,
+.venue-map-canvas,
+.phone-shell,
+.toast {
+  border-radius: var(--tg-radius);
+}
+
+.hero {
+  border-radius: 0;
+}
+
+.hero-carousel {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--tg-radius);
+  background: rgba(20, 20, 22, 0.56);
+  backdrop-filter: blur(12px);
+}
+
+.hero-arrow,
+.hero-dot,
+.support-fab,
+.profile-button,
+.main-nav a,
+.chip,
+.category-tab,
+.zone-tab,
+.eyebrow,
+.badge,
+.sale-state,
+.card-tags em,
+.product-tags em,
+.stat-pill,
+.seat-status {
+  border-radius: 999px;
+}
+
+.avatar {
+  color: var(--tg-ink);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+@media (max-width: 760px) {
+  .main-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .main-nav a {
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 8px;
+    text-align: center;
+  }
+}
+
+/* Hero alignment fix: keep the visual stage centered and separate from search. */
+#concerts > .hero {
+  width: min(var(--tg-wide-shell), calc(100% - (var(--tg-page-gutter) * 2)));
+  min-height: 560px;
+  margin: 24px auto 0;
+  overflow: hidden;
+  border-radius: var(--tg-radius);
+}
+
+#concerts > .hero .hero-content {
+  width: min(100% - 56px, 1280px);
+  padding-bottom: 96px;
+}
+
+#concerts > .hero .hero-carousel {
+  right: 24px;
+  bottom: 24px;
+}
+
+#concerts > .search-band,
+#concerts > .section {
+  width: min(var(--tg-wide-shell), calc(100% - (var(--tg-section-gutter) * 2)));
+  margin: 24px auto 0;
+}
+
+.page.active > .section,
+.page.active.section,
+.booking-section,
+.product-hero,
+.product-info-block {
+  width: min(var(--tg-wide-shell), calc(100% - (var(--tg-section-gutter) * 2)));
+}
+
+@media (max-width: 760px) {
+  :root {
+    --tg-page-gutter: 10px;
+    --tg-section-gutter: 14px;
+  }
+
+  #concerts > .hero {
+    width: min(100% - (var(--tg-section-gutter) * 2), var(--tg-wide-shell));
+    min-height: 520px;
+    margin-top: 16px;
+  }
+
+  #concerts > .hero .hero-content {
+    width: min(100% - 32px, 1120px);
+    padding-bottom: 92px;
+  }
+
+  #concerts > .hero .hero-carousel {
+    left: 16px;
+    right: auto;
+    bottom: 18px;
+  }
+
+  #concerts > .search-band,
+  #concerts > .section {
+    width: min(100% - (var(--tg-section-gutter) * 2), var(--tg-wide-shell));
+    margin-top: 18px;
+  }
+
+  .page.active > .section,
+  .page.active.section,
+  .booking-section,
+  .product-hero,
+  .product-info-block {
+    width: min(100% - (var(--tg-section-gutter) * 2), var(--tg-wide-shell));
   }
 }

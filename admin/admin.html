@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ticketground 운영 콘솔</title>
-    <link rel="stylesheet" href="/admin.css" />
+    <link rel="stylesheet" href="/admin.css?v=20260616-modern" />
   </head>
   <body>
     <main class="admin-shell">
@@ -21,7 +21,7 @@
         <button class="active" type="button" data-tab="overview">운영 현황</button>
         <button type="button" data-tab="accounts">계정 관리</button>
         <button type="button" data-tab="moderation">암표 대응</button>
-        <button type="button" data-tab="catalog">공연/재고 관리</button>
+        <button type="button" data-tab="catalog">티켓 판매 관리</button>
         <button type="button" data-tab="support">고객 문의</button>
       </nav>
 
@@ -62,8 +62,11 @@
         <div class="admin-grid wide-main">
           <section class="admin-panel">
             <div class="panel-head">
-              <h2>계정 관리</h2>
-              <p>회원 상태, 충전금, 신뢰 점수와 제재 이력을 한 화면에서 관리합니다.</p>
+              <div>
+                <h2>계정 관리</h2>
+                <p>회원 상태, 충전금, 신뢰 점수와 제재 이력을 한 화면에서 관리합니다.</p>
+              </div>
+              <button class="mini account-save" type="button" id="accountSaveBtn">수정</button>
             </div>
             <div class="table-wrap">
               <table class="account-table">
@@ -138,23 +141,71 @@
 
       <section class="tab-panel" data-panel="catalog">
         <div class="admin-grid">
-          <form class="admin-panel" id="venueForm">
+          <form class="admin-panel sale-form" id="saleForm">
             <div class="panel-head">
-              <h2>공연 장소 및 좌석도 연결</h2>
-              <p>장소를 선택하면 해당 좌석도 API가 예매 창에 연결됩니다.</p>
+              <h2>티켓 판매 정보</h2>
+              <p>행사 유형, 개최일시, 장소, 구역별 가격을 입력하면 판매 좌석에 반영됩니다.</p>
             </div>
 
             <label for="eventSelect">
               행사
               <select id="eventSelect" name="eventId"></select>
             </label>
+            <label for="saleTitleInput">
+              행사명
+              <input id="saleTitleInput" type="text" maxlength="80" placeholder="행사명 입력" />
+            </label>
+            <label for="saleCategorySelect">
+              행사 유형
+              <select id="saleCategorySelect">
+                <option value="concert">콘서트</option>
+                <option value="musical">뮤지컬</option>
+                <option value="festival">페스티벌</option>
+                <option value="sports">스포츠</option>
+              </select>
+            </label>
+            <label for="saleStateSelect">
+              판매 상태
+              <select id="saleStateSelect">
+                <option value="ON_SALE">판매중</option>
+                <option value="OPEN_SOON">오픈 예정</option>
+                <option value="DISCOUNT_SOON">할인 예정</option>
+                <option value="ADMIN_HOLD">운영 보류</option>
+              </select>
+            </label>
+            <label for="saleNoteInput">
+              사용자 노출 문구
+              <input id="saleNoteInput" type="text" maxlength="80" placeholder="예: 팬클럽 선예매 오픈 예정" />
+            </label>
+            <label for="discountRateInput">
+              할인율
+              <input id="discountRateInput" type="number" min="0" max="90" step="1" />
+            </label>
+            <label for="saleDateInput">
+              개최 날짜 및 시간
+              <input id="saleDateInput" type="datetime-local" />
+            </label>
             <label for="venueSelect">
-              공연장
+              개최 장소
               <select id="venueSelect" name="venueId"></select>
             </label>
+            <div class="price-grid">
+              <label for="priceVipInput">
+                VIP 가격
+                <input id="priceVipInput" type="number" min="1000" step="1000" />
+              </label>
+              <label for="priceRInput">
+                R석 가격
+                <input id="priceRInput" type="number" min="1000" step="1000" />
+              </label>
+              <label for="priceSInput">
+                S석 가격
+                <input id="priceSInput" type="number" min="1000" step="1000" />
+              </label>
+            </div>
 
             <div class="event-summary" id="eventSummary"></div>
-            <button type="submit">장소 저장</button>
+            <button type="submit">판매 정보 저장</button>
             <p class="status-copy" id="catalogStatus" role="status" aria-live="polite"></p>
           </form>
 
@@ -282,7 +333,9 @@
           IN_RESALE_POOL: "재판매중",
           MATCHED: "매칭완료",
           OPEN: "열림",
-          ADMIN_HOLD: "운영 보류"
+          ADMIN_HOLD: "운영 보류",
+          OPEN_SOON: "오픈 예정",
+          DISCOUNT_SOON: "할인 예정"
         };
         return labels[status] || status;
       }
@@ -311,6 +364,20 @@
           sports: "스포츠"
         };
         return labels[category] || category;
+      }
+
+      function toDateTimeLocal(value) {
+        if (!value) return "";
+        const match = String(value).match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+        return match ? match[1] : "";
+      }
+
+      function fromDateTimeLocal(value) {
+        return value ? `${value}:00+09:00` : "";
+      }
+
+      function zoneById(eventItem, zoneId) {
+        return eventItem?.zones?.find((zone) => zone.id === zoneId);
       }
 
       function selectedVenue() {
@@ -380,11 +447,11 @@
 
       function userActionButtons(user) {
         return `
-          <div class="button-row">
-            <button class="mini neutral" type="button" data-user-status="${user.id}:ACTIVE">정상</button>
-            <button class="mini warn" type="button" data-user-status="${user.id}:WATCHLIST">주의</button>
-            <button class="mini danger" type="button" data-user-status="${user.id}:BANNED">차단</button>
-          </div>
+          <select class="account-status-select" data-account-status="${user.id}" aria-label="${user.name} 계정 상태">
+            <option value="ACTIVE" ${user.status === "ACTIVE" ? "selected" : ""}>정상</option>
+            <option value="WATCHLIST" ${user.status === "WATCHLIST" ? "selected" : ""}>주의</option>
+            <option value="BANNED" ${user.status === "BANNED" ? "selected" : ""}>차단</option>
+          </select>
         `;
       }
 
@@ -451,11 +518,20 @@
           <option value="${venue.id}">${venue.name}</option>
         `).join("");
         $("#venueSelect").value = state.event?.venueId || state.venues[0]?.id || "";
+        $("#saleTitleInput").value = state.event?.title || "";
+        $("#saleCategorySelect").value = state.event?.category || "concert";
+        $("#saleStateSelect").value = state.event?.saleState || state.event?.sale?.state || "ON_SALE";
+        $("#saleNoteInput").value = state.event?.saleNote || state.event?.sale?.note || "";
+        $("#discountRateInput").value = state.event?.discountRate ?? state.event?.sale?.discountRate ?? 0;
+        $("#saleDateInput").value = toDateTimeLocal(state.event?.dates?.[0]?.startsAt || state.event?.date);
+        $("#priceVipInput").value = zoneById(state.event, "zone_vip")?.faceValue || "";
+        $("#priceRInput").value = zoneById(state.event, "zone_r")?.faceValue || "";
+        $("#priceSInput").value = zoneById(state.event, "zone_s")?.faceValue || "";
         const venue = selectedVenue();
         $("#eventSummary").innerHTML = `
           <span>대상 행사</span>
           <strong>${state.event?.title || "행사 선택 필요"}</strong>
-          <p>${venue?.name || state.event?.venue || "공연장 미지정"} · 사용자 예매 페이지에 즉시 반영</p>
+          <p>${statusText(state.event?.saleState || state.event?.sale?.state || "ON_SALE")} · ${categoryText(state.event?.category)} · ${venue?.name || state.event?.venue || "공연장 미지정"} · ${toDateTimeLocal(state.event?.dates?.[0]?.startsAt || state.event?.date).replace("T", " ")}</p>
         `;
       }
 
@@ -463,15 +539,15 @@
         const venue = selectedVenue();
         const currentEvent = selectedEvent();
         if (!venue) return;
-        const payload = await api(`/api/seat-map?category=${encodeURIComponent(venue.category)}&venueId=${encodeURIComponent(venue.id)}`);
+        const payload = await api(`/api/seat-map?category=${encodeURIComponent(venue.category)}&venueId=${encodeURIComponent(venue.id)}&eventId=${encodeURIComponent(currentEvent?.id || "")}`);
         $("#previewMeta").textContent = `${currentEvent?.title || "행사"} · ${venue.name} · ${payload.map.title}`;
         $("#seatMapPreview").src = payload.map.image;
         $("#seatMapPreview").alt = payload.map.title;
         $("#apiPreview").innerHTML = `
           <strong>연동 API</strong>
-          <code>/api/seat-map?category=${venue.category}&venueId=${venue.id}</code>
+          <code>/api/seat-map?category=${venue.category}&venueId=${venue.id}&eventId=${currentEvent?.id || ""}</code>
           <span>${payload.seats.length}개 좌석 영역 · ${payload.map.id}</span>
-          <a class="console-link" href="http://localhost:4174/#booking" target="_blank" rel="noreferrer">사용자 예매 화면에서 확인</a>
+          <a class="console-link" href="http://localhost:4273/#booking" target="_blank" rel="noreferrer">사용자 예매 화면에서 확인</a>
         `;
       }
 
@@ -582,12 +658,6 @@
             toast("재판매 풀 매칭을 진행했습니다.");
             await loadConsole();
           }
-          if (target.dataset.userStatus) {
-            const [userId, status] = target.dataset.userStatus.split(":");
-            await api("/api/admin/users/status", { userId, status, reason: "운영 콘솔 상태 변경" });
-            toast("계정 상태를 업데이트했습니다.");
-            await loadConsole();
-          }
           if (target.dataset.ticketStatus) {
             const [ticketId, status] = target.dataset.ticketStatus.split(":");
             await api("/api/admin/tickets/status", { ticketId, status });
@@ -612,6 +682,24 @@
 
       $("#refreshBtn").addEventListener("click", () => loadConsole().then(() => toast("최신 현황을 불러왔습니다.")).catch((error) => toast(error.message)));
 
+      $("#accountSaveBtn").addEventListener("click", async () => {
+        const updates = [...document.querySelectorAll("[data-account-status]")]
+          .map((select) => ({ userId: select.dataset.accountStatus, status: select.value }))
+          .filter((item) => state.summary.users.find((user) => user.id === item.userId)?.status !== item.status);
+        if (!updates.length) {
+          toast("수정할 계정 상태가 없습니다.");
+          return;
+        }
+        if (!window.confirm(`${updates.length}개 계정 상태를 수정하시겠습니까?`)) return;
+        try {
+          await api("/api/admin/users/statuses", { updates, reason: "운영 콘솔 일괄 상태 변경" });
+          toast("계정 상태를 수정했습니다.");
+          await loadConsole();
+        } catch (error) {
+          toast(error.message);
+        }
+      });
+
       $("#eventSelect").addEventListener("change", () => {
         state.eventId = $("#eventSelect").value;
         state.event = selectedEvent();
@@ -630,17 +718,28 @@
         });
       });
 
-      $("#venueForm").addEventListener("submit", async (eventSubmit) => {
+      $("#saleForm").addEventListener("submit", async (eventSubmit) => {
         eventSubmit.preventDefault();
         try {
-          const result = await api("/api/admin/events/venue", {
+          const result = await api("/api/admin/events/sale", {
             eventId: selectedEvent()?.id,
-            venueId: $("#venueSelect").value
+            title: $("#saleTitleInput").value,
+            category: $("#saleCategorySelect").value,
+            saleState: $("#saleStateSelect").value,
+            saleNote: $("#saleNoteInput").value,
+            discountRate: Number($("#discountRateInput").value || 0),
+            startsAt: fromDateTimeLocal($("#saleDateInput").value),
+            venueId: $("#venueSelect").value,
+            prices: {
+              zone_vip: Number($("#priceVipInput").value),
+              zone_r: Number($("#priceRInput").value),
+              zone_s: Number($("#priceSInput").value)
+            }
           });
           state.event = result.event;
           state.eventId = result.event.id;
           state.events = state.events.map((eventItem) => eventItem.id === result.event.id ? result.event : eventItem);
-          $("#catalogStatus").textContent = `${result.event.title} · ${result.venue.name} 좌석도 API가 연결되었습니다.`;
+          $("#catalogStatus").textContent = `${result.event.title} · ${statusText(result.event.saleState)} 상태로 저장되었습니다. 미판매 좌석 ${result.repricedTickets}건 가격을 동기화했습니다.`;
           await loadConsole();
         } catch (error) {
           $("#catalogStatus").textContent = error.message;

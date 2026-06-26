@@ -19,7 +19,8 @@ const appState = {
   activeProductTab: "all",
   supportOpen: false,
   activeSupportThreadId: "",
-  supportPollTimer: null
+  supportPollTimer: null,
+  qrRefreshTimer: null
 };
 
 const paymentMethods = [
@@ -254,6 +255,32 @@ function eventMeta(event) {
   return `${dateCopy} · ${event.venue}`;
 }
 
+function eventSale(event) {
+  return event.sale || {
+    state: event.saleState || "ON_SALE",
+    label: event.saleState === "OPEN_SOON" ? "오픈 예정" : event.saleState === "DISCOUNT_SOON" ? "할인 예정" : event.saleState === "ADMIN_HOLD" ? "판매 보류" : "예매 가능",
+    note: event.saleNote || "공식 판매 진행 중",
+    discountRate: Number(event.discountRate || 0),
+    displayPrice: Math.min(...event.zones.map((zone) => zone.faceValue)),
+    basePrice: Math.min(...event.zones.map((zone) => zone.faceValue)),
+    bookable: (event.saleState || "ON_SALE") === "ON_SALE"
+  };
+}
+
+function saleBadge(event) {
+  const sale = eventSale(event);
+  const discount = sale.discountRate ? ` · ${sale.discountRate}%` : "";
+  return `${sale.label}${discount}`;
+}
+
+function salePriceCopy(event) {
+  const sale = eventSale(event);
+  if (sale.discountRate > 0) {
+    return `${fmt.format(sale.displayPrice)}원 예정 · 정상가 ${fmt.format(sale.basePrice)}원`;
+  }
+  return `${fmt.format(sale.basePrice)}원부터`;
+}
+
 function optionList(select, rows, label) {
   if (!rows.length) {
     select.innerHTML = `<option value="">선택 가능한 항목 없음</option>`;
@@ -386,45 +413,58 @@ function renderStats(event = currentEvent()) {
   const tickets = ticketsForEvent(event);
   const available = tickets.filter((ticket) => ticket.status === "ON_SALE").length;
   const resale = appState.data.resalePools.filter((pool) => pool.eventId === event.id && pool.status === "OPEN").length;
+  const sale = eventSale(event);
   return [
-    `예매 가능 ${available}석`,
+    sale.bookable ? `예매 가능 ${available}석` : sale.label,
+    salePriceCopy(event),
     `공식 재판매 ${resale}건`,
-    "개최 날짜 선택",
-    "좌석 직접 선택"
+    sale.note || "개최 날짜 선택"
   ].map((text) => `<span class="stat-pill">${text}</span>`).join("");
 }
 
 function renderEventCatalog() {
   const events = appState.data.events.filter((event) => event.category === appState.activeCategory);
-  $("#eventCatalog").innerHTML = events.map((event) => `
-    <div class="event-card" data-route="booking" data-event-id="${event.id}" tabindex="0" role="link" aria-label="${event.title} 예매하기">
+  $("#eventCatalog").innerHTML = events.map((event) => {
+    const sale = eventSale(event);
+    return `
+    <div class="event-card ${sale.bookable ? "" : "is-upcoming"}" data-route="booking" data-event-id="${event.id}" tabindex="0" role="link" aria-label="${event.title} ${sale.label}">
       <img src="${event.image}" alt="${event.title} 포스터" />
       <div class="event-info">
         <span class="badge">${event.badge}</span>
+        <span class="sale-state">${saleBadge(event)}</span>
         <h3>${event.title}</h3>
         <p>${eventMeta(event)}</p>
         <div class="event-stats">${renderStats(event)}</div>
       </div>
-      <a class="event-cta" href="#booking" data-route="booking" data-event-id="${event.id}">예매하기</a>
+      <a class="event-cta ${sale.bookable ? "" : "disabled"}" href="#booking" data-route="booking" data-event-id="${event.id}">${sale.bookable ? "예매하기" : sale.label}</a>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function renderDiscoverySections() {
   const image = "/assets/neon-stage-hero.png";
-  $("#ticketDiscovery").innerHTML = discoverySections.map((section) => `
+  const openSoon = appState.data.events.filter((event) => eventSale(event).state === "OPEN_SOON" || eventSale(event).state === "DISCOUNT_SOON");
+  const ranking = appState.data.events.filter((event) => eventSale(event).bookable);
+  const discount = appState.data.events.filter((event) => eventSale(event).discountRate > 0);
+  const sections = [
+    { title: "오픈 예정", more: "전체보기", events: openSoon.length ? openSoon : appState.data.events },
+    { title: "장르별 랭킹", more: "전체보기", events: ranking.length ? ranking : appState.data.events },
+    { title: "할인 예정 티켓", more: "특가보기", events: discount.length ? discount : openSoon }
+  ];
+  $("#ticketDiscovery").innerHTML = sections.map((section) => `
     <section class="discovery-section">
       <div class="discovery-head">
         <h3>${section.title}</h3>
         <a href="#booking" data-route="booking">${section.more}</a>
       </div>
       <div class="discovery-grid">
-        ${section.items.map((item) => `
-          <article class="discovery-card" data-route="booking" data-event-id="${item.eventId}" tabindex="0" role="link" aria-label="${item.title} 예매하기">
-            <img src="${image}" alt="${item.title}" />
-            <div class="card-tags">${item.tags.map((tag) => `<em>${tag}</em>`).join("")}</div>
-            <strong>${item.title}</strong>
-            <span>${item.meta}</span>
+        ${section.events.slice(0, 4).map((event) => `
+          <article class="discovery-card" data-route="booking" data-event-id="${event.id}" tabindex="0" role="link" aria-label="${event.title} ${eventSale(event).label}">
+            <img src="${event.image || image}" alt="${event.title}" />
+            <div class="card-tags"><em>${categoryLabels[event.category] || "공연"}</em><em>${saleBadge(event)}</em></div>
+            <strong>${event.title}</strong>
+            <span>${eventSale(event).note || eventMeta(event)} · ${salePriceCopy(event)}</span>
           </article>
         `).join("")}
       </div>
@@ -445,6 +485,7 @@ function renderZoneTabs() {
 
 function filteredTickets() {
   const event = currentEvent();
+  if (!eventSale(event).bookable) return [];
   const query = appState.query.trim().toLowerCase();
   return appState.data.tickets.filter((ticket) => {
     if (ticket.eventId !== event.id) return false;
@@ -505,14 +546,15 @@ function renderBookingProgress() {
 
 function renderDateSelection() {
   const event = currentEvent();
+  const sale = eventSale(event);
   const dates = event.dates || [];
   const selectedDate = currentDate();
   const selectorHref = selectedDate ? seatSelectorUrl() : "#";
   return `
     <div class="date-step-panel">
       <div class="booking-step-copy">
-        <strong>예매 날짜 선택</strong>
-        <span>관리자가 등록한 실제 개최 날짜만 선택할 수 있습니다.</span>
+        <strong>${sale.bookable ? "예매 날짜 선택" : sale.label}</strong>
+        <span>${sale.bookable ? "관리자가 등록한 실제 개최 날짜만 선택할 수 있습니다." : `${sale.note || "관리자 판매 오픈 후 예매할 수 있습니다."} · ${salePriceCopy(event)}`}</span>
       </div>
       <div class="booking-date-grid">
         ${dates.map((date) => `
@@ -520,6 +562,7 @@ function renderDateSelection() {
             class="booking-date ${appState.selectedDateId === date.id ? "active" : ""}"
             type="button"
             data-booking-date="${date.id}"
+            ${sale.bookable ? "" : "disabled"}
             aria-pressed="${appState.selectedDateId === date.id ? "true" : "false"}"
           >
             <span>${date.label || categoryLabels[event.category] || "공연"}</span>
@@ -530,12 +573,12 @@ function renderDateSelection() {
       </div>
       <div class="booking-step-actions">
         <a
-          class="seat-selector-link"
+          class="seat-selector-link ${sale.bookable ? "" : "disabled"}"
           href="${escapeAttr(selectorHref)}"
           target="_blank"
           rel="noreferrer"
-          data-open-seat-selector="true"
-        >좌석 선택</a>
+          ${sale.bookable ? `data-open-seat-selector="true"` : ""}
+        >${sale.bookable ? "좌석 선택" : sale.label}</a>
       </div>
     </div>
   `;
@@ -791,11 +834,13 @@ function renderTickets() {
   renderProductSummary();
   const event = currentEvent();
   const venue = currentVenue();
+  const sale = eventSale(event);
   $("#ticketGrid").innerHTML = `
-    <article class="purchase-event">
+    <article class="purchase-event ${sale.bookable ? "" : "is-upcoming"}">
       <img src="${event.image}" alt="${event.title} 포스터" />
       <div class="event-info">
         <span class="badge">${event.badge}</span>
+        <span class="sale-state">${saleBadge(event)}</span>
         <h3>${event.title}</h3>
         <p>${eventMeta(event)} · ${venue.address || ""}</p>
         <div class="event-stats">${renderStats(event)}</div>
@@ -823,15 +868,16 @@ function renderSearchResults() {
 
   $("#searchResultCopy").textContent = `"${queryText}" 검색 조건에 맞는 판매 공연입니다. 예매 단계에서 날짜와 좌석을 선택합니다.`;
   $("#saleTicketResults").innerHTML = events.map((event) => `
-    <div class="event-card" data-route="booking" data-event-id="${event.id}" tabindex="0" role="link" aria-label="${event.title} 예매하기">
+    <div class="event-card ${eventSale(event).bookable ? "" : "is-upcoming"}" data-route="booking" data-event-id="${event.id}" tabindex="0" role="link" aria-label="${event.title} ${eventSale(event).label}">
       <img src="${event.image}" alt="${event.title} 포스터" />
       <div class="event-info">
         <span class="badge">${event.badge}</span>
+        <span class="sale-state">${saleBadge(event)}</span>
         <h3>${event.title}</h3>
         <p>${eventMeta(event)}</p>
         <div class="event-stats">${renderStats(event)}</div>
       </div>
-      <a class="event-cta" href="#booking" data-route="booking" data-event-id="${event.id}">예매하기</a>
+      <a class="event-cta ${eventSale(event).bookable ? "" : "disabled"}" href="#booking" data-route="booking" data-event-id="${event.id}">${eventSale(event).bookable ? "예매하기" : eventSale(event).label}</a>
     </div>
   `).join("");
 
@@ -884,6 +930,23 @@ function ticketLabel(ticket) {
   return `${event.title} · ${formatDateCompact(date.startsAt)} · ${ticket.seatLabel}`;
 }
 
+function qrAvailableAt(date) {
+  return new Date(Date.parse(date.startsAt) - (3 * 24 * 60 * 60 * 1000));
+}
+
+function admissionQrReady(ticket) {
+  const event = eventById(ticket.eventId);
+  const date = eventDateById(event, ticket.performanceDateId);
+  return Date.now() >= qrAvailableAt(date).getTime();
+}
+
+function admissionQrCopy(ticket) {
+  const event = eventById(ticket.eventId);
+  const date = eventDateById(event, ticket.performanceDateId);
+  if (admissionQrReady(ticket)) return "입장 QR 발급";
+  return `${formatDateCompact(qrAvailableAt(date).toISOString())}부터 입장 QR`;
+}
+
 function renderSellForm() {
   const user = currentUser();
   const sellable = appState.data.tickets.filter((ticket) =>
@@ -904,6 +967,7 @@ function renderMyTickets() {
     const event = eventById(ticket.eventId);
     const date = eventDateById(event, ticket.performanceDateId);
     const canResell = ticket.status === "OWNED" && ticket.transferCount < ticket.maxTransferCount;
+    const qrReady = ticket.status === "OWNED" && admissionQrReady(ticket);
     return `
       <article class="myticket-card">
         <div class="myticket-top">
@@ -914,7 +978,10 @@ function renderMyTickets() {
           <span class="seat-status ${ticket.status === "OWNED" ? "" : "closed"}">${statusLabel(ticket)}</span>
         </div>
         <p>${formatDateTime(date.startsAt)} · ${event.venue}</p>
-        <button ${ticket.status === "OWNED" ? "" : "disabled"} data-qr="${ticket.id}">입장 QR 발급</button>
+        <div class="ticket-action-grid">
+          <button ${ticket.status === "OWNED" ? "" : "disabled"} data-virtual-qr="${ticket.id}">가상 티켓 보기</button>
+          <button class="secondary" ${qrReady ? "" : "disabled"} data-qr="${ticket.id}">${admissionQrCopy(ticket)}</button>
+        </div>
         <button class="secondary" ${canResell ? "" : "disabled"} data-fill-sell="${ticket.id}">재판매 등록 준비</button>
       </article>
     `;
@@ -1100,23 +1167,45 @@ async function drawPool(poolId) {
 }
 
 async function issueQr(ticketId) {
+  window.clearInterval(appState.qrRefreshTimer);
   const ticket = appState.data.tickets.find((item) => item.id === ticketId);
   appState.qr = await api("/api/tickets/qr", { userId: ticket.ownerId, ticketId });
+  renderQrBox(appState.qr);
+  appState.qrRefreshTimer = window.setInterval(() => issueQr(ticketId).catch((error) => toast(error.message)), 20_000);
+  toast("20초마다 갱신되는 입장 QR을 발급했습니다.");
+  await refresh();
+}
+
+async function issueVirtualQr(ticketId) {
+  window.clearInterval(appState.qrRefreshTimer);
+  const ticket = appState.data.tickets.find((item) => item.id === ticketId);
+  appState.qr = await api("/api/tickets/virtual-qr", { userId: ticket.ownerId, ticketId });
+  renderQrBox(appState.qr);
+  toast("예매 확인용 가상 티켓을 표시했습니다. 실제 입장에는 사용할 수 없습니다.");
+}
+
+function renderQrBox(qr) {
+  const isAdmission = qr.type === "ADMISSION";
+  const user = currentUser();
   $("#qrBox").innerHTML = `
-    <div class="qr-token">
-      <strong>입장 QR 토큰</strong>
-      <span>ticket=${appState.qr.ticketId}</span>
-      <span>expires=${appState.qr.expiresAt}</span>
-      <span>signature=${appState.qr.signature}</span>
+    <div class="qr-token ${isAdmission ? "admission" : "virtual"}" data-watermark="${displayName()} · ${new Date().toLocaleTimeString("ko-KR")}">
+      <strong>${isAdmission ? "입장 QR" : "가상 티켓 QR"}</strong>
+      <span>${isAdmission ? "20초마다 자동 갱신됩니다." : "예매 확인용이며 입장 처리에는 사용할 수 없습니다."}</span>
+      <code>${qr.signature}</code>
+      <span>ticket=${qr.ticketId}</span>
+      <span>owner=${user.name} (${qr.ownerId})</span>
+      ${isAdmission ? `<span>expires=${qr.expiresAt}</span>` : `<span>입장 QR 오픈=${formatDateTime(qr.realQrAvailableAt)}</span>`}
     </div>
   `;
-  toast("20초 동안 유효한 입장 QR을 발급했습니다.");
-  await refresh();
 }
 
 async function verifyQr() {
   if (!appState.qr) {
     toast("먼저 입장 QR을 발급해주세요.");
+    return;
+  }
+  if (appState.qr.type !== "ADMISSION") {
+    toast("가상 티켓 QR은 입장 확인에 사용할 수 없습니다.");
     return;
   }
   const result = await api("/api/gate/verify", appState.qr);
@@ -1304,6 +1393,7 @@ document.addEventListener("click", async (event) => {
     }
     if (target.dataset.join) await joinPool(target.dataset.join);
     if (target.dataset.draw) await drawPool(target.dataset.draw);
+    if (target.dataset.virtualQr) await issueVirtualQr(target.dataset.virtualQr);
     if (target.dataset.qr) await issueQr(target.dataset.qr);
     if (target.dataset.fillSell) {
       $("#sellTicketSelect").value = target.dataset.fillSell;
@@ -1318,6 +1408,9 @@ document.addEventListener("click", async (event) => {
 $("#userSelect").addEventListener("change", () => {
   appState.nicknameOverride = "";
   appState.activeSupportThreadId = "";
+  appState.qr = null;
+  window.clearInterval(appState.qrRefreshTimer);
+  $("#qrBox").textContent = "티켓의 QR 버튼을 눌러주세요.";
   renderAccount();
   renderSellForm();
   renderMyTickets();
