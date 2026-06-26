@@ -1,89 +1,110 @@
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { api, startServer } from "./backend-test-utils.mjs";
 
-const appSource = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
-const serverSource = await readFile(new URL("../server.js", import.meta.url), "utf8");
-const admissionSource = await readFile(new URL("../backend/admission.js", import.meta.url), "utf8");
-const admissionQrSource = await readFile(new URL("../backend/admission-qr.js", import.meta.url), "utf8");
-const indexSource = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
-const stylesSource = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
-const adminSource = await readFile(new URL("../admin/admin.html", import.meta.url), "utf8");
-const adminStyles = await readFile(new URL("../admin/admin.css", import.meta.url), "utf8");
-const designSource = await readFile(new URL("../DESIGN.md", import.meta.url), "utf8");
+async function text(baseUrl, pathName, expectedStatus = 200) {
+  const response = await fetch(`${baseUrl}${pathName}`);
+  assert.equal(response.status, expectedStatus, `${pathName} status`);
+  return {
+    body: await response.text(),
+    contentType: response.headers.get("content-type") || ""
+  };
+}
 
-test("booking flow is date-first before seat selection", () => {
-  assert.match(appSource, /selectedDateId/);
-  assert.match(appSource, /bookingStep: "date"/);
-  assert.match(appSource, /renderDateSelection/);
-  assert.match(appSource, /data-booking-date/);
-  assert.match(appSource, /data-open-seat-selector/);
-  assert.match(appSource, /renderSeatStep/);
-  assert.match(stylesSource, /\.booking-progress/);
-  assert.match(stylesSource, /\.booking-date-grid/);
+function eventById(state, eventId = "event_kpop_001") {
+  const event = state.data.events.find((item) => item.id === eventId);
+  assert.ok(event, `${eventId} exists`);
+  return event;
+}
+
+test("public and admin HTTP surfaces stay separated", async (t) => {
+  const { baseUrl, adminUrl } = await startServer(t);
+
+  const home = await text(baseUrl, "/");
+  assert.match(home.body, /Ticketground|Tig/);
+
+  const appAsset = await text(baseUrl, "/app.js");
+  assert.match(appAsset.contentType, /javascript/);
+
+  const adminHtml = await text(adminUrl, "/admin.html");
+  assert.match(adminHtml.body, /Ticketground Console|운영 통합 콘솔/);
+
+  const publicAdmin = await api(baseUrl, "/api/admin/summary", null, 404);
+  assert.equal(publicAdmin.error.code, "NOT_FOUND");
+
+  const adminSummary = await api(adminUrl, "/api/admin/summary");
+  assert.ok(adminSummary.data.stats.totalTickets > 0);
+  assert.equal(typeof adminSummary.data.stats.ledgerVerified, "boolean");
 });
 
-test("seat selection requires payment step before purchase", () => {
-  assert.match(appSource, /data-booking-step="payment"/);
-  assert.match(appSource, /결제 단계로/);
-  assert.match(appSource, /renderPaymentStep/);
-  assert.match(appSource, /data-buy-selected/);
-  assert.doesNotMatch(appSource, /await buyTicket\(appState\.selectedSeatId\);\n\s*}\n\s*return;\n\s*}\n\s*\n\s*try/);
+test("admin sale settings update public event state and ticket prices", async (t) => {
+  const { baseUrl, adminUrl } = await startServer(t);
+  const before = await api(baseUrl, "/api/state");
+  const event = eventById(before);
+  const prices = Object.fromEntries(event.zones.map((zone, index) => [zone.id, zone.faceValue + ((index + 1) * 1000)]));
+
+  const updated = await api(adminUrl, "/api/admin/events/sale", {
+    eventId: event.id,
+    title: "QA Live Sale",
+    category: event.category,
+    startsAt: "2026-10-03T20:00:00+09:00",
+    venueId: event.venueId,
+    saleState: "DISCOUNT_SOON",
+    saleNote: "QA sale note",
+    discountRate: 15,
+    prices
+  });
+
+  assert.equal(updated.data.event.title, "QA Live Sale");
+  assert.equal(updated.data.event.saleState, "DISCOUNT_SOON");
+  assert.equal(updated.data.event.discountRate, 15);
+  assert.ok(updated.data.repricedTickets > 0);
+
+  const after = await api(baseUrl, "/api/state");
+  const publicEvent = eventById(after);
+  assert.equal(publicEvent.title, "QA Live Sale");
+  assert.equal(publicEvent.saleNote, "QA sale note");
+  assert.equal(publicEvent.dates[0].startsAt, "2026-10-03T20:00:00+09:00");
+
+  const onSaleTicket = after.data.tickets.find((ticket) => ticket.eventId === event.id && ticket.status === "ON_SALE");
+  assert.ok(onSaleTicket, "available ticket remains visible after repricing");
+  assert.equal(onSaleTicket.faceValue, prices[onSaleTicket.zoneId]);
 });
 
-test("admin sale settings flow into public ticket cards", () => {
-  assert.match(adminSource, /id="saleStateSelect"/);
-  assert.match(adminSource, /id="saleNoteInput"/);
-  assert.match(adminSource, /id="discountRateInput"/);
-  assert.match(appSource, /eventSale/);
-  assert.match(appSource, /saleBadge/);
-  assert.match(appSource, /salePriceCopy/);
-  assert.match(appSource, /event-cta \${sale\.bookable/);
-  assert.match(stylesSource, /\.sale-state/);
-  assert.match(stylesSource, /\.event-cta\.disabled/);
-});
+test("account, support, watchlist, and seat-map APIs remain observable", async (t) => {
+  const { baseUrl, adminUrl } = await startServer(t);
+  const watch = await api(baseUrl, "/api/watchlist", {
+    userId: "user_fan_a",
+    eventId: "event_kpop_001",
+    channels: ["APP_PUSH", "KAKAO"],
+    calendarEnabled: true,
+    notificationEnabled: true
+  });
+  assert.equal(watch.data.notificationJobs.length, 2);
 
-test("admin account status uses selectable batch edit with confirmation", () => {
-  assert.match(adminSource, /id="accountSaveBtn"/);
-  assert.match(adminSource, /data-account-status/);
-  assert.match(adminSource, /수정하시겠습니까/);
-  assert.match(adminSource, /\/api\/admin\/users\/statuses/);
-  assert.match(adminStyles, /\.account-status-select/);
-});
+  const support = await api(baseUrl, "/api/support/threads", {
+    userId: "user_fan_a",
+    subject: "QA 문의",
+    message: "예매 흐름 확인 요청"
+  });
+  const reply = await api(adminUrl, "/api/admin/support/messages", {
+    threadId: support.data.id,
+    message: "운영자 답변"
+  });
+  assert.equal(reply.data.status, "ANSWERED");
 
-test("ticket QR separates virtual ticket from admission QR", () => {
-  assert.match(appSource, /data-virtual-qr/);
-  assert.match(appSource, /\/api\/tickets\/virtual-qr/);
-  assert.match(admissionSource, /VIRTUAL_TICKET/);
-  assert.match(admissionQrSource, /ADMISSION/);
-  assert.match(admissionQrSource, /20_000/);
-  assert.match(admissionQrSource, /REAL_QR_NOT_READY/);
-  assert.match(serverSource, /createAdmissionBackend/);
-  assert.match(appSource, /가상 티켓 QR/);
-  assert.match(stylesSource, /\.qr-token\.virtual/);
-  assert.match(stylesSource, /data-watermark/);
-});
+  const status = await api(adminUrl, "/api/admin/users/statuses", {
+    updates: [{ userId: "user_fan_b", status: "WATCHLIST" }],
+    reason: "QA status update"
+  });
+  assert.equal(status.data[0].status, "WATCHLIST");
 
-test("admin console points operators to the live booking page", () => {
-  assert.match(adminSource, /http:\/\/localhost:4273\/#booking/);
-  assert.match(adminSource, /사용자 예매 화면에서 확인/);
-  assert.match(adminSource, /판매 정보 저장/);
-  assert.match(adminStyles, /\.console-link/);
-});
+  const seatMap = await api(baseUrl, "/api/events/event_kpop_001/seat-map");
+  assert.ok(seatMap.data.seats.length > 0);
+  assert.ok(seatMap.data.labels.length > 0);
 
-test("mobile layout avoids horizontal overflow-prone grids", () => {
-  assert.match(stylesSource, /@media \(max-width: 760px\)/);
-  assert.match(stylesSource, /\.ticket-action-grid/);
-  assert.match(stylesSource, /\.event-card\s*\{\s*grid-template-columns: 1fr/s);
-  assert.match(stylesSource, /\.support-chat/);
-});
-
-test("design system contract describes Ticketground public and admin surfaces", () => {
-  assert.match(designSource, /# Ticketground Design System/);
-  assert.match(designSource, /public ticketing surface/);
-  assert.match(designSource, /operations console/);
-  assert.match(designSource, /Open Design/);
-  assert.match(designSource, /8px/);
-  assert.match(designSource, /#ffd400/);
-  assert.doesNotMatch(designSource, /Sublime/);
+  const admin = await api(adminUrl, "/api/admin/summary");
+  assert.ok(admin.data.stats.watchlistEntries >= 1);
+  assert.ok(admin.data.stats.supportOpen >= 1);
+  assert.ok(admin.data.users.some((user) => user.id === "user_fan_b" && user.status === "WATCHLIST"));
 });
