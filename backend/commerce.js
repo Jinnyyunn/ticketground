@@ -15,6 +15,8 @@ export function createCommerceBackend({
   resolvePaymentMethod,
   saleSummary
 }) {
+  const OFFICIAL_RESALE_FEE_RATE = 0.05;
+
   function buyPrimary(db, { userId, ticketId, paymentMethod }) {
     const user = findUser(db, userId);
     const ticket = db.tickets.find((item) => item.id === ticketId);
@@ -136,16 +138,18 @@ export function createCommerceBackend({
     const seller = findUser(db, pool.sellerId);
     const ticket = db.tickets.find((item) => item.id === pool.ticketId);
     const payment = resolvePaymentMethod(paymentMethod);
-    const fee = Math.ceil(pool.price * 0.08);
+    const fee = Math.ceil(pool.price * OFFICIAL_RESALE_FEE_RATE);
+    const buyerTotal = pool.price + fee;
+    const sellerSettlement = pool.price;
 
-    if (payment.requiresBalance && buyer.balance < pool.price + fee) {
+    if (payment.requiresBalance && buyer.balance < buyerTotal) {
       pool.buyers = pool.buyers.filter((idValue) => idValue !== winnerId);
       appendLedger(db, winnerId, "MATCH_SKIPPED_INSUFFICIENT_BALANCE", { poolId: pool.id });
       return { pool, skipped: winnerId };
     }
 
-    if (payment.requiresBalance) buyer.balance -= pool.price + fee;
-    seller.balance += pool.price;
+    if (payment.requiresBalance) buyer.balance -= buyerTotal;
+    seller.balance += sellerSettlement;
     ticket.ownerId = buyer.id;
     ticket.transferCount += 1;
     ticket.status = "OWNED";
@@ -158,15 +162,18 @@ export function createCommerceBackend({
     pool.matchedAt = now();
     pool.paymentMethod = payment.key;
     pool.buyerFee = fee;
+    pool.buyerTotal = buyerTotal;
+    pool.sellerSettlement = sellerSettlement;
     db.paymentTransactions.push({
       id: id("pay"),
       ticketId: ticket.id,
       userId: buyer.id,
       sellerId: seller.id,
       type: "RESALE",
-      amount: pool.price + fee,
-      transferAmount: pool.price,
+      amount: buyerTotal,
+      transferAmount: sellerSettlement,
       platformFee: fee,
+      platformFeeRate: OFFICIAL_RESALE_FEE_RATE,
       method: payment.key,
       status: payment.status,
       pgTransactionId: `${payment.key}-${hash(`${pool.id}:${buyer.id}:${now()}`).slice(0, 12)}`,
@@ -181,11 +188,14 @@ export function createCommerceBackend({
       buyerId: buyer.id,
       price: pool.price,
       buyerFee: fee,
+      buyerTotal,
+      sellerSettlement,
+      feeRate: OFFICIAL_RESALE_FEE_RATE,
       paymentMethod: payment.key,
       randomSeedCommitment: seed,
       policy: "zone-pool-random-assignment"
     });
-    return { pool, ticket, buyer, seller, fee, payment, admissionCredential: credential };
+    return { pool, ticket, buyer, seller, fee, buyerTotal, sellerSettlement, payment, admissionCredential: credential };
   }
 
   function directTransferAttempt(db, { actorId, ticketId, targetUserId, offeredPrice }) {

@@ -81,6 +81,8 @@ function publicResaleDrawResult(result) {
     pool: publicResalePool(result.pool),
     ticket: publicTicket(result.ticket),
     fee: result.fee,
+    buyerTotal: result.buyerTotal,
+    sellerSettlement: result.sellerSettlement,
     payment: publicPayment(result.payment),
     admission: publicAdmissionState(result.admissionCredential)
   };
@@ -102,6 +104,9 @@ function publicResalePool(pool) {
     zoneId: pool.zoneId,
     ticketId: pool.ticketId,
     price: pool.price,
+    buyerFee: pool.buyerFee || null,
+    buyerTotal: pool.buyerTotal || null,
+    sellerSettlement: pool.sellerSettlement || null,
     status: pool.status,
     createdAt: pool.createdAt,
     matchedAt: pool.matchedAt || null

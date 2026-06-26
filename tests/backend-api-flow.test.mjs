@@ -182,3 +182,43 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   assert.equal(admin.data.stats.watchlistEntries, 1);
   assert.ok(admin.data.stats.notificationJobs >= 3);
 });
+
+test("backend resale draw applies official fee policy and settlement fields", async (t) => {
+  const { baseUrl, adminUrl } = await startServer(t);
+  const { ticket } = await buyFirstTicket(baseUrl);
+  const price = ticket.faceValue;
+  const expectedFee = Math.ceil(price * 0.05);
+
+  const pool = await api(baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price
+  });
+  assert.equal(pool.data.price, price);
+
+  const joined = await api(baseUrl, "/api/resale/join", {
+    buyerId: "user_fan_b",
+    poolId: pool.data.id
+  });
+  assert.equal(joined.data.status, "OPEN");
+
+  const draw = await api(baseUrl, "/api/resale/draw", {
+    poolId: pool.data.id,
+    paymentMethod: "CREDIT_CARD"
+  });
+  assert.equal(draw.data.fee, expectedFee);
+  assert.equal(draw.data.buyerTotal, price + expectedFee);
+  assert.equal(draw.data.sellerSettlement, price);
+  assert.equal(draw.data.pool.buyerFee, expectedFee);
+  assert.equal(draw.data.pool.buyerTotal, price + expectedFee);
+  assert.equal(draw.data.pool.sellerSettlement, price);
+  assert.equal(draw.data.payment.status, "PAID");
+  assert.equal(draw.data.ticket.status, "OWNED");
+
+  const admin = await api(adminUrl, "/api/admin/summary");
+  const match = admin.data.ledger.find((entry) => entry.action === "RANDOM_RESALE_MATCHED");
+  assert.equal(match.payload.buyerFee, expectedFee);
+  assert.equal(match.payload.buyerTotal, price + expectedFee);
+  assert.equal(match.payload.sellerSettlement, price);
+  assert.equal(match.payload.feeRate, 0.05);
+});
