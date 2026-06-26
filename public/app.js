@@ -975,10 +975,9 @@ function renderPoolCard(pool) {
         </div>
         <span class="seat-status">OPEN</span>
       </div>
-      <p>판매자를 지정할 수 없으며, 대기자 풀에서 랜덤으로 매칭됩니다.</p>
+      <p>결제 완료 후 ${zone.name} 구역의 재판매 티켓과 자동 매칭됩니다.</p>
       <div class="resale-actions">
-        <button data-join="${pool.id}">대기 신청</button>
-        <button class="secondary" data-draw="${pool.id}">매칭 진행</button>
+        <button data-resale-purchase="${pool.id}">재판매 티켓 구매</button>
       </div>
     </article>
   `;
@@ -1266,18 +1265,21 @@ async function listForResale() {
   await refresh();
 }
 
-async function joinPool(poolId) {
-  if (!requireLogin("공식 재판매 대기 신청은 로그인 후 가능합니다.")) return;
-  await api("/api/resale/join", { buyerId: currentUser().id, poolId });
-  toast("공식 재판매 대기 신청이 완료되었습니다.");
+async function purchaseResaleTicket(poolId) {
+  if (!requireLogin("재판매 티켓 구매는 로그인 후 가능합니다.")) return;
+  const result = await api("/api/resale/purchase", {
+    buyerId: currentUser().id,
+    poolId,
+    paymentMethod: appState.paymentMethod
+  });
+  if (result.skipped) {
+    toast("충전금이 부족해 재판매 티켓 구매가 완료되지 않았습니다. 다른 결제수단을 선택해주세요.");
+    await refresh();
+    return;
+  }
+  toast(`${selectedPaymentLabel()} 결제가 완료되어 재판매 티켓과 매칭되었습니다. My 예매내역에서 확인하세요.`);
   await refresh();
-}
-
-async function drawPool(poolId) {
-  if (!requireLogin("재판매 매칭은 로그인 후 가능합니다.")) return;
-  await api("/api/resale/draw", { poolId });
-  toast("랜덤 매칭이 진행되었습니다.");
-  await refresh();
+  setRoute("my");
 }
 
 async function issueQr(ticketId) {
@@ -1438,6 +1440,7 @@ document.addEventListener("click", async (event) => {
   const paymentButton = target.closest("[data-payment-method]");
   const productTab = target.closest("[data-product-tab]");
   const supportThreadButton = target.closest("[data-support-thread]");
+  const resalePurchaseButton = target.closest("[data-resale-purchase]");
   if (profileButton) {
     toggleProfile();
     return;
@@ -1571,8 +1574,7 @@ document.addEventListener("click", async (event) => {
       if (!seatId) toast("예매할 좌석을 선택해주세요.");
       else await buyTicket(seatId);
     }
-    if (target.dataset.join) await joinPool(target.dataset.join);
-    if (target.dataset.draw) await drawPool(target.dataset.draw);
+    if (resalePurchaseButton) await purchaseResaleTicket(resalePurchaseButton.dataset.resalePurchase);
     if (target.dataset.virtualTicketIndex !== undefined) {
       const ticket = appState.myTickets[Number(target.dataset.virtualTicketIndex)];
       if (ticket) await issueVirtualQr(ticket.id);

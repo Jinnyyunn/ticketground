@@ -231,6 +231,45 @@ test("public demo session supports login profile lookup and nickname update with
   assert.equal(longName.error.code, "INVALID_PROFILE_NAME");
 });
 
+test("backend resale purchase joins and immediately matches clicked buyer", async (t) => {
+  const { baseUrl, adminUrl } = await startServer(t);
+  const { ticket } = await buyFirstTicket(baseUrl);
+  const price = ticket.faceValue;
+  const expectedFee = Math.ceil(price * 0.05);
+
+  const pool = await api(baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price
+  });
+  await api(baseUrl, "/api/resale/join", {
+    buyerId: "user_scalper",
+    poolId: pool.data.id
+  });
+
+  const purchase = await api(baseUrl, "/api/resale/purchase", {
+    buyerId: "user_fan_b",
+    poolId: pool.data.id,
+    paymentMethod: "CREDIT_CARD"
+  });
+  assert.equal(purchase.data.fee, expectedFee);
+  assert.equal(purchase.data.buyerTotal, price + expectedFee);
+  assert.equal(purchase.data.sellerSettlement, price);
+  assert.equal(purchase.data.pool.status, "MATCHED");
+  assert.equal(purchase.data.pool.buyerFee, expectedFee);
+  assert.equal(purchase.data.payment.status, "PAID");
+  assert.equal(purchase.data.ticket.status, "OWNED");
+
+  const clickedBuyerTickets = await api(baseUrl, "/api/users/user_fan_b/tickets");
+  assert.deepEqual(clickedBuyerTickets.data.map((item) => item.id), [ticket.id]);
+  const previousWaiterTickets = await api(baseUrl, "/api/users/user_scalper/tickets");
+  assert.deepEqual(previousWaiterTickets.data, []);
+
+  const admin = await api(adminUrl, "/api/admin/summary");
+  const matchedPool = admin.data.resalePools.find((item) => item.id === pool.data.id);
+  assert.equal(matchedPool.winnerId, "user_fan_b");
+});
+
 test("backend resale draw applies official fee policy and settlement fields", async (t) => {
   const { baseUrl, adminUrl } = await startServer(t);
   const { ticket } = await buyFirstTicket(baseUrl);

@@ -125,27 +125,26 @@ export function createCommerceBackend({
     return pool;
   }
 
-  function drawPool(db, { poolId, paymentMethod = "CREDIT_CARD" }) {
+  function openResalePool(db, poolId) {
     const pool = db.resalePools.find((item) => item.id === poolId);
     if (!pool) throw httpError(404, "POOL_NOT_FOUND", "재판매 풀을 찾을 수 없습니다.");
     if (pool.status !== "OPEN") throw httpError(409, "POOL_CLOSED", "이미 종료된 풀입니다.");
-    if (pool.buyers.length === 0) throw httpError(409, "EMPTY_POOL", "대기자가 없습니다.");
+    return pool;
+  }
 
-    const seed = hmac(`${pool.id}:${pool.buyers.join(",")}:${currentTimeMs()}`);
-    const winnerIndex = Number.parseInt(seed.slice(0, 8), 16) % pool.buyers.length;
-    const winnerId = pool.buyers[winnerIndex];
-    const buyer = findUser(db, winnerId);
+  function completeResaleMatch(db, { pool, buyer, paymentMethod, seed, ledgerAction, policy }) {
     const seller = findUser(db, pool.sellerId);
     const ticket = db.tickets.find((item) => item.id === pool.ticketId);
+    if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
     const payment = resolvePaymentMethod(paymentMethod);
     const fee = Math.ceil(pool.price * OFFICIAL_RESALE_FEE_RATE);
     const buyerTotal = pool.price + fee;
     const sellerSettlement = pool.price;
 
     if (payment.requiresBalance && buyer.balance < buyerTotal) {
-      pool.buyers = pool.buyers.filter((idValue) => idValue !== winnerId);
-      appendLedger(db, winnerId, "MATCH_SKIPPED_INSUFFICIENT_BALANCE", { poolId: pool.id });
-      return { pool, skipped: winnerId };
+      pool.buyers = pool.buyers.filter((idValue) => idValue !== buyer.id);
+      appendLedger(db, buyer.id, "MATCH_SKIPPED_INSUFFICIENT_BALANCE", { poolId: pool.id });
+      return { pool, skipped: buyer.id };
     }
 
     if (payment.requiresBalance) buyer.balance -= buyerTotal;
@@ -180,7 +179,7 @@ export function createCommerceBackend({
       createdAt: now()
     });
 
-    appendLedger(db, "SYSTEM", "RANDOM_RESALE_MATCHED", {
+    appendLedger(db, "SYSTEM", ledgerAction, {
       poolId: pool.id,
       ticketId: ticket.id,
       admissionCredentialId: credential.id,
@@ -193,9 +192,48 @@ export function createCommerceBackend({
       feeRate: OFFICIAL_RESALE_FEE_RATE,
       paymentMethod: payment.key,
       randomSeedCommitment: seed,
-      policy: "zone-pool-random-assignment"
+      policy
     });
     return { pool, ticket, buyer, seller, fee, buyerTotal, sellerSettlement, payment, admissionCredential: credential };
+  }
+
+  function drawPool(db, { poolId, paymentMethod = "CREDIT_CARD" }) {
+    const pool = openResalePool(db, poolId);
+    if (pool.buyers.length === 0) throw httpError(409, "EMPTY_POOL", "대기자가 없습니다.");
+
+    const seed = hmac(`${pool.id}:${pool.buyers.join(",")}:${currentTimeMs()}`);
+    const winnerIndex = Number.parseInt(seed.slice(0, 8), 16) % pool.buyers.length;
+    const winnerId = pool.buyers[winnerIndex];
+    const buyer = findUser(db, winnerId);
+    return completeResaleMatch(db, {
+      pool,
+      buyer,
+      paymentMethod,
+      seed,
+      ledgerAction: "RANDOM_RESALE_MATCHED",
+      policy: "zone-pool-random-assignment"
+    });
+  }
+
+  function purchaseResale(db, { buyerId, poolId, paymentMethod = "CREDIT_CARD" }) {
+    const buyer = findUser(db, buyerId);
+    const pool = openResalePool(db, poolId);
+    if (pool.sellerId === buyer.id) throw httpError(409, "SELF_PURCHASE_BLOCKED", "본인 티켓은 구매할 수 없습니다.");
+    if (!pool.buyers.includes(buyer.id)) pool.buyers.push(buyer.id);
+    appendLedger(db, buyer.id, "POOL_JOINED", {
+      poolId: pool.id,
+      zoneId: pool.zoneId,
+      policy: "single-click-resale-purchase"
+    });
+    const seed = hmac(`${pool.id}:${buyer.id}:${currentTimeMs()}`);
+    return completeResaleMatch(db, {
+      pool,
+      buyer,
+      paymentMethod,
+      seed,
+      ledgerAction: "RESALE_PURCHASE_MATCHED",
+      policy: "single-click-zone-pool-assignment"
+    });
   }
 
   function directTransferAttempt(db, { actorId, ticketId, targetUserId, offeredPrice }) {
@@ -220,5 +258,5 @@ export function createCommerceBackend({
     return { blocked: true, user: actor, ticket };
   }
 
-  return { buyPrimary, directTransferAttempt, drawPool, joinPool, listForResale };
+  return { buyPrimary, directTransferAttempt, drawPool, joinPool, listForResale, purchaseResale };
 }

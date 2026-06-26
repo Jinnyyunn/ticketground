@@ -175,7 +175,8 @@ const {
   directTransferAttempt,
   drawPool,
   joinPool,
-  listForResale
+  listForResale,
+  purchaseResale
 } = createCommerceBackend({
   appendLedger,
   currentTimeMs,
@@ -206,6 +207,7 @@ const { handleApi } = createApiRouter({
   joinPool,
   listForResale,
   notifyWatchlist,
+  purchaseResale,
   publicDirectTransferResult,
   publicPurchaseResult,
   publicResaleDrawResult,

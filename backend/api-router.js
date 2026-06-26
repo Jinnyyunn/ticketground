@@ -11,6 +11,7 @@ export function createApiRouter({
   joinPool,
   listForResale,
   notifyWatchlist,
+  purchaseResale,
   publicDirectTransferResult,
   publicPurchaseResult,
   publicResaleDrawResult,
@@ -129,6 +130,10 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/resale/draw") {
     requireBody(body, ["poolId"]);
     return publicResaleDrawResult(drawPool(db, body));
+  }
+  if (req.method === "POST" && url.pathname === "/api/resale/purchase") {
+    requireBody(body, ["buyerId", "poolId"]);
+    return publicResaleDrawResult(purchaseResale(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/security/direct-transfer-attempt") {
     requireBody(body, ["actorId", "ticketId", "targetUserId"]);
