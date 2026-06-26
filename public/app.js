@@ -26,6 +26,7 @@ const appState = {
   sessionUser: null
 };
 
+const WEB_ADMISSION_QR_GUIDANCE = "실제 입장 QR은 입장 당일 모바일 앱에서만 확인할 수 있습니다.";
 const DEMO_USER_STORAGE_KEY = "ticketground.demoUserId";
 const DEMO_LOGGED_OUT_KEY = "ticketground.demoLoggedOut";
 
@@ -260,8 +261,8 @@ function zoneById(zoneId, event = currentEvent()) {
   return event.zones.find((zone) => zone.id === zoneId);
 }
 
-function ownerName(ownerId) {
-  return appState.data.users.find((user) => user.id === ownerId)?.name || "예매 가능";
+function ownerName(userRef) {
+  return appState.data.users.find((user) => user.id === userRef)?.name || "예매 가능";
 }
 
 function statusLabel(ticket) {
@@ -477,9 +478,11 @@ function logoutDemoUser() {
   appState.qr = null;
   appState.activeSupportThreadId = "";
   window.clearInterval(appState.qrRefreshTimer);
+  appState.qrRefreshTimer = null;
   localStorage.removeItem(DEMO_USER_STORAGE_KEY);
   localStorage.setItem(DEMO_LOGGED_OUT_KEY, "1");
-  $("#qrBox").textContent = "티켓의 QR 버튼을 눌러주세요.";
+  $("#qrBox").textContent = "가상 티켓 보기 버튼을 눌러 예매 확인용 QR을 확인해주세요.";
+  setVerifyQrDisabled();
   renderAccount();
   renderSellForm();
   renderMyTickets();
@@ -994,23 +997,6 @@ function ticketLabel(ticket) {
   return `${event.title} · ${formatDateCompact(date.startsAt)} · ${ticket.seatLabel}`;
 }
 
-function qrAvailableAt(date) {
-  return new Date(Date.parse(date.startsAt) - (3 * 24 * 60 * 60 * 1000));
-}
-
-function admissionQrReady(ticket) {
-  const event = eventById(ticket.eventId);
-  const date = eventDateById(event, ticket.performanceDateId);
-  return Date.now() >= qrAvailableAt(date).getTime();
-}
-
-function admissionQrCopy(ticket) {
-  const event = eventById(ticket.eventId);
-  const date = eventDateById(event, ticket.performanceDateId);
-  if (admissionQrReady(ticket)) return "입장 QR 발급";
-  return `${formatDateCompact(qrAvailableAt(date).toISOString())}부터 입장 QR`;
-}
-
 function sellableTickets() {
   if (!isLoggedIn()) return [];
   return appState.myTickets.filter((ticket) =>
@@ -1061,11 +1047,10 @@ function renderMyTickets() {
     return;
   }
   const owned = appState.myTickets;
-  $("#myTicketList").innerHTML = owned.length ? owned.map((ticket) => {
+  $("#myTicketList").innerHTML = owned.length ? owned.map((ticket, ticketIndex) => {
     const event = eventById(ticket.eventId);
     const date = eventDateById(event, ticket.performanceDateId);
     const canResell = ticket.status === "OWNED" && ticket.transferCount < ticket.maxTransferCount;
-    const qrReady = ticket.status === "OWNED" && admissionQrReady(ticket);
     return `
       <article class="myticket-card">
         <div class="myticket-top">
@@ -1077,9 +1062,10 @@ function renderMyTickets() {
         </div>
         <p>${formatDateTime(date.startsAt)} · ${event.venue}</p>
         <div class="ticket-action-grid">
-          <button ${ticket.status === "OWNED" ? "" : "disabled"} data-virtual-qr="${ticket.id}">가상 티켓 보기</button>
-          <button class="secondary" ${qrReady ? "" : "disabled"} data-qr="${ticket.id}">${admissionQrCopy(ticket)}</button>
+          <button ${ticket.status === "OWNED" ? "" : "disabled"} data-virtual-ticket-index="${ticketIndex}">가상 티켓 보기</button>
+          <button class="secondary" type="button" disabled aria-disabled="true">${WEB_ADMISSION_QR_GUIDANCE}</button>
         </div>
+        <p class="ticket-app-only">웹에서는 캡처 방지를 위해 실제 입장 QR이 노출되지 않습니다.</p>
         <button class="secondary" ${canResell ? "" : "disabled"} data-fill-sell="${ticket.id}">재판매 등록 준비</button>
       </article>
     `;
@@ -1295,50 +1281,130 @@ async function drawPool(poolId) {
 }
 
 async function issueQr(ticketId) {
-  if (!requireLogin("입장 QR은 로그인 후 발급할 수 있습니다.")) return;
+  void ticketId;
   window.clearInterval(appState.qrRefreshTimer);
-  appState.qr = await api("/api/tickets/qr", { userId: currentUser().id, ticketId });
-  renderQrBox(appState.qr);
-  appState.qrRefreshTimer = window.setInterval(() => issueQr(ticketId).catch((error) => toast(error.message)), 20_000);
-  toast("20초마다 갱신되는 입장 QR을 발급했습니다.");
-  await refresh();
+  appState.qrRefreshTimer = null;
+  appState.qr = null;
+  $("#qrBox").textContent = WEB_ADMISSION_QR_GUIDANCE;
+  setVerifyQrDisabled();
+  toast(WEB_ADMISSION_QR_GUIDANCE);
 }
 
 async function issueVirtualQr(ticketId) {
   if (!requireLogin("가상 티켓은 로그인 후 확인할 수 있습니다.")) return;
   window.clearInterval(appState.qrRefreshTimer);
+  appState.qrRefreshTimer = null;
   appState.qr = await api("/api/tickets/virtual-qr", { userId: currentUser().id, ticketId });
   renderQrBox(appState.qr);
   toast("예매 확인용 가상 티켓을 표시했습니다. 실제 입장에는 사용할 수 없습니다.");
 }
 
+function setVerifyQrDisabled() {
+  const button = $("#verifyQrBtn");
+  if (!button) return;
+  button.disabled = true;
+  button.setAttribute("aria-disabled", "true");
+  button.textContent = "입장 QR은 모바일 앱 전용";
+}
+
+function safeQrDetail(value, fallback = "확인 전") {
+  if (value === null || value === undefined || value === "") return escapeHtml(fallback);
+  return escapeHtml(value);
+}
+
+function safeQrDateTime(value) {
+  if (!value) return "확인 전";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "확인 전";
+  return formatDateTime(value);
+}
+
+function virtualQrStatusLabel(status) {
+  const labels = {
+    VIRTUAL_READY: "예매 확인 가능",
+    QR_ACTIVE: "모바일 앱 입장 QR 활성화",
+    USED: "입장 완료"
+  };
+  return labels[status] || "확인 전";
+}
+
+function virtualQrChannelLabel(channel) {
+  const labels = {
+    APP_ONLY: "모바일 앱 전용",
+    APP: "모바일 앱",
+    EMERGENCY: "현장 예외 처리"
+  };
+  return labels[channel] || "모바일 앱 전용";
+}
+
+function virtualQrPattern(seed) {
+  const source = seed || "Ticketground";
+  let hash = 0;
+  for (const char of source) hash = ((hash << 5) - hash + char.charCodeAt(0)) >>> 0;
+  return Array.from({ length: 81 }, (_, index) => {
+    const x = index % 9;
+    const y = Math.floor(index / 9);
+    const finder =
+      (x <= 2 && y <= 2) ||
+      (x >= 6 && y <= 2) ||
+      (x <= 2 && y >= 6);
+    const filled = finder || (((hash + (index * 37) + (x * 11) + (y * 17)) % 7) <= 2);
+    return `<span class="qr-cell ${filled ? "filled" : ""}" aria-hidden="true"></span>`;
+  }).join("");
+}
+
 function renderQrBox(qr) {
-  const isAdmission = qr.type === "ADMISSION";
-  const user = currentUser();
+  setVerifyQrDisabled();
+  if (!qr || qr.type !== "VIRTUAL_TICKET") {
+    $("#qrBox").innerHTML = `
+      <div class="qr-summary locked">
+        <strong>입장 QR은 모바일 앱에서만 확인 가능합니다</strong>
+        <p>웹에서는 캡처 방지를 위해 실제 입장 QR을 노출하지 않습니다. 입장 당일 앱에서 본인 확인 후 20초 갱신 QR이 활성화됩니다.</p>
+      </div>
+    `;
+    return;
+  }
+  const eventTitle = safeQrDetail(qr.eventTitle, "Ticketground 예매 티켓");
+  const seatLabel = safeQrDetail(qr.seatLabel, "좌석 정보 확인 중");
+  const performanceCopy = safeQrDateTime(qr.performanceStartsAt);
+  const availableCopy = safeQrDateTime(qr.realQrAvailableAt);
+  const preparedCopy = safeQrDateTime(qr.qrPreparedAt);
+  const statusCopy = virtualQrStatusLabel(qr.admissionCredentialStatus);
+  const channelCopy = virtualQrChannelLabel(qr.admissionChannel);
+  const pattern = virtualQrPattern(`${qr.eventTitle || ""}|${qr.seatLabel || ""}|${qr.performanceStartsAt || ""}`);
+  const details = [
+    ["공연 일시", performanceCopy],
+    ["준비 안내", preparedCopy],
+    ["입장 QR", `${availableCopy} 앱 전용`],
+    ["상태", statusCopy],
+    ["확인 채널", channelCopy]
+  ];
   $("#qrBox").innerHTML = `
-    <div class="qr-token ${isAdmission ? "admission" : "virtual"}" data-watermark="${displayName()} · ${new Date().toLocaleTimeString("ko-KR")}">
-      <strong>${isAdmission ? "입장 QR" : "가상 티켓 QR"}</strong>
-      <span>${isAdmission ? "20초마다 자동 갱신됩니다." : "예매 확인용이며 입장 처리에는 사용할 수 없습니다."}</span>
-      <code>${qr.signature}</code>
-      <span>ticket=${qr.ticketId}</span>
-      <span>owner=${user.name} (${qr.ownerId})</span>
-      ${isAdmission ? `<span>expires=${qr.expiresAt}</span>` : `<span>입장 QR 오픈=${formatDateTime(qr.realQrAvailableAt)}</span>`}
+    <div class="qr-summary virtual" data-watermark="TICKETGROUND">
+      <div class="qr-card-copy">
+        <span>가상 티켓</span>
+        <strong>${eventTitle}</strong>
+        <em>${seatLabel}</em>
+      </div>
+      <div class="qr-art" aria-label="예매 확인용 가상 QR 이미지">${pattern}</div>
+      ${details.map(([label, value]) => `
+        <div class="info-row">
+          <strong>${label}</strong>
+          <span>${safeQrDetail(value)}</span>
+        </div>
+      `).join("")}
+      <p class="qr-app-lock">이 이미지는 예매 확인용입니다. 실제 입장 QR은 입장 당일 모바일 앱에서만 노출됩니다.</p>
     </div>
   `;
 }
 
 async function verifyQr() {
-  if (!appState.qr) {
-    toast("먼저 입장 QR을 발급해주세요.");
-    return;
-  }
-  if (appState.qr.type !== "ADMISSION") {
-    toast("가상 티켓 QR은 입장 확인에 사용할 수 없습니다.");
-    return;
-  }
-  const result = await api("/api/gate/verify", appState.qr);
-  toast(result.valid ? "사용 가능한 QR입니다." : "만료되었거나 유효하지 않은 QR입니다.");
-  await refresh();
+  window.clearInterval(appState.qrRefreshTimer);
+  appState.qrRefreshTimer = null;
+  appState.qr = null;
+  $("#qrBox").textContent = WEB_ADMISSION_QR_GUIDANCE;
+  setVerifyQrDisabled();
+  toast(WEB_ADMISSION_QR_GUIDANCE);
 }
 
 
@@ -1507,8 +1573,10 @@ document.addEventListener("click", async (event) => {
     }
     if (target.dataset.join) await joinPool(target.dataset.join);
     if (target.dataset.draw) await drawPool(target.dataset.draw);
-    if (target.dataset.virtualQr) await issueVirtualQr(target.dataset.virtualQr);
-    if (target.dataset.qr) await issueQr(target.dataset.qr);
+    if (target.dataset.virtualTicketIndex !== undefined) {
+      const ticket = appState.myTickets[Number(target.dataset.virtualTicketIndex)];
+      if (ticket) await issueVirtualQr(ticket.id);
+    }
     if (target.dataset.fillSell) {
       $("#sellTicketSelect").value = target.dataset.fillSell;
       $("#sellTicketSelect").dispatchEvent(new Event("change"));
@@ -1539,6 +1607,7 @@ $("#sellTicketSelect").addEventListener("change", () => {
 $("#sellBtn").addEventListener("click", () => listForResale().catch((error) => toast(error.message)));
 $("#loginBtn").addEventListener("click", () => loginDemoUser().catch((error) => toast(error.message)));
 $("#verifyQrBtn").addEventListener("click", () => verifyQr().catch((error) => toast(error.message)));
+setVerifyQrDisabled();
 $("#searchBtn").addEventListener("click", () => {
   appState.query = $("#searchInput").value;
   appState.searchActive = true;

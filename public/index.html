@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ticketground - 티켓 예매</title>
-    <link rel="stylesheet" href="/styles.css?v=20260626-seat-auth" />
+    <link rel="stylesheet" href="/styles.css?v=20260626-qr-safety" />
   </head>
   <body>
     <header class="site-header">
@@ -250,10 +250,18 @@
 
           <article class="my-panel qr-panel">
             <h3>모바일 입장권</h3>
+            <p class="qr-panel-note">입장 QR은 공연 당일 Ticketground 모바일 앱에서만 활성화됩니다.</p>
             <div class="phone-shell">
               <div class="phone-top"></div>
-              <div class="qr-preview" id="qrBox">티켓의 QR 버튼을 눌러주세요.</div>
-              <button class="secondary" id="verifyQrBtn">입장 QR 확인</button>
+              <div class="qr-preview virtual-ticket qr-card" id="qrBox">
+                <div class="qr-card-copy">
+                  <strong>모바일 앱 전용 입장 QR</strong>
+                  <span>웹에서는 예매 확인용 티켓만 표시됩니다. 공연 당일 앱에서 QR을 열어주세요.</span>
+                </div>
+                <div class="qr-art placeholder" aria-hidden="true"></div>
+              </div>
+              <p class="qr-app-guidance" id="qrAppGuidance">현장 입장 확인은 앱 QR로만 진행됩니다.</p>
+              <button class="secondary" id="verifyQrBtn" disabled aria-describedby="qrAppGuidance">앱에서 입장 QR 확인</button>
             </div>
           </article>
 
@@ -369,6 +377,6 @@
         <button type="submit">보내기</button>
       </form>
     </section>
-    <script src="/app.js?v=20260626-seat-auth" type="module"></script>
+    <script src="/app.js?v=20260626-qr-safety" type="module"></script>
   </body>
 </html>
