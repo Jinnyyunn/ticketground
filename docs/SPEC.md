@@ -25,16 +25,15 @@
 ├─ index.html  category.html  detail.html  booking.html  confirm.html
 ├─ mypage.html  search.html  login.html  queue.html  cancel.html
 ├─ open.html  event.html  venue.html  artist.html  help.html
-├─ watchlist.html  resale.html  transfer.html  inquiry.html  admin.html
+├─ watchlist.html  resale.html  transfer.html  inquiry.html
 ├─ tweaks-panel.jsx
 └─ assets/
    ├─ tokens.css   (디자인 토큰)
-   ├─ app.css      (사용자 페이지 공용)
-   └─ admin.css    (관리자 콘솔 전용; @import tokens.css)
+   └─ app.css      (사용자 페이지 공용)
 ```
 
 - 사용자 페이지는 `<link rel="stylesheet" href="assets/app.css">` (app.css가 tokens.css와 폰트를 `@import`).
-- `admin.html`은 폰트 CDN + `assets/admin.css`를 직접 link.
+- 현재 Next.js public frontend에는 관리자 페이지를 포함하지 않는다. 관리자 기능은 50084 포트의 backend API로만 유지한다.
 
 ---
 
@@ -82,7 +81,7 @@
 | `.utility` | 상단 유틸바(우정렬, 32px, 11px 회색, 고객센터/마이/로그인/회원가입) |
 | `.gheader` | sticky top:0, 64px. `.brand`(워드마크+`.dot` 빨강 점) + `.gsearch`(pill 검색) + `.gnav-icons`(관심공연/예매내역/마이) |
 | `.catnav` | sticky top:64px, 48px. 홈·콘서트·뮤지컬·연극·클래식·전시·아동·스포츠 + 우측 "티켓오픈 캘린더"(빨강) |
-| `.gfooter` | 4컬럼 그리드(브랜드/예매/마이/고객센터) + copyright 줄(우측에 discreet `운영 콘솔` 링크) |
+| `.gfooter` | 4컬럼 그리드(브랜드/예매/마이/고객센터) + copyright 줄. public footer에는 관리자 진입 링크를 노출하지 않는다. |
 | `.btn` | 높이 40, radius 8, semibold. 변형: `-primary`(ink/white) `-accent`(red) `-outline` `-ghost` `-lg`(52) `-block` |
 | `.chip` | pill 보더 토글. `.active` = ink 배경 white |
 | `.tag` | 10px bold 라벨. `-open`(red) `-soon`(ink) `-sale`(yellow) `-new`(green) |
@@ -188,19 +187,11 @@
 ### 5.17 `inquiry.html` — 1:1 문의함
 - 2컬럼: 스레드 목록(상태 칩 대기/완료/종료) + 상세(컨텍스트 칩 예매번호·공연·티켓 + **말풍선 스레드** me/agent/sys + 작성창). 전송 시 본인 말풍선 추가 + sys 자동응답. Enter 전송(Shift+Enter 줄바꿈). 데이터는 JS `threads` 객체.
 
-### 5.18 `admin.html` — 운영 콘솔 (`assets/admin.css`)
-- **분리된 chrome**: 좌측 다크 사이드바(232px, 8메뉴 + 운영자 프로필) + 우측 메인(상단바 + 콘텐츠).
-- 상단바: pane 타이틀 + "감사 원장 정상" pill + 사용자 페이지 링크.
-- 섹션(`.adm-pane` 토글):
-  1. **운영현황**: KPI 5(판매중 좌석/재판매 풀/문의/주의 계정/원장) + 최근 거래 테이블 + 오늘 알림.
-  2. **판매관리**: 공연 목록(행 클릭→우측 폼 자동 채움) + 저장 시 **확인 모달**→토스트.
-  3. **좌석재고**: 구역별 재고 테이블. 소유자 없는 행은 전환 버튼 disabled.
-  4. **좌석도 미리보기**: 공연장 select(jamsil/kspo/nanji/blue) → JS로 블록·메타 동적 렌더.
-  5. **계정관리**: 신뢰 점수 바(.trust) + 상태 select(정상/주의/차단) → 변경 시 토스트.
-  6. **암표대응**: 지정양도 차단 기록 + 매크로 탐지 신호 바.
-  7. **고객문의**: 대기열 + 상세(말풍선 + 답변창 + QR 보류 해제).
-  8. **감사 원장**: `.ledger-row`(SEQ·시각·PREV HASH·이벤트·`✓ valid`) append-only 표현.
-- 공통: `.pill`(상태) `.abtn`(소형 버튼) `.modal`/`.toast`(피드백).
+### 5.18 관리자 기능 — backend API
+- public Next.js app에는 관리자 페이지를 빌드하지 않는다.
+- 관리자 기능은 50084 포트의 backend API로만 제공한다.
+- 유지 API 범위: 운영현황, 판매 정보 수정, 좌석도/좌석 재고, 계정 상태, 암표 대응, 고객문의 답변, 감사 원장.
+- public 서버에서는 `/admin`, `/admin.html`, `/admin/*`, `/api/admin/*`에 관리자 기능을 노출하지 않고 404로 응답한다.
 
 ---
 
@@ -219,7 +210,6 @@
 | 전 페이지 헤더 ♡ | 관심공연 | watchlist.html |
 | 전 페이지 catnav 우측 | 티켓오픈 | open.html |
 | 전 페이지 유틸바 | 고객센터 | help.html |
-| 전 페이지 푸터 copyright | 운영 콘솔(discreet) | admin.html |
 | search | 아티스트/장소 카드 | artist / venue |
 
 ---

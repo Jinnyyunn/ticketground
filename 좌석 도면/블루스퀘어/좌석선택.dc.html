@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#050507}
+@keyframes tgpop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes tgfade{from{opacity:0}to{opacity:1}}
+@keyframes tgtoast{from{transform:translate(0,14px);opacity:0}to{transform:translate(0,0);opacity:1}}
+::selection{background:#00aaff;color:#fff}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:999px}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="min-height:100vh;height:100vh;display:flex;flex-direction:column;background:#050507;color:#f1f3f5;font-family:'Helvetica Neue',Helvetica,ui-sans-serif,system-ui,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden">
+
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:0 26px;height:62px;flex:0 0 auto;border-bottom:1px solid rgba(255,255,255,.08);background:#000000">
+    <div style="display:flex;align-items:center;gap:14px;min-width:0">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:14px;height:14px;border-radius:5px;background:#00aaff"></div>
+        <span style="font-size:19px;font-weight:700;letter-spacing:-.4px;color:#ffffff">ticketground</span>
+      </div>
+      <div style="width:1px;height:20px;background:rgba(255,255,255,.14)"></div>
+      <div style="display:flex;flex-direction:column;min-width:0">
+        <span style="font-size:14px;font-weight:600;color:#f1f3f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ eventTitle }}</span>
+        <span style="font-size:11.5px;color:#908f8e;white-space:nowrap">{{ eventVenue }} · {{ eventDate }}</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="padding:7px 15px;border-radius:999px;background:#00aaff;color:#00131f;font-size:12.5px;font-weight:700">1 좌석 선택</div>
+      <div style="color:#5b5e64;font-size:12px">›</div>
+      <div style="padding:7px 15px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:#908f8e;font-size:12.5px;font-weight:500">2 가격·할인</div>
+      <div style="color:#5b5e64;font-size:12px">›</div>
+      <div style="padding:7px 15px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:#908f8e;font-size:12.5px;font-weight:500">3 결제</div>
+    </div>
+  </header>
+
+  <main style="flex:1 1 auto;min-height:0;display:flex;gap:18px;padding:18px">
+
+    <section style="flex:1 1 auto;min-width:0;position:relative;display:flex;flex-direction:column;background:radial-gradient(120% 120% at 50% 38%,#101018 0%,#070709 70%);border:1px solid rgba(255,255,255,.08);border-radius:20px;overflow:hidden">
+      <div style="position:absolute;top:16px;left:16px;z-index:3;display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:14px;background:rgba(7,7,12,.82);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px);min-height:42px">
+        <sc-if value="{{ hasHover }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:14px;font-weight:700;color:#00aaff">{{ hoverInfo.num }}</span>
+          <span style="font-size:12.5px;color:#a29e9c">{{ hoverInfo.text }}</span>
+        </sc-if>
+        <sc-if value="{{ noHover }}" hint-placeholder-val="{{ true }}">
+          <span style="font-size:12.5px;color:#7e828a">층과 구역을 선택하면 상세 좌석을 고를 수 있습니다</span>
+        </sc-if>
+      </div>
+
+      <div style="position:absolute;top:16px;right:16px;z-index:4;display:flex;gap:7px;padding:6px;border-radius:999px;background:rgba(7,7,12,.84);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px)">
+        <sc-for list="{{ floorButtons }}" as="f" hint-placeholder-count="3">
+          <button onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</button>
+        </sc-for>
+      </div>
+
+      <div style="flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:28px 10px 0">
+        <svg viewBox="0 0 1100 760" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%">
+          <defs>
+            <linearGradient id="blueSeat" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#00b8f0"></stop>
+              <stop offset="100%" stop-color="#0076a8"></stop>
+            </linearGradient>
+          </defs>
+          <g transform="{{ mapTransform }}">
+            <sc-for list="{{ sectionsVis }}" as="s" hint-placeholder-count="10">
+              <path d="{{ s.d }}" fill="{{ s.fill }}" stroke="{{ s.stroke }}" strokeWidth="{{ s.strokeWidth }}" strokeLinejoin="round" onClick="{{ s.onClick }}" onMouseEnter="{{ s.onEnter }}" onMouseLeave="{{ s.onLeave }}" style="cursor:pointer" style-hover="filter:brightness(1.14)"></path>
+            </sc-for>
+            {{ floorSketch }}
+            {{ overlay }}
+          </g>
+        </svg>
+      </div>
+
+      <div style="flex:0 0 auto;text-align:center;padding:7px 0 15px;font-size:12px;color:#6f737a">블루스퀘어 1·2·3층 도면을 구역화했습니다. 구역 클릭 후 좌석을 선택하세요.</div>
+    </section>
+
+    <aside style="flex:0 0 392px;width:392px;display:flex;flex-direction:column;background:#0d0d12;border:1px solid rgba(255,255,255,.08);border-radius:20px;overflow:hidden">
+      <div style="flex:0 0 auto;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#00aaff;margin-bottom:6px">{{ eventSub }}</div>
+        <div style="font-size:18px;font-weight:700;letter-spacing:-.3px;color:#f4f6f8">{{ eventTitle }}</div>
+        <div style="font-size:12.5px;color:#908f8e;margin-top:5px">{{ eventVenue }} · {{ eventDate }}</div>
+      </div>
+
+      <div style="flex:1 1 auto;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:22px">
+        <div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:.4px;color:#a29e9c;margin-bottom:11px">좌석 등급</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <sc-for list="{{ legend }}" as="g" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:12px;background:#111118;border:1px solid rgba(255,255,255,.06)">
+                <div style="{{ g.swStyle }}"></div>
+                <div style="flex:1 1 auto;min-width:0">
+                  <div style="font-size:13px;font-weight:700;color:#eef1f3">{{ g.name }}</div>
+                  <div style="font-size:11px;color:#7e828a">잔여 {{ g.rem }}석</div>
+                </div>
+                <div style="font-size:13px;font-weight:700;color:#cdd2d6">{{ g.price }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+            <div style="font-size:12px;font-weight:700;letter-spacing:.4px;color:#a29e9c">선택한 좌석</div>
+            <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ onClear }}" style="background:none;border:none;color:#7e828a;font-size:11.5px;cursor:pointer;padding:2px 4px" style-hover="color:#f1f3f5">전체 해제</button>
+            </sc-if>
+          </div>
+          <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <sc-for list="{{ selList }}" as="s" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:12px;background:rgba(0,170,255,.08);border:1px solid rgba(0,170,255,.22)">
+                  <div style="{{ s.dotStyle }}"></div>
+                  <div style="flex:1 1 auto;min-width:0">
+                    <div style="font-size:13px;font-weight:700;color:#eef1f3">{{ s.blockLabel }} · {{ s.seatLabel }}</div>
+                    <div style="font-size:11px;color:#7e828a">{{ s.gradeName }} · {{ s.price }}</div>
+                  </div>
+                  <button onClick="{{ s.onRemove }}" style="flex:0 0 auto;width:22px;height:22px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#a29e9c;cursor:pointer;font-size:13px;line-height:1" style-hover="background:rgba(255,255,255,.08);color:#fff">×</button>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noSel }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:22px 14px;border-radius:12px;border:1px dashed rgba(255,255,255,.12);text-align:center;color:#6f737a;font-size:12.5px">아직 선택한 좌석이 없어요.<br>층을 고른 뒤 구역을 클릭해 주세요.</div>
+          </sc-if>
+        </div>
+
+        <div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:.4px;color:#a29e9c;margin-bottom:11px">도면 원본</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">
+            <sc-for list="{{ sourceImages }}" as="img" hint-placeholder-count="3">
+              <div style="display:grid;gap:5px;padding:7px;border-radius:11px;background:#111118;border:1px solid rgba(255,255,255,.06)">
+                <img src="{{ img.src }}" alt="{{ img.alt }}" style="width:100%;height:54px;object-fit:cover;border-radius:7px;background:#000;border:1px solid rgba(255,255,255,.08)">
+                <span style="font-size:11px;color:#a29e9c;font-weight:700;text-align:center">{{ img.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:.4px;color:#a29e9c;margin-bottom:11px">공연장 정보</div>
+          <div style="display:flex;flex-direction:column;gap:0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.06)">
+            <sc-for list="{{ infoRows }}" as="r" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:{{ r.bg }};font-size:12px">
+                <span style="color:#908f8e">{{ r.k }}</span>
+                <span style="color:#dfe2e6;font-weight:600">{{ r.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:0 0 auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);background:#0a0a0f">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:12.5px;color:#a29e9c">{{ countLabel }}</span>
+          <span style="font-size:20px;font-weight:800;color:#ffffff">{{ totalPrice }}</span>
+        </div>
+        <button onClick="{{ onCheckout }}" style="width:100%;padding:14px;border:none;border-radius:999px;background:#00aaff;color:#00131f;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:-.2px" style-hover="filter:brightness(1.07)">예매하기</button>
+      </div>
+    </aside>
+  </main>
+
+  <sc-if value="{{ detailOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseDetail }}" style="position:fixed;inset:0;z-index:40;background:rgba(2,2,5,.68);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;animation:tgfade .14s ease">
+      <div onClick="{{ stop }}" style="width:min(820px,95vw);max-height:90vh;display:flex;flex-direction:column;background:#101016;border:1px solid rgba(255,255,255,.1);border-radius:20px;overflow:hidden;animation:tgpop .16s cubic-bezier(.2,.8,.3,1)">
+        <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.08)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="{{ detail.chipStyle }}"></div>
+            <div>
+              <div style="font-size:17px;font-weight:800;color:#f4f6f8">{{ detail.num }}</div>
+              <div style="font-size:12px;color:#908f8e">{{ detail.gradeName }} · {{ detail.price }} · 잔여 {{ detail.remaining }}석 / 총 {{ detail.total }}석</div>
+            </div>
+          </div>
+          <button onClick="{{ onCloseDetail }}" style="width:32px;height:32px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#cdd2d6;font-size:17px;cursor:pointer;line-height:1" style-hover="background:rgba(255,255,255,.08);color:#fff">×</button>
+        </div>
+
+        <div style="flex:0 0 auto;display:flex;align-items:center;gap:18px;padding:11px 20px;border-bottom:1px solid rgba(255,255,255,.06);font-size:11.5px;color:#908f8e">
+          <div style="display:flex;align-items:center;gap:7px"><div style="{{ detail.swAvail }}"></div>예매 가능</div>
+          <div style="display:flex;align-items:center;gap:7px"><div style="width:14px;height:14px;border-radius:3px;background:#ffffff;border:1.5px solid #00aaff"></div>선택</div>
+
+        </div>
+
+        <div style="flex:1 1 auto;min-height:0;overflow:auto;padding:20px;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <sc-for list="{{ detail.rows }}" as="row" hint-placeholder-count="10">
+            <div style="display:flex;align-items:center;gap:3px">
+              <div style="width:34px;text-align:right;font-size:9.5px;color:#6f737a;margin-right:5px;flex:0 0 auto">{{ row.label }}</div>
+              <sc-for list="{{ row.seats }}" as="s" hint-placeholder-count="18">
+                <div onClick="{{ s.onClick }}" style="{{ s.style }}" style-hover="filter:brightness(1.1)">{{ s.label }}</div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:10px;padding:9px;background:linear-gradient(#252536,#171722);color:rgba(255,255,255,.92);font-size:11.5px;font-weight:700;letter-spacing:5px">◀  무대 방향 · STAGE  ▶</div>
+
+        <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-top:1px solid rgba(255,255,255,.08)">
+          <span style="font-size:13px;color:#a29e9c">이 구역 선택 <b style="color:#00aaff">{{ detail.count }}</b>석 · {{ countLabel }}</span>
+          <button onClick="{{ onCloseDetail }}" style="padding:11px 22px;border:none;border-radius:999px;background:#ffffff;color:#0a0a0f;font-size:14px;font-weight:800;cursor:pointer" style-hover="filter:brightness(.94)">선택 완료</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:60;padding:13px 22px;border-radius:999px;background:#1a1a22;border:1px solid rgba(255,255,255,.14);color:#f1f3f5;font-size:13.5px;font-weight:600;box-shadow:0 12px 40px rgba(0,0,0,.5);animation:tgtoast .2s ease">{{ toast }}</div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;eventTitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Midnight Sonata&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eventSub&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;블루스퀘어 뮤지컬&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eventVenue&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;블루스퀘어&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eventDate&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2026.11.02 (월) 19:30&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;maxTickets&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:1,&quot;max&quot;:8,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.state = { floor:'1F', detail:null, selections:{}, hover:null, toast:null };
+    this.COLORS = { VIP:'#00aaff', R:'#0089c4', S:'#6db4ec', A:'#b87bd8', BOX:'#c8cd77' };
+    this.GNAME  = { VIP:'VIP석', R:'R석', S:'S석', A:'A석', BOX:'박스석' };
+    this.PRICE  = { VIP:160000, R:130000, S:100000, A:80000, BOX:70000 };
+    this.sections = this.buildSections();
+  }
+  rng(seed){ let s=(seed*2654435761)>>>0; return ()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+  rectPath(cx,cy,w,h,rot=0,skew=0){
+    const rad=rot*Math.PI/180, co=Math.cos(rad), si=Math.sin(rad);
+    const pts=[[-w/2+skew,-h/2],[w/2+skew,-h/2],[w/2-skew,h/2],[-w/2-skew,h/2]].map(([x,y])=>[cx+x*co-y*si, cy+x*si+y*co]);
+    const f=(n)=>n.toFixed(1);
+    return 'M '+f(pts[0][0])+' '+f(pts[0][1])+' L '+f(pts[1][0])+' '+f(pts[1][1])+' L '+f(pts[2][0])+' '+f(pts[2][1])+' L '+f(pts[3][0])+' '+f(pts[3][1])+' Z';
+  }
+  add(section, out, uid){
+    const total=section.rows*section.cols, soldSet=new Set();
+    out.push(Object.assign({}, section, { id:'bs'+uid, d:this.rectPath(section.cx,section.cy,section.w,section.h,section.rot||0,section.skew||0), total, soldSet, remaining:total }));
+  }
+  buildSections(){
+    const out=[]; let uid=0;
+    [
+      {floor:'1F', label:'1층 좌측 GATE 1 전방', mapLabel:'G1 전방', grade:'R', cx:278, cy:310, w:190, h:92, rot:13, skew:-16, rows:7, cols:13, seatBase:3},
+      {floor:'1F', label:'1층 중앙 전방', mapLabel:'1F 중앙 전방', grade:'VIP', cx:550, cy:310, w:270, h:92, rows:7, cols:16, seatBase:16},
+      {floor:'1F', label:'1층 우측 GATE 6 전방', mapLabel:'G6 전방', grade:'R', cx:822, cy:310, w:190, h:92, rot:-13, skew:16, rows:7, cols:13, seatBase:34},
+      {floor:'1F', label:'1층 좌측 GATE 2', mapLabel:'G2 좌측', grade:'R', cx:276, cy:520, w:300, h:218, rot:7, skew:-18, rows:14, cols:15, seatBase:1},
+      {floor:'1F', label:'1층 중앙', mapLabel:'1F 중앙', grade:'VIP', cx:550, cy:535, w:240, h:235, rows:22, cols:16, seatBase:16},
+      {floor:'1F', label:'1층 우측 GATE 5', mapLabel:'G5 우측', grade:'R', cx:824, cy:520, w:300, h:218, rot:-7, skew:18, rows:14, cols:15, seatBase:34},
+      {floor:'1F', label:'1층 좌측 GATE 3 박스', mapLabel:'G3 BOX', grade:'BOX', cx:285, cy:686, w:218, h:36, rot:9, skew:20, rows:1, cols:9, seatBase:1},
+      {floor:'1F', label:'1층 좌측 GATE 3 A', mapLabel:'G3 A', grade:'A', cx:304, cy:728, w:176, h:32, rot:10, skew:16, rows:1, cols:7, seatBase:1},
+      {floor:'1F', label:'1층 우측 GATE 4 박스', mapLabel:'G4 BOX', grade:'BOX', cx:815, cy:686, w:218, h:36, rot:-9, skew:-20, rows:1, cols:9, seatBase:10},
+      {floor:'1F', label:'1층 우측 GATE 4 A', mapLabel:'G4 A', grade:'A', cx:796, cy:728, w:176, h:32, rot:-10, skew:-16, rows:1, cols:7, seatBase:8},
+      {floor:'2F', label:'2층 좌측 GATE 2', mapLabel:'2F G2 좌측', grade:'S', cx:285, cy:435, w:300, h:168, rot:9, skew:-20, rows:10, cols:15, seatBase:1},
+      {floor:'2F', label:'2층 중앙', mapLabel:'2F 중앙', grade:'S', cx:550, cy:450, w:276, h:148, rows:9, cols:16, seatBase:16},
+      {floor:'2F', label:'2층 우측 GATE 5', mapLabel:'2F G5 우측', grade:'S', cx:815, cy:435, w:300, h:168, rot:-9, skew:20, rows:10, cols:15, seatBase:32},
+      {floor:'2F', label:'2층 좌측 GATE 3 사이드', mapLabel:'G3 사이드', grade:'A', cx:205, cy:555, w:90, h:38, rot:8, rows:2, cols:3, seatBase:1},
+      {floor:'2F', label:'2층 우측 GATE 4 사이드', mapLabel:'G4 사이드', grade:'A', cx:895, cy:555, w:90, h:38, rot:-8, rows:2, cols:3, seatBase:44},
+      {floor:'3F', label:'3층 좌측 GATE 2', mapLabel:'3F G2 좌측', grade:'A', cx:285, cy:500, w:286, h:130, rot:12, skew:-20, rows:6, cols:15, seatBase:2},
+      {floor:'3F', label:'3층 중앙', mapLabel:'3F 중앙', grade:'A', cx:550, cy:505, w:270, h:110, rows:6, cols:16, seatBase:17},
+      {floor:'3F', label:'3층 우측 GATE 5', mapLabel:'3F G5 우측', grade:'A', cx:815, cy:500, w:286, h:130, rot:-12, skew:20, rows:6, cols:16, seatBase:33}
+    ].forEach(s=>this.add(s,out,uid++));
+    return out;
+  }
+  byId(id){ return this.sections.find(s=>s.id===id); }
+  totalSel(){ return Object.values(this.state.selections).reduce((a,v)=>a+v.length,0); }
+  setFloor(floor){ this.setState({ floor, detail:null, hover:null }); }
+  openDetail(id){ this.setState({ detail:id }); }
+  closeDetail(){ this.setState({ detail:null }); }
+  clearAll(){ this.setState({ selections:{} }); }
+  showToast(msg){ this.setState({ toast:msg }); clearTimeout(this._tt); this._tt=setTimeout(()=>this.setState({toast:null}),2200); }
+  checkout(){ if(this.totalSel()===0){ this.showToast('좌석을 먼저 선택해 주세요'); return; } this.showToast('예매 정보가 확인되었어요 (프로토타입)'); }
+  toggleSeat(sid, seatId){
+    const sel=this.state.selections, arr=sel[sid]?sel[sid].slice():[], idx=arr.indexOf(seatId), max=this.props.maxTickets ?? 4;
+    if(idx<0 && this.totalSel()>=max){ this.showToast('최대 '+max+'매까지 선택할 수 있어요'); return; }
+    const next=Object.assign({}, sel);
+    if(idx>=0) arr.splice(idx,1); else arr.push(seatId);
+    if(arr.length) next[sid]=arr; else delete next[sid];
+    this.setState({ selections:next });
+  }
+  fmt(n){ return '₩'+n.toLocaleString('ko-KR'); }
+  floorSketch(floor){
+    const ce=React.createElement, common={stroke:'rgba(255,255,255,.58)',strokeWidth:2.2,fill:'none'};
+    const stageLabel=floor==='1F'?'STAGE':(floor==='2F'?'STAGE / BALCONY':'STAGE');
+    const parts=[
+      ce('path',{key:'shell',d: floor==='3F'?'M 55 260 L 110 275 L 110 315 L 365 370 L 735 370 L 990 315 L 990 275 L 1045 260 M 55 590 L 360 660 L 740 660 L 1045 590':'M 55 220 L 120 235 L 120 285 L 370 385 L 730 385 L 980 285 L 980 235 L 1045 220 M 55 640 L 360 700 L 740 700 L 1045 640',...common}),
+      ce('line',{key:'stageLine',x1:430,y1:165,x2:670,y2:165,stroke:'rgba(255,255,255,.75)',strokeWidth:3}),
+      ce('text',{key:'stage',x:550,y:138,fill:'#f1f3f5',fontSize:30,textAnchor:'middle',style:{fontWeight:800,letterSpacing:1}},stageLabel)
+    ];
+    if(floor==='1F') parts.push(ce('rect',{key:'pit',x:455,y:188,width:190,height:58,rx:8,fill:'#de951c',stroke:'rgba(255,255,255,.7)',strokeWidth:2}),ce('text',{key:'pitText',x:550,y:222,fill:'#fff',fontSize:18,textAnchor:'middle',style:{fontWeight:900}},'ORCHESTRA PIT'));
+    const gateLabel=(key,x,y,text)=>ce('text',{key,x,y,fill:'#f1f3f5',fontSize:18,textAnchor:'middle',style:{fontWeight:900,letterSpacing:.5}},text);
+    parts.push(
+      gateLabel('g1',120,230,'GATE 1'),
+      gateLabel('g2',58,475,'GATE 2'),
+      gateLabel('g3',110,665,'GATE 3'),
+      gateLabel('g4',990,665,'GATE 4'),
+      gateLabel('g5',1042,475,'GATE 5'),
+      gateLabel('g6',980,230,'GATE 6')
+    );
+    return ce('g',{style:{pointerEvents:'none'}},parts);
+  }
+  renderVals(){
+    const ce=React.createElement, floor=this.state.floor, hover=this.state.hover, max=this.props.maxTickets ?? 4, sel=this.state.selections;
+    const sectionsVis=this.sections.filter(s=>s.floor===floor).map(s=>{
+      const selCount=(sel[s.id]||[]).length, hovered=hover===s.id, soldOut=s.remaining===0;
+      return { id:s.id, d:s.d, fill:soldOut?'#3a3a42':this.COLORS[s.grade], stroke:(selCount||hovered)?'#fff':'rgba(4,4,9,.45)', strokeWidth:selCount?2.6:(hovered?2:1), onClick:()=>this.openDetail(s.id), onEnter:()=>this.setState({hover:s.id}), onLeave:()=>this.setState(st=>st.hover===s.id?{hover:null}:null), label:s.label, mapLabel:s.mapLabel, cx:s.cx, cy:s.cy, grade:s.grade, count:selCount };
+    });
+    const overlay=ce('g',{style:{pointerEvents:'none'}},sectionsVis.flatMap(s=>{
+      const a=[ce('text',{key:s.id+'l',x:s.cx,y:s.cy-6,fill:s.grade==='A'||s.grade==='BOX'?'#111827':'#ffffff',fontSize:13,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:800}},s.mapLabel||s.label.replace('블루스퀘어 ','').replace('층 ', 'F ')),ce('text',{key:s.id+'g',x:s.cx,y:s.cy+14,fill:s.grade==='A'||s.grade==='BOX'?'#1f2933':'#e6f8ff',fontSize:10.5,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:700}},this.GNAME[s.grade])];
+      if(s.count){ a.push(ce('circle',{key:s.id+'c',cx:s.cx+s.count*0+42,cy:s.cy-30,r:9,fill:'#00aaff',stroke:'#fff',strokeWidth:1.5}),ce('text',{key:s.id+'ct',x:s.cx+42,y:s.cy-30,fill:'#fff',fontSize:11,textAnchor:'middle',dominantBaseline:'central',style:{fontWeight:900}},String(s.count))); }
+      return a;
+    }));
+    let hoverInfo=null;
+    if(hover){ const hs=this.byId(hover); if(hs) hoverInfo={ num:hs.label, text:this.GNAME[hs.grade]+' · 잔여 '+hs.remaining+'석 / 총 '+hs.total+'석' }; }
+    const floorButtons=['1F','2F','3F'].map(f=>({ key:f, label:f.replace('F','층'), onClick:()=>this.setFloor(f), style:{ minHeight:'32px', padding:'0 14px', border:'none', borderRadius:'999px', background:f===floor?'#00aaff':'rgba(255,255,255,.08)', color:f===floor?'#00131f':'#cdd2d6', fontSize:'12px', fontWeight:800, cursor:'pointer' } }));
+    const grades=['VIP','R','S','A','BOX'];
+    const legend=grades.map(g=>{ const ss=this.sections.filter(s=>s.grade===g), rem=ss.reduce((a,s)=>a+s.remaining,0); return { key:g, name:this.GNAME[g], price:this.fmt(this.PRICE[g]), rem, swStyle:{ width:'15px', height:'15px', borderRadius:'5px', flex:'0 0 auto', background:this.COLORS[g], boxShadow:'0 0 0 1px rgba(255,255,255,.12) inset' } }; });
+    const selList=[];
+    Object.keys(sel).forEach(sid=>{ const sec=this.byId(sid); (sel[sid]||[]).slice().sort((a,b)=>{ const [ar,ac]=a.split('-').map(Number), [br,bc]=b.split('-').map(Number); return ar-br||ac-bc; }).forEach(seat=>{ const [r,c]=seat.split('-').map(Number); selList.push({ key:sid+seat, blockLabel:sec.label, gradeName:this.GNAME[sec.grade], seatLabel:(r+1)+'열 '+(sec.seatBase+c)+'번', price:this.fmt(this.PRICE[sec.grade]), dotStyle:{ width:'11px', height:'11px', borderRadius:'4px', flex:'0 0 auto', background:this.COLORS[sec.grade] }, onRemove:()=>this.toggleSeat(sid,seat) }); }); });
+    const totalPrice=Object.keys(sel).reduce((a,sid)=>{ const sec=this.byId(sid); return a+sel[sid].length*this.PRICE[sec.grade]; },0), totalCount=this.totalSel();
+    let detail=null;
+    if(this.state.detail){ const sec=this.byId(this.state.detail); if(sec){ const selSet=new Set(sel[sec.id]||[]), rows=[]; for(let r=0;r<sec.rows;r++){ const seats=[]; for(let c=0;c<sec.cols;c++){ const id=r+'-'+c, sold=sec.soldSet.has(id), isSel=selSet.has(id), seatNo=sec.seatBase+c; seats.push({ key:id, label:String(seatNo), onClick:sold?undefined:()=>this.toggleSeat(sec.id,id), style:{ width:'24px', height:'20px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', fontWeight:'700', lineHeight:'1', flex:'0 0 auto', background:sold?'#2b2b33':(isSel?'#ffffff':this.COLORS[sec.grade]), color:sold?'#55585f':(isSel?'#0084c7':(sec.grade==='A'||sec.grade==='BOX'?'#172033':'#eafaff')), border:'1.5px solid '+(isSel?'#00aaff':'transparent'), cursor:sold?'default':'pointer' } }); } rows.push({ key:'r'+r, label:(r+1)+'열', seats }); }
+      detail={ num:sec.label, gradeName:this.GNAME[sec.grade], price:this.fmt(this.PRICE[sec.grade]), remaining:sec.remaining, total:sec.total, count:(sel[sec.id]||[]).length, rows, chipStyle:{ width:'34px', height:'34px', borderRadius:'9px', background:this.COLORS[sec.grade], boxShadow:'0 0 0 1px rgba(255,255,255,.14) inset' }, swAvail:{ width:'14px', height:'14px', borderRadius:'3px', background:this.COLORS[sec.grade] } };
+    }}
+    const infoRows=[{k:'공연장',v:'블루스퀘어'}, {k:'도면 기준',v:'1층·2층·3층 이미지'}, {k:'선택 가능 구역',v:this.sections.length+'개 구역'}, {k:'현재 층',v:floor.replace('F','층')}, {k:'선택 제한',v:'최대 '+max+'매'}, {k:'좌석 방식',v:'구역 선택 후 좌석 지정'}].map((r,i)=>({ k:r.k, v:r.v, bg:i%2?'rgba(255,255,255,.02)':'transparent' }));
+    const sourceImages=[{key:'1',label:'1층',src:'./블루스퀘어 1층.png',alt:'블루스퀘어 1층 도면'}, {key:'2',label:'2층',src:'./블루스퀘어 2층.png',alt:'블루스퀘어 2층 도면'}, {key:'3',label:'3층',src:'./블루스퀘어 3층.png',alt:'블루스퀘어 3층 도면'}];
+    const mapTransform='translate(55 42) scale(.9)';
+    return { eventTitle:this.props.eventTitle ?? 'Midnight Sonata', eventSub:this.props.eventSub ?? '블루스퀘어 뮤지컬', eventVenue:this.props.eventVenue ?? '블루스퀘어', eventDate:this.props.eventDate ?? '2026.11.02 (월) 19:30', floorButtons, mapTransform, floorSketch:this.floorSketch(floor), sectionsVis, overlay, hoverInfo, hasHover:!!hoverInfo, noHover:!hoverInfo, legend, selList, hasSel:selList.length>0, noSel:selList.length===0, totalCount, totalPrice:this.fmt(totalPrice), countLabel:totalCount+'석 선택 · 최대 '+max+'매', detailOpen:!!detail, detail, infoRows, sourceImages, toast:this.state.toast, hasToast:!!this.state.toast, stop:(e)=>{e.stopPropagation();}, onCloseDetail:()=>this.closeDetail(), onClear:()=>this.clearAll(), onCheckout:()=>this.checkout() };
+  }
+}
+</script>
+<script>
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const overrides = {};
+  for (const key of ["eventTitle", "eventSub", "eventVenue", "eventDate"]) {
+    const value = params.get(key);
+    if (value) overrides[key] = value;
+  }
+  const maxTickets = Number(params.get("maxTickets"));
+  if (Number.isFinite(maxTickets) && maxTickets > 0) overrides.maxTickets = maxTickets;
+  if (!Object.keys(overrides).length) return;
+
+  const applyOverrides = () => {
+    const rootName = typeof window.__dcRootName === "function" ? window.__dcRootName() : "";
+    if (window.__dcSetProps && rootName && rootName !== "Root" && window.__dcRegistry?.[rootName]) {
+      window.__dcSetProps(rootName, overrides);
+      return;
+    }
+    window.setTimeout(applyOverrides, 50);
+  };
+  applyOverrides();
+})();
+</script>
+</body>
+</html>

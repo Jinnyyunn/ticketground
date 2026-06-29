@@ -1,5 +1,4 @@
-@import "tailwindcss" source(none);
-@source "/Users/yeoreum/Documents/TicketGround/src";
+@import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 

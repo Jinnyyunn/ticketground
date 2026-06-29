@@ -31,10 +31,6 @@ RUN --mount=type=cache,target=/root/.npm \
   echo "No lockfile found." && exit 1; \
   fi
 
-# ============================================
-# Stage 2: Build Next.js application in standalone mode
-# ============================================
-
 FROM node:${NODE_VERSION} AS builder
 
 # Set working directory
@@ -80,7 +76,9 @@ WORKDIR /app
 
 # Set production environment variables
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=4173
+ENV ADMIN_PORT=50084
+ENV ADMIN_HOSTNAME="127.0.0.1"
 ENV HOSTNAME="0.0.0.0"
 
 # Next.js collects completely anonymous telemetry data about general usage.
@@ -88,17 +86,15 @@ ENV HOSTNAME="0.0.0.0"
 # Uncomment the following line in case you want to disable telemetry during the run time.
 # ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy production assets
+COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/package.json ./package.json
+COPY --from=builder --chown=node:node /app/server.js ./server.js
+COPY --from=builder --chown=node:node /app/backend ./backend
 COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/.next ./.next
+COPY --from=builder --chown=node:node ["/app/좌석 도면", "./좌석 도면"]
 
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown node:node .next
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=node:node /app/.next/standalone ./
-COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+RUN mkdir -p data && chown -R node:node data .next
 
 # If you want to persist the fetch cache generated during the build so that
 # cached responses are available immediately on startup, uncomment this line:
@@ -107,8 +103,6 @@ COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 # Switch to non-root user for security best practices
 USER node
 
-# Expose port 3000 to allow HTTP traffic
-EXPOSE 3000
+EXPOSE 4173
 
-# Start Next.js standalone server
 CMD ["node", "server.js"]
