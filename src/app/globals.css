@@ -1,0 +1,312 @@
+@import "tailwindcss" source(none);
+@source "/Users/yeoreum/Documents/TicketGround/src";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Pretendard Variable", var(--font-noto), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-display: "Pretendard Variable", var(--font-noto), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-heading: var(--font-sans);
+  --text-xs: var(--fs-sm);
+  --text-xs--line-height: var(--lh-base);
+  --text-sm: var(--fs-sm);
+  --text-sm--line-height: var(--lh-base);
+  --text-base: var(--fs-md);
+  --text-base--line-height: var(--lh-base);
+  --text-lg: var(--fs-lg);
+  --text-lg--line-height: var(--lh-snug);
+  --text-xl: var(--fs-xl);
+  --text-xl--line-height: var(--lh-snug);
+  --text-2xl: var(--fs-2xl);
+  --text-2xl--line-height: var(--lh-snug);
+  --text-3xl: var(--fs-3xl);
+  --text-3xl--line-height: var(--lh-tight);
+  --text-4xl: var(--fs-4xl);
+  --text-4xl--line-height: var(--lh-tight);
+  --text-5xl: var(--fs-5xl);
+  --text-5xl--line-height: var(--lh-tight);
+  --text-6xl: var(--fs-6xl);
+  --text-6xl--line-height: var(--lh-tight);
+  --text-7xl: var(--fs-7xl);
+  --text-7xl--line-height: var(--lh-tight);
+
+  --color-ticketground: var(--accent);
+  --color-ticketground-strong: var(--ink);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-surface: var(--bg-2);
+  --color-surface-2: var(--bg-3);
+  --color-surface-3: var(--bg-4);
+  --color-link: var(--link);
+  --color-sale: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-tier-vip: var(--tier-vip);
+  --color-tier-r: var(--tier-r);
+  --color-tier-s: var(--tier-s);
+  --color-tier-a: var(--tier-a);
+  --color-tier-b: var(--tier-b);
+  --color-tint-blue: color-mix(in srgb, var(--link) 8%, white);
+  --color-tint-red: color-mix(in srgb, var(--accent) 10%, white);
+  --color-tint-yellow: color-mix(in srgb, var(--accent-2) 35%, white);
+  --spacing-shell: var(--max-w);
+  --spacing-header: var(--header-h);
+  --spacing-catnav: var(--catnav-h);
+  --shadow-ticket-1: var(--shadow-1);
+  --shadow-ticket-2: var(--shadow-2);
+  --shadow-ticket-3: var(--shadow-3);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: var(--r-2xl);
+  --radius-3xl: var(--r-2xl);
+  --radius-4xl: var(--r-2xl);
+}
+
+:root {
+  --font-sans: "Pretendard Variable", var(--font-noto), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-display: "Pretendard Variable", var(--font-noto), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 20px;
+  --fs-3xl: 23px;
+  --fs-4xl: 28px;
+  --fs-5xl: 37px;
+  --fs-6xl: 50px;
+  --fs-7xl: 72px;
+  --fs-min: 13px;
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-base: 1.5;
+  --lh-loose: 1.7;
+  --ink: #1a1a1d;
+  --ink-2: #29292d;
+  --ink-3: #6b6b70;
+  --ink-4: #999999;
+  --line: rgba(0, 0, 0, .08);
+  --line-strong: rgba(0, 0, 0, .16);
+  --bg: #ffffff;
+  --bg-2: #f7f7f8;
+  --bg-3: #f3f3f3;
+  --bg-4: #ebebed;
+  --link: #1a47ff;
+  --accent: #ff2d3f;
+  --accent-2: #ffe92e;
+  --ok: #1f8a5b;
+  --warn: #c47a00;
+  --tier-vip: #1a1a1d;
+  --tier-r: #c2410c;
+  --tier-s: #1a47ff;
+  --tier-a: #1f8a5b;
+  --tier-b: #6b6b70;
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 20px;
+  --s-8: 24px;
+  --s-9: 32px;
+  --s-10: 48px;
+  --s-11: 64px;
+  --s-12: 96px;
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 12px;
+  --r-xl: 20px;
+  --r-2xl: 32px;
+  --r-pill: 100px;
+  --radius: var(--r-sm);
+  --shadow-1: rgba(0, 0, 0, .08) 0 1px 3px 0;
+  --shadow-2: rgba(0, 0, 0, .13) 0 0 8px 0;
+  --shadow-3: rgba(0, 0, 0, .16) 0 8px 24px -4px, rgba(0, 0, 0, .06) 0 2px 6px 0;
+  --max-w: 1240px;
+  --header-h: 64px;
+  --catnav-h: 48px;
+  --focus-ring: var(--link);
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--bg);
+  --card-foreground: var(--ink);
+  --popover: var(--bg);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--bg);
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--ink-2);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--ink-3);
+  --accent-foreground: var(--bg);
+  --destructive: var(--accent);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--focus-ring);
+  --chart-1: var(--ink);
+  --chart-2: var(--accent);
+  --chart-3: var(--accent-2);
+  --chart-4: var(--ok);
+  --chart-5: var(--warn);
+  --sidebar: var(--bg-2);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: var(--bg);
+  --sidebar-accent: var(--bg-3);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--focus-ring);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  html {
+    @apply font-sans;
+    background: var(--bg);
+  }
+  a {
+    color: inherit;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  a:hover {
+    color: var(--link);
+  }
+  :where(button, input, select, textarea) {
+    font: inherit;
+  }
+  :where(small, figcaption) {
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
+  }
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+  }
+}
+
+@layer utilities {
+  .shell,
+  .ticketground-container {
+    width: 100%;
+    max-width: var(--max-w);
+    margin-inline: auto;
+    padding-inline: 20px;
+  }
+  /* Horizontal scroll rows hide their scrollbar */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Line clamp helpers */
+  .clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}

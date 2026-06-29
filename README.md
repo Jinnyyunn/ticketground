@@ -1,93 +1,171 @@
-# Ticketground
+# AI Website Cloner Template
 
-Ticketground는 인터파크, YES24 같은 티켓 예매 경험을 기반으로 하되, 암표와 지정 양도를 줄이기 위한 공식 재판매 중심 티켓 플랫폼 MVP입니다.
+<a href="https://github.com/JCodesMore/ai-website-cloner-template/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a> <a href="https://github.com/JCodesMore/ai-website-cloner-template/stargazers"><img src="https://img.shields.io/github/stars/JCodesMore/ai-website-cloner-template?style=flat" alt="Stars" /></a> <a href="https://discord.gg/hrTSX5yTpB"><img src="https://img.shields.io/discord/1400896964597383279?label=discord" alt="Discord" /></a>
 
-블록체인 인프라 없이도 초기 서비스 검증이 가능하도록, 백엔드 정책 엔진과 해시 체인 감사 원장으로 “블록체인 유사 추적성”을 구현했습니다.
+A reusable template for reverse-engineering any website into a clean, modern Next.js codebase using AI coding agents.
 
-## 주요 기능
+**Recommended: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with Opus 4.7 for best results** — but works with a variety of AI coding agents.
 
-- 공연 카테고리 탐색: 콘서트, 스포츠, 뮤지컬
-- 공식 재판매 티켓 예매: 정가 예매 좌석과 공식 재판매 풀을 한 화면에서 확인
-- My 예매내역: 보유 티켓, 입장 QR, 재판매 등록, 회원정보 수정
-- 공식 재판매 풀: 1:1 지정 양도 대신 구역별 대기 풀 기반 매칭
-- 가격 정책: 재판매 하한/상한 검증
-- 동적 QR: 20초 만료 입장 토큰
-- 감사 원장: 주요 거래를 이전 해시와 연결해 위변조 탐지
+Point it at a URL, run `/clone-website`, and your AI agent will inspect the site, extract design tokens and assets, write component specs, and dispatch parallel builders to reconstruct every section.
 
-## 기술 구성
+## Demo
 
-- Frontend: HTML, CSS, Vanilla JavaScript
-- Backend: Node.js 기본 `http` 서버
-- Data: 로컬 JSON 파일 자동 생성
-- Audit: SHA-256 기반 append-only hash chain
-- QR: HMAC 서명 기반 단기 토큰
+[![Watch the demo](docs/design-references/comparison.png)](https://youtu.be/O669pVZ_qr0)
 
-외부 프레임워크 없이 실행되도록 구성한 MVP입니다.
+> Click the image above to watch the full demo on YouTube.
 
-## 실행 방법
+## Quick Start
 
-Node.js 20 이상을 권장합니다.
+> **Important:** Start by making your own copy with GitHub's **Use this template** button. Do not clone this template repository directly for your website project, and do not open pull requests here with your generated website.
+
+1. **Create your own repository from this template**
+
+   On the GitHub page for this project, click **Use this template**, then click **Create a new repository**.
+
+   Give your new repository a name, choose whether it should be public or private, then click **Create repository**. If GitHub shows an **Include all branches** option, you can leave it off.
+
+   This gives you your own separate project to work in, so your website changes stay in your account instead of coming back to the main template.
+
+2. **Open your new repository on your computer**
+
+   After GitHub creates your copy, open that new repository. Click **Code** and open or clone your new repository with your preferred coding tool.
+
+   If you use the terminal, the command will look like this:
+
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/YOUR-NEW-REPOSITORY.git
+   cd YOUR-NEW-REPOSITORY
+   ```
+
+3. **Install dependencies**
+   ```bash
+   npm install
+   ```
+4. **Start your AI agent** — Claude Code recommended:
+   ```bash
+   claude --chrome
+   ```
+5. **Run the skill**:
+   ```
+   /clone-website <target-url1> [<target-url2> ...]
+   ```
+6. **Customize** (optional) — after the base clone is built, modify as needed
+
+> Using a different agent? Open `AGENTS.md` for project instructions — most agents pick it up automatically.
+
+## Supported Platforms
+
+| Agent                                                         | Status                     |
+| ------------------------------------------------------------- | -------------------------- |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Recommended** — Opus 4.7 |
+| [Codex CLI](https://github.com/openai/codex)                  | Supported                  |
+| [OpenCode](https://opencode.ai/)                              | Supported                  |
+| [GitHub Copilot](https://github.com/features/copilot)         | Supported                  |
+| [Cursor](https://cursor.com/)                                 | Supported                  |
+| [Windsurf](https://codeium.com/windsurf)                      | Supported                  |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | Supported                  |
+| [Cline](https://github.com/cline/cline)                       | Supported                  |
+| [Roo Code](https://github.com/RooCodeInc/Roo-Code)            | Supported                  |
+| [Continue](https://continue.dev/)                             | Supported                  |
+| [Amazon Q](https://aws.amazon.com/q/developer/)               | Supported                  |
+| [Augment Code](https://www.augmentcode.com/)                  | Supported                  |
+| [Aider](https://aider.chat/)                                  | Supported                  |
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) 24+
+- An AI coding agent (see [Supported Platforms](#supported-platforms))
+
+## Tech Stack
+
+- **Next.js 16** — App Router, React 19, TypeScript strict
+- **shadcn/ui** — Radix primitives + Tailwind CSS v4
+- **Tailwind CSS v4** — oklch design tokens
+- **Lucide React** — default icons (replaced by extracted SVGs during cloning)
+
+## How It Works
+
+The `/clone-website` skill runs a multi-phase pipeline:
+
+1. **Reconnaissance** — screenshots, design token extraction, interaction sweep (scroll, click, hover, responsive)
+2. **Foundation** — updates fonts, colors, globals, downloads all assets
+3. **Component Specs** — writes detailed spec files (`docs/research/components/`) with exact computed CSS values, states, behaviors, and content
+4. **Parallel Build** — dispatches builder agents in git worktrees, one per section/component
+5. **Assembly & QA** — merges worktrees, wires up the page, runs visual diff against the original
+
+Each builder agent receives the full component specification inline — exact `getComputedStyle()` values, interaction models, multi-state content, responsive breakpoints, and asset paths. No guessing.
+
+## Use Cases
+
+- **Platform migration** — rebuild a site you own from WordPress/Webflow/Squarespace into a modern Next.js codebase
+- **Lost source code** — your site is live but the repo is gone, the developer left, or the stack is legacy. Get the code back in a modern format
+- **Learning** — deconstruct how production sites achieve specific layouts, animations, and responsive behavior by working with real code
+
+## Not Intended For
+
+- **Phishing or impersonation** — this project must not be used for deceptive purposes, impersonation, or any activity that breaks the law.
+- **Passing off someone's design as your own** — logos, brand assets, and original copy belong to their owners.
+- **Violating terms of service** — some sites explicitly prohibit scraping or reproduction. Check first.
+
+## Project Structure
+
+```
+src/
+  app/              # Next.js routes
+  components/       # React components
+    ui/             # shadcn/ui primitives
+    icons.tsx       # Extracted SVG icons
+  lib/utils.ts      # cn() utility
+  types/            # TypeScript interfaces
+  hooks/            # Custom React hooks
+public/
+  images/           # Downloaded images from target
+  videos/           # Downloaded videos from target
+  seo/              # Favicons, OG images
+docs/
+  research/         # Extraction output & component specs
+  design-references/ # Screenshots
+scripts/
+  sync-agent-rules.sh  # Regenerate agent instruction files
+  sync-skills.mjs      # Regenerate /clone-website for all platforms
+AGENTS.md           # Agent instructions (single source of truth)
+CLAUDE.md           # Claude Code config (imports AGENTS.md)
+GEMINI.md           # Gemini CLI config (imports AGENTS.md)
+```
+
+## Commands
 
 ```bash
-npm start
+npm run dev    # Start dev server
+npm run build  # Production build
+npm run lint   # ESLint check
+npm run typecheck # TypeScript check
+npm run check  # Run lint + typecheck + build
 ```
 
-브라우저에서 아래 주소를 엽니다.
+### If using docker
 
-```text
-http://localhost:4173
+```bash
+docker compose up app --build # build and run the app
+docker compose up dev --build # run the app in dev mode on port 3001
 ```
 
-운영 콘솔은 별도 포트에서 확인합니다.
+## Updating for Other Platforms
 
-```text
-http://localhost:50084
-```
+Two source-of-truth files power all platform support. Edit the source, then run the sync script:
 
-## 화면 구성
+| What                   | Source of truth                         | Sync command                       |
+| ---------------------- | --------------------------------------- | ---------------------------------- |
+| Project instructions   | `AGENTS.md`                             | `bash scripts/sync-agent-rules.sh` |
+| `/clone-website` skill | `.claude/skills/clone-website/SKILL.md` | `node scripts/sync-skills.mjs`     |
 
-### 공연
+Each script regenerates the platform-specific copies automatically. Agents that read the source files natively need no regeneration.
 
-콘서트, 스포츠, 뮤지컬 카테고리를 선택해 판매 티켓을 확인합니다.
 
-### 공식 재판매 티켓 예매
+## Star History
 
-정가 예매 가능한 좌석과 공식 재판매 대기 풀을 함께 보여줍니다.
+[![Star History Chart](https://api.star-history.com/svg?repos=JCodesMore/ai-website-cloner-template&type=Date)](https://star-history.com/#JCodesMore/ai-website-cloner-template&Date)
 
-### My 예매내역
+## License
 
-보유 티켓, 모바일 입장 QR, 재판매 등록, 회원정보 수정을 관리합니다.
-
-## API 요약
-
-- `GET /api/state`: 전체 화면 상태 조회
-- `GET /api/ledger`: 최근 감사 원장 조회
-- `GET /api/ledger/verify`: 감사 원장 검증
-- `POST /api/tickets/buy`: 1차 티켓 구매
-- `POST /api/resale/list`: 보유 티켓 공식 재판매 등록
-- `POST /api/resale/join`: 공식 재판매 풀 대기 신청
-- `POST /api/resale/draw`: 재판매 풀 랜덤 매칭
-- `POST /api/tickets/qr`: 동적 입장 QR 발급
-- `POST /api/gate/verify`: 게이트 QR 검증
-
-## 블록체인 대체 설계
-
-초기 예산에서 NFT/스마트컨트랙트 기반 인프라를 바로 구축하기 어렵다는 전제로, 아래와 같이 대체했습니다.
-
-| 블록체인 기반 표현 | MVP 대체 구성 |
-| --- | --- |
-| NFT 티켓 | 중앙 DB 티켓 레코드 |
-| 스마트 계약 | 백엔드 정책 엔진 |
-| 온체인 기록 | 해시 체인 감사 원장 |
-| 개인 지갑 | 실명 계정 기반 플랫폼 보관 지갑 |
-| 전송 승인 | 서버 API 승인 및 HMAC 서명 |
-| 장외 양도 차단 | 지정 양도 경로 미제공 + 제재 로그 |
-
-## 실제 서비스화 시 보강할 부분
-
-- PostgreSQL 또는 MySQL 기반 영속 DB
-- PG/에스크로 정산 및 결제 대행 연동
-- 본인인증 및 계정 중복 탐지
-- 어드민 페이지와 신고/제재 워크플로우
-- 현장 게이트 앱
-- 개인정보보호, 전자금융, 환불 약관 검토
+MIT
