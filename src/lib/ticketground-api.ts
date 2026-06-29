@@ -1,16 +1,19 @@
-import type {
-  ApiDirectTransferResult,
-  ApiPurchaseResult,
-  ApiResalePool,
-  ApiResaleResult,
-  ApiSeatMap,
-  ApiSession,
-  ApiState,
-  ApiSupportThread,
-  ApiTicket,
-  ApiVirtualQr,
-  ApiWatchlistItem,
-} from "./ticketground-api-types";
+import {
+  apiDirectTransferResultSchema,
+  apiPurchaseResultSchema,
+  apiResalePoolSchema,
+  apiResaleResultSchema,
+  apiSeatMapSchema,
+  apiSessionSchema,
+  apiStateSchema,
+  apiSupportThreadSchema,
+  apiTicketSchema,
+  apiVirtualQrSchema,
+  apiWatchlistItemSchema,
+  notifyWatchlistResultSchema,
+  upsertWatchlistResultSchema,
+} from "./ticketground-api-schemas";
+import { z, type ZodType } from "zod";
 
 export const DEMO_USER_ID = "user_fan_a";
 export const DEMO_BUYER_ID = "user_fan_b";
@@ -49,7 +52,21 @@ type ApiEnvelope<T> =
   | { readonly ok: true; readonly data: T }
   | { readonly ok: false; readonly error: { readonly code?: string; readonly message?: string; readonly detail?: unknown } };
 
-async function readApi<T>(path: string, init?: RequestInit): Promise<T> {
+function apiEnvelopeSchema<T>(dataSchema: ZodType<T>) {
+  return z.discriminatedUnion("ok", [
+    z.object({ ok: z.literal(true), data: dataSchema }),
+    z.object({
+      ok: z.literal(false),
+      error: z.object({
+        code: z.string().optional(),
+        message: z.string().optional(),
+        detail: z.unknown().optional(),
+      }),
+    }),
+  ]) satisfies ZodType<ApiEnvelope<T>>;
+}
+
+async function readApi<T>(path: string, dataSchema: ZodType<T>, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
     headers: {
@@ -57,7 +74,7 @@ async function readApi<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
-  const payload = (await response.json()) as ApiEnvelope<T>;
+  const payload = apiEnvelopeSchema(dataSchema).parse(await response.json());
   if (!response.ok || !payload.ok) {
     const message = payload.ok ? "요청을 처리하지 못했습니다." : payload.error.message ?? "요청을 처리하지 못했습니다.";
     const code = payload.ok ? "HTTP_ERROR" : payload.error.code ?? "API_ERROR";
@@ -66,23 +83,23 @@ async function readApi<T>(path: string, init?: RequestInit): Promise<T> {
   return payload.data;
 }
 
-function post<T>(path: string, body: Record<string, unknown>) {
-  return readApi<T>(path, {
+function post<T>(path: string, dataSchema: ZodType<T>, body: Record<string, unknown>) {
+  return readApi(path, dataSchema, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
 export function getState() {
-  return readApi<ApiState>("/api/state");
+  return readApi("/api/state", apiStateSchema);
 }
 
 export function getSeatMap(eventId = DEMO_EVENT_ID) {
-  return readApi<ApiSeatMap>(`/api/seat-map?eventId=${encodeURIComponent(eventId)}`);
+  return readApi(`/api/seat-map?eventId=${encodeURIComponent(eventId)}`, apiSeatMapSchema);
 }
 
 export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
-  return post<ApiPurchaseResult>("/api/tickets/buy", {
+  return post("/api/tickets/buy", apiPurchaseResultSchema, {
     userId,
     ticketId,
     paymentMethod: "CREDIT_CARD",
@@ -90,11 +107,11 @@ export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
 }
 
 export function getUserTickets(userId = DEMO_USER_ID) {
-  return readApi<readonly ApiTicket[]>(`/api/users/${encodeURIComponent(userId)}/tickets`);
+  return readApi(`/api/users/${encodeURIComponent(userId)}/tickets`, z.array(apiTicketSchema));
 }
 
 export function listResale(ticketId: string, price: number, sellerId = DEMO_USER_ID) {
-  return post<ApiResalePool>("/api/resale/list", {
+  return post("/api/resale/list", apiResalePoolSchema, {
     sellerId,
     ticketId,
     price,
@@ -102,21 +119,21 @@ export function listResale(ticketId: string, price: number, sellerId = DEMO_USER
 }
 
 export function joinResale(poolId: string, buyerId = DEMO_SCALPER_ID) {
-  return post<ApiResalePool>("/api/resale/join", {
+  return post("/api/resale/join", apiResalePoolSchema, {
     buyerId,
     poolId,
   });
 }
 
 export function drawResale(poolId: string) {
-  return post<ApiResaleResult>("/api/resale/draw", {
+  return post("/api/resale/draw", apiResaleResultSchema, {
     poolId,
     paymentMethod: "CREDIT_CARD",
   });
 }
 
 export function purchaseResale(poolId: string, buyerId = DEMO_BUYER_ID) {
-  return post<ApiResaleResult>("/api/resale/purchase", {
+  return post("/api/resale/purchase", apiResaleResultSchema, {
     buyerId,
     poolId,
     paymentMethod: "CREDIT_CARD",
@@ -124,14 +141,14 @@ export function purchaseResale(poolId: string, buyerId = DEMO_BUYER_ID) {
 }
 
 export function getVirtualQr(ticketId: string, userId = DEMO_USER_ID) {
-  return post<ApiVirtualQr>("/api/tickets/virtual-qr", {
+  return post("/api/tickets/virtual-qr", apiVirtualQrSchema, {
     userId,
     ticketId,
   });
 }
 
 export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYER_ID) {
-  return post<ApiDirectTransferResult>("/api/security/direct-transfer-attempt", {
+  return post("/api/security/direct-transfer-attempt", apiDirectTransferResultSchema, {
     actorId: DEMO_USER_ID,
     ticketId,
     targetUserId,
@@ -140,21 +157,21 @@ export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYE
 }
 
 export function getSession(userId = DEMO_USER_ID) {
-  return readApi<ApiSession>(`/api/users/${encodeURIComponent(userId)}/session`);
+  return readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
 }
 
 export function updateProfile(name: string, userId = DEMO_USER_ID) {
-  return post<ApiSession>(`/api/users/${encodeURIComponent(userId)}/profile`, {
+  return post(`/api/users/${encodeURIComponent(userId)}/profile`, apiSessionSchema, {
     name,
   });
 }
 
 export function getWatchlist(userId = DEMO_USER_ID) {
-  return readApi<readonly ApiWatchlistItem[]>(`/api/users/${encodeURIComponent(userId)}/watchlist`);
+  return readApi(`/api/users/${encodeURIComponent(userId)}/watchlist`, z.array(apiWatchlistItemSchema));
 }
 
 export function upsertWatchlist(eventId: string, channels: readonly string[], userId = DEMO_USER_ID) {
-  return post<{ readonly watchlist: ApiWatchlistItem; readonly notificationJobs: ApiWatchlistItem["notificationJobs"] }>("/api/watchlist", {
+  return post("/api/watchlist", upsertWatchlistResultSchema, {
     userId,
     eventId,
     channels,
@@ -164,7 +181,7 @@ export function upsertWatchlist(eventId: string, channels: readonly string[], us
 }
 
 export function notifyWatchlist(eventId: string, userId = DEMO_USER_ID) {
-  return post<{ readonly notificationJob: { readonly id: string; readonly status: string } }>("/api/watchlist/notify", {
+  return post("/api/watchlist/notify", notifyWatchlistResultSchema, {
     userId,
     eventId,
     type: "STATUS_CHANGE",
@@ -173,11 +190,11 @@ export function notifyWatchlist(eventId: string, userId = DEMO_USER_ID) {
 }
 
 export function getSupportThreads(userId = DEMO_USER_ID) {
-  return readApi<readonly ApiSupportThread[]>(`/api/support/threads?userId=${encodeURIComponent(userId)}`);
+  return readApi(`/api/support/threads?userId=${encodeURIComponent(userId)}`, z.array(apiSupportThreadSchema));
 }
 
 export function createSupportThread(message: string, subject = "1:1 실시간 문의", userId = DEMO_USER_ID) {
-  return post<ApiSupportThread>("/api/support/threads", {
+  return post("/api/support/threads", apiSupportThreadSchema, {
     userId,
     subject,
     message,
@@ -185,7 +202,7 @@ export function createSupportThread(message: string, subject = "1:1 실시간 �
 }
 
 export function addSupportMessage(threadId: string, message: string, actorId = DEMO_USER_ID) {
-  return post<ApiSupportThread>("/api/support/messages", {
+  return post("/api/support/messages", apiSupportThreadSchema, {
     threadId,
     actorId,
     message,
