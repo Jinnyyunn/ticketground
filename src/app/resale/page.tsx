@@ -8,12 +8,29 @@ export const metadata: Metadata = {
   description: "Ticketground 클린 티켓 공식 재판매 풀",
 };
 
-export default function ResalePage() {
+const defaultDemoUserId = "user_fan_a";
+
+function firstQueryValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
+
+export default async function ResalePage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<{ sessionUserId?: string | string[]; userId?: string | string[] }>;
+}) {
+  const query = await searchParams;
+  const sessionUserId = firstQueryValue(query.sessionUserId) || firstQueryValue(query.userId) || defaultDemoUserId;
   const show = ticketShows.find((item) => item.slug === cleanTicketReservation.showSlug);
 
   return (
     <TicketingPageShell>
-      <ResaleFlow reservation={cleanTicketReservation} showTitle={show?.title ?? cleanTicketReservation.showTitle} />
+      <ResaleFlow
+        reservation={cleanTicketReservation}
+        sessionUserId={sessionUserId}
+        showTitle={show?.title ?? cleanTicketReservation.showTitle}
+      />
     </TicketingPageShell>
   );
 }

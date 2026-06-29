@@ -72,18 +72,18 @@ export function SiteHeader() {
         </div>
       </div>
 
-      <div className="ticketground-container flex h-[64px] items-center gap-8">
-        <Link href="/" className="flex shrink-0 items-center gap-1 text-[25px] font-black tracking-normal text-ink">
+      <div className="ticketground-container flex h-[64px] items-center gap-3 overflow-hidden sm:gap-8">
+        <Link href="/" className="flex shrink-0 items-center gap-1 text-[22px] font-black tracking-normal text-ink sm:text-[25px]">
           Ticketground
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
-        <SearchBar className="w-full max-w-[460px] shrink" />
-        <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-5">
+        <SearchBar className="hidden w-full max-w-[460px] shrink sm:flex" />
+        <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-3 sm:gap-5">
           {iconLinks.map(({ label, href, Icon }) => (
             <Link
               key={label}
               href={href}
-              className="grid min-w-12 justify-items-center gap-1 text-[13px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="grid min-w-10 justify-items-center gap-1 text-[12px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-w-12 sm:text-[13px]"
             >
               <Icon className="size-[22px]" />
               {label}
@@ -98,8 +98,8 @@ export function SiteHeader() {
           scrolled && "shadow-ticket-1",
         )}
       >
-        <div className="ticketground-container flex h-12 items-center gap-7 text-[15px]">
-          <nav aria-label="카테고리" className="flex min-w-0 items-center gap-7 overflow-x-auto">
+        <div className="ticketground-container flex h-12 items-center gap-4 overflow-hidden text-[15px] md:gap-7">
+          <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 flex-1 items-center gap-6 overflow-x-auto md:gap-7">
             {categoryNav.map((c) => (
               <Link
                 key={c}
@@ -113,7 +113,7 @@ export function SiteHeader() {
           <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
             <SearchBar className="mx-auto max-w-[420px]" />
           </div>
-          <nav aria-label="티켓오픈" className="ml-auto flex shrink-0 items-center gap-5">
+          <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 md:flex">
             {categoryNavHighlight.map((c) => (
               <Link
                 key={c}
