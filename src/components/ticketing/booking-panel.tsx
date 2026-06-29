@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
 import { currency } from "@/data/ticketing";
-import { DEMO_EVENT_ID, getSeatMap, type ApiSeat, type ApiSeatMap } from "@/lib/ticketground-api";
+import { DEMO_EVENT_ID, getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
+import { BackendSeatPicker } from "./backend-seat-picker";
+import { BookingSummaryRow } from "./booking-summary-row";
 import { createSeatMap, SeatMap, type SeatOption, type SeatTier } from "./seat-map";
 
 const serviceFeePerSeat = 2000;
@@ -225,67 +227,17 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
         <aside className="h-fit min-w-0 rounded-[12px] border border-line bg-white p-6 shadow-ticket-1 lg:sticky lg:top-6">
           <h2 className="clamp-2 text-[20px] font-black text-ink">{show.title}</h2>
           <dl className="mt-5 space-y-3 text-[14px]">
-            <SummaryRow label="관람일" value={date || "선택 전"} />
-            <SummaryRow label="회차" value={time || "선택 전"} />
-            <SummaryRow label="선택 좌석" value={selectedLabels || "선택 전"} />
-            <SummaryRow label="매수" value={`${selectedCount}/${quantity}매`} />
-            <SummaryRow label="좌석 금액" value={currency(baseAmount)} strong />
-            <SummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
-            <SummaryRow label="총 결제금액" value={currency(totalAmount)} total />
+            <BookingSummaryRow label="관람일" value={date || "선택 전"} />
+            <BookingSummaryRow label="회차" value={time || "선택 전"} />
+            <BookingSummaryRow label="선택 좌석" value={selectedLabels || "선택 전"} />
+            <BookingSummaryRow label="매수" value={`${selectedCount}/${quantity}매`} />
+            <BookingSummaryRow label="좌석 금액" value={currency(baseAmount)} strong />
+            <BookingSummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
+            <BookingSummaryRow label="총 결제금액" value={currency(totalAmount)} total />
           </dl>
           <p className="mt-4 rounded-[8px] bg-tint-yellow px-3 py-2 text-[13px] font-bold text-ink">정책: 3번째 좌석 선택 시 가장 오래된 좌석이 자동 해제됩니다.</p>
         </aside>
       </div>
-    </div>
-  );
-}
-
-function BackendSeatPicker({
-  onSelect,
-  seats,
-  selectedTicketId,
-  status,
-}: {
-  readonly onSelect: (ticketId: string) => void;
-  readonly seats: readonly ApiSeat[];
-  readonly selectedTicketId: string;
-  readonly status: string;
-}) {
-  return (
-    <div className="min-w-0 rounded-[12px] border border-line bg-white p-4 sm:p-5" aria-live="polite">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] font-black text-ticketground">백엔드 좌석도</p>
-          <h3 className="balanced-title mt-1 text-[18px] font-black text-ink">실제 구매 가능한 티켓 선택</h3>
-        </div>
-        <span className="max-w-full rounded-full bg-surface px-3 py-1 text-[13px] font-black text-ink-3">{status}</span>
-      </div>
-      <div className="mt-4 grid max-h-[260px] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-        {seats.map((seat) => (
-          <button
-            key={seat.id}
-            type="button"
-            onClick={() => onSelect(seat.id)}
-            className={cn(
-              "flex min-w-0 items-center justify-between gap-3 rounded-[8px] border p-3 text-left text-[13px] font-bold transition focus-visible:ring-3 focus-visible:ring-ring/40",
-              selectedTicketId === seat.id ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink hover:border-line-strong",
-            )}
-          >
-            <span className="shrink-0 text-[15px] font-black">{seat.displayCode}</span>
-            <span className="min-w-0 whitespace-nowrap text-right opacity-75">{seat.zoneName} · {currency(seat.price)}</span>
-          </button>
-        ))}
-        {seats.length === 0 && <p className="text-[13px] font-bold text-ink-3">선택 가능한 백엔드 좌석이 없습니다.</p>}
-      </div>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value, strong, total }: { readonly label: string; readonly value: string; readonly strong?: boolean; readonly total?: boolean }) {
-  return (
-    <div className={cn("flex justify-between gap-4", total && "border-t border-line pt-4")}>
-      <dt className="text-ink-3">{label}</dt>
-      <dd className={cn("min-w-0 text-right font-bold text-ink", strong && "text-[16px]", total && "text-[22px] font-black text-ticketground")}>{value}</dd>
     </div>
   );
 }
