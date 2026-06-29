@@ -1,5 +1,4 @@
-@import "tailwindcss" source(none);
-@source "/Users/yeoreum/Documents/TicketGround/src";
+@import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -308,5 +307,10 @@
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  .balanced-title {
+    text-wrap: balance;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 }

@@ -29,8 +29,8 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
   const lesMiserablesMode = query.includes("레미제라블");
 
   return (
-    <section className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_300px]">
-      <div>
+    <section className="ticketground-container grid min-w-0 gap-8 py-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0">
         <form action="/contents/search" className="flex rounded-full border border-line bg-white p-1">
           <input name="q" defaultValue={query} placeholder="공연명, 장소, 장르를 검색하세요" className="h-11 flex-1 rounded-full px-4 text-base outline-none" />
           <button className="h-11 rounded-full bg-ink px-6 text-base font-black text-white">검색</button>
@@ -79,7 +79,7 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
         <div className="mt-8 grid gap-4">
           {visibleResults.length === 0 ? (
             <div className="rounded-lg bg-surface p-10 text-center">
-              <h2 className="text-2xl font-black text-ink">&quot;{query}&quot;에 대한 판매중/예정 공연이 없습니다.</h2>
+              <h2 className="balanced-title text-[22px] font-black leading-tight text-ink sm:text-2xl">&quot;{query}&quot;에 대한 판매중/예정 공연이 없습니다.</h2>
               <p className="mt-3 text-base text-ink-3">판매종료된 공연 또는 인기 공연 정보를 확인해 보세요.</p>
             </div>
           ) : (

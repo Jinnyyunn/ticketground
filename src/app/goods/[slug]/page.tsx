@@ -28,12 +28,12 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
   return (
     <TicketingPageShell>
       <main className="ticketground-container py-10">
-        <section className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)_360px]">
-          <article className="overflow-hidden rounded-lg bg-ink text-white shadow-ticket-3">
+        <section className="grid min-w-0 gap-8 lg:grid-cols-[320px_minmax(0,1fr)_360px]">
+          <article className="min-w-0 overflow-hidden rounded-lg bg-ink text-white shadow-ticket-3">
             <div className="poster g2 min-h-[426px] p-6">
               <div className="flex h-full flex-col justify-end">
                 <p className="text-sm font-bold text-white/75">{show.category}</p>
-                <h1 className="mt-3 text-4xl font-black leading-tight text-balance">{show.shortTitle}</h1>
+                <h1 className="balanced-title mt-3 text-[32px] font-black leading-tight sm:text-4xl">{show.shortTitle}</h1>
                 <p className="mt-3 text-sm font-bold text-white/80">{show.venue}</p>
               </div>
             </div>
@@ -44,7 +44,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               {show.badge && <span className="rounded bg-tint-yellow px-2 py-1 text-xs font-black text-ink">{show.badge}</span>}
               {show.ranking && <span className="text-sm font-bold text-ticketground">{show.ranking}</span>}
             </div>
-            <h2 className="mt-4 text-4xl font-black leading-tight text-ink text-balance">{show.title}</h2>
+            <h2 className="balanced-title mt-4 text-[30px] font-black leading-tight text-ink sm:text-4xl">{show.title}</h2>
             <p className="mt-4 max-w-[680px] text-base leading-loose text-ink-3">{show.summary}</p>
 
             <dl className="mt-8 grid gap-0 overflow-hidden rounded-lg border border-line text-sm md:grid-cols-2">
@@ -54,9 +54,9 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                 ["공연시간", show.runtime],
                 ["관람연령", show.ageLimit],
               ].map(([label, value]) => (
-                <div key={label} className="grid grid-cols-[92px_1fr] gap-4 border-b border-line px-4 py-4 even:md:border-l md:[&:nth-last-child(-n+2)]:border-b-0">
-                  <dt className="font-bold text-ink-3">{label}</dt>
-                  <dd className="font-semibold text-ink">{value}</dd>
+                  <div key={label} className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] gap-4 border-b border-line px-4 py-4 even:md:border-l md:[&:nth-last-child(-n+2)]:border-b-0">
+                    <dt className="font-bold text-ink-3">{label}</dt>
+                    <dd className="min-w-0 font-semibold text-ink">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -65,9 +65,9 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               <h3 className="text-lg font-black text-ink">좌석 가격</h3>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 {show.prices.map((price) => (
-                  <div key={price.seat} className="flex justify-between rounded-sm bg-card px-4 py-3 text-sm">
-                    <span className="font-bold text-ink-2">{price.seat}</span>
-                    <strong className="text-ink">{currency(price.price)}</strong>
+                  <div key={price.seat} className="flex min-w-0 justify-between gap-3 rounded-sm bg-card px-4 py-3 text-sm">
+                    <span className="min-w-0 font-bold text-ink-2">{price.seat}</span>
+                    <strong className="shrink-0 text-ink">{currency(price.price)}</strong>
                   </div>
                 ))}
               </div>
@@ -76,9 +76,9 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
           <DetailBookingPanel slug={show.slug} title={show.title} schedules={show.schedules} />
 
-          <nav className="sticky top-[112px] z-20 flex gap-2 overflow-x-auto border-y border-line bg-background/95 py-3 backdrop-blur lg:col-span-2" aria-label="상세 정보 바로가기">
+          <nav className="no-scrollbar sticky top-[112px] z-20 flex gap-2 overflow-x-auto border-y border-line bg-background/95 py-3 backdrop-blur lg:col-span-2" aria-label="상세 정보 바로가기">
             {tabLinks.map((tab) => (
-              <Link key={tab.href} href={tab.href} className="rounded-full px-4 py-2 text-sm font-black text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
+              <Link key={tab.href} href={tab.href} className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-black text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
                 {tab.label}
               </Link>
             ))}
@@ -87,7 +87,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
           <div className="min-w-0 space-y-12 lg:col-span-2">
             <section id="intro" className="scroll-mt-[176px]">
               <p className="text-sm font-black text-ticketground">공연소개</p>
-              <h2 className="mt-2 text-3xl font-black text-ink">클린티켓으로 만나는 대표 회차</h2>
+              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">클린티켓으로 만나는 대표 회차</h2>
               <p className="mt-4 text-base leading-loose text-ink-3">
                 {show.summary} 공식 재판매와 공식 양도 정책이 함께 적용되어 좌석 소유, 입장 QR, 거래 기록이 분리 관리됩니다.
               </p>
@@ -97,7 +97,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className="text-sm font-black text-ticketground">출연진</p>
-                  <h2 className="mt-2 text-3xl font-black text-ink">주요 캐스트</h2>
+                  <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">주요 캐스트</h2>
                 </div>
                 <Link href="/artist/dracula-cast" className="text-sm font-bold text-ticketground">
                   아티스트 보기
@@ -105,7 +105,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {show.casts.map((cast) => (
-                  <Link key={cast} href="/artist/dracula-cast" className="group rounded-lg border border-line bg-card p-4 text-center transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50">
+                  <Link key={cast} href="/artist/dracula-cast" data-allow-wrap="true" className="group rounded-lg border border-line bg-card p-4 text-center transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50">
                     <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-white transition-colors group-hover:bg-ticketground">
                       {cast.slice(0, 1)}
                     </span>
@@ -117,7 +117,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
             <section id="schedule" className="scroll-mt-[176px]">
               <p className="text-sm font-black text-ticketground">공연일정</p>
-              <h2 className="mt-2 text-3xl font-black text-ink">5월 회차 캘린더</h2>
+              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">5월 회차 캘린더</h2>
               <div className="mt-5 grid gap-5 lg:grid-cols-[300px_1fr]">
                 <div className="rounded-lg border border-line bg-card p-4">
                   <div className="grid grid-cols-7 gap-1 text-center text-xs font-black text-ink-3">
@@ -161,7 +161,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
             <section id="place" className="scroll-mt-[176px]">
               <p className="text-sm font-black text-ticketground">장소</p>
-              <h2 className="mt-2 text-3xl font-black text-ink">{show.venue}</h2>
+              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">{show.venue}</h2>
               <div className="mt-5 rounded-lg border border-line bg-card p-5">
                 <div className="grid gap-5 md:grid-cols-[1fr_220px]">
                   <div>
@@ -191,7 +191,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
             <section id="notices" className="scroll-mt-[176px]">
               <p className="text-sm font-black text-ticketground">유의사항</p>
-              <h2 className="mt-2 text-3xl font-black text-ink">클린티켓 운영 안내</h2>
+              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">클린티켓 운영 안내</h2>
               <ul className="mt-5 grid gap-3 text-sm leading-loose text-ink-3">
                 {show.notices.map((notice) => (
                   <li key={notice} className="rounded-sm border border-line bg-card px-4 py-3">

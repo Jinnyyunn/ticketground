@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, CalendarDays, CheckCircle2 } from "lucide-react";
+import { DEMO_EVENT_ID, getWatchlist, notifyWatchlist, upsertWatchlist } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 
 type WatchShow = {
@@ -40,6 +41,38 @@ const timeline = [
 export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[] }) {
   const [showAlerts, setShowAlerts] = useState(() => new Set(shows.filter((show) => show.defaultEnabled).map((show) => show.slug)));
   const [channelAlerts, setChannelAlerts] = useState(() => new Set(channels.filter((channel) => channel.defaultEnabled).map((channel) => channel.id)));
+  const [backendStatus, setBackendStatus] = useState("백엔드 관심공연 동기화 중");
+
+  function selectedBackendChannels(nextChannelAlerts = channelAlerts) {
+    return channels
+      .filter((channel) => nextChannelAlerts.has(channel.id))
+      .map((channel) => channel.id === "appPush" ? "APP_PUSH" : channel.id.toUpperCase());
+  }
+
+  async function refreshWatchlist() {
+    try {
+      const watchlist = await getWatchlist();
+      setBackendStatus(watchlist.length ? `${watchlist.length}건의 백엔드 관심공연 저장됨` : "백엔드 관심공연이 아직 없습니다.");
+    } catch (error) {
+      setBackendStatus(error instanceof Error ? error.message : "백엔드 관심공연을 불러오지 못했습니다.");
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    getWatchlist()
+      .then((watchlist) => {
+        if (!mounted) return;
+        setBackendStatus(watchlist.length ? `${watchlist.length}건의 백엔드 관심공연 저장됨` : "백엔드 관심공연이 아직 없습니다.");
+      })
+      .catch((error: unknown) => {
+        if (!mounted) return;
+        setBackendStatus(error instanceof Error ? error.message : "백엔드 관심공연을 불러오지 못했습니다.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const toggleShow = (slug: string) => {
     setShowAlerts((current) => {
@@ -48,6 +81,17 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
       else next.add(slug);
       return next;
     });
+    if (!showAlerts.has(slug)) {
+      setBackendStatus("백엔드 관심공연 저장 중");
+      upsertWatchlist(DEMO_EVENT_ID, selectedBackendChannels())
+        .then((result) => {
+          setBackendStatus(`${result.watchlist.id} 저장 · 알림 ${result.notificationJobs.length}건 예약`);
+          return refreshWatchlist();
+        })
+        .catch((error: unknown) => {
+          setBackendStatus(error instanceof Error ? error.message : "백엔드 관심공연 저장에 실패했습니다.");
+        });
+    }
   };
 
   const toggleChannel = (id: ChannelId) => {
@@ -55,9 +99,26 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      void upsertWatchlist(DEMO_EVENT_ID, selectedBackendChannels(next))
+        .then((result) => {
+          setBackendStatus(`${result.watchlist.id} 채널 저장 · ${result.watchlist.channels.join(", ")}`);
+        })
+        .catch((error: unknown) => {
+          setBackendStatus(error instanceof Error ? error.message : "백엔드 채널 저장에 실패했습니다.");
+        });
       return next;
     });
   };
+
+  async function recordNotification() {
+    setBackendStatus("백엔드 알림 기록 중");
+    try {
+      const result = await notifyWatchlist(DEMO_EVENT_ID);
+      setBackendStatus(`알림 기록 완료 · ${result.notificationJob.status}`);
+    } catch (error) {
+      setBackendStatus(error instanceof Error ? error.message : "백엔드 알림 기록에 실패했습니다.");
+    }
+  }
 
   return (
     <section className="ticketground-container py-10">
@@ -65,8 +126,9 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
         <p className="text-sm font-black text-ticketground">관심공연·알림</p>
         <h1 className="mt-2 text-[34px] font-black text-ink">예매 오픈 알림</h1>
         <p className="mt-3 max-w-2xl text-sm text-ink-3">
-          관심공연별 D-3와 당일 알림 상태를 확인합니다. 이 화면의 설정은 브라우저 상태로만 표시되며 실제 알림 발송이나 저장에 연결되어 있지 않습니다.
+          관심공연별 D-3와 당일 알림 상태를 확인하고 백엔드 관심공연 API에 저장합니다.
         </p>
+        <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink-3" aria-live="polite">{backendStatus}</p>
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -97,6 +159,11 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
                       label={`${show.title} 알림`}
                       onToggle={() => toggleShow(show.slug)}
                     />
+                    {enabled && (
+                      <button type="button" onClick={recordNotification} className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-black text-white">
+                        즉시 알림 기록
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>

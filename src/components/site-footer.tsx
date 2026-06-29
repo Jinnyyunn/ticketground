@@ -6,7 +6,7 @@ export function SiteFooter() {
     <footer className="mt-[70px] border-t border-line bg-white text-ink">
       <div className="ticketground-container grid gap-8 py-10 md:grid-cols-4">
         <div>
-          <Link href="/" className="inline-flex items-center gap-1 text-[22px] font-black text-ink">
+          <Link href="/" className="inline-flex items-center gap-1 whitespace-nowrap text-[22px] font-black text-ink">
             Ticketground
             <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
           </Link>
@@ -40,9 +40,6 @@ export function SiteFooter() {
       <div className="border-t border-line">
         <div className="ticketground-container flex flex-col gap-3 py-5 text-[13px] text-ink-4 md:flex-row md:items-center">
           <p>© Ticketground Inc. 통신판매중개자로서 공연 예매와 공식 문의 연결을 제공합니다.</p>
-          <Link href="/admin" className="md:ml-auto hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
-            운영 콘솔
-          </Link>
         </div>
       </div>
     </footer>

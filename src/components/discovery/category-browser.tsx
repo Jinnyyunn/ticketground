@@ -67,7 +67,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
     <section className="ticketground-container py-10">
       <div className="cat-head border-b border-line pb-7">
         <p className="text-sm font-black text-ticketground">Ticketground</p>
-        <h1 className="mt-2 text-5xl font-black text-ink">{label} 예매</h1>
+        <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">{label} 예매</h1>
         <p className="mt-3 max-w-[760px] text-base leading-relaxed text-ink-3">
           공식 재판매와 동적 QR 정책이 연결된 대표 공연을 필터와 레이아웃으로 빠르게 비교합니다.
         </p>

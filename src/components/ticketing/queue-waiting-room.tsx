@@ -61,27 +61,27 @@ export function QueueWaitingRoom({
   }, [bookingHref, countdown, isReady, router]);
 
   return (
-    <main className="min-h-screen bg-[#08090d] px-6 py-8 text-white">
-      <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-[1180px] items-center gap-8 lg:grid-cols-[1fr_460px]">
-        <div>
-          <p className="text-[13px] font-bold uppercase tracking-[0.18em] text-white/55">Ticketground Waiting Room</p>
-          <h1 className="mt-4 max-w-[760px] text-[44px] font-black leading-[1.08]">
+    <main className="min-h-screen overflow-x-hidden bg-[#08090d] px-4 py-8 text-white sm:px-6">
+      <section className="mx-auto grid min-h-[calc(100vh-64px)] min-w-0 max-w-[1180px] items-center gap-8 lg:grid-cols-[minmax(0,1fr)_460px]">
+        <div className="min-w-0">
+          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 sm:text-[13px] sm:tracking-[0.18em]">Ticketground Waiting Room</p>
+          <h1 className="balanced-title mt-4 max-w-[760px] text-[32px] font-black leading-[1.12] sm:text-[44px] sm:leading-[1.08]">
             접속 순서가 되면 자동으로 좌석 선택 화면으로 이동합니다.
           </h1>
-          <div className="mt-8 grid max-w-[720px] gap-4 border-y border-white/12 py-6 sm:grid-cols-3">
+          <div className="mt-8 grid min-w-0 max-w-[720px] gap-4 border-y border-white/12 py-6 sm:grid-cols-3">
             <div>
               <p className="text-[13px] text-white/45">공연</p>
-              <p className="mt-2 text-[18px] font-bold">{title}</p>
+              <p className="balanced-title mt-2 text-[17px] font-bold sm:text-[18px]">{title}</p>
             </div>
             <div>
               <p className="text-[13px] text-white/45">일시</p>
-              <p className="mt-2 text-[18px] font-bold">
+              <p className="mt-2 text-[17px] font-bold sm:text-[18px]">
                 {date} · {time}
               </p>
             </div>
             <div>
               <p className="text-[13px] text-white/45">장소</p>
-              <p className="mt-2 text-[18px] font-bold">{venue}</p>
+              <p className="balanced-title mt-2 text-[17px] font-bold sm:text-[18px]">{venue}</p>
             </div>
           </div>
           <p data-queue-warning className="mt-6 max-w-[620px] rounded-[8px] border border-[#ff2d3f]/50 bg-[#ff2d3f]/12 px-4 py-3 text-[14px] font-semibold text-[#ffb8bf]">
@@ -89,7 +89,7 @@ export function QueueWaitingRoom({
           </p>
         </div>
 
-        <div className="rounded-[12px] border border-white/12 bg-white/[0.06] p-7 shadow-[0_24px_70px_rgba(0,0,0,0.36)]">
+        <div className="min-w-0 rounded-[12px] border border-white/12 bg-white/[0.06] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.36)] sm:p-7">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-[13px] font-bold text-white/50">내 앞 대기 인원</p>

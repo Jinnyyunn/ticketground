@@ -8,16 +8,16 @@ export default function PlacePage() {
 
   return (
     <TicketingPageShell>
-      <section className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_300px]">
-        <div>
+      <section className="ticketground-container grid min-w-0 gap-8 py-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
           <p className="text-sm font-black text-ticketground">공연장</p>
-          <h1 className="mt-2 text-5xl font-black text-ink">블루스퀘어 신한카드홀</h1>
+          <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">블루스퀘어 신한카드홀</h1>
           <p className="mt-4 max-w-[720px] text-base leading-relaxed text-ink-3">
             뮤지컬 중심의 대형 프로시니엄 공연장입니다. 좌석 등급과 교통 동선을 예매 전에 확인할 수 있습니다.
           </p>
 
           <section className="mt-10">
-            <h2 className="text-3xl font-black text-ink">좌석 배치도</h2>
+            <h2 className="text-[26px] font-black text-ink sm:text-3xl">좌석 배치도</h2>
             <div className="mt-4 grid gap-2 rounded-lg border border-line bg-white p-5">
               {["VIP 1층 중앙", "R 1층 사이드", "S 2층 전방", "A 2층 후방"].map((zone, index) => (
                 <div key={zone} className="grid grid-cols-[120px_1fr] items-center gap-3">
@@ -29,7 +29,7 @@ export default function PlacePage() {
           </section>
 
           <section className="mt-10">
-            <h2 className="text-3xl font-black text-ink">현재 공연중</h2>
+            <h2 className="text-[26px] font-black text-ink sm:text-3xl">현재 공연중</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               {currentShows.map((show) => (
                 <ShowTile key={show.slug} show={show} compact />
@@ -38,7 +38,7 @@ export default function PlacePage() {
           </section>
 
           <section className="mt-10">
-            <h2 className="text-3xl font-black text-ink">교통 안내</h2>
+            <h2 className="text-[26px] font-black text-ink sm:text-3xl">교통 안내</h2>
             <div className="mt-4 grid gap-3 rounded-lg bg-surface p-5 text-base text-ink-3">
               <p>지하철 6호선 한강진역 2번 출구 도보 5분</p>
               <p>공연 당일 주차 혼잡으로 대중교통 이용을 권장합니다.</p>

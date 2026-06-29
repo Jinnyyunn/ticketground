@@ -187,7 +187,7 @@ export const genreRecommendations: readonly RecommendationGroup[] = [
 export const shortcuts = [
   { label: "지방 공연", href: "/contents/region", helper: "부산·대구·광주" },
   { label: "대학로", href: "/contents/genre/musical", helper: "소극장 신작" },
-  { label: "할인", href: "/contents/search", helper: "타임딜·청년" },
+  { label: "재판매", href: "/resale", helper: "공식 풀 거래" },
   { label: "VIP석", href: "/contents/ranking", helper: "등급별 보기" },
   { label: "오픈캘린더", href: "/open", helper: "D-3 알림" },
   { label: "당일 공연", href: "/contents/search", helper: "오늘 입장 가능" },

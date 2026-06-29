@@ -1,10 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
 import { CleanTicketPolicyBanner, SegmentedControl, SummaryRow, TicketgroundChip, TicketgroundSurface, TicketgroundTag, TicketgroundToast } from "@/components/ticketground/primitives";
+import {
+  buyTicket,
+  DEMO_EVENT_ID,
+  drawResale,
+  getState,
+  getUserTickets,
+  joinResale,
+  listResale,
+  purchaseResale,
+  type ApiResalePool,
+  type ApiResaleResult,
+  type ApiTicket,
+} from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 
 type ResaleTab = "sell" | "find";
@@ -24,7 +37,7 @@ const matchCandidates = [
 ] as const;
 
 function feeFor(amount: number) {
-  return Math.round(amount * 0.04);
+  return Math.ceil(amount * 0.05);
 }
 
 export function ResaleFlow({ reservation, showTitle }: {
@@ -44,16 +57,102 @@ export function ResaleFlow({ reservation, showTitle }: {
   const [pairOnly, setPairOnly] = useState(false);
   const [activeCell, setActiveCell] = useState<number | null>(null);
   const [result, setResult] = useState<(typeof matchCandidates)[number] | null>(null);
+  const [backendTickets, setBackendTickets] = useState<readonly ApiTicket[]>([]);
+  const [backendPool, setBackendPool] = useState<ApiResalePool | null>(null);
+  const [backendResult, setBackendResult] = useState<ApiResaleResult | null>(null);
+  const [apiStatus, setApiStatus] = useState("백엔드 보유 티켓 확인 중");
+  const [apiBusy, setApiBusy] = useState(false);
   const [drawing, setDrawing] = useState(false);
 
+  const selectedBackendTicket = backendTickets.find((ticket) => ticket.id === seatId);
   const policy = reservation.resale.policy;
-  const minPrice = Math.round(faceValue * (policy.minPercent / 100));
-  const maxAllowedPrice = Math.round(faceValue * (policy.maxPercent / 100));
+  const effectiveFaceValue = selectedBackendTicket?.faceValue ?? faceValue;
+  const minPrice = selectedBackendTicket?.minPrice ?? Math.round(effectiveFaceValue * (policy.minPercent / 100));
+  const maxAllowedPrice = selectedBackendTicket?.maxPrice ?? Math.round(effectiveFaceValue * (policy.maxPercent / 100));
   const isPriceValid = price >= minPrice && price <= maxAllowedPrice;
   const sellFee = feeFor(price);
-  const settlement = price - sellFee;
+  const settlement = price;
   const resultFee = result ? feeFor(result.amount) : 0;
   const filteredCandidates = matchCandidates.filter((candidate) => candidate.grade === grade && candidate.zone === zone && candidate.amount <= maxPrice && (!pairOnly || candidate.pair));
+
+  async function refreshBackendTickets() {
+    try {
+      const tickets = await getUserTickets();
+      setBackendTickets(tickets);
+      if (tickets[0]) {
+        setSeatId(tickets[0].id);
+        setPrice(tickets[0].faceValue);
+        setApiStatus(`${tickets.length}건의 백엔드 보유 티켓 확인`);
+      } else {
+        setApiStatus("보유 티켓이 없습니다. 버튼으로 백엔드 테스트 티켓을 먼저 확보하세요.");
+      }
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "백엔드 보유 티켓을 불러오지 못했습니다.");
+    }
+  }
+
+  useEffect(() => {
+    void refreshBackendTickets();
+  }, []);
+
+  async function ensureBackendTicket() {
+    if (selectedBackendTicket) return selectedBackendTicket;
+    setApiBusy(true);
+    setApiStatus("판매 가능 티켓 확보 중");
+    try {
+      const state = await getState();
+      const ticket = state.tickets.find((item) => item.eventId === DEMO_EVENT_ID && item.status === "ON_SALE");
+      if (!ticket) throw new Error("판매 가능한 백엔드 티켓이 없습니다.");
+      const purchase = await buyTicket(ticket.id);
+      const nextTickets = await getUserTickets();
+      setBackendTickets(nextTickets);
+      setSeatId(purchase.ticket.id);
+      setPrice(purchase.ticket.faceValue);
+      setApiStatus(`${purchase.ticket.seatLabel} 보유 티켓 확보`);
+      return purchase.ticket;
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
+  async function registerBackendPool() {
+    if (!isPriceValid || apiBusy) return null;
+    setApiBusy(true);
+    setApiStatus("공식 재판매 풀 등록 중");
+    try {
+      const ticket = await ensureBackendTicket();
+      const pool = await listResale(ticket.id, price);
+      const joined = await joinResale(pool.id);
+      setBackendPool(joined);
+      setBackendResult(null);
+      setToast(`${ticket.seatLabel} 공식 재판매 풀 등록 완료`);
+      setApiStatus(`풀 ${joined.id} 등록 · 대기자 ${joined.buyerCount}명`);
+      return joined;
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "공식 재판매 등록에 실패했습니다.");
+      return null;
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
+  async function runBackendPurchase() {
+    if (apiBusy) return;
+    setApiStatus("백엔드 즉시 매칭 중");
+    try {
+      const pool = backendPool?.status === "OPEN" ? backendPool : await registerBackendPool();
+      if (!pool) return;
+      setApiBusy(true);
+      const nextResult = await purchaseResale(pool.id);
+      setBackendResult(nextResult);
+      setBackendPool(nextResult.pool);
+      setApiStatus(`매칭 완료 · 구매자 총액 ${currency(nextResult.buyerTotal)}`);
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "백엔드 재판매 구매에 실패했습니다.");
+    } finally {
+      setApiBusy(false);
+    }
+  }
 
   const poolCells = useMemo(
     () =>
@@ -66,12 +165,26 @@ export function ResaleFlow({ reservation, showTitle }: {
 
   const updateSeat = (nextSeatId: string) => {
     const nextSeat = reservation.seats.find((seat) => seat.id === nextSeatId);
+    const nextBackendTicket = backendTickets.find((ticket) => ticket.id === nextSeatId);
     setSeatId(nextSeatId);
     if (nextSeat) setPrice(Math.round(nextSeat.faceValue * 0.95));
+    if (nextBackendTicket) setPrice(nextBackendTicket.faceValue);
   };
 
+  const ownedSeatOptions = backendTickets.length
+    ? backendTickets.map((ticket) => ({
+      id: ticket.id,
+      label: ticket.seatLabel,
+      faceValue: ticket.faceValue,
+    }))
+    : reservation.seats.map((seat) => ({
+      id: seat.id,
+      label: seat.label,
+      faceValue: seat.faceValue,
+    }));
+
   const runDraw = () => {
-    if (drawing || filteredCandidates.length === 0) return;
+    if (drawing || filteredCandidates.length === 0 || apiBusy) return;
     setResult(null);
     setDrawing(true);
     let step = 0;
@@ -83,9 +196,28 @@ export function ResaleFlow({ reservation, showTitle }: {
         window.clearInterval(timer);
         setResult(filteredCandidates[13 % filteredCandidates.length]);
         setDrawing(false);
+        void runBackendDraw();
       }
     }, 90);
   };
+
+  async function runBackendDraw() {
+    if (apiBusy) return;
+    setApiStatus("백엔드 랜덤 추첨 중");
+    try {
+      const pool = backendPool?.status === "OPEN" ? backendPool : await registerBackendPool();
+      if (!pool) return;
+      setApiBusy(true);
+      const nextResult = await drawResale(pool.id);
+      setBackendResult(nextResult);
+      setBackendPool(nextResult.pool);
+      setApiStatus(`랜덤 추첨 완료 · 수수료 ${currency(nextResult.fee)}`);
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "백엔드 랜덤 추첨에 실패했습니다.");
+    } finally {
+      setApiBusy(false);
+    }
+  }
 
   return (
     <section className="ticketground-container py-10">
@@ -102,10 +234,14 @@ export function ResaleFlow({ reservation, showTitle }: {
           <CleanTicketPolicyBanner>
             <ul className="grid gap-2 sm:grid-cols-3">
               <li>등록가: 정가의 90~100%</li>
-              <li>플랫폼 수수료: 거래액 4%</li>
+              <li>플랫폼 수수료: 거래액 5%</li>
               <li>구매자는 좌석번호 직접 선택 불가</li>
             </ul>
           </CleanTicketPolicyBanner>
+          <div className="rounded-lg border border-line bg-surface p-4" aria-live="polite">
+            <p className="text-sm font-black text-ink">백엔드 재판매 상태</p>
+            <p className="mt-1 text-sm font-bold text-ink-3">{apiStatus}</p>
+          </div>
 
           <SegmentedControl label="공식 재판매 탭" options={resaleTabs} value={tab} onValueChange={(value) => setTab(value === "find" ? "find" : "sell")} />
 
@@ -123,7 +259,7 @@ export function ResaleFlow({ reservation, showTitle }: {
                   onChange={(event) => updateSeat(event.currentTarget.value)}
                   data-testid="owned-ticket-select"
                 >
-                  {reservation.seats.map((seat) => (
+                  {ownedSeatOptions.map((seat) => (
                     <option key={seat.id} value={seat.id}>
                       {seat.label} · 정가 {currency(seat.faceValue)}
                     </option>
@@ -159,17 +295,25 @@ export function ResaleFlow({ reservation, showTitle }: {
               </div>
               <dl className="rounded-lg bg-surface px-4">
                 <SummaryRow label="등록가" value={currency(price)} />
-                <SummaryRow label="수수료 4%" value={currency(sellFee)} />
+                <SummaryRow label="예상 구매자 수수료 5%" value={currency(sellFee)} />
                 <SummaryRow label="정산 예정액" value={currency(settlement)} strong />
               </dl>
               <button
                 type="button"
-                disabled={!isPriceValid}
-                onClick={() => setToast("공식 재판매 풀에 등록되었습니다.")}
+                disabled={apiBusy}
+                onClick={() => void ensureBackendTicket()}
+                className="h-11 rounded-sm border border-line bg-white px-5 text-sm font-black text-ink disabled:bg-surface-3"
+              >
+                백엔드 테스트 티켓 확보
+              </button>
+              <button
+                type="button"
+                disabled={!isPriceValid || apiBusy}
+                onClick={() => void registerBackendPool()}
                 className="h-12 rounded-sm bg-ink px-5 text-base font-black text-white disabled:bg-ink-4"
                 data-testid="resale-register"
               >
-                공식 풀에 등록
+                {apiBusy ? "처리 중" : "공식 풀에 등록"}
               </button>
             </TicketgroundSurface>
           ) : (
@@ -216,16 +360,32 @@ export function ResaleFlow({ reservation, showTitle }: {
                 ))}
               </div>
               <p className="text-sm font-bold text-ink-3" data-testid="draw-guard">좌석번호는 추첨 완료 전까지 공개되지 않으며 직접 선택할 수 없습니다.</p>
-              <button type="button" onClick={runDraw} disabled={drawing || filteredCandidates.length === 0} className="h-12 rounded-sm bg-ticketground px-5 text-base font-black text-white disabled:bg-ink-4" data-testid="resale-draw">
+              <button type="button" onClick={runDraw} disabled={drawing || apiBusy || filteredCandidates.length === 0} className="h-12 rounded-sm bg-ticketground px-5 text-base font-black text-white disabled:bg-ink-4" data-testid="resale-draw">
                 {drawing ? "후보 순환 중" : `조건부 랜덤 매칭 시작 · 후보 ${filteredCandidates.length}건`}
               </button>
+              <button type="button" onClick={() => void runBackendPurchase()} disabled={apiBusy} className="h-12 rounded-sm bg-ink px-5 text-base font-black text-white disabled:bg-ink-4" data-testid="resale-purchase">
+                백엔드 즉시 구매 매칭
+              </button>
               <div className={cn("rounded-lg border border-line p-4", result && "border-ok bg-tint-yellow")} data-testid="match-result">
-                {result ? (
+                {backendResult ? (
+                  <div className="grid gap-3">
+                    <p className="text-lg font-black text-ink">백엔드 매칭 완료: {backendResult.ticket.seatLabel}</p>
+                    <dl className="grid gap-1 text-sm text-ink-2">
+                      <SummaryRow label="거래 금액" value={currency(backendResult.pool.price)} />
+                      <SummaryRow label="수수료 5%" value={currency(backendResult.fee)} />
+                      <SummaryRow label="구매자 총액" value={currency(backendResult.buyerTotal)} />
+                      <SummaryRow label="판매자 정산" value={currency(backendResult.sellerSettlement)} strong />
+                    </dl>
+                    <Link className="inline-flex h-11 items-center justify-center rounded-sm bg-ink px-5 text-sm font-black text-white" href={`/reservation/${reservation.id}?ticketId=${backendResult.ticket.id}`} data-testid="confirm-cta">
+                      매칭 좌석으로 확인하기
+                    </Link>
+                  </div>
+                ) : result ? (
                   <div className="grid gap-3">
                     <p className="text-lg font-black text-ink">매칭 완료: {result.seat}</p>
                     <dl className="grid gap-1 text-sm text-ink-2">
                       <SummaryRow label="거래 금액" value={currency(result.amount)} />
-                      <SummaryRow label="수수료 4%" value={currency(resultFee)} />
+                      <SummaryRow label="예상 수수료 5%" value={currency(resultFee)} />
                       <SummaryRow label="랜덤 시드" value={result.seed} />
                       <SummaryRow label="원장 번호" value={result.ledger} strong />
                     </dl>
@@ -246,9 +406,9 @@ export function ResaleFlow({ reservation, showTitle }: {
           <h2 className="mt-2 text-2xl font-black text-ink">{reservation.id}</h2>
           <dl className="mt-4 rounded-lg bg-surface px-4">
             <SummaryRow label="공연" value={reservation.showTitle} />
-            <SummaryRow label="보유 좌석" value={reservation.seat} />
+            <SummaryRow label="보유 좌석" value={selectedBackendTicket?.seatLabel ?? reservation.seat} />
             <SummaryRow label="정책 범위" value={`${policy.minPercent}~${policy.maxPercent}%`} />
-            <SummaryRow label="기본 수수료" value={`${policy.defaultFeePercent}%`} strong />
+            <SummaryRow label="백엔드 수수료" value="5%" strong />
           </dl>
           {toast && <div className="mt-4" data-testid="resale-toast"><TicketgroundToast title={toast} tone="success" /></div>}
         </aside>

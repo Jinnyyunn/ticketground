@@ -7,9 +7,12 @@ RUN npm install
 
 # Source files are mounted as a volume at runtime for hot reload
 
-EXPOSE 3000
+EXPOSE 4173
 
 ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=4173
+ENV ADMIN_PORT=50084
+ENV ADMIN_HOSTNAME=127.0.0.1
 
 CMD ["npm", "run", "dev"]

@@ -10,7 +10,7 @@ export function RankingList({ shows }: RankingListProps) {
     <section className="ticketground-container py-10">
       <div className="border-b border-line pb-7">
         <p className="text-sm font-black text-ticketground">TOP LIST</p>
-        <h1 className="mt-2 text-5xl font-black text-ink">실시간 예매 랭킹 TOP 10</h1>
+        <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">실시간 예매 랭킹 TOP 10</h1>
         <p className="mt-3 text-base text-ink-3">클린티켓 예매 전환과 관심공연 알림을 반영한 Ticketground 랭킹입니다.</p>
       </div>
       <ol className="mt-8 grid gap-4">

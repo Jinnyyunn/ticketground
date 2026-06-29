@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
 import { currency } from "@/data/ticketing";
+import { DEMO_EVENT_ID, getSeatMap, type ApiSeat, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { createSeatMap, SeatMap, type SeatOption, type SeatTier } from "./seat-map";
 
@@ -41,6 +42,9 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
   const [quantity, setQuantity] = useState(maxSelectableSeats);
   const [step, setStep] = useState<BookingStep>("schedule");
   const [selectedSeatIds, setSelectedSeatIds] = useState<readonly string[]>([]);
+  const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
+  const [seatMapStatus, setSeatMapStatus] = useState("백엔드 좌석도 로딩 중");
+  const [selectedBackendTicketId, setSelectedBackendTicketId] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(7 * 60);
 
   useEffect(() => {
@@ -48,15 +52,38 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    getSeatMap(DEMO_EVENT_ID)
+      .then((nextSeatMap) => {
+        if (!mounted) return;
+        const firstAvailableSeat = nextSeatMap.seats.find((seat) => seat.available);
+        setSeatMap(nextSeatMap);
+        setSelectedBackendTicketId(firstAvailableSeat?.id ?? "");
+        setSeatMapStatus(`${nextSeatMap.event.title} · ${nextSeatMap.seats.length}석 로드`);
+      })
+      .catch((error: unknown) => {
+        if (!mounted) return;
+        setSeatMapStatus(error instanceof Error ? error.message : "백엔드 좌석도를 불러오지 못했습니다.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const selectedSeats = selectedSeatIds
     .map((id) => seats.find((seat) => seat.id === id))
     .filter((seat): seat is SeatOption => Boolean(seat));
-  const baseAmount = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
-  const feeAmount = selectedSeats.length * serviceFeePerSeat;
+  const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
+  const selectedBackendSeat = seatMap?.seats.find((seat) => seat.id === selectedBackendTicketId);
+  const selectedLabels = selectedBackendSeat ? selectedBackendSeat.displayCode : selectedSeatIds.join(", ");
+  const selectedCount = selectedBackendSeat ? 1 : selectedSeats.length;
+  const baseAmount = selectedBackendSeat?.price ?? selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  const feeAmount = selectedCount * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
   const canChooseSeats = Boolean(date && time && quantity);
-  const canPay = selectedSeats.length > 0 && selectedSeats.length <= quantity;
-  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedSeatIds.join(","))}&base=${baseAmount}&fee=${feeAmount}&total=${totalAmount}&count=${selectedSeats.length}`;
+  const canPay = selectedBackendSeat ? true : selectedSeats.length > 0 && selectedSeats.length <= quantity;
+  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&base=${baseAmount}&fee=${feeAmount}&total=${totalAmount}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketId)}`;
 
   function toggleSeat(seat: SeatOption) {
     setSelectedSeatIds((current) => {
@@ -75,19 +102,19 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
   return (
     <div className="bg-surface">
       <div className="border-b border-line bg-white">
-        <div className="ticketground-container flex h-16 items-center justify-between gap-5">
-          <div>
+        <div className="ticketground-container flex h-auto min-h-16 items-center justify-between gap-4 py-3">
+          <div className="min-w-0">
             <p className="text-[13px] font-black text-ticketground">Ticketground Booking</p>
-            <h1 className="text-[20px] font-black text-ink">{show.shortTitle}</h1>
+            <h1 className="balanced-title text-[18px] font-black text-ink sm:text-[20px]">{show.shortTitle}</h1>
           </div>
-          <div className="rounded-[8px] bg-ink px-4 py-2 text-[18px] font-black tabular-nums text-white" aria-label="남은 예매 시간">
+          <div className="shrink-0 rounded-[8px] bg-ink px-4 py-2 text-[18px] font-black tabular-nums text-white" aria-label="남은 예매 시간">
             {minutes(timerSeconds)}
           </div>
         </div>
       </div>
 
-      <div className="ticketground-container grid gap-8 py-8 lg:grid-cols-[1fr_360px]">
-        <main className="space-y-5">
+      <div className="ticketground-container grid min-w-0 gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <main className="min-w-0 space-y-5">
           <nav className="grid grid-cols-3 gap-2" aria-label="예매 단계">
             {steps.map((item, index) => {
               const active = item.id === step;
@@ -97,7 +124,7 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
                   type="button"
                   onClick={() => setStep(item.id)}
                   className={cn(
-                    "h-12 rounded-[8px] border text-[14px] font-black",
+                    "h-12 rounded-[8px] border text-[14px] font-black whitespace-nowrap",
                     active ? "border-ink bg-ink text-white" : "border-line bg-white text-ink-3",
                   )}
                 >
@@ -108,15 +135,15 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
           </nav>
 
           {step === "schedule" && (
-            <section className="rounded-[12px] border border-line bg-white p-6">
+            <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
               <p className="text-[13px] font-black text-ticketground">STEP 1</p>
-              <h2 className="mt-1 text-[24px] font-black text-ink">관람일·회차·매수를 선택하세요</h2>
+              <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">관람일·회차·매수를 선택하세요</h2>
               <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr_180px]">
                 <div>
                   <h3 className="text-[16px] font-black text-ink">관람일</h3>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {show.schedules.map((schedule) => (
-                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("rounded-[8px] border px-3 py-3 text-[14px] font-bold", date === schedule.date ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
+                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-[8px] border px-3 py-3 text-[14px] font-bold", date === schedule.date ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
                         {schedule.label}
                       </button>
                     ))}
@@ -151,32 +178,40 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
           )}
 
           {step === "seats" && (
-            <section className="rounded-[12px] border border-line bg-white p-6">
+            <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <p className="text-[13px] font-black text-ticketground">STEP 2</p>
-                  <h2 className="mt-1 text-[24px] font-black text-ink">좌석 선택</h2>
+                  <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">좌석 선택</h2>
                 </div>
                 <p className="text-[13px] font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
               </div>
-              <div className="mt-5">
-                <SeatMap seats={seats} selectedSeatIds={selectedSeatIds} onToggleSeat={toggleSeat} />
+              <div className="mt-5 min-w-0">
+                <BackendSeatPicker
+                  seats={backendSeats}
+                  selectedTicketId={selectedBackendTicketId}
+                  status={seatMapStatus}
+                  onSelect={setSelectedBackendTicketId}
+                />
+                <div className="mt-4 min-w-0">
+                  <SeatMap seats={seats} selectedSeatIds={selectedSeatIds} onToggleSeat={toggleSeat} />
+                </div>
               </div>
-              <button type="button" disabled={!canPay} onClick={() => setStep("payment")} className="mt-6 h-12 rounded-[8px] bg-ticketground px-6 text-[15px] font-black text-white disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
+              <button type="button" disabled={!canPay} onClick={() => setStep("payment")} className="mt-6 h-12 rounded-[8px] bg-ticketground px-6 text-[15px] font-black text-white whitespace-nowrap disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
                 결제 단계로 이동
               </button>
             </section>
           )}
 
           {step === "payment" && (
-            <section className="rounded-[12px] border border-line bg-white p-6">
+            <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
               <p className="text-[13px] font-black text-ticketground">STEP 3</p>
-              <h2 className="mt-1 text-[24px] font-black text-ink">결제 정보 확인</h2>
+              <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">결제 정보 확인</h2>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {["신용카드", "간편결제", "계좌이체", "휴대폰", "무통장입금(입금대기)"].map((method) => (
-                  <label key={method} className="flex min-h-12 items-center gap-3 rounded-[8px] border border-line bg-white px-4 text-[14px] font-bold text-ink">
+                  <label key={method} className="flex min-h-12 min-w-0 items-center gap-3 rounded-[8px] border border-line bg-white px-4 text-[14px] font-bold text-ink">
                     <input name="payment-method" type="radio" defaultChecked={method === "신용카드"} />
-                    {method}
+                    <span className="min-w-0">{method}</span>
                   </label>
                 ))}
               </div>
@@ -187,15 +222,15 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
           )}
         </main>
 
-        <aside className="h-fit rounded-[12px] border border-line bg-white p-6 shadow-ticket-1 lg:sticky lg:top-6">
+        <aside className="h-fit min-w-0 rounded-[12px] border border-line bg-white p-6 shadow-ticket-1 lg:sticky lg:top-6">
           <h2 className="clamp-2 text-[20px] font-black text-ink">{show.title}</h2>
           <dl className="mt-5 space-y-3 text-[14px]">
             <SummaryRow label="관람일" value={date || "선택 전"} />
             <SummaryRow label="회차" value={time || "선택 전"} />
-            <SummaryRow label="선택 좌석" value={selectedSeats.length ? selectedSeatIds.join(", ") : "선택 전"} />
-            <SummaryRow label="매수" value={`${selectedSeats.length}/${quantity}매`} />
+            <SummaryRow label="선택 좌석" value={selectedLabels || "선택 전"} />
+            <SummaryRow label="매수" value={`${selectedCount}/${quantity}매`} />
             <SummaryRow label="좌석 금액" value={currency(baseAmount)} strong />
-            <SummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedSeats.length}`} />
+            <SummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
             <SummaryRow label="총 결제금액" value={currency(totalAmount)} total />
           </dl>
           <p className="mt-4 rounded-[8px] bg-tint-yellow px-3 py-2 text-[13px] font-bold text-ink">정책: 3번째 좌석 선택 시 가장 오래된 좌석이 자동 해제됩니다.</p>
@@ -205,11 +240,52 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
   );
 }
 
+function BackendSeatPicker({
+  onSelect,
+  seats,
+  selectedTicketId,
+  status,
+}: {
+  readonly onSelect: (ticketId: string) => void;
+  readonly seats: readonly ApiSeat[];
+  readonly selectedTicketId: string;
+  readonly status: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-[12px] border border-line bg-white p-4 sm:p-5" aria-live="polite">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-black text-ticketground">백엔드 좌석도</p>
+          <h3 className="balanced-title mt-1 text-[18px] font-black text-ink">실제 구매 가능한 티켓 선택</h3>
+        </div>
+        <span className="max-w-full rounded-full bg-surface px-3 py-1 text-[13px] font-black text-ink-3">{status}</span>
+      </div>
+      <div className="mt-4 grid max-h-[260px] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+        {seats.map((seat) => (
+          <button
+            key={seat.id}
+            type="button"
+            onClick={() => onSelect(seat.id)}
+            className={cn(
+              "flex min-w-0 items-center justify-between gap-3 rounded-[8px] border p-3 text-left text-[13px] font-bold transition focus-visible:ring-3 focus-visible:ring-ring/40",
+              selectedTicketId === seat.id ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink hover:border-line-strong",
+            )}
+          >
+            <span className="shrink-0 text-[15px] font-black">{seat.displayCode}</span>
+            <span className="min-w-0 whitespace-nowrap text-right opacity-75">{seat.zoneName} · {currency(seat.price)}</span>
+          </button>
+        ))}
+        {seats.length === 0 && <p className="text-[13px] font-bold text-ink-3">선택 가능한 백엔드 좌석이 없습니다.</p>}
+      </div>
+    </div>
+  );
+}
+
 function SummaryRow({ label, value, strong, total }: { readonly label: string; readonly value: string; readonly strong?: boolean; readonly total?: boolean }) {
   return (
     <div className={cn("flex justify-between gap-4", total && "border-t border-line pt-4")}>
       <dt className="text-ink-3">{label}</dt>
-      <dd className={cn("text-right font-bold text-ink", strong && "text-[16px]", total && "text-[22px] font-black text-ticketground")}>{value}</dd>
+      <dd className={cn("min-w-0 text-right font-bold text-ink", strong && "text-[16px]", total && "text-[22px] font-black text-ticketground")}>{value}</dd>
     </div>
   );
 }

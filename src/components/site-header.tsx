@@ -39,7 +39,7 @@ function SearchBar({ className }: { className?: string }) {
     <Link
       href="/contents/search"
       className={cn(
-        "flex h-10 items-center gap-2 rounded-full border border-line bg-white pl-5 pr-3",
+        "flex h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-white pl-5 pr-3",
         "transition-colors hover:border-line-strong focus-visible:ring-3 focus-visible:ring-ring/50",
         className,
       )}
@@ -62,7 +62,7 @@ export function SiteHeader() {
 
   return (
     <header className="relative z-50 w-full bg-white text-ink">
-      <div className="border-b border-line bg-surface">
+      <div className="hidden border-b border-line bg-surface sm:block">
         <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-[13px] font-bold text-ink-3">
           {utilityLinks.map((link) => (
             <Link key={link.href} href={link.href} className="hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
@@ -72,21 +72,22 @@ export function SiteHeader() {
         </div>
       </div>
 
-      <div className="ticketground-container flex h-[64px] items-center gap-8">
-        <Link href="/" className="flex shrink-0 items-center gap-1 text-[25px] font-black tracking-normal text-ink">
+      <div className="ticketground-container flex h-auto flex-wrap items-center gap-x-3 gap-y-3 py-3 md:h-[64px] md:flex-nowrap md:gap-8 md:py-0">
+        <Link href="/" className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[22px] font-black tracking-normal text-ink md:text-[25px]">
           Ticketground
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
-        <SearchBar className="w-full max-w-[460px] shrink" />
-        <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-5">
+        <SearchBar className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />
+        <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-3 md:gap-5">
           {iconLinks.map(({ label, href, Icon }) => (
             <Link
               key={label}
               href={href}
-              className="grid min-w-12 justify-items-center gap-1 text-[13px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50"
+              aria-label={label}
+              className="grid min-w-9 justify-items-center gap-1 whitespace-nowrap text-[12px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:text-[13px]"
             >
               <Icon className="size-[22px]" />
-              {label}
+              <span className="hidden md:inline">{label}</span>
             </Link>
           ))}
         </nav>
@@ -98,8 +99,8 @@ export function SiteHeader() {
           scrolled && "shadow-ticket-1",
         )}
       >
-        <div className="ticketground-container flex h-12 items-center gap-7 text-[15px]">
-          <nav aria-label="카테고리" className="flex min-w-0 items-center gap-7 overflow-x-auto">
+        <div className="ticketground-container flex h-11 items-center gap-4 text-[14px] sm:h-12 sm:gap-7 sm:text-[15px]">
+          <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 flex-1 items-center gap-5 overflow-x-auto sm:gap-7">
             {categoryNav.map((c) => (
               <Link
                 key={c}
@@ -109,11 +110,20 @@ export function SiteHeader() {
                 {c}
               </Link>
             ))}
+            {categoryNavHighlight.map((c) => (
+              <Link
+                key={c}
+                href={categoryHrefs[c] ?? "/open"}
+                className="whitespace-nowrap font-black text-ticketground hover:text-ticketground-strong focus-visible:ring-3 focus-visible:ring-ring/50 sm:hidden"
+              >
+                {c}
+              </Link>
+            ))}
           </nav>
           <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
             <SearchBar className="mx-auto max-w-[420px]" />
           </div>
-          <nav aria-label="티켓오픈" className="ml-auto flex shrink-0 items-center gap-5">
+          <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
             {categoryNavHighlight.map((c) => (
               <Link
                 key={c}
