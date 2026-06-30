@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountSummaryPanel } from "@/components/mypage/account-summary-panel";
 import { BackendTicketPanel } from "@/components/mypage/backend-ticket-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { reservations } from "@/data/ticketing";
@@ -28,23 +29,7 @@ export default function MyPage() {
   return (
     <TicketingPageShell>
       <section className="ticketground-container py-10">
-        <div className="rounded-[12px] border border-[#eee] bg-[#29292d] p-6 text-white">
-          <p className="text-[14px] font-bold text-[#ffe92e]">Ticketground MEMBERS</p>
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-5">
-            <div>
-              <h1 className="text-[32px] font-bold">김하린 회원</h1>
-              <p className="mt-2 text-[15px] text-[#d8d8d8]">클린티켓 인증 기기 1대 · 예매 4건 · 양도 가능 2석</p>
-            </div>
-            <div className="grid grid-cols-4 gap-3 text-center text-[13px] sm:gap-4">
-              {["예매", "취소", "양도", "문의"].map((label, index) => (
-                <div key={label}>
-                  <strong className="block text-[22px]">{index === 0 ? reservations.length : index}</strong>
-                  <span className="text-[#bbb]">{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <AccountSummaryPanel inquiryCount={3} reservationCount={reservations.length} transferableSeatCount={2} />
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="h-fit rounded-[10px] border border-[#eee] p-4">
