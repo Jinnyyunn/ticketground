@@ -13,6 +13,7 @@ test("closed issue regressions stay fixed in the rendered frontend", async (t) =
   await assertOpenCalendarMobileSpacing(browser, baseUrl);
   await assertMypageTransferAction(browser, baseUrl);
   await assertQueueProgression(browser, baseUrl);
+  await assertBookingTimerExpiry(browser, baseUrl);
 });
 
 async function resolveBaseUrl(t) {
@@ -90,12 +91,17 @@ async function assertQueueProgression(browser, baseUrl) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
   try {
     let navigationCount = 0;
+    const documentRequests = [];
     page.on("framenavigated", (frame) => {
       if (frame === page.mainFrame()) navigationCount += 1;
+    });
+    page.on("request", (request) => {
+      if (request.resourceType() === "document") documentRequests.push(request.url());
     });
 
     await page.goto(`${baseUrl}/queue/les-miserables?testMode=fast`, { waitUntil: "networkidle" });
     navigationCount = 0;
+    const initialDocumentCount = documentRequests.length;
 
     const firstAhead = await numericText(page.locator("[data-queue-ahead]"));
     await page.waitForTimeout(900);
@@ -104,6 +110,30 @@ async function assertQueueProgression(browser, baseUrl) {
 
     await page.waitForURL(/\/booking\/les-miserables/, { timeout: 9000 });
     assert.ok(navigationCount <= 2, `unexpected full navigations: ${navigationCount}`);
+    const bookingDocumentRequests = documentRequests.slice(initialDocumentCount).filter((url) => url.includes("/booking/les-miserables"));
+    assert.equal(bookingDocumentRequests.length, 0, `booking transition used document request: ${bookingDocumentRequests.join(" | ")}`);
+  } finally {
+    await page.close();
+  }
+}
+
+async function assertBookingTimerExpiry(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  try {
+    const documentRequests = [];
+    page.on("request", (request) => {
+      if (request.resourceType() === "document") documentRequests.push(request.url());
+    });
+
+    await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30&timer=1`, { waitUntil: "networkidle" });
+    const initialDocumentCount = documentRequests.length;
+
+    await page.locator("[data-booking-expired]").waitFor({ timeout: 4000 });
+    assert.equal((await page.locator("[data-booking-timer]").textContent())?.trim(), "00:00");
+    assert.equal(new URL(page.url()).pathname, "/booking/les-miserables");
+    assert.equal(documentRequests.length, initialDocumentCount, `timer expiry triggered document request: ${documentRequests.join(" | ")}`);
+    assert.equal(await page.getByRole("button", { name: "좌석 선택으로 이동" }).isDisabled(), true);
+    assert.match((await page.getByRole("link", { name: "다시 예매하기" }).getAttribute("href")) ?? "", /\/queue\/les-miserables/);
   } finally {
     await page.close();
   }

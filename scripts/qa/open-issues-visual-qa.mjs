@@ -119,12 +119,17 @@ try {
   await record("queue decreases and reaches booking without full page reload", async () => {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
     let navigationCount = 0;
+    const documentRequests = [];
     page.on("framenavigated", (frame) => {
       if (frame === page.mainFrame()) navigationCount += 1;
+    });
+    page.on("request", (request) => {
+      if (request.resourceType() === "document") documentRequests.push(request.url());
     });
     await page.goto(`${baseUrl}/queue/les-miserables?testMode=fast`, { waitUntil: "networkidle" });
     await expectNoConsoleError(page);
     navigationCount = 0;
+    const initialDocumentCount = documentRequests.length;
 
     const firstAhead = await numericText(page.locator("[data-queue-ahead]"));
     await page.waitForTimeout(900);
@@ -132,9 +137,38 @@ try {
     assert.ok(secondAhead < firstAhead, `queue did not decrease: ${firstAhead} -> ${secondAhead}`);
     await page.waitForURL(/\/booking\/les-miserables/, { timeout: 9000 });
     assert.ok(navigationCount <= 2, `unexpected full navigations while queue progressed: ${navigationCount}`);
+    const bookingDocumentRequests = documentRequests.slice(initialDocumentCount).filter((url) => url.includes("/booking/les-miserables"));
+    assert.equal(bookingDocumentRequests.length, 0, `booking transition used document request: ${bookingDocumentRequests.join(" | ")}`);
     await screenshot(page, "queue-mobile-complete");
     await page.close();
-    return { firstAhead, secondAhead, navigationCount };
+    return { firstAhead, secondAhead, navigationCount, documentRequests, bookingDocumentRequests };
+  });
+
+  await record("booking timer expiry shows expired state without reload", async () => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+    const documentRequests = [];
+    page.on("request", (request) => {
+      if (request.resourceType() === "document") documentRequests.push(request.url());
+    });
+    await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30&timer=1`, { waitUntil: "networkidle" });
+    await expectNoConsoleError(page);
+    const initialDocumentCount = documentRequests.length;
+
+    const expiredState = page.locator("[data-booking-expired]");
+    await expiredState.waitFor({ timeout: 4000 });
+    const timerText = (await page.locator("[data-booking-timer]").textContent())?.trim();
+    const retryHref = await page.getByRole("link", { name: "다시 예매하기" }).getAttribute("href");
+    const chooseSeatsDisabled = await page.getByRole("button", { name: "좌석 선택으로 이동" }).isDisabled();
+    assert.equal(timerText, "00:00");
+    assert.equal(documentRequests.length, initialDocumentCount, `timer expiry triggered document request: ${documentRequests.join(" | ")}`);
+    assert.equal(chooseSeatsDisabled, true);
+    assert.match(retryHref ?? "", /\/queue\/les-miserables/);
+    const overflowX = await pageOverflowX(page);
+    assert.equal(overflowX, 0, `timer expiry page has horizontal overflow: ${overflowX}`);
+    const expiredVisible = await expiredState.isVisible();
+    await screenshot(page, "booking-timer-expired");
+    await page.close();
+    return { timerText, expiredVisible, retryHref, chooseSeatsDisabled, documentRequests, overflowX };
   });
 } finally {
   await browser.close();
@@ -152,6 +186,10 @@ if (failures.length > 0) {
 async function numericText(locator) {
   const text = await locator.textContent();
   return Number(String(text ?? "").replace(/[^\d]/g, ""));
+}
+
+async function pageOverflowX(page) {
+  return page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth));
 }
 
 async function assertVisibleLink(scope, name, hrefPattern) {
