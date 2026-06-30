@@ -31,13 +31,13 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
   return (
     <section className="ticketground-container grid min-w-0 gap-8 py-10 lg:grid-cols-[minmax(0,1fr)_300px]">
       <div className="min-w-0">
-        <form action="/contents/search" className="flex rounded-full border border-line bg-white p-1">
-          <input name="q" defaultValue={query} placeholder="공연명, 장소, 장르를 검색하세요" className="h-11 flex-1 rounded-full px-4 text-base outline-none" />
-          <button className="h-11 rounded-full bg-ink px-6 text-base font-black text-white">검색</button>
+        <form action="/contents/search" className="flex min-w-0 rounded-full border border-line bg-white p-1">
+          <input name="q" defaultValue={query} placeholder="공연명, 장소, 장르를 검색하세요" className="h-11 min-w-0 flex-1 rounded-full px-4 text-base outline-none" />
+          <button className="h-11 shrink-0 whitespace-nowrap rounded-full bg-ink px-5 text-base font-black text-white sm:px-6">검색</button>
         </form>
 
         <div className="mt-8 border-b border-line pb-4">
-          <h1 className="text-4xl font-black text-ink">
+          <h1 className="balanced-title text-[30px] font-black text-ink sm:text-4xl">
             {emptyQuery ? (
               "검색어를 입력하세요"
             ) : lesMiserablesMode ? (
@@ -78,14 +78,14 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
 
         <div className="mt-8 grid gap-4">
           {visibleResults.length === 0 ? (
-            <div className="rounded-lg bg-surface p-10 text-center">
-              <h2 className="balanced-title text-[22px] font-black leading-tight text-ink sm:text-2xl">&quot;{query}&quot;에 대한 판매중/예정 공연이 없습니다.</h2>
+            <div className="min-w-0 rounded-lg bg-surface p-6 text-center sm:p-10">
+              <h2 className="balanced-title min-w-0 break-words text-[22px] font-black leading-tight text-ink [overflow-wrap:anywhere] sm:text-2xl">&quot;{query}&quot;에 대한 판매중/예정 공연이 없습니다.</h2>
               <p className="mt-3 text-base text-ink-3">판매종료된 공연 또는 인기 공연 정보를 확인해 보세요.</p>
             </div>
           ) : (
             visibleResults.map((show) => (
-              <article key={show.slug} className="rounded-lg border border-line bg-white p-4">
-                <h2 className="text-2xl font-black text-ink">{titleWithHighlight(show, query)}</h2>
+              <article key={show.slug} className="min-w-0 rounded-lg border border-line bg-white p-4">
+                <h2 className="balanced-title min-w-0 break-words text-2xl font-black text-ink [overflow-wrap:anywhere]">{titleWithHighlight(show, query)}</h2>
                 <div className="mt-4">
                   <ShowTile show={show} compact />
                 </div>
