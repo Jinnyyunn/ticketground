@@ -41,7 +41,7 @@ export function CheckoutPanel({
   const [method, setMethod] = useState<PaymentMethodId>("credit");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState(selection.ticketId ? "백엔드 좌석 선택 완료" : "백엔드 좌석 자동 선택 대기");
+  const [status, setStatus] = useState(selection.ticketId ? "좌석 선택 완료" : "좌석 자동 선택 대기");
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
   const summaryRows = [
     ["좌석 금액", currency(selection.baseAmount)],
@@ -52,7 +52,7 @@ export function CheckoutPanel({
   async function completePayment() {
     if (!agreed || submitting) return;
     setSubmitting(true);
-    setStatus("백엔드 결제 처리 중");
+    setStatus("결제 처리 중");
     try {
       let ticketId = selection.ticketId;
       if (!ticketId) {
@@ -60,7 +60,7 @@ export function CheckoutPanel({
         ticketId = state.tickets.find((ticket) => ticket.eventId === DEMO_EVENT_ID && ticket.status === "ON_SALE")?.id ?? "";
       }
       if (!ticketId) {
-        setStatus("구매 가능한 백엔드 티켓이 없습니다.");
+        setStatus("구매 가능한 티켓이 없습니다.");
         return;
       }
       const purchase = await buyTicket(ticketId);
@@ -77,7 +77,7 @@ export function CheckoutPanel({
       setStatus(`${purchase.payment.label} ${purchase.payment.status} · ${purchase.ticket.id}`);
       router.push(`/reservation/${reservation.id}?${params.toString()}`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "백엔드 결제 처리에 실패했습니다.");
+      setStatus(error instanceof Error ? error.message : "결제 처리에 실패했습니다.");
     } finally {
       setSubmitting(false);
     }
@@ -140,7 +140,7 @@ export function CheckoutPanel({
           결제 조건, 클린티켓 QR 정책, 취소/환불 규정에 동의합니다
         </label>
         <div className="mt-5 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
-          <p className="text-[14px] font-black text-ink">백엔드 결제 상태</p>
+          <p className="text-[14px] font-black text-ink">결제 상태</p>
           <p className="mt-1 text-[14px] font-bold text-ink-3">{status}</p>
         </div>
       </section>

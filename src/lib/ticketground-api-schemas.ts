@@ -12,7 +12,9 @@ import type {
   ApiSupportThread,
   ApiTicket,
   ApiVirtualQr,
+  ApiWatchlistBase,
   ApiWatchlistItem,
+  ApiWatchlistUpsertResult,
 } from "./ticketground-api-types";
 
 export const apiEventSchema = z.object({
@@ -165,12 +167,15 @@ const apiNotificationJobSchema = z.object({
   scheduledAt: z.string(),
 });
 
-export const apiWatchlistItemSchema = z.object({
+export const apiWatchlistBaseSchema = z.object({
   id: z.string(),
   eventId: z.string(),
   channels: z.array(z.string()),
   calendarEnabled: z.boolean(),
   notificationEnabled: z.boolean(),
+}) satisfies ZodType<ApiWatchlistBase>;
+
+export const apiWatchlistItemSchema = apiWatchlistBaseSchema.extend({
   notificationJobs: z.array(apiNotificationJobSchema),
 }) satisfies ZodType<ApiWatchlistItem>;
 
@@ -199,9 +204,9 @@ export const apiDirectTransferResultSchema = z.object({
 }) satisfies ZodType<ApiDirectTransferResult>;
 
 export const upsertWatchlistResultSchema = z.object({
-  watchlist: apiWatchlistItemSchema,
+  watchlist: apiWatchlistBaseSchema,
   notificationJobs: z.array(apiNotificationJobSchema),
-});
+}) satisfies ZodType<ApiWatchlistUpsertResult>;
 
 export const notifyWatchlistResultSchema = z.object({
   notificationJob: z.object({

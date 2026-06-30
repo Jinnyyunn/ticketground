@@ -40,7 +40,7 @@ export function ResaleFlow({ reservation, showTitle }: { readonly reservation: C
   const [backendTickets, setBackendTickets] = useState<readonly ApiTicket[]>([]);
   const [backendPool, setBackendPool] = useState<ApiResalePool | null>(null);
   const [backendResult, setBackendResult] = useState<ApiResaleResult | null>(null);
-  const [apiStatus, setApiStatus] = useState("백엔드 보유 티켓 확인 중");
+  const [apiStatus, setApiStatus] = useState("보유 티켓 확인 중");
   const [apiBusy, setApiBusy] = useState(false);
   const [drawing, setDrawing] = useState(false);
 
@@ -62,12 +62,12 @@ export function ResaleFlow({ reservation, showTitle }: { readonly reservation: C
       if (tickets[0]) {
         setSeatId(tickets[0].id);
         setPrice(tickets[0].faceValue);
-        setApiStatus(`${tickets.length}건의 백엔드 보유 티켓 확인`);
+        setApiStatus(`${tickets.length}건의 보유 티켓 확인`);
       } else {
-        setApiStatus("보유 티켓이 없습니다. 버튼으로 백엔드 테스트 티켓을 먼저 확보하세요.");
+        setApiStatus("보유 티켓이 없습니다. 버튼으로 테스트 티켓을 먼저 확보하세요.");
       }
     } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : "백엔드 보유 티켓을 불러오지 못했습니다.");
+      setApiStatus(error instanceof Error ? error.message : "보유 티켓을 불러오지 못했습니다.");
     }
   }
 
@@ -82,7 +82,7 @@ export function ResaleFlow({ reservation, showTitle }: { readonly reservation: C
     try {
       const state = await getState();
       const ticket = state.tickets.find((item) => item.eventId === DEMO_EVENT_ID && item.status === "ON_SALE");
-      if (!ticket) throw new Error("판매 가능한 백엔드 티켓이 없습니다.");
+      if (!ticket) throw new Error("판매 가능한 티켓이 없습니다.");
       const purchase = await buyTicket(ticket.id);
       const nextTickets = await getUserTickets();
       setBackendTickets(nextTickets);
@@ -118,7 +118,7 @@ export function ResaleFlow({ reservation, showTitle }: { readonly reservation: C
 
   async function runBackendPurchase() {
     if (apiBusy) return;
-    setApiStatus("백엔드 즉시 매칭 중");
+    setApiStatus("즉시 매칭 중");
     try {
       const pool = backendPool?.status === "OPEN" ? backendPool : await registerBackendPool();
       if (!pool) return;
@@ -128,7 +128,7 @@ export function ResaleFlow({ reservation, showTitle }: { readonly reservation: C
       setBackendPool(nextResult.pool);
       setApiStatus(`매칭 완료 · 구매자 총액 ${currency(nextResult.buyerTotal)}`);
     } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : "백엔드 재판매 구매에 실패했습니다.");
+      setApiStatus(error instanceof Error ? error.message : "재판매 구매에 실패했습니다.");
     } finally {
       setApiBusy(false);
     }
@@ -176,7 +176,7 @@ export function ResaleFlow({ reservation, showTitle }: { readonly reservation: C
 
   async function runBackendDraw() {
     if (apiBusy) return;
-    setApiStatus("백엔드 랜덤 추첨 중");
+    setApiStatus("랜덤 추첨 중");
     try {
       const pool = backendPool?.status === "OPEN" ? backendPool : await registerBackendPool();
       if (!pool) return;
@@ -186,7 +186,7 @@ export function ResaleFlow({ reservation, showTitle }: { readonly reservation: C
       setBackendPool(nextResult.pool);
       setApiStatus(`랜덤 추첨 완료 · 수수료 ${currency(nextResult.fee)}`);
     } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : "백엔드 랜덤 추첨에 실패했습니다.");
+      setApiStatus(error instanceof Error ? error.message : "랜덤 추첨에 실패했습니다.");
     } finally {
       setApiBusy(false);
     }

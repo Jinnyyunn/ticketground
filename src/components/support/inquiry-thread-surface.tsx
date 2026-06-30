@@ -51,7 +51,7 @@ function fromBackendThread(thread: ApiSupportThread): ChatThread {
     id: thread.id,
     subject: thread.subject,
     status: statusMap[thread.status],
-    reservationId: "백엔드 문의",
+    reservationId: "문의 접수",
     showSlug: "les-miserables-40",
     messages: thread.messages.map((message) => ({
       id: message.id,
@@ -70,7 +70,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
   const [threads, setThreads] = useState<readonly ChatThread[]>(() => toChatThreads(initialThreads));
   const [selectedId, setSelectedId] = useState(initialThreads[0]?.id ?? "");
   const [draft, setDraft] = useState("");
-  const [backendStatus, setBackendStatus] = useState("백엔드 문의 내역 동기화 중");
+  const [backendStatus, setBackendStatus] = useState("문의 내역 동기화 중");
   const [sending, setSending] = useState(false);
   const selectedThread = useMemo(() => threads.find((thread) => thread.id === selectedId) ?? threads[0], [selectedId, threads]);
   const reservation = reservations.find((item) => item.id === selectedThread?.reservationId);
@@ -85,9 +85,9 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
         setThreads(mapped);
         setSelectedId(mapped[0]?.id ?? "");
       }
-      setBackendStatus(backendThreads.length ? `${backendThreads.length}건의 백엔드 문의 동기화` : "백엔드 문의가 없어 새 문의 작성 대기");
+      setBackendStatus(backendThreads.length ? `${backendThreads.length}건의 문의 동기화` : "저장된 문의가 없어 새 문의 작성 대기");
     } catch (error) {
-      setBackendStatus(error instanceof Error ? error.message : "백엔드 문의를 불러오지 못했습니다.");
+      setBackendStatus(error instanceof Error ? error.message : "문의를 불러오지 못했습니다.");
     }
   }
 
@@ -99,7 +99,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
     const body = draft.trim();
     if (!body || !selectedThread) return;
     setSending(true);
-    setBackendStatus("백엔드 문의 전송 중");
+    setBackendStatus("문의 전송 중");
     const at = new Date().toISOString();
     const userMessage: DraftMessage = { id: `${selectedThread.id}-member-${at}`, author: "member", at, body };
     const systemMessage: DraftMessage = {
@@ -121,9 +121,9 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
       const mapped = fromBackendThread(backendThread);
       setThreads((current) => [mapped, ...current.filter((thread) => thread.id !== mapped.id && thread.id !== selectedThread.id)]);
       setSelectedId(mapped.id);
-      setBackendStatus(`${mapped.id} 백엔드 전송 완료`);
+      setBackendStatus("문의 전송 완료");
     } catch (error) {
-      setBackendStatus(error instanceof Error ? error.message : "백엔드 문의 전송에 실패했습니다.");
+      setBackendStatus(error instanceof Error ? error.message : "문의 전송에 실패했습니다.");
     } finally {
       setSending(false);
     }

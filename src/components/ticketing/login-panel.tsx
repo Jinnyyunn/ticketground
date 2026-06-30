@@ -20,7 +20,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
   const [name, setName] = useState("");
   const [session, setSession] = useState<ApiSession | null>(null);
   const [profileName, setProfileName] = useState("");
-  const [status, setStatus] = useState("백엔드 세션 확인 대기");
+  const [status, setStatus] = useState("세션 확인 대기");
   const [saving, setSaving] = useState(false);
   const [identityChecked, setIdentityChecked] = useState(false);
   const [termsChecked, setTermsChecked] = useState(false);
@@ -38,7 +38,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
       })
       .catch((error: unknown) => {
         if (!mounted) return;
-        setStatus(error instanceof Error ? error.message : "백엔드 세션을 불러오지 못했습니다.");
+        setStatus(error instanceof Error ? error.message : "세션을 불러오지 못했습니다.");
       });
     return () => {
       mounted = false;
@@ -74,7 +74,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
               환불 관리를 한 계정에서
             </h1>
             <p className="mt-5 max-w-[360px] text-sm leading-loose text-white/70">
-              백엔드 demo session으로 계정 상태와 프로필 갱신을 확인합니다. 실제 소셜 인증은 별도 인증 제공자 연동 전까지 데모 계정으로 동작합니다.
+              데모 계정으로 계정 상태와 프로필 갱신을 확인합니다. 실제 소셜 인증은 별도 인증 제공자 연동 전까지 데모 계정으로 동작합니다.
             </p>
           </div>
 
@@ -135,13 +135,13 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
             </h2>
             <p className="mt-3 text-sm leading-loose text-ink-3">
               {mode === "login"
-                ? `데모 사용자 ${DEMO_USER_ID}의 백엔드 세션 상태를 함께 확인합니다.`
+                ? `데모 사용자 ${DEMO_USER_ID}의 세션 상태를 함께 확인합니다.`
                 : "가입 전용 본인인증과 약관 동의 블록을 포함한 데모 가입 화면입니다."}
             </p>
           </div>
 
           <div className="mt-5 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
-            <p className="text-sm font-black text-ink">백엔드 세션</p>
+            <p className="text-sm font-black text-ink">세션 상태</p>
             <p className="mt-1 text-sm font-bold text-ink-3">{status}</p>
             {session && (
               <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">

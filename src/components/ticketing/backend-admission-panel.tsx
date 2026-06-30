@@ -6,8 +6,9 @@ import { getUserTickets, getVirtualQr, type ApiTicket, type ApiVirtualQr } from 
 export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string }) {
   const [tickets, setTickets] = useState<readonly ApiTicket[]>([]);
   const [qr, setQr] = useState<ApiVirtualQr | null>(null);
-  const [status, setStatus] = useState("백엔드 티켓 확인 중");
+  const [status, setStatus] = useState("입장권 확인 중");
   const activeTicketId = ticketId || tickets[0]?.id || "";
+  const admissionChannelLabel = qr?.admissionChannel === "APP_ONLY" ? "전용 앱" : qr?.admissionChannel;
 
   useEffect(() => {
     let mounted = true;
@@ -15,11 +16,11 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
       .then((nextTickets) => {
         if (!mounted) return;
         setTickets(nextTickets);
-        setStatus(nextTickets.length ? `${nextTickets.length}건의 백엔드 보유 티켓 확인` : "백엔드 보유 티켓이 없습니다.");
+        setStatus(nextTickets.length ? `${nextTickets.length}건의 보유 티켓 확인` : "보유 티켓이 없습니다.");
       })
       .catch((error: unknown) => {
         if (!mounted) return;
-        setStatus(error instanceof Error ? error.message : "백엔드 티켓을 불러오지 못했습니다.");
+        setStatus(error instanceof Error ? error.message : "티켓을 불러오지 못했습니다.");
       });
     return () => {
       mounted = false;
@@ -28,7 +29,7 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
 
   async function loadVirtualQr(nextTicketId = activeTicketId) {
     if (!nextTicketId) {
-      setStatus("가상 티켓을 확인할 백엔드 티켓이 없습니다.");
+      setStatus("가상 티켓을 확인할 티켓이 없습니다.");
       return;
     }
     setStatus("가상 티켓 QR 확인 중");
@@ -61,13 +62,13 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
 
   return (
     <div className="mt-4 min-w-0 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
-      <p className="text-[14px] font-black text-ink">백엔드 입장권 상태</p>
+      <p className="text-[14px] font-black text-ink">입장권 상태</p>
       <p className="mt-1 break-words text-[13px] font-bold text-ink-3">{status}</p>
       {qr && (
         <dl className="mt-3 grid gap-2 text-[13px] font-bold text-ink-2">
           <div className="flex min-w-0 justify-between gap-3">
             <dt>티켓</dt>
-            <dd className="min-w-0 break-all text-right">{qr.ticketId}</dd>
+        <dd className="min-w-0 break-words text-right">소유 확인 완료</dd>
           </div>
           <div className="flex min-w-0 justify-between gap-3">
             <dt>좌석</dt>
@@ -75,7 +76,7 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
           </div>
           <div className="flex min-w-0 justify-between gap-3">
             <dt>실제 QR</dt>
-            <dd className="min-w-0 break-words text-right">{qr.admissionChannel} · {new Date(qr.realQrAvailableAt).toLocaleString("ko-KR")}</dd>
+            <dd className="min-w-0 break-words text-right">{admissionChannelLabel} · {new Date(qr.realQrAvailableAt).toLocaleString("ko-KR")}</dd>
           </div>
         </dl>
       )}

@@ -74,7 +74,25 @@ async function readApi<T>(path: string, dataSchema: ZodType<T>, init?: RequestIn
       ...init?.headers,
     },
   });
-  const payload = apiEnvelopeSchema(dataSchema).parse(await response.json());
+  let rawPayload: unknown;
+  try {
+    rawPayload = await response.json();
+  } catch (error) {
+    console.error("Ticketground API returned non-JSON response", { path, status: response.status, error });
+    throw new TicketgroundApiError("서버 응답 형식이 일치하지 않습니다.", "INVALID_API_RESPONSE", response.status);
+  }
+
+  const parsedPayload = apiEnvelopeSchema(dataSchema).safeParse(rawPayload);
+  if (!parsedPayload.success) {
+    console.error("Ticketground API response validation failed", {
+      path,
+      status: response.status,
+      issues: parsedPayload.error.issues,
+    });
+    throw new TicketgroundApiError("서버 응답 형식이 일치하지 않습니다.", "INVALID_API_RESPONSE", response.status);
+  }
+
+  const payload = parsedPayload.data;
   if (!response.ok || !payload.ok) {
     const message = payload.ok ? "요청을 처리하지 못했습니다." : payload.error.message ?? "요청을 처리하지 못했습니다.";
     const code = payload.ok ? "HTTP_ERROR" : payload.error.code ?? "API_ERROR";

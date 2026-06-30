@@ -98,7 +98,7 @@ export function ResaleFindPanel({
         {drawing ? "후보 순환 중" : `조건부 랜덤 매칭 시작 · 후보 ${filteredCandidates.length}건`}
       </button>
       <button type="button" onClick={onBackendPurchase} disabled={apiBusy} className="h-12 rounded-sm bg-ink px-5 text-base font-black text-white disabled:bg-ink-4" data-testid="resale-purchase">
-        백엔드 즉시 구매 매칭
+        즉시 구매 매칭
       </button>
       <div className={cn("rounded-lg border border-line p-4", result && "border-ok bg-tint-yellow")} data-testid="match-result">
         {backendResult ? (
@@ -116,7 +116,7 @@ export function ResaleFindPanel({
 function BackendMatchResult({ backendResult, reservationId }: { readonly backendResult: ApiResaleResult; readonly reservationId: string }) {
   return (
     <div className="grid gap-3">
-      <p className="text-lg font-black text-ink">백엔드 매칭 완료: {backendResult.ticket.seatLabel}</p>
+      <p className="text-lg font-black text-ink">매칭 완료: {backendResult.ticket.seatLabel}</p>
       <dl className="grid gap-1 text-sm text-ink-2">
         <SummaryRow label="거래 금액" value={currency(backendResult.pool.price)} />
         <SummaryRow label="수수료 5%" value={currency(backendResult.fee)} />

@@ -140,19 +140,29 @@ export type ApiSession = {
   readonly trustScore: number;
 };
 
-export type ApiWatchlistItem = {
+export type ApiNotificationJob = {
+  readonly id: string;
+  readonly type: string;
+  readonly title: string;
+  readonly status: string;
+  readonly scheduledAt: string;
+};
+
+export type ApiWatchlistBase = {
   readonly id: string;
   readonly eventId: string;
   readonly channels: readonly string[];
   readonly calendarEnabled: boolean;
   readonly notificationEnabled: boolean;
-  readonly notificationJobs: readonly {
-    readonly id: string;
-    readonly type: string;
-    readonly title: string;
-    readonly status: string;
-    readonly scheduledAt: string;
-  }[];
+};
+
+export type ApiWatchlistItem = ApiWatchlistBase & {
+  readonly notificationJobs: readonly ApiNotificationJob[];
+};
+
+export type ApiWatchlistUpsertResult = {
+  readonly watchlist: ApiWatchlistBase;
+  readonly notificationJobs: readonly ApiNotificationJob[];
 };
 
 export type ApiSupportThread = {

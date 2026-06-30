@@ -19,7 +19,7 @@ export function ResaleIntro({ apiStatus }: { readonly apiStatus: string }) {
         </ul>
       </CleanTicketPolicyBanner>
       <div className="rounded-lg border border-line bg-surface p-4" aria-live="polite">
-        <p className="text-sm font-black text-ink">백엔드 재판매 상태</p>
+        <p className="text-sm font-black text-ink">공식 재판매 상태</p>
         <p className="mt-1 text-sm font-bold text-ink-3">{apiStatus}</p>
       </div>
     </>

@@ -17,7 +17,7 @@ export function BackendSeatPicker({
     <div className="min-w-0 rounded-[12px] border border-line bg-white p-4 sm:p-5" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-black text-ticketground">백엔드 좌석도</p>
+          <p className="text-[13px] font-black text-ticketground">실시간 좌석도</p>
           <h3 className="balanced-title mt-1 text-[18px] font-black text-ink">실제 구매 가능한 티켓 선택</h3>
         </div>
         <span className="max-w-full rounded-full bg-surface px-3 py-1 text-[13px] font-black text-ink-3">{status}</span>
@@ -37,7 +37,7 @@ export function BackendSeatPicker({
             <span className="min-w-0 whitespace-nowrap text-right opacity-75">{seat.zoneName} · {currency(seat.price)}</span>
           </button>
         ))}
-        {seats.length === 0 && <p className="text-[13px] font-bold text-ink-3">선택 가능한 백엔드 좌석이 없습니다.</p>}
+        {seats.length === 0 && <p className="text-[13px] font-bold text-ink-3">선택 가능한 좌석이 없습니다.</p>}
       </div>
     </div>
   );

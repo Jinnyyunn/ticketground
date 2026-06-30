@@ -45,7 +45,7 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
   const [step, setStep] = useState<BookingStep>("schedule");
   const [selectedSeatIds, setSelectedSeatIds] = useState<readonly string[]>([]);
   const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
-  const [seatMapStatus, setSeatMapStatus] = useState("백엔드 좌석도 로딩 중");
+  const [seatMapStatus, setSeatMapStatus] = useState("좌석도 로딩 중");
   const [selectedBackendTicketId, setSelectedBackendTicketId] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(7 * 60);
 
@@ -66,7 +66,7 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
       })
       .catch((error: unknown) => {
         if (!mounted) return;
-        setSeatMapStatus(error instanceof Error ? error.message : "백엔드 좌석도를 불러오지 못했습니다.");
+        setSeatMapStatus(error instanceof Error ? error.message : "좌석도를 불러오지 못했습니다.");
       });
     return () => {
       mounted = false;
