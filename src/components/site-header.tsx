@@ -26,7 +26,7 @@ const categoryHrefs: Record<string, string> = {
   연극: "/contents/genre/musical",
   클래식: "/contents/genre/musical",
   전시: "/contents/genre/exhibition",
-  아동: "/contents/genre/exhibition",
+  아동: "/contents/genre/children",
   스포츠: "/contents/genre/sports",
   랭킹: "/contents/ranking",
   "티켓오픈 캘린더": "/open",

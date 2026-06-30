@@ -60,7 +60,7 @@ export interface ReviewItem {
 export interface TicketShow {
   readonly slug: string;
   readonly code: string;
-  readonly category: "뮤지컬" | "콘서트" | "스포츠" | "전시/행사";
+  readonly category: "뮤지컬" | "콘서트" | "스포츠" | "전시/행사" | "아동/가족";
   readonly title: string;
   readonly shortTitle: string;
   readonly venue: string;

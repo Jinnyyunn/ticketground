@@ -13,6 +13,7 @@ const genreTone: Record<TicketShow["category"], string> = {
   콘서트: "bg-ticketground text-white",
   스포츠: "bg-warn text-white",
   "전시/행사": "bg-ok text-white",
+  "아동/가족": "bg-tint-yellow text-ink",
 };
 
 function showForDay(shows: readonly TicketShow[], day: number) {

@@ -111,6 +111,31 @@ export const supportingTicketShows: TicketShow[] = [
     notices: ["회차별 입장 시간이 지정됩니다.", "재입장은 불가합니다."],
     summary: "전시/행사 장르의 시간대 선택형 예매 흐름을 보여주는 대표 상품입니다.",
   },
+  {
+    slug: "breadbarbershop",
+    code: "26008899",
+    category: "아동/가족",
+    title: "브레드이발소 여름방학 특별전",
+    shortTitle: "브레드이발소",
+    venue: "한남동 블루스퀘어 NEMO",
+    period: "2026.07.16 ~ 2026.09.06",
+    runtime: "상시 관람",
+    ageLimit: "전체 관람가",
+    poster: `${P}/26008899_p.gif`,
+    badge: "가족추천",
+    prices: [
+      { grade: "ADULT", seat: "성인", price: 18000 },
+      { grade: "YOUTH", seat: "어린이", price: 15000 },
+    ],
+    schedules: [
+      { label: "7월 16일", date: "2026.07.16", times: ["10:30", "14:00", "16:30"] },
+      { label: "7월 17일", date: "2026.07.17", times: ["10:30", "14:00", "16:30"] },
+      { label: "7월 18일", date: "2026.07.18", times: ["10:30", "14:00", "16:30"] },
+    ],
+    casts: ["브레드", "윌크", "초코", "마카롱"],
+    notices: ["아동/가족 장르 대표 예매 흐름입니다.", "보호자 동반 입장과 회차별 입장 시간이 지정됩니다."],
+    summary: "브레드이발소 캐릭터를 체험형 전시와 공연으로 만나는 아동/가족 대표 상품입니다.",
+  },
 ];
 
 export const supportingReservations: Reservation[] = [
