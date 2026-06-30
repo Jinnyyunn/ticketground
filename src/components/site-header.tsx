@@ -79,16 +79,16 @@ export function SiteHeader() {
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
         <SearchBar className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />
-        <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-3 md:gap-5">
+        <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-2 md:gap-5">
           {iconLinks.map(({ label, href, Icon }) => (
             <Link
               key={label}
               href={href}
               aria-label={label}
-              className="grid min-w-9 justify-items-center gap-1 whitespace-nowrap text-[12px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:text-[13px]"
+              className="grid min-w-[42px] justify-items-center gap-0.5 whitespace-nowrap text-[11px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:gap-1 md:text-[13px]"
             >
               <Icon className="size-[22px]" />
-              <span className="hidden md:inline">{label}</span>
+              <span>{label}</span>
             </Link>
           ))}
         </nav>
