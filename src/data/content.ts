@@ -12,7 +12,7 @@ export const categoryNav = [
   "아동",
   "스포츠",
 ];
-export const categoryNavHighlight = ["티켓오픈 캘린더"];
+export const categoryNavHighlight = ["티켓오픈 캘린더", "티켓 재판매"];
 
 // Top promo row — baked mini banners (rotating)
 export const promoBanners = [
