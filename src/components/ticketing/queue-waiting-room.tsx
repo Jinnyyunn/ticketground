@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const INITIAL_AHEAD = 12847;
@@ -28,9 +29,10 @@ export function QueueWaitingRoom({
   const [ahead, setAhead] = useState(INITIAL_AHEAD);
   const [tick, setTick] = useState(0);
   const [countdown, setCountdown] = useState(5);
+  const tickRef = useRef(0);
   const isReady = ahead === 0;
   const decrements = testMode === "fast" ? FAST_DECREMENTS : NORMAL_DECREMENTS;
-  const latestDecrease = decrements[tick % decrements.length] ?? decrements[0];
+  const latestDecrease = decrements[Math.max(0, tick - 1) % decrements.length] ?? decrements[0];
   const speedPerMinute = latestDecrease * 150;
   const etaMinutes = isReady ? 0 : Math.max(1, Math.ceil(ahead / speedPerMinute));
   const progress = Math.min(100, Math.round(((INITIAL_AHEAD - ahead) / INITIAL_AHEAD) * 100));
@@ -41,12 +43,14 @@ export function QueueWaitingRoom({
     if (isReady) return;
 
     const interval = window.setInterval(() => {
-      setAhead((current) => Math.max(0, current - latestDecrease));
-      setTick((current) => current + 1);
+      const decrease = decrements[tickRef.current % decrements.length] ?? decrements[0];
+      tickRef.current += 1;
+      setTick(tickRef.current);
+      setAhead((current) => Math.max(0, current - decrease));
     }, 400);
 
     return () => window.clearInterval(interval);
-  }, [isReady, latestDecrease]);
+  }, [decrements, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -115,8 +119,8 @@ export function QueueWaitingRoom({
           <div className="mt-7 grid grid-cols-2 gap-3">
             <div className="rounded-[8px] bg-black/24 p-4">
               <p className="text-[13px] text-white/45">처리속도</p>
-              <p data-queue-speed className="mt-2 text-[18px] font-bold">
-                분당 {numberFormatter.format(speedPerMinute)}명
+              <p data-queue-speed className="mt-2 text-[16px] font-bold whitespace-nowrap sm:text-[18px]">
+                {`분당 ${numberFormatter.format(speedPerMinute)}명`}
               </p>
             </div>
             <div className="rounded-[8px] bg-black/24 p-4">
@@ -130,9 +134,18 @@ export function QueueWaitingRoom({
           <div data-queue-countdown className="mt-7 rounded-[8px] border border-white/12 bg-black/28 p-4 text-center">
             <p className="text-[13px] font-semibold text-white/50">상태</p>
             {isReady ? (
-              <p data-queue-ready className="mt-2 text-[20px] font-black text-[#ffe92e]">
-                입장 차례입니다. {countdown}초 후 좌석 선택으로 이동합니다.
-              </p>
+              <div>
+                <p data-queue-ready className="mt-2 text-[20px] font-black text-[#ffe92e]">
+                  입장 차례입니다. {countdown}초 후 좌석 선택으로 이동합니다.
+                </p>
+                <Link
+                  data-queue-continue
+                  href={bookingHref}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-[8px] bg-white px-4 text-[14px] font-black text-ink"
+                >
+                  좌석 선택으로 이동
+                </Link>
+              </div>
             ) : (
               <p className="mt-2 text-[20px] font-black">대기열을 통과하는 중입니다.</p>
             )}

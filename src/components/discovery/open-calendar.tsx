@@ -64,15 +64,15 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
 
         <aside className="rounded-lg border border-line bg-white p-5">
           <h2 className="text-2xl font-black text-ink">오픈 임박</h2>
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4 grid gap-2 sm:gap-3">
             {imminent.map((show, index) => (
-              <div key={show.slug} className="grid min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-surface p-3">
+              <div key={show.slug} data-open-imminent-card className="grid min-w-0 grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-surface p-2 sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:p-3">
                 <time className="whitespace-nowrap text-[12px] font-black text-ticketground">D-{index + 1} 14:00</time>
                 <div className="min-w-0">
                   <h3 className="text-[13px] font-black text-ink">{show.shortTitle}</h3>
                   <p className="clamp-1 text-sm text-ink-3">{show.venue}</p>
                 </div>
-                <button className="h-8 whitespace-nowrap rounded-lg border border-line bg-white px-3 text-sm font-black text-ink" type="button">
+                <button className="h-8 whitespace-nowrap rounded-lg border border-line bg-white px-2 text-[13px] font-black text-ink sm:px-3 sm:text-sm" type="button">
                   알림
                 </button>
               </div>
