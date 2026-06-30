@@ -6,7 +6,6 @@ import { reservations } from "@/data/ticketing";
 const sideNav = [
   ["예매내역", "/mypage"],
   ["취소내역", "/cancel"],
-  ["공식 재판매", "/resale"],
   ["관심공연", "/watchlist"],
   ["1:1 문의", "/inquiry"],
 ] as const;
@@ -37,7 +36,7 @@ export default function MyPage() {
               <p className="mt-2 text-[15px] text-[#d8d8d8]">클린티켓 인증 기기 1대 · 예매 4건 · 양도 가능 2석</p>
             </div>
             <div className="grid grid-cols-4 gap-3 text-center text-[13px] sm:gap-4">
-              {["예매", "재판매", "양도", "문의"].map((label, index) => (
+              {["예매", "취소", "양도", "문의"].map((label, index) => (
                 <div key={label}>
                   <strong className="block text-[22px]">{index === 0 ? reservations.length : index}</strong>
                   <span className="text-[#bbb]">{label}</span>
@@ -87,9 +86,6 @@ export default function MyPage() {
                       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                         <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-[8px] bg-[#29292d] px-4 text-[14px] font-bold text-white whitespace-nowrap">
                           {active ? "입장 QR 열기(앱)" : "가상 티켓 보기"}
-                        </Link>
-                        <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
-                          재판매
                         </Link>
                         <Link href={`/transfer?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
                           양도
