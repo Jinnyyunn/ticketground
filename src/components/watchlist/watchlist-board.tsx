@@ -38,10 +38,29 @@ const timeline = [
   { label: "당일", state: "waiting", copy: "오픈 시간에 맞춰 재확인" },
 ] as const;
 
+const internalApiErrorPattern = /invalid_type|expected array|received undefined|Invalid input|ZodError/i;
+const backendChannelLabels: Readonly<Record<string, string>> = {
+  APP_PUSH: "앱 푸시",
+  EMAIL: "이메일",
+  KAKAO: "카카오톡",
+  SMS: "SMS",
+};
+
+function backendStatusMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message.trim();
+  if (!message || internalApiErrorPattern.test(message)) return fallback;
+  return message;
+}
+
+function channelLabel(channel: string) {
+  return backendChannelLabels[channel] ?? channel;
+}
+
 export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[] }) {
   const [showAlerts, setShowAlerts] = useState(() => new Set(shows.filter((show) => show.defaultEnabled).map((show) => show.slug)));
   const [channelAlerts, setChannelAlerts] = useState(() => new Set(channels.filter((channel) => channel.defaultEnabled).map((channel) => channel.id)));
-  const [backendStatus, setBackendStatus] = useState("백엔드 관심공연 동기화 중");
+  const [backendStatus, setBackendStatus] = useState("관심공연 동기화 중");
 
   function selectedBackendChannels(nextChannelAlerts = channelAlerts) {
     return channels
@@ -52,9 +71,9 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   async function refreshWatchlist() {
     try {
       const watchlist = await getWatchlist();
-      setBackendStatus(watchlist.length ? `${watchlist.length}건의 백엔드 관심공연 저장됨` : "백엔드 관심공연이 아직 없습니다.");
+      setBackendStatus(watchlist.length ? `${watchlist.length}건의 관심공연 저장됨` : "저장된 관심공연이 아직 없습니다.");
     } catch (error) {
-      setBackendStatus(error instanceof Error ? error.message : "백엔드 관심공연을 불러오지 못했습니다.");
+      setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
     }
   }
 
@@ -63,11 +82,11 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
     getWatchlist()
       .then((watchlist) => {
         if (!mounted) return;
-        setBackendStatus(watchlist.length ? `${watchlist.length}건의 백엔드 관심공연 저장됨` : "백엔드 관심공연이 아직 없습니다.");
+        setBackendStatus(watchlist.length ? `${watchlist.length}건의 관심공연 저장됨` : "저장된 관심공연이 아직 없습니다.");
       })
       .catch((error: unknown) => {
         if (!mounted) return;
-        setBackendStatus(error instanceof Error ? error.message : "백엔드 관심공연을 불러오지 못했습니다.");
+        setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
       });
     return () => {
       mounted = false;
@@ -82,14 +101,14 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
       return next;
     });
     if (!showAlerts.has(slug)) {
-      setBackendStatus("백엔드 관심공연 저장 중");
+      setBackendStatus("관심공연 저장 중");
       upsertWatchlist(DEMO_EVENT_ID, selectedBackendChannels())
         .then((result) => {
-          setBackendStatus(`${result.watchlist.id} 저장 · 알림 ${result.notificationJobs.length}건 예약`);
+          setBackendStatus(`관심공연 저장 완료 · 알림 ${result.notificationJobs.length}건 예약`);
           return refreshWatchlist();
         })
         .catch((error: unknown) => {
-          setBackendStatus(error instanceof Error ? error.message : "백엔드 관심공연 저장에 실패했습니다.");
+          setBackendStatus(backendStatusMessage(error, "관심공연 저장에 실패했습니다."));
         });
     }
   };
@@ -101,22 +120,22 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
       else next.add(id);
       void upsertWatchlist(DEMO_EVENT_ID, selectedBackendChannels(next))
         .then((result) => {
-          setBackendStatus(`${result.watchlist.id} 채널 저장 · ${result.watchlist.channels.join(", ")}`);
+          setBackendStatus(`채널 저장 완료 · ${result.watchlist.channels.map(channelLabel).join(", ")}`);
         })
         .catch((error: unknown) => {
-          setBackendStatus(error instanceof Error ? error.message : "백엔드 채널 저장에 실패했습니다.");
+          setBackendStatus(backendStatusMessage(error, "채널 저장에 실패했습니다."));
         });
       return next;
     });
   };
 
   async function recordNotification() {
-    setBackendStatus("백엔드 알림 기록 중");
+    setBackendStatus("알림 기록 중");
     try {
       const result = await notifyWatchlist(DEMO_EVENT_ID);
-      setBackendStatus(`알림 기록 완료 · ${result.notificationJob.status}`);
+      setBackendStatus(`알림 기록 완료 · ${result.notificationJob.status === "SENT" ? "발송됨" : "처리됨"}`);
     } catch (error) {
-      setBackendStatus(error instanceof Error ? error.message : "백엔드 알림 기록에 실패했습니다.");
+      setBackendStatus(backendStatusMessage(error, "알림 기록에 실패했습니다."));
     }
   }
 
@@ -126,7 +145,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
         <p className="text-sm font-black text-ticketground">관심공연·알림</p>
         <h1 className="mt-2 text-[34px] font-black text-ink">예매 오픈 알림</h1>
         <p className="mt-3 max-w-2xl text-sm text-ink-3">
-          관심공연별 D-3와 당일 알림 상태를 확인하고 백엔드 관심공연 API에 저장합니다.
+          관심공연별 D-3와 당일 알림 상태를 확인하고 알림 채널을 저장합니다.
         </p>
         <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink-3" aria-live="polite">{backendStatus}</p>
       </div>

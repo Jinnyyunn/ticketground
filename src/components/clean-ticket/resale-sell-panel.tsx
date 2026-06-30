@@ -107,7 +107,7 @@ export function ResaleSellPanel({
         onClick={onEnsureTicket}
         className="h-11 rounded-sm border border-line bg-white px-5 text-sm font-black text-ink disabled:bg-surface-3"
       >
-        백엔드 테스트 티켓 확보
+        테스트 티켓 확보
       </button>
       <button
         type="button"

@@ -27,6 +27,7 @@
   },
   "scripts": {
     "dev": "node server.js",
+    "dev:4500": "HOSTNAME=127.0.0.1 PORT=4500 ADMIN_HOSTNAME=127.0.0.1 ADMIN_PORT=50084 node server.js",
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
     "lint": "eslint",
