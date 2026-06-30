@@ -31,6 +31,9 @@ async function assertFastQueueClientTransition(browser, baseUrl) {
     await page.waitForURL(/\/booking\/les-miserables/, { timeout: 9000 });
     const bookingDocumentRequests = documentRequests.slice(initialDocumentCount).filter((url) => url.includes("/booking/les-miserables"));
     assert.equal(bookingDocumentRequests.length, 0, `fast queue used a document request for booking: ${bookingDocumentRequests.join(" | ")}`);
+    assert.notEqual((await page.locator("[data-booking-timer]").textContent())?.trim(), "00:00");
+    assert.equal(await page.locator("[data-booking-expired]").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "좌석 선택으로 이동" }).isDisabled(), false);
   } finally {
     await page.close();
   }

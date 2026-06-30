@@ -139,9 +139,15 @@ try {
     assert.ok(navigationCount <= 2, `unexpected full navigations while queue progressed: ${navigationCount}`);
     const bookingDocumentRequests = documentRequests.slice(initialDocumentCount).filter((url) => url.includes("/booking/les-miserables"));
     assert.equal(bookingDocumentRequests.length, 0, `booking transition used document request: ${bookingDocumentRequests.join(" | ")}`);
+    const timerText = (await page.locator("[data-booking-timer]").textContent())?.trim();
+    const expiredCount = await page.locator("[data-booking-expired]").count();
+    const chooseSeatsDisabled = await page.getByRole("button", { name: "좌석 선택으로 이동" }).isDisabled();
+    assert.notEqual(timerText, "00:00", "queue transition should land on an active booking timer");
+    assert.equal(expiredCount, 0, "queue transition should not show booking expiry");
+    assert.equal(chooseSeatsDisabled, false, "queue transition should allow seat selection");
     await screenshot(page, "queue-mobile-complete");
     await page.close();
-    return { firstAhead, secondAhead, navigationCount, documentRequests, bookingDocumentRequests };
+    return { firstAhead, secondAhead, navigationCount, documentRequests, bookingDocumentRequests, timerText, expiredCount, chooseSeatsDisabled };
   });
 
   await record("booking timer expiry shows expired state without reload", async () => {

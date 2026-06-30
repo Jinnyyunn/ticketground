@@ -20,8 +20,9 @@ export default async function BookingPage({
   const query = await searchParams;
   const show = getShow(slug);
   if (!show) notFound();
-  const timerParam = Number(queryParam(query.timer));
-  const initialTimerSeconds = Number.isFinite(timerParam) ? Math.max(0, Math.min(7 * 60, Math.floor(timerParam))) : undefined;
+  const timerQuery = queryParam(query.timer);
+  const timerParam = Number(timerQuery);
+  const initialTimerSeconds = timerQuery && Number.isFinite(timerParam) ? Math.max(0, Math.min(7 * 60, Math.floor(timerParam))) : undefined;
 
   return (
     <TicketingPageShell>

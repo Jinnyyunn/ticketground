@@ -36,11 +36,7 @@ function minutes(seconds: number) {
   return `${mm}:${ss}`;
 }
 
-type BookingPanelProps = {
-  readonly show: TicketShow;
-  readonly initialSelection: Pick<BookingSelection, "date" | "time">;
-  readonly initialTimerSeconds?: number;
-};
+type BookingPanelProps = { readonly show: TicketShow; readonly initialSelection: Pick<BookingSelection, "date" | "time">; readonly initialTimerSeconds?: number };
 
 export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 * 60 }: BookingPanelProps) {
   const prices = useMemo(() => priceMap(show), [show]);
