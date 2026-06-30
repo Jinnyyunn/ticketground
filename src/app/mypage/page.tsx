@@ -23,6 +23,12 @@ const dDayReservation = {
   status: "예매완료",
 } as const;
 const displayReservations = [dDayReservation, ...reservations] as const;
+const accountStats = [
+  { label: "예매", count: reservations.length, href: "/mypage#reservations" },
+  { label: "취소", count: 1, href: "/cancel" },
+  { label: "양도", count: 2, href: "/transfer" },
+  { label: "문의", count: 3, href: "/inquiry" },
+] as const;
 
 export default function MyPage() {
   return (
@@ -35,12 +41,16 @@ export default function MyPage() {
               <h1 className="text-[32px] font-bold">김하린 회원</h1>
               <p className="mt-2 text-[15px] text-[#d8d8d8]">클린티켓 인증 기기 1대 · 예매 4건 · 양도 가능 2석</p>
             </div>
-            <div className="grid grid-cols-4 gap-3 text-center text-[13px] sm:gap-4">
-              {["예매", "취소", "양도", "문의"].map((label, index) => (
-                <div key={label}>
-                  <strong className="block text-[22px]">{index === 0 ? reservations.length : index}</strong>
-                  <span className="text-[#bbb]">{label}</span>
-                </div>
+            <div className="grid w-full grid-cols-4 gap-2 text-center text-[13px] sm:w-auto sm:gap-4">
+              {accountStats.map((stat) => (
+                <Link
+                  key={stat.label}
+                  href={stat.href}
+                  className="min-w-0 whitespace-nowrap rounded-[6px] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffe92e]"
+                >
+                  <strong className="block text-[22px]">{stat.count}</strong>
+                  <span className="text-[#bbb]">{stat.label}</span>
+                </Link>
               ))}
             </div>
           </div>
