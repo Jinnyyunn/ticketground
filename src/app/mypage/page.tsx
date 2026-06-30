@@ -4,7 +4,7 @@ import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { reservations } from "@/data/ticketing";
 
 const sideNav = [
-  ["예매내역", "/mypage"],
+  ["예매내역", "/mypage#reservations"],
   ["취소내역", "/cancel"],
   ["관심공연", "/watchlist"],
   ["1:1 문의", "/inquiry"],
@@ -58,7 +58,7 @@ export default function MyPage() {
             </nav>
           </aside>
 
-          <div className="min-w-0">
+          <div id="reservations" className="min-w-0 scroll-mt-[176px]">
             <p className="text-[14px] font-bold text-ticketground">내 예약</p>
             <h2 className="mt-2 text-[30px] font-bold text-[#29292d]">예매 내역</h2>
             <BackendTicketPanel />
