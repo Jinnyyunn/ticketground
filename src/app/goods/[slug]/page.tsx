@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { DetailBookingPanel } from "@/components/ticketing/detail-booking-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
@@ -30,8 +31,19 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
       <main className="ticketground-container py-10">
         <section className="grid min-w-0 gap-8 lg:grid-cols-[320px_minmax(0,1fr)_360px]">
           <article className="min-w-0 overflow-hidden rounded-lg bg-ink text-white shadow-ticket-3">
-            <div className="poster g2 min-h-[426px] p-6">
-              <div className="flex h-full flex-col justify-end">
+            <div className="relative min-h-[426px] overflow-hidden">
+              <Image
+                src={show.poster}
+                alt={`${show.title} 포스터`}
+                fill
+                priority
+                unoptimized
+                data-detail-poster
+                sizes="(min-width: 1024px) 320px, 100vw"
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
+              <div className="relative z-10 flex min-h-[426px] flex-col justify-end p-6">
                 <p className="text-sm font-bold text-white/75">{show.category}</p>
                 <h1 className="balanced-title mt-3 text-[32px] font-black leading-tight sm:text-4xl">{show.shortTitle}</h1>
                 <p className="mt-3 text-sm font-bold text-white/80">{show.venue}</p>
