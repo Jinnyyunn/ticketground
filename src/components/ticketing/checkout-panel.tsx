@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { currency } from "@/data/ticketing";
+import { buyTicket, DEMO_EVENT_ID, getState } from "@/lib/ticketground-api";
 import type { Reservation, TicketShow } from "@/types";
 
 const paymentMethods = [
@@ -24,6 +25,7 @@ type CheckoutSelection = {
   readonly discountAmount: number;
   readonly feeAmount: number;
   readonly totalAmount: number;
+  readonly ticketId: string;
 };
 
 export function CheckoutPanel({
@@ -38,12 +40,48 @@ export function CheckoutPanel({
   const router = useRouter();
   const [method, setMethod] = useState<PaymentMethodId>("credit");
   const [agreed, setAgreed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState(selection.ticketId ? "백엔드 좌석 선택 완료" : "백엔드 좌석 자동 선택 대기");
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
   const summaryRows = [
     ["좌석 금액", currency(selection.baseAmount)],
     ["할인", `-${currency(selection.discountAmount)}`],
     ["예매 수수료", currency(selection.feeAmount)],
   ] as const;
+
+  async function completePayment() {
+    if (!agreed || submitting) return;
+    setSubmitting(true);
+    setStatus("백엔드 결제 처리 중");
+    try {
+      let ticketId = selection.ticketId;
+      if (!ticketId) {
+        const state = await getState();
+        ticketId = state.tickets.find((ticket) => ticket.eventId === DEMO_EVENT_ID && ticket.status === "ON_SALE")?.id ?? "";
+      }
+      if (!ticketId) {
+        setStatus("구매 가능한 백엔드 티켓이 없습니다.");
+        return;
+      }
+      const purchase = await buyTicket(ticketId);
+      const params = new URLSearchParams({
+        date: selection.date,
+        time: selection.time,
+        seats: purchase.ticket.seatLabel,
+        base: String(purchase.ticket.faceValue),
+        fee: String(selection.feeAmount),
+        total: String(purchase.ticket.faceValue + selection.feeAmount),
+        count: "1",
+        ticketId: purchase.ticket.id,
+      });
+      setStatus(`${purchase.payment.label} ${purchase.payment.status} · ${purchase.ticket.id}`);
+      router.push(`/reservation/${reservation.id}?${params.toString()}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "백엔드 결제 처리에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
@@ -101,6 +139,10 @@ export function CheckoutPanel({
           />
           결제 조건, 클린티켓 QR 정책, 취소/환불 규정에 동의합니다
         </label>
+        <div className="mt-5 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
+          <p className="text-[14px] font-black text-ink">백엔드 결제 상태</p>
+          <p className="mt-1 text-[14px] font-bold text-ink-3">{status}</p>
+        </div>
       </section>
 
       <aside className="h-fit rounded-[10px] border border-[#eee] p-6 lg:sticky lg:top-6">
@@ -135,22 +177,11 @@ export function CheckoutPanel({
         </dl>
         <button
           type="button"
-          disabled={!agreed}
-          onClick={() => {
-            const params = new URLSearchParams({
-              date: selection.date,
-              time: selection.time,
-              seats: selection.seats,
-              base: String(selection.baseAmount),
-              fee: String(selection.feeAmount),
-              total: String(selection.totalAmount),
-              count: String(selection.count),
-            });
-            router.push(`/reservation/${reservation.id}?${params.toString()}`);
-          }}
+          disabled={!agreed || submitting}
+          onClick={completePayment}
           className="mt-5 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-bold text-white disabled:bg-[#d8d8d8]"
         >
-          결제 완료
+          {submitting ? "결제 처리 중" : "결제 완료"}
         </button>
       </aside>
     </div>

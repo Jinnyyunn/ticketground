@@ -56,11 +56,11 @@ export function SeatMap({
   const seatsById = useMemo(() => new Map(seats.map((seat) => [seat.id, seat])), [seats]);
 
   return (
-    <div className="rounded-[12px] border border-line bg-surface p-5">
+    <div className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-surface p-4 sm:p-5">
       <div className="mx-auto mb-5 flex h-9 max-w-[520px] items-center justify-center rounded-t-[50%] border border-line-strong bg-white text-[13px] font-black text-ink-3">
         STAGE
       </div>
-      <div className="overflow-x-auto pb-2">
+      <div className="no-scrollbar max-w-full overflow-x-auto pb-2">
         <div className="mx-auto w-max space-y-1" data-seat-grid="20x22">
           {seatRows.map((row) => (
             <div key={row} className="grid grid-cols-[24px_auto_12px_auto] items-center gap-1">

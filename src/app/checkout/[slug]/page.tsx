@@ -24,6 +24,7 @@ export default async function CheckoutPage({
     fee?: string | string[];
     total?: string | string[];
     count?: string | string[];
+    ticketId?: string | string[];
   }>;
 }) {
   const { slug } = await params;
@@ -61,6 +62,7 @@ export default async function CheckoutPage({
             discountAmount,
             feeAmount,
             totalAmount,
+            ticketId: queryParam(query.ticketId),
           }}
         />
       </Suspense>

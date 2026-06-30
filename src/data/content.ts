@@ -151,6 +151,7 @@ export const footerColumnLinks = [
     title: "마이",
     links: [
       { label: "예매내역", href: "/mypage#reservations" },
+      { label: "공식 재판매", href: "/resale" },
       { label: "관심공연", href: "/watchlist" },
       { label: "취소/환불", href: "/cancel" },
     ],

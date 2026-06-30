@@ -26,12 +26,12 @@ export function RealtimeTop10Section() {
           <Link
             href="/contents/ranking"
             key={item.rank}
-            className="group grid grid-cols-[48px_72px_1fr] gap-3 rounded-lg border border-line bg-white p-3 transition-shadow hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-1"
+            className="group grid min-w-0 grid-cols-[48px_72px_minmax(0,1fr)] gap-3 rounded-lg border border-line bg-white p-3 transition-shadow hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-1"
           >
             <span className="rnum text-[37px] font-black leading-none text-ink group-hover:text-ticketground">{item.rank}</span>
             <GradientPoster title={item.title} gradient={item.gradient} poster={item.poster} fit={item.posterFit} className="w-[72px] lg:w-full" />
             <div className="min-w-0 lg:mt-2">
-              <h3 className="clamp-2 text-[15px] font-black leading-snug text-ink-2 group-hover:underline">{item.title}</h3>
+              <h3 className="balanced-title clamp-2 text-[12px] font-black leading-snug text-ink-2 group-hover:underline">{item.title}</h3>
               <p className="clamp-1 mt-1 text-[13px] text-ink-3">{item.venue}</p>
               <p className="mt-1 text-[13px] text-ink-4">{item.date}</p>
               <p className="mt-2 text-[13px] font-black"><Movement movement={item.movement} delta={item.delta} /></p>
@@ -91,7 +91,7 @@ export function EditorialEventsSection() {
             )}
           >
             <p className="text-[13px] font-black opacity-75">EDITORIAL</p>
-            <h3 className="mt-8 text-[28px] font-black leading-tight">{event.title}</h3>
+            <h3 className="balanced-title mt-8 text-[24px] font-black leading-tight sm:text-[28px]">{event.title}</h3>
             <p className="mt-4 text-[15px] leading-loose opacity-85">{event.description}</p>
           </Link>
         ))}
@@ -114,10 +114,10 @@ export function GenreRecommendationsSection() {
                   key={item.title}
                   href="/goods/dracula"
                   data-card="genre-recommendation"
-                  className="group block focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="group block min-w-0 focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <GradientPoster title={item.title} gradient={item.gradient} poster={item.poster} fit={item.posterFit} />
-                  <h4 className="clamp-2 mt-3 text-[15px] font-black leading-snug text-ink-2 group-hover:underline">{item.title}</h4>
+                  <h4 className="clamp-2 mt-3 text-[13px] font-black leading-snug text-ink-2 group-hover:underline sm:text-[15px]">{item.title}</h4>
                   <p className="clamp-1 mt-1 text-[13px] text-ink-3">{item.venue}</p>
                   <p className="mt-1 text-[13px] text-ink-4">{item.date}</p>
                 </Link>
@@ -140,7 +140,7 @@ export function ShortcutsSection() {
             href={shortcut.href}
             key={shortcut.label}
             data-card="shortcut"
-            className="rounded-lg border border-line bg-white p-4 text-center transition-colors hover:border-ink hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="min-w-0 rounded-lg border border-line bg-white p-4 text-center transition-colors hover:border-ink hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <strong className="block text-[16px] font-black text-ink">{shortcut.label}</strong>
             <span className="mt-1 block text-[13px] text-ink-3">{shortcut.helper}</span>
