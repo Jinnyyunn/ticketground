@@ -11,6 +11,8 @@ const days = Array.from({ length: 31 }, (_, index) => index + 1);
 const genreTone: Record<TicketShow["category"], string> = {
   뮤지컬: "bg-link text-white",
   콘서트: "bg-ticketground text-white",
+  연극: "bg-ink text-white",
+  클래식: "bg-tint-yellow text-ink",
   스포츠: "bg-warn text-white",
   "전시/행사": "bg-ok text-white",
 };
