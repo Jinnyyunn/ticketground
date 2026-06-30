@@ -38,20 +38,20 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
       <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
           <h2 className="text-2xl font-black text-ink">월별 캘린더</h2>
-          <div className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-white">
-            <div className="grid min-w-[720px] grid-cols-7 overflow-hidden">
+          <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-white">
+            <div data-open-calendar-grid className="grid grid-cols-7 overflow-hidden md:min-w-[720px]">
               {["월", "화", "수", "목", "금", "토", "일"].map((day) => (
-                <div key={day} className="border-b border-line bg-surface px-3 py-2 text-center text-sm font-black text-ink-3">
+                <div key={day} className="border-b border-line bg-surface px-1.5 py-2 text-center text-[12px] font-black text-ink-3 sm:px-3 sm:text-sm">
                   {day}
                 </div>
               ))}
               {days.map((day) => {
                 const show = showForDay(shows, day);
                 return (
-                  <div key={day} className="min-h-[116px] min-w-0 border-b border-r border-line p-3 last:border-r-0">
+                  <div key={day} className="min-h-[88px] min-w-0 border-b border-r border-line p-1.5 sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3 last:border-r-0">
                     <time className="text-sm font-black text-ink">{day}</time>
                     {show && day % 2 === 1 && (
-                      <Link href={`/goods/${show.slug}`} data-allow-wrap="true" className={cn("clamp-2 mt-3 block rounded px-2 py-1 text-xs font-black", genreTone[show.category])}>
+                      <Link href={`/goods/${show.slug}`} data-allow-wrap="true" className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}>
                         {show.shortTitle}
                       </Link>
                     )}
