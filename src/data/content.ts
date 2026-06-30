@@ -133,7 +133,7 @@ export const reviews: ReviewItem[] = [
 
 export const footerLinks = [
   { label: "회사소개", href: "/event/ticketground-day" },
-  { label: "이용약관", href: "/help" },
+  { label: "이용약관", href: "/terms" },
   { label: "개인정보처리방침", href: "/help" },
   { label: "티켓판매안내", href: "/open" },
 ] as const;
