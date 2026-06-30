@@ -1,41 +1,115 @@
-import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
+import assert from "node:assert/strict";
+import { chromium } from "playwright";
+import { startServer } from "./backend-test-utils.mjs";
 
-const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+test("closed issue regressions stay fixed in the rendered frontend", async (t) => {
+  const baseUrl = await resolveBaseUrl(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
 
-test("home exposes an official resale section and keeps mobile text compact", () => {
-  const homeSections = read("src/components/home/home-sections.tsx");
-
-  assert.match(homeSections, /data-section="official-resale"/);
-  assert.match(homeSections, /href="\/resale"/);
-  assert.match(homeSections, /콘서트·뮤지컬·연극·클래식을 비교하세요\./);
-  assert.doesNotMatch(homeSections, /콘서트, 뮤지컬, 연극·클래식을 같은 밀도로 비교하세요\./);
+  await assertHomeDesktopResaleMenu(browser, baseUrl);
+  await assertHomeMobileIssueFixes(browser, baseUrl);
+  await assertOpenCalendarMobileSpacing(browser, baseUrl);
+  await assertMypageTransferAction(browser, baseUrl);
+  await assertQueueProgression(browser, baseUrl);
 });
 
-test("ticket-open cards use compact mobile spacing", () => {
-  const homeSections = read("src/components/home/home-sections.tsx");
-  const openCalendar = read("src/components/discovery/open-calendar.tsx");
+async function resolveBaseUrl(t) {
+  if (process.env.TICKETGROUND_TEST_BASE_URL) return process.env.TICKETGROUND_TEST_BASE_URL;
+  return (await startServer(t)).baseUrl;
+}
 
-  assert.match(homeSections, /data-card="ticket-open"[\s\S]+p-\[10px\][\s\S]+sm:p-5/);
-  assert.match(homeSections, /text-\[32px\][\s\S]+sm:text-\[50px\]/);
-  assert.match(openCalendar, /grid-cols-\[48px_minmax\(0,1fr\)_auto\]/);
-  assert.match(openCalendar, /p-2[\s\S]+sm:p-3/);
-});
+async function assertHomeDesktopResaleMenu(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 1293, height: 1043 }, deviceScaleFactor: 1 });
+  try {
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
 
-test("mypage exposes only the unified transfer action on ticket cards", () => {
-  const mypage = read("src/app/mypage/page.tsx");
+    const resaleMenu = page.getByRole("link", { name: "티켓 재판매", exact: true });
+    await resaleMenu.waitFor({ timeout: 5000 });
+    assert.equal(await resaleMenu.count(), 1);
+    assert.match(await resaleMenu.first().getAttribute("href"), /\/resale$/);
+  } finally {
+    await page.close();
+  }
+}
 
-  assert.doesNotMatch(mypage, /\["공식 재판매", "\/resale"\]/);
-  assert.doesNotMatch(mypage, /href=\{`\/resale\?reservation=\$\{reservation\.id\}`\}/);
-  assert.doesNotMatch(mypage, />\s*재판매\s*</);
-  assert.match(mypage, /href=\{`\/transfer\?reservation=\$\{reservation\.id\}`\}[\s\S]+>\s*양도\s*</);
-});
+async function assertHomeMobileIssueFixes(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  try {
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
 
-test("queue waiting room progresses with item-level state and gives a ready action", () => {
-  const queue = read("src/components/ticketing/queue-waiting-room.tsx");
+    const resaleSection = page.locator('[data-section="official-resale"]');
+    await resaleSection.waitFor({ timeout: 5000 });
+    const resaleLink = resaleSection.getByRole("link", { name: "공식 재판매" });
+    await resaleLink.waitFor({ timeout: 5000 });
+    assert.match(await resaleLink.getAttribute("href"), /\/resale/);
 
-  assert.doesNotMatch(queue, /window\.location|location\.reload|router\.refresh/);
-  assert.doesNotMatch(queue, /\[isReady, latestDecrease\]/);
-  assert.match(queue, /data-queue-continue/);
-});
+    const genreSubtitle = page.locator('[data-section="genre-recommendations"] [data-section-subtitle]');
+    await genreSubtitle.waitFor({ timeout: 5000 });
+    assert.equal((await genreSubtitle.textContent())?.trim(), "콘서트·뮤지컬·연극·클래식을 비교하세요.");
+    const genreBox = await genreSubtitle.boundingBox();
+    assert.ok(genreBox && genreBox.height <= 42, `genre subtitle wraps too tall: ${genreBox?.height}`);
+
+    const ticketOpenBox = await page.locator('[data-card="ticket-open"]').first().boundingBox();
+    assert.ok(ticketOpenBox && ticketOpenBox.height <= 190, `ticket-open card too tall: ${ticketOpenBox?.height}`);
+  } finally {
+    await page.close();
+  }
+}
+
+async function assertOpenCalendarMobileSpacing(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  try {
+    await page.goto(`${baseUrl}/open`, { waitUntil: "networkidle" });
+
+    const imminentCard = page.locator('[data-open-imminent-card]').first();
+    await imminentCard.waitFor({ timeout: 5000 });
+    const box = await imminentCard.boundingBox();
+    assert.ok(box && box.height <= 62, `open imminent card too tall: ${box?.height}`);
+  } finally {
+    await page.close();
+  }
+}
+
+async function assertMypageTransferAction(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  try {
+    await page.goto(`${baseUrl}/mypage`, { waitUntil: "networkidle" });
+
+    const main = page.locator("main#content");
+    assert.equal(await main.getByRole("link", { name: "공식 재판매", exact: true }).count(), 0);
+    assert.equal(await main.getByRole("link", { name: "재판매", exact: true }).count(), 0);
+    assert.ok(await main.getByRole("link", { name: "양도", exact: true }).count() >= 1);
+  } finally {
+    await page.close();
+  }
+}
+
+async function assertQueueProgression(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  try {
+    let navigationCount = 0;
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) navigationCount += 1;
+    });
+
+    await page.goto(`${baseUrl}/queue/les-miserables?testMode=fast`, { waitUntil: "networkidle" });
+    navigationCount = 0;
+
+    const firstAhead = await numericText(page.locator("[data-queue-ahead]"));
+    await page.waitForTimeout(900);
+    const secondAhead = await numericText(page.locator("[data-queue-ahead]"));
+    assert.ok(secondAhead < firstAhead, `queue did not decrease: ${firstAhead} -> ${secondAhead}`);
+
+    await page.waitForURL(/\/booking\/les-miserables/, { timeout: 9000 });
+    assert.ok(navigationCount <= 2, `unexpected full navigations: ${navigationCount}`);
+  } finally {
+    await page.close();
+  }
+}
+
+async function numericText(locator) {
+  const text = await locator.textContent();
+  return Number(String(text ?? "").replace(/[^\d]/g, ""));
+}

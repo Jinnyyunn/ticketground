@@ -51,6 +51,20 @@ async function record(name, fn) {
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 
 try {
+  await record("home desktop exposes ticket resale header menu", async () => {
+    const page = await browser.newPage({ viewport: { width: 1293, height: 1043 }, deviceScaleFactor: 1 });
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await expectNoConsoleError(page);
+
+    const resaleMenu = page.getByRole("link", { name: "티켓 재판매", exact: true });
+    await resaleMenu.waitFor({ timeout: 5000 });
+    await expectVisible(resaleMenu);
+    const resaleMenuCount = await resaleMenu.count();
+    await screenshot(page, "home-desktop-resale-menu");
+    await page.close();
+    return { resaleMenuCount };
+  });
+
   await record("home mobile official resale, genre text, and compact ticket open cards", async () => {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
     await page.goto(baseUrl, { waitUntil: "networkidle" });
