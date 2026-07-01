@@ -8,7 +8,7 @@ import { SearchIcon, StarIcon, TicketIcon, UserIcon } from "@/components/icons";
 
 const utilityLinks = [
   { label: "고객센터", href: "/help" },
-  { label: "마이", href: "/mypage" },
+  { label: "MY", href: "/mypage" },
   { label: "로그인", href: "/login" },
   { label: "회원가입", href: "/signup" },
 ] as const;
