@@ -24,7 +24,7 @@ export function RealtimeTop10Section() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {rankings.map((item) => (
           <Link
-            href="/contents/ranking"
+            href={item.href}
             key={item.rank}
             className="group grid min-w-0 grid-cols-[48px_72px_minmax(0,1fr)] gap-3 rounded-lg border border-line bg-white p-3 transition-shadow hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-1"
           >
@@ -147,7 +147,7 @@ export function GenreRecommendationsSection() {
               {group.items.map((item) => (
                 <Link
                   key={item.title}
-                  href="/goods/dracula"
+                  href={item.href}
                   data-card="genre-recommendation"
                   className="group block min-w-0 focus-visible:ring-3 focus-visible:ring-ring/50"
                 >

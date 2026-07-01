@@ -3,7 +3,39 @@ import type { Reservation, TicketShow } from "@/types";
 const P = "/images/posters";
 const R = "/images/real-posters";
 
+// allow: SIZE_OK — catalog seed data stays together for route generation.
 export const supportingTicketShows: TicketShow[] = [
+  {
+    slug: "iu-world-tour",
+    code: "CTI-IU26",
+    category: "콘서트",
+    title: "IU 2026 WORLD TOUR",
+    shortTitle: "IU 2026 WORLD TOUR",
+    venue: "잠실종합운동장 주경기장",
+    period: "2026.09.12 ~ 2026.09.13",
+    runtime: "150분",
+    ageLimit: "8세 이상 관람가",
+    poster: `${R}/iu-world-tour.jpg`,
+    ranking: "콘서트 주간 1위",
+    badge: "단독판매",
+    prices: [
+      { grade: "VIP", seat: "VIP석", price: 198000 },
+      { grade: "R", seat: "R석", price: 165000 },
+      { grade: "S", seat: "S석", price: 132000 },
+      { grade: "A", seat: "A석", price: 99000 },
+    ],
+    schedules: [
+      { label: "9월 12일", date: "2026.09.12", times: ["19:00"] },
+      { label: "9월 13일", date: "2026.09.13", times: ["18:00"] },
+    ],
+    casts: ["IU", "밴드", "스트링 세션"],
+    notices: [
+      "회차별 1인 2매까지 예매할 수 있습니다.",
+      "모바일 티켓과 현장 본인 확인이 함께 진행됩니다.",
+      "공식 재판매 정책은 공연별 공지에 따라 제한될 수 있습니다.",
+    ],
+    summary: "잠실종합운동장에서 열리는 IU 월드투어 서울 공연입니다. 홈 대표 카드와 대기열 예매 흐름의 기준 상품입니다.",
+  },
   {
     slug: "dracula",
     code: "L0000142",
