@@ -68,8 +68,6 @@ export function ResaleFlow({
       const tickets = await getUserTickets(sessionUserId);
       setBackendTickets(tickets);
       if (tickets[0]) {
-        setSeatId(tickets[0].id);
-        setPrice(tickets[0].faceValue);
         setApiStatus(`${tickets.length}건의 보유 티켓 확인`);
       } else {
         setApiStatus("보유 티켓이 없습니다. 버튼으로 테스트 티켓을 먼저 확보하세요.");
@@ -158,17 +156,19 @@ export function ResaleFlow({
     if (nextBackendTicket) setPrice(nextBackendTicket.faceValue);
   };
 
-  const ownedSeatOptions: readonly OwnedSeatOption[] = backendTickets.length
-    ? backendTickets.map((ticket) => ({
+  const reservationSeatOptions: readonly OwnedSeatOption[] = reservation.seats.map((seat) => ({
+    id: seat.id,
+    label: seat.label,
+    faceValue: seat.faceValue,
+  }));
+  const backendSeatOptions: readonly OwnedSeatOption[] = backendTickets
+    .filter((ticket) => !reservation.seats.some((seat) => seat.id === ticket.id))
+    .map((ticket) => ({
       id: ticket.id,
       label: ticket.seatLabel,
       faceValue: ticket.faceValue,
-    }))
-    : reservation.seats.map((seat) => ({
-      id: seat.id,
-      label: seat.label,
-      faceValue: seat.faceValue,
     }));
+  const ownedSeatOptions: readonly OwnedSeatOption[] = [...reservationSeatOptions, ...backendSeatOptions];
 
   const runDraw = () => {
     if (drawing || filteredCandidates.length === 0 || apiBusy) return;

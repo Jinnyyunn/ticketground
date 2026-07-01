@@ -51,5 +51,58 @@ test("goods detail pages preserve the poster image from show list cards", async 
     assert.ok(imageState.complete, `${item.slug} detail poster finished loading`);
     assert.ok(imageState.naturalWidth > 0 && imageState.naturalHeight > 0, `${item.slug} detail poster loaded real image pixels`);
     assert.ok(imageState.width >= 280 && imageState.height >= 400, `${item.slug} detail poster fills the hero area`);
+
+    const layoutState = await detailPoster.evaluate((image) => {
+      if (!(image instanceof HTMLImageElement)) {
+        throw new Error("detail poster is not an image element");
+      }
+      const card = image.closest("article");
+      if (!card) {
+        throw new Error("detail poster card was not found");
+      }
+      const imageBox = image.getBoundingClientRect();
+      const cardBox = card.getBoundingClientRect();
+      const darkOverlayCount = Array.from(card.querySelectorAll("div")).filter((element) => {
+        const style = getComputedStyle(element);
+        return style.position === "absolute" && style.inset === "0px" && style.backgroundImage.includes("gradient");
+      }).length;
+      return {
+        aspectDelta: Math.abs(imageBox.width / imageBox.height - image.naturalWidth / image.naturalHeight),
+        cardHeight: cardBox.height,
+        darkOverlayCount,
+        imageHeight: imageBox.height,
+        imagePosition: getComputedStyle(image).position,
+      };
+    });
+    assert.equal(layoutState.imagePosition, "static", `${item.slug} detail poster card height is driven by the poster image`);
+    assert.ok(layoutState.cardHeight - layoutState.imageHeight <= 8, `${item.slug} detail poster card has no large empty area below the image: ${JSON.stringify(layoutState)}`);
+    assert.ok(layoutState.aspectDelta <= 0.02, `${item.slug} detail poster keeps the natural image aspect ratio: ${JSON.stringify(layoutState)}`);
+    assert.equal(layoutState.darkOverlayCount, 0, `${item.slug} detail poster card does not add a full-height dark gradient overlay`);
+  }
+
+  const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 2 });
+  try {
+    await mobilePage.goto(`${baseUrl}/goods/les-miserables`, { waitUntil: "networkidle" });
+
+    const poster = mobilePage.locator("[data-detail-poster]");
+    await poster.waitFor({ timeout: 5000 });
+    const box = await poster.evaluate((image) => {
+      if (!(image instanceof HTMLImageElement)) {
+        throw new Error("detail poster is not an image element");
+      }
+      const imageBox = image.getBoundingClientRect();
+      const articleBox = image.closest("article")?.getBoundingClientRect();
+      return {
+        imageHeight: imageBox.height,
+        articleWidth: articleBox?.width ?? 0,
+        articleHeight: articleBox?.height ?? 0,
+      };
+    });
+
+    const expectedHeight = box.articleWidth * (4 / 3);
+    assert.ok(Math.abs(box.articleHeight - expectedHeight) <= 4, `mobile poster article ratio drifted: ${JSON.stringify(box)}`);
+    assert.ok(Math.abs(box.imageHeight - box.articleHeight) <= 2, `mobile poster image does not fill article height: ${JSON.stringify(box)}`);
+  } finally {
+    await mobilePage.close();
   }
 });

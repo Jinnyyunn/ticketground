@@ -8,7 +8,7 @@ import { SearchIcon, StarIcon, TicketIcon, UserIcon } from "@/components/icons";
 
 const utilityLinks = [
   { label: "고객센터", href: "/help" },
-  { label: "마이", href: "/mypage" },
+  { label: "MY", href: "/mypage" },
   { label: "로그인", href: "/login" },
   { label: "회원가입", href: "/signup" },
 ] as const;
@@ -35,19 +35,35 @@ const categoryHrefs: Record<string, string> = {
   공연장: "/place",
 };
 
-function SearchBar({ className }: { className?: string }) {
+function SearchBar({ className, keyboardReachable = true }: { readonly className?: string; readonly keyboardReachable?: boolean }) {
   return (
-    <Link
-      href="/contents/search"
+    <form
+      aria-hidden={keyboardReachable ? undefined : true}
+      action="/contents/search"
+      role="search"
       className={cn(
         "flex h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-white pl-5 pr-3",
-        "transition-colors hover:border-line-strong focus-visible:ring-3 focus-visible:ring-ring/50",
+        "transition-colors hover:border-line-strong focus-within:border-line-strong focus-within:ring-3 focus-within:ring-ring/50",
         className,
       )}
     >
-      <span className="flex-1 truncate text-sm text-ink-3">공연명, 아티스트, 공연장 검색</span>
-      <SearchIcon className="size-5 text-ink" />
-    </Link>
+      <input
+        aria-label="공연명, 아티스트, 공연장 검색"
+        className="h-full min-w-0 flex-1 bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink-3"
+        name="q"
+        placeholder="공연명, 아티스트, 공연장 검색"
+        tabIndex={keyboardReachable ? undefined : -1}
+        type="search"
+      />
+      <button
+        aria-label="검색"
+        className="grid size-8 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
+        tabIndex={keyboardReachable ? undefined : -1}
+        type="submit"
+      >
+        <SearchIcon className="size-5" />
+      </button>
+    </form>
   );
 }
 
@@ -127,7 +143,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           </nav>
           {showSearchBar && (
             <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
-              <SearchBar className="mx-auto max-w-[420px]" />
+              <SearchBar className="mx-auto max-w-[420px]" keyboardReachable={scrolled} />
             </div>
           )}
           <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">

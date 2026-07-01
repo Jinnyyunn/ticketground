@@ -11,7 +11,7 @@ test("closed issue regressions stay fixed in the rendered frontend", async (t) =
   await assertHomeDesktopResaleMenu(browser, baseUrl);
   await assertHomeMobileIssueFixes(browser, baseUrl);
   await assertOpenCalendarMobileSpacing(browser, baseUrl);
-  await assertMypageTransferAction(browser, baseUrl);
+  await assertMypageOfficialResaleAction(browser, baseUrl);
   await assertQueueProgression(browser, baseUrl);
   await assertBookingTimerExpiry(browser, baseUrl);
 });
@@ -73,15 +73,17 @@ async function assertOpenCalendarMobileSpacing(browser, baseUrl) {
   }
 }
 
-async function assertMypageTransferAction(browser, baseUrl) {
+async function assertMypageOfficialResaleAction(browser, baseUrl) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
   try {
     await page.goto(`${baseUrl}/mypage`, { waitUntil: "networkidle" });
 
     const main = page.locator("main#content");
-    assert.equal(await main.getByRole("link", { name: "공식 재판매", exact: true }).count(), 0);
-    assert.equal(await main.getByRole("link", { name: "재판매", exact: true }).count(), 0);
-    assert.ok(await main.getByRole("link", { name: "양도", exact: true }).count() >= 1);
+    const resaleLinks = main.getByRole("link", { name: /공식 재판매/ });
+    await resaleLinks.first().waitFor({ timeout: 5000 });
+    assert.ok(await resaleLinks.count() >= 2);
+    assert.equal(await main.getByRole("link", { name: "양도", exact: true }).count(), 0);
+    assert.equal(await main.locator('a[href^="/transfer"]').count(), 0);
   } finally {
     await page.close();
   }

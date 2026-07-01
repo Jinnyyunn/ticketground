@@ -25,6 +25,8 @@ test("home-visible shows are searchable and link to detail pages", async (t) => 
     assert.ok(await page.getByRole("heading", { name: item.title }).count(), `${item.query} result should include the home-visible title`);
 
     const detailLink = page.locator(`a[href="/goods/${item.slug}"]`).first();
+    const resultCardsForSlug = await page.locator(`[data-search-results] article:has(a[href="/goods/${item.slug}"])`).count();
+    assert.equal(resultCardsForSlug, 1, `${item.query} should render one search result for ${item.slug}`);
     await detailLink.waitFor({ timeout: 5000 });
     await detailLink.click();
     await page.waitForURL(new RegExp(`/goods/${item.slug}$`));

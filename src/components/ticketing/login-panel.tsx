@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Home } from "lucide-react";
 import { DEMO_USER_ID, getSession, type ApiSession, updateProfile } from "@/lib/ticketground-api";
 
 type LoginMode = "login" | "signup";
@@ -107,6 +109,17 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
         </aside>
 
         <div className="p-6 sm:p-8 lg:p-10">
+          <div className="mb-5 flex justify-end">
+            <Link
+              href="/"
+              aria-label="메인 홈으로 이동"
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-line bg-white px-3 text-sm font-black text-ink transition hover:border-line-strong hover:bg-surface focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+            >
+              <Home className="size-4" aria-hidden="true" />
+              <span>홈</span>
+            </Link>
+          </div>
+
           <div className="grid grid-cols-2 rounded-[10px] bg-surface p-1" role="tablist" aria-label="로그인 회원가입 전환">
             <button
               type="button"

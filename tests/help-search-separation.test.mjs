@@ -23,7 +23,7 @@ async function assertHelpSearchResults(browser, baseUrl) {
   try {
     await page.goto(`${baseUrl}/help`, { waitUntil: "networkidle" });
     await page.getByLabel("고객센터 검색어").fill("취소");
-    await page.getByRole("button", { name: "검색", exact: true }).click();
+    await page.locator("[data-help-search-submit]").click();
 
     assert.equal(new URL(page.url()).pathname, "/help");
     assert.equal(new URL(page.url()).search, "");
@@ -41,7 +41,7 @@ async function assertHelpSearchEmptyState(browser, baseUrl) {
   try {
     await page.goto(`${baseUrl}/help`, { waitUntil: "networkidle" });
     await page.getByLabel("고객센터 검색어").fill("레미제라블");
-    await page.getByRole("button", { name: "검색", exact: true }).click();
+    await page.locator("[data-help-search-submit]").click();
 
     assert.equal(new URL(page.url()).pathname, "/help");
     assert.match(await emptyCopy(page), /"레미제라블"에 대한 고객센터 결과가 없습니다\./);
@@ -65,7 +65,7 @@ async function assertMobileHelpSearchLayout(browser, baseUrl) {
     assert.ok(submitBox && submitBox.height >= 44, `help search button too short: ${submitBox?.height}`);
 
     await page.getByLabel("고객센터 검색어").fill("입장");
-    await page.getByRole("button", { name: "검색", exact: true }).tap();
+    await page.locator("[data-help-search-submit]").tap();
     assert.equal(new URL(page.url()).pathname, "/help");
     assert.match(await resultCount(page), /총 5개/);
 

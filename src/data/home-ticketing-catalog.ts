@@ -6,6 +6,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "iu-world-tour",
     code: "HOME-IU-2026",
+    backendEventId: "event_kpop_001",
     category: "콘서트",
     title: "IU 2026 WORLD TOUR",
     shortTitle: "IU 2026 WORLD TOUR",
@@ -32,6 +33,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "seventeen-tour",
     code: "HOME-SVT-2026",
+    backendEventId: "event_kpop_001",
     category: "콘서트",
     title: "SEVENTEEN TOUR",
     shortTitle: "SEVENTEEN TOUR",
@@ -58,6 +60,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "hadestown",
     code: "HOME-HADES-2026",
+    backendEventId: "event_musical_001",
     category: "뮤지컬",
     title: "하데스타운",
     shortTitle: "하데스타운",
@@ -85,6 +88,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "nct-wish-fanmeeting",
     code: "HOME-NCTW-2026",
+    backendEventId: "event_kpop_001",
     category: "콘서트",
     title: "NCT WISH FANMEETING",
     shortTitle: "NCT WISH FANMEETING",
@@ -107,6 +111,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "cho-seong-jin",
     code: "HOME-CSJ-2026",
+    backendEventId: "event_musical_001",
     category: "클래식",
     title: "조성진 피아노 리사이틀",
     shortTitle: "조성진 피아노 리사이틀",
@@ -130,6 +135,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "phantom-of-the-opera",
     code: "HOME-PHANTOM-2026",
+    backendEventId: "event_musical_001",
     category: "뮤지컬",
     title: "오페라의 유령",
     shortTitle: "오페라의 유령",
@@ -155,6 +161,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "day6-special-live",
     code: "HOME-DAY6-2026",
+    backendEventId: "event_kpop_001",
     category: "콘서트",
     title: "DAY6 Special Live",
     shortTitle: "DAY6 Special Live",
@@ -176,6 +183,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "kun-woo-paik-ravel",
     code: "HOME-KWP-2026",
+    backendEventId: "event_musical_001",
     category: "클래식",
     title: "백건우와 라벨",
     shortTitle: "백건우와 라벨",
@@ -197,6 +205,7 @@ export const homeTicketShows: readonly TicketShow[] = [
   {
     slug: "cherry-orchard",
     code: "HOME-CHERRY-2026",
+    backendEventId: "event_musical_001",
     category: "연극",
     title: "연극 벚꽃동산",
     shortTitle: "연극 벚꽃동산",
