@@ -10,6 +10,7 @@ const genreLabels: Record<string, string> = {
   classic: "클래식",
   sports: "스포츠",
   exhibition: "전시/행사",
+  children: "아동/가족",
 };
 
 export function generateStaticParams() {
