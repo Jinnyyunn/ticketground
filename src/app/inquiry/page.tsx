@@ -1,6 +1,7 @@
 import { InquiryForm } from "@/components/ticketing/inquiry-form";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { inquiryThreads, reservations, ticketShows } from "@/data/ticketing";
+import { inquiryThreads } from "@/data/ticketing-inquiries";
+import { reservations, ticketShows } from "@/data/ticketing";
 
 export default function InquiryPage() {
   return (
