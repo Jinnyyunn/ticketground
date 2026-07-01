@@ -19,8 +19,15 @@ export default async function QueuePage({
   const show = getShow(slug);
   if (!show) notFound();
 
-  const date = queryParam(query.date) || "2026.07.10";
-  const time = queryParam(query.time) || "19:30";
+  const fallbackSchedule = show.schedules[0];
+  const fallbackDate = fallbackSchedule?.date ?? "2026.07.10";
+  const fallbackTime = fallbackSchedule?.times[0] ?? "19:30";
+  const requestedDate = queryParam(query.date);
+  const requestedTime = queryParam(query.time);
+  const requestedSchedule = show.schedules.find((schedule) => schedule.date === requestedDate);
+  const hasRequestedSchedule = requestedSchedule?.times.includes(requestedTime) ?? false;
+  const date = hasRequestedSchedule ? requestedDate : fallbackDate;
+  const time = hasRequestedSchedule ? requestedTime : fallbackTime;
   const testMode = queryParam(query.testMode) === "fast" ? "fast" : "normal";
   const bookingHref = `/booking/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`;
 
