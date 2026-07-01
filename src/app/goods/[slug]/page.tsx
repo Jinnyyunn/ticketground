@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DetailBookingPanel } from "@/components/ticketing/detail-booking-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { currency, getShow, ticketShows } from "@/data/ticketing";
+import { getVenueForShow } from "@/data/venues";
 
 const tabLinks = [
   { href: "#intro", label: "공연소개" },
@@ -25,6 +26,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
   const calendarDays = Array.from({ length: 31 }, (_, index) => index + 1);
   const scheduledDays = new Set(show.schedules.map((schedule) => Number(schedule.date.split(".").at(-1))));
   const firstPrice = show.prices[0];
+  const venue = getVenueForShow(show);
 
   return (
     <TicketingPageShell>
@@ -191,9 +193,9 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                       </div>
                     </dl>
                   </div>
-                  <Link href="/place" className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
+                  <Link href={venue ? `/place/${venue.slug}` : "/place"} className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
                     <span>
-                      <span className="block text-2xl font-black">BLUE SQUARE</span>
+                      <span className="block text-2xl font-black">{venue?.cardTitle ?? show.venue}</span>
                       <span className="mt-2 block text-sm font-bold text-white/75">공연장 상세 보기</span>
                     </span>
                   </Link>

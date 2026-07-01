@@ -1,0 +1,6 @@
+src/data/venues.ts       65
+src/components/ticketing/venue-detail.tsx       69
+src/app/place/[slug]/page.tsx       14
+src/app/place/page.tsx        8
+src/app/goods/[slug]/page.tsx      207
+tests/detail-venue-routes.test.mjs       42
