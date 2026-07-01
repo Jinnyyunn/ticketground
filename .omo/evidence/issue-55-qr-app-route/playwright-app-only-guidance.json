@@ -1,0 +1,15 @@
+{
+  "scenario": "Playwright production route check after fix",
+  "url": "http://127.0.0.1:45956/reservation/CTI-260629-DAYQR",
+  "serverPid": 3544,
+  "status": 200,
+  "hasAppOnlyHeading": true,
+  "hasSafeWebGuidance": true,
+  "hasDeeplinkGuidance": true,
+  "disabledAppButton": true,
+  "entryQrNodeCount": 0,
+  "qrCanvasCount": 0,
+  "qrImageCount": 0,
+  "exposesTokenMaterial": false,
+  "bodyPreview": "고객센터\n마이\n로그인\n회원가입\nTicketground\n공연명, 아티스트, 공연장 검색\n관심공연\n예매내역\n마이\n홈\n콘서트\n뮤지컬\n연극\n클래식\n전시\n아동\n스포츠\n공연명, 아티스트, 공연장 검색\n티켓오픈 캘린더\n티켓 재판매\n\n앱 전용 입장 QR\n\n뮤지컬 드라큘라 (Dracula：The Musical)\n\n웹에서는 실제 입장 QR을 표시하지 않습니다. 공연장 입장용 동적 QR은 본인 인증된 Ticketground 앱에서만 열리며, 웹 화면은 안전 안내와 앱 이동 경로만 제공합니다.\n\n예매번호\nCTI-260629-DAYQR\n일시\n2026.06.29 19:30\n좌석\nVIP A열 12번\n장소\nLG아트센터 서울 LG SIGNATURE 홀\n\n딥링크 안내\n\nticketground://reservation/CTI-260629-DAYQR/entry\n\n이 주소는 앱 이동 안내용입니다. 웹에서는 QR 이미지, 서명값, 입장 검증 정보를 생성하거나 저장하지 않습니다.\n\n웹 입장 기능 제한\n\n캡처 방지와 본인 기기 확인을 위해 입장 QR은 앱에서만 활성화됩니다. 앱 실행 후 생체 인증을 마치면 현장용 화면으로 이동합니다.\n\n앱에서 열기(웹 비활성)\n예매내역으로 돌아가기\n\n문제가 계속되면 Ticketground 앱 업데이트 후 다시 시도하세요.\n\nTicketground\n\n공식 예매, 클린티켓, 고객 문의를 한 곳에서 다루는 공연 티켓 서비스입니다.\n\n회사소개\n이용약관\n개인정보처리방침\n티켓판매안내\n예매\n티켓오픈 캘린더\n랭킹\n공연장\n마이\n예매내역\n공식 재판매\n관심공연\n취소/환불\n고객센터\n고객센터 홈\n1:1 문의\n공지사항\n\n© Ticketground Inc. 통신판매중개자로서 공연 예매와 공식 문의 연결을 제공합니다.\n\n1:1 문의"
+}

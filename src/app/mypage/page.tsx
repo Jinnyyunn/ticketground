@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AccountSummaryPanel } from "@/components/mypage/account-summary-panel";
 import { BackendTicketPanel } from "@/components/mypage/backend-ticket-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { reservations } from "@/data/ticketing";
+import { appOnlyQrReservation, reservations } from "@/data/ticketing";
 
 const sideNav = [
   ["예매내역", "/mypage#reservations"],
@@ -12,18 +12,7 @@ const sideNav = [
 ] as const;
 
 const today = "2026.06.29";
-const dDayReservation = {
-  id: "CTI-260629-DAYQR",
-  showSlug: "dracula",
-  showTitle: "뮤지컬 드라큘라 (Dracula：The Musical)",
-  venue: "LG아트센터 서울 LG SIGNATURE 홀",
-  date: today,
-  time: "19:30",
-  seat: "VIP A열 12번",
-  price: "180,000원",
-  status: "예매완료",
-} as const;
-const displayReservations = [dDayReservation, ...reservations] as const;
+const displayReservations = [appOnlyQrReservation, ...reservations] as const;
 
 export default function MyPage() {
   return (

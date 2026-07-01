@@ -1,0 +1,4 @@
+
+> ticketground-platform@0.3.1 typecheck
+> tsc --noEmit
+

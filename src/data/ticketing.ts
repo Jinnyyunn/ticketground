@@ -139,6 +139,18 @@ export const cleanTicketReservation: CleanTicketReservation = {
   ledger: cleanTicketAdminLedgerRows,
 };
 
+export const appOnlyQrReservation: Reservation = {
+  id: "CTI-260629-DAYQR",
+  showSlug: "dracula",
+  showTitle: "뮤지컬 드라큘라 (Dracula：The Musical)",
+  venue: "LG아트센터 서울 LG SIGNATURE 홀",
+  date: "2026.06.29",
+  time: "19:30",
+  seat: "VIP A열 12번",
+  price: "180,000원",
+  status: "예매완료",
+};
+
 export const watchlistAlerts: readonly WatchlistAlert[] = [
   {
     id: "watch-les-miserables-d3",
