@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
-import { currency } from "@/data/ticketing";
+import { currency, getTicketShowBackendEventId } from "@/data/ticketing";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";
@@ -51,6 +51,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const [selectedBackendTicketId, setSelectedBackendTicketId] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(initialTimerSeconds);
   const timerExpired = timerSeconds === 0;
+  const backendEventId = useMemo(() => getTicketShowBackendEventId(show), [show]);
 
   useEffect(() => {
     if (timerExpired) return;
@@ -61,7 +62,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
   useEffect(() => {
     let mounted = true;
-    getSeatMap(show.backendEventId)
+    getSeatMap(backendEventId)
       .then((nextSeatMap) => {
         if (!mounted) return;
         const firstAvailableSeat = nextSeatMap.seats.find((seat) => seat.available);
@@ -76,7 +77,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     return () => {
       mounted = false;
     };
-  }, [show.backendEventId]);
+  }, [backendEventId]);
 
   const selectedSeats = selectedSeatIds
     .map((id) => seats.find((seat) => seat.id === id))
