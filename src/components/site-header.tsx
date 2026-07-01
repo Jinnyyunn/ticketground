@@ -16,7 +16,7 @@ const utilityLinks = [
 const iconLinks = [
   { label: "관심공연", href: "/watchlist", Icon: StarIcon },
   { label: "예매내역", href: "/mypage#reservations", Icon: TicketIcon },
-  { label: "마이", href: "/mypage", Icon: UserIcon },
+  { label: "MY", href: "/mypage", Icon: UserIcon },
 ] as const;
 
 const categoryHrefs: Record<string, string> = {
@@ -51,7 +51,11 @@ function SearchBar({ className }: { className?: string }) {
   );
 }
 
-export function SiteHeader() {
+type SiteHeaderProps = {
+  readonly showSearchBar?: boolean;
+};
+
+export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -78,7 +82,7 @@ export function SiteHeader() {
           Ticketground
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
-        <SearchBar className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />
+        {showSearchBar && <SearchBar className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />}
         <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-2 md:gap-5">
           {iconLinks.map(({ label, href, Icon }) => (
             <Link
@@ -121,9 +125,11 @@ export function SiteHeader() {
               </Link>
             ))}
           </nav>
-          <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
-            <SearchBar className="mx-auto max-w-[420px]" />
-          </div>
+          {showSearchBar && (
+            <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
+              <SearchBar className="mx-auto max-w-[420px]" />
+            </div>
+          )}
           <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
             {categoryNavHighlight.map((c) => (
               <Link

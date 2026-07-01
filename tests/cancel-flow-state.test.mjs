@@ -50,6 +50,32 @@ test("cancel request button follows required reason state", async (t) => {
   assert.equal(overlaps(floatingInquiryBox, refundAmountBox), false, "floating inquiry link does not cover refund amount");
 });
 
+test("cancel request updates mypage cancel history in demo state", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  t.after(() => page.close());
+
+  await page.goto(`${baseUrl}/mypage`, { waitUntil: "networkidle" });
+  assert.equal(await page.locator('[data-account-panel] a[href="/mypage#cancel-history"] strong').textContent(), "0", "cancel counter starts at zero");
+  assert.equal(await page.locator("[data-cancel-history-row]").count(), 0, "cancel history starts empty");
+
+  await page.goto(`${baseUrl}/cancel`, { waitUntil: "networkidle" });
+  await page.getByLabel("일정 변경").check();
+  await page.getByRole("button", { name: /mock 취소 요청 완료/ }).click();
+  await page.getByRole("heading", { name: "취소·환불 요청이 기록되었습니다" }).waitFor();
+  await page.getByRole("link", { name: "마이페이지로 이동" }).click();
+
+  await page.getByRole("heading", { name: "취소 내역" }).waitFor();
+  assert.equal(await page.locator('[data-account-panel] a[href="/mypage#cancel-history"] strong').textContent(), "1", "cancel counter reflects completed request");
+  assert.equal(await page.locator("[data-cancel-history-row]").count(), 1, "cancel history shows the completed request");
+  const cancelHistory = page.locator("#cancel-history");
+  await cancelHistory.getByRole("heading", { name: "레미제라블 40주년" }).waitFor();
+  await cancelHistory.getByText("일정 변경").waitFor();
+});
+
 function overlaps(first, second) {
   return first.x < second.x + second.width && first.x + first.width > second.x && first.y < second.y + second.height && first.y + first.height > second.y;
 }

@@ -12,7 +12,7 @@ export default async function SearchPage({
   const results = searchShows(query);
 
   return (
-    <TicketingPageShell>
+    <TicketingPageShell showHeaderSearchBar={false}>
       <SearchPanels query={query} results={results} fallbackShows={ticketShows} />
     </TicketingPageShell>
   );
