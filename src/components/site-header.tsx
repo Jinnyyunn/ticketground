@@ -16,7 +16,7 @@ const utilityLinks = [
 const iconLinks = [
   { label: "관심공연", href: "/watchlist", Icon: StarIcon },
   { label: "예매내역", href: "/mypage#reservations", Icon: TicketIcon },
-  { label: "마이", href: "/mypage", Icon: UserIcon },
+  { label: "MY", href: "/mypage", Icon: UserIcon },
 ] as const;
 
 const categoryHrefs: Record<string, string> = {
