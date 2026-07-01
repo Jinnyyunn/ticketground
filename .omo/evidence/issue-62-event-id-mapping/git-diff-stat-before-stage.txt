@@ -1,6 +1,0 @@
- src/components/ticketing/booking-panel.tsx  | 6 +++---
- src/components/ticketing/checkout-panel.tsx | 4 ++--
- src/data/ticketing-catalog.ts               | 7 +++++++
- src/data/ticketing.ts                       | 1 +
- src/types/index.ts                          | 1 +
- 5 files changed, 14 insertions(+), 5 deletions(-)
