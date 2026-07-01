@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HelpSearch } from "@/components/support/help-search";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 
 const categories = ["예매/결제", "클린티켓", "취소/환불", "입장/현장"] as const;
@@ -54,12 +55,7 @@ export default function HelpPage() {
         <div className="ticketground-container py-12">
           <p className="text-sm font-black text-accent-2">고객센터</p>
           <h1 className="balanced-title mt-3 text-[30px] font-black leading-tight sm:text-[34px]">무엇을 도와드릴까요?</h1>
-          <Link
-            href="/contents/search"
-            className="mt-7 flex h-12 max-w-[620px] items-center rounded-full bg-white px-5 text-sm font-bold text-ink-3"
-          >
-            예매번호, 공연명, 문의 유형 검색
-          </Link>
+          <HelpSearch categories={categories} contacts={contacts} faqs={faqs} />
         </div>
       </section>
 
