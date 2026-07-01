@@ -10,7 +10,8 @@ import type {
   InquiryThread,
 } from "@/types";
 import { homeTicketShows } from "./home-ticketing-catalog";
-import { supportingReservations, supportingTicketShows } from "./ticketing-catalog";
+import { supportingTicketShows } from "./ticketing-catalog";
+import { supportingReservations } from "./ticketing-reservations";
 
 const P = "/images/posters";
 
