@@ -9,7 +9,8 @@ import type {
   WatchlistAlert,
   InquiryThread,
 } from "@/types";
-import { supportingReservations, supportingTicketShows } from "./ticketing-catalog";
+import { supportingTicketShows } from "./ticketing-catalog";
+import { supportingReservations } from "./ticketing-reservations";
 
 const P = "/images/posters";
 

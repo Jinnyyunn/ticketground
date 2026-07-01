@@ -1,4 +1,4 @@
-import type { Reservation, TicketShow } from "@/types";
+import type { TicketShow } from "@/types";
 
 const P = "/images/posters";
 const R = "/images/real-posters";
@@ -188,52 +188,5 @@ export const supportingTicketShows: TicketShow[] = [
     casts: ["브레드", "윌크", "초코", "마카롱"],
     notices: ["아동/가족 장르 대표 예매 흐름입니다.", "보호자 동반 입장과 회차별 입장 시간이 지정됩니다."],
     summary: "브레드이발소 캐릭터를 체험형 전시와 공연으로 만나는 아동/가족 대표 상품입니다.",
-  },
-];
-
-export const supportingReservations: Reservation[] = [
-  {
-    id: "CTI-260710-001",
-    showSlug: "dracula",
-    showTitle: "뮤지컬 드라큘라 (Dracula：The Musical)",
-    venue: "LG아트센터 서울 LG SIGNATURE 홀",
-    date: "2026.07.10",
-    time: "19:30",
-    seat: "VIP A열 12번",
-    price: "180,000원",
-    status: "예매완료",
-  },
-  {
-    id: "CTI-26006232-001",
-    showSlug: "beethoven",
-    showTitle: "［Ticketground 단독］ 뮤지컬 〈베토벤〉",
-    venue: "세종문화회관 대극장",
-    date: "2026.06.30",
-    time: "19:30",
-    seat: "VIP A열 12번",
-    price: "160,000원",
-    status: "예매완료",
-  },
-  {
-    id: "CTI-26007850-001",
-    showSlug: "palette-festival",
-    showTitle: "2026 Palette Festival",
-    venue: "올림픽공원 88잔디마당",
-    date: "2026.08.15",
-    time: "12:00",
-    seat: "1일권 A열 12번",
-    price: "121,000원",
-    status: "예매완료",
-  },
-  {
-    id: "CTI-26008579-001",
-    showSlug: "banksy",
-    showTitle: "［얼리버드］ 뱅크시 : Still Here",
-    venue: "더현대서울 6층 ALT.1",
-    date: "2026.07.22",
-    time: "10:30",
-    seat: "성인 A열 12번",
-    price: "13,800원",
-    status: "예매완료",
   },
 ];
