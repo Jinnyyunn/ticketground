@@ -19,7 +19,7 @@ export default function MyPage() {
   return (
     <TicketingPageShell>
       <section className="ticketground-container py-10">
-        <AccountSummaryPanel inquiryCount={3} reservationCount={reservations.length} transferableSeatCount={2} />
+        <AccountSummaryPanel inquiryCount={3} resaleSeatCount={2} reservationCount={reservations.length} />
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="h-fit rounded-[10px] border border-[#eee] p-4">
@@ -62,8 +62,8 @@ export default function MyPage() {
                         <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-[8px] bg-[#29292d] px-4 text-[14px] font-bold text-white whitespace-nowrap">
                           {active ? "입장 QR 열기(앱)" : "가상 티켓 보기"}
                         </Link>
-                        <Link href={`/transfer?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
-                          양도
+                        <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
+                          공식 재판매
                         </Link>
                         <Link href="/cancel" className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
                           취소

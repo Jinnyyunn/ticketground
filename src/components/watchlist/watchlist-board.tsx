@@ -1,20 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Bell, CalendarDays, CheckCircle2 } from "lucide-react";
+import { Bell, CheckCircle2 } from "lucide-react";
 import { DEMO_EVENT_ID, getWatchlist, notifyWatchlist, upsertWatchlist } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
-
-type WatchShow = {
-  readonly slug: string;
-  readonly title: string;
-  readonly venue: string;
-  readonly category: string;
-  readonly openLabel: string;
-  readonly dDayLabel: string;
-  readonly defaultEnabled: boolean;
-};
+import { WatchlistShowCard, type WatchShow } from "./watchlist-show-card";
+import { WatchlistToggleButton } from "./watchlist-toggle-button";
 
 type ChannelId = "kakao" | "appPush" | "email" | "sms";
 
@@ -155,37 +146,13 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
           {shows.map((show) => {
             const enabled = showAlerts.has(show.slug);
             return (
-              <article key={show.slug} className="rounded-lg border border-line bg-white p-5 shadow-ticket-1">
-                <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-surface px-3 py-1 text-sm font-black text-ink-2">{show.category}</span>
-                      <span className="rounded-full bg-tint-red px-3 py-1 text-sm font-black text-ticketground">{show.dDayLabel}</span>
-                    </div>
-                    <h2 className="mt-3 text-[22px] font-black text-ink">{show.title}</h2>
-                    <p className="mt-2 text-sm text-ink-3">{show.venue}</p>
-                    <p className="mt-1 flex items-center gap-2 text-sm font-bold text-ink-2">
-                      <CalendarDays className="size-4" aria-hidden />
-                      예매 오픈 {show.openLabel}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                    <Link href={`/goods/${show.slug}`} className="inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-black text-ink hover:border-line-strong">
-                      상세보기
-                    </Link>
-                    <ToggleButton
-                      active={enabled}
-                      label={`${show.title} 알림`}
-                      onToggle={() => toggleShow(show.slug)}
-                    />
-                    {enabled && (
-                      <button type="button" onClick={recordNotification} className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-black text-white">
-                        즉시 알림 기록
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </article>
+              <WatchlistShowCard
+                key={show.slug}
+                enabled={enabled}
+                onRecordNotification={recordNotification}
+                onToggle={() => toggleShow(show.slug)}
+                show={show}
+              />
             );
           })}
         </div>
@@ -227,7 +194,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
                     <p className="text-sm font-black text-ink">{channel.label}</p>
                     <p className="text-sm text-ink-3">{channel.detail}</p>
                   </div>
-                  <ToggleButton
+                  <WatchlistToggleButton
                     active={channelAlerts.has(channel.id)}
                     label={`${channel.label} 수신`}
                     onToggle={() => toggleChannel(channel.id)}
@@ -239,22 +206,5 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
         </aside>
       </div>
     </section>
-  );
-}
-
-function ToggleButton({ active, label, onToggle }: { readonly active: boolean; readonly label: string; readonly onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={`${label} ${active ? "켜짐" : "꺼짐"}`}
-      aria-pressed={active}
-      onClick={onToggle}
-      className={cn(
-        "inline-flex h-10 min-w-28 items-center justify-center rounded-lg border px-4 text-sm font-black focus-visible:ring-3 focus-visible:ring-ring/50",
-        active ? "border-ink bg-ink text-white" : "border-line-strong bg-white text-ink",
-      )}
-    >
-      {active ? "켜짐" : "꺼짐"}
-    </button>
   );
 }
