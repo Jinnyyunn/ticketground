@@ -1,0 +1,2 @@
+src/lib/ticketground-api.ts:21:export const DEMO_EVENT_ID = "event_kpop_001";
+src/lib/ticketground-api.ts:115:export function getSeatMap(eventId = DEMO_EVENT_ID) {

@@ -1,0 +1,6 @@
+ M src/components/ticketing/booking-panel.tsx
+ M src/components/ticketing/checkout-panel.tsx
+ M src/data/ticketing-catalog.ts
+ M src/data/ticketing.ts
+ M src/types/index.ts
+?? tests/event-id-mapping.test.mjs

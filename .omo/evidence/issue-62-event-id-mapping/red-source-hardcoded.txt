@@ -1,0 +1,6 @@
+src/lib/ticketground-api.ts:21:export const DEMO_EVENT_ID = "event_kpop_001";
+src/lib/ticketground-api.ts:115:export function getSeatMap(eventId = DEMO_EVENT_ID) {
+src/components/ticketing/checkout-panel.tsx:6:import { buyTicket, DEMO_EVENT_ID, getState } from "@/lib/ticketground-api";
+src/components/ticketing/checkout-panel.tsx:60:        ticketId = state.tickets.find((ticket) => ticket.eventId === DEMO_EVENT_ID && ticket.status === "ON_SALE")?.id ?? "";
+src/components/ticketing/booking-panel.tsx:7:import { DEMO_EVENT_ID, getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
+src/components/ticketing/booking-panel.tsx:64:    getSeatMap(DEMO_EVENT_ID)

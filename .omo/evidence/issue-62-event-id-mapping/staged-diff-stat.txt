@@ -1,0 +1,42 @@
+ .../issue-62-event-id-mapping/browser-http-qa.exit |   1 +
+ .../issue-62-event-id-mapping/browser-http-qa.json |  25 +++++++
+ .../browser-http-qa.stderr                         |   0
+ .omo/evidence/issue-62-event-id-mapping/build.exit |   1 +
+ .omo/evidence/issue-62-event-id-mapping/build.txt  |  60 +++++++++++++++
+ .../changed-file-pure-loc.txt                      |   5 ++
+ .../dependency-install.exit                        |   1 +
+ .../dependency-install.txt                         |  13 ++++
+ .../issue-62-event-id-mapping/diff-check.exit      |   1 +
+ .../issue-62-event-id-mapping/diff-check.txt       |   0
+ .../evidence-file-sizes.txt                        |  54 ++++++++++++++
+ .../evidence/issue-62-event-id-mapping/evidence.md |  46 ++++++++++++
+ .../final-consumer-hardcode-search.exit            |   1 +
+ .../final-consumer-hardcode-search.txt             |   0
+ .../git-diff-stat-before-stage.txt                 |   6 ++
+ .../git-status-before-stage.txt                    |   6 ++
+ .../green-regression-test.exit                     |   1 +
+ .../green-regression-test.txt                      |  10 +++
+ .../post-source-event-id-search.exit               |   1 +
+ .../post-source-event-id-search.txt                |   2 +
+ .../qa-booking-les-miserables.png                  | Bin 0 -> 258158 bytes
+ .../qa-booking-palette-festival.png                | Bin 0 -> 252182 bytes
+ .../issue-62-event-id-mapping/red-exit-codes.txt   |   2 +
+ .../red-prebuild-env-check.exit                    |   1 +
+ .../red-prebuild-env-check.txt                     |  38 ++++++++++
+ .../red-regression-test.txt                        |  55 ++++++++++++++
+ .../red-runtime-two-booking-pages.json             |  17 +++++
+ .../red-runtime-two-booking-pages.stderr           |   0
+ .../red-source-hardcoded.txt                       |   6 ++
+ .../staged-diff-check.exit                         |   1 +
+ .../staged-diff-check.txt                          |   0
+ .../issue-62-event-id-mapping/staged-diff-stat.txt |  38 ++++++++++
+ .../issue-62-event-id-mapping/staged-files.txt     |  37 +++++++++
+ .../issue-62-event-id-mapping/typecheck.exit       |   1 +
+ .../issue-62-event-id-mapping/typecheck.txt        |   3 +
+ src/components/ticketing/booking-panel.tsx         |   6 +-
+ src/components/ticketing/checkout-panel.tsx        |   4 +-
+ src/data/ticketing-catalog.ts                      |   7 ++
+ src/data/ticketing.ts                              |   1 +
+ src/types/index.ts                                 |   1 +
+ tests/event-id-mapping.test.mjs                    |  83 +++++++++++++++++++++
+ 41 files changed, 530 insertions(+), 5 deletions(-)

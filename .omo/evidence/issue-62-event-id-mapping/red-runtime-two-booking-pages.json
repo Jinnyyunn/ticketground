@@ -1,0 +1,17 @@
+{
+  "scenario": "RED runtime proof: two booking pages request backend seat map",
+  "observations": [
+    {
+      "slug": "les-miserables",
+      "requestedEventId": "event_kpop_001",
+      "requestPath": "/api/seat-map?eventId=event_kpop_001",
+      "visibleBackendSource": "not found"
+    },
+    {
+      "slug": "palette-festival",
+      "requestedEventId": "event_kpop_001",
+      "requestPath": "/api/seat-map?eventId=event_kpop_001",
+      "visibleBackendSource": "not found"
+    }
+  ]
+}
