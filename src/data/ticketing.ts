@@ -75,6 +75,7 @@ const catalogTicketShows: TicketShow[] = [
   {
     slug: "les-miserables",
     code: "CTI-LM40",
+    backendEventId: "event_musical_001",
     category: "뮤지컬",
     title: "레미제라블 40주년 (Les Miserables 40th Anniversary)",
     shortTitle: "레미제라블",

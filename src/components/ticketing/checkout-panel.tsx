@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { currency } from "@/data/ticketing";
-import { buyTicket, DEMO_EVENT_ID, getState } from "@/lib/ticketground-api";
+import { buyTicket, getState } from "@/lib/ticketground-api";
 import type { Reservation, TicketShow } from "@/types";
 
 const paymentMethods = [
@@ -57,7 +57,7 @@ export function CheckoutPanel({
       let ticketId = selection.ticketId;
       if (!ticketId) {
         const state = await getState();
-        ticketId = state.tickets.find((ticket) => ticket.eventId === DEMO_EVENT_ID && ticket.status === "ON_SALE")?.id ?? "";
+        ticketId = state.tickets.find((ticket) => ticket.eventId === show.backendEventId && ticket.status === "ON_SALE")?.id ?? "";
       }
       if (!ticketId) {
         setStatus("구매 가능한 티켓이 없습니다.");
