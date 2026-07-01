@@ -88,7 +88,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
           <DetailBookingPanel slug={show.slug} title={show.title} schedules={show.schedules} />
 
-          <nav className="no-scrollbar sticky top-[112px] z-20 flex gap-2 overflow-x-auto border-b border-line bg-white py-3 shadow-sm lg:col-span-3" aria-label="상세 정보 바로가기">
+          <nav className="no-scrollbar sticky top-[46px] z-20 flex gap-2 overflow-x-auto border-b border-line bg-white py-3 shadow-sm sm:top-[50px] lg:col-span-3" aria-label="상세 정보 바로가기">
             {tabLinks.map((tab) => (
               <Link key={tab.href} href={tab.href} className="whitespace-nowrap rounded-md px-4 py-2 text-sm font-black text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
                 {tab.label}
@@ -97,7 +97,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
           </nav>
 
           <div className="min-w-0 space-y-12 lg:col-span-2">
-            <section id="intro" className="scroll-mt-[176px]">
+            <section id="intro" className="scroll-mt-[128px]">
               <p className="text-sm font-black text-ticketground">공연소개</p>
               <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">클린티켓으로 만나는 대표 회차</h2>
               <p className="mt-4 text-base leading-loose text-ink-3">
@@ -105,7 +105,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               </p>
             </section>
 
-            <section id="cast" className="scroll-mt-[176px]">
+            <section id="cast" className="scroll-mt-[128px]">
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className="text-sm font-black text-ticketground">출연진</p>
@@ -127,7 +127,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               </div>
             </section>
 
-            <section id="schedule" className="scroll-mt-[176px]">
+            <section id="schedule" className="scroll-mt-[128px]">
               <p className="text-sm font-black text-ticketground">공연일정</p>
               <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">5월 회차 캘린더</h2>
               <div className="mt-5 grid gap-5 lg:grid-cols-[300px_1fr]">
@@ -171,7 +171,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               </div>
             </section>
 
-            <section id="place" className="scroll-mt-[176px]">
+            <section id="place" className="scroll-mt-[128px]">
               <p className="text-sm font-black text-ticketground">장소</p>
               <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">{show.venue}</h2>
               <div className="mt-5 rounded-lg border border-line bg-card p-5">
@@ -201,7 +201,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               </div>
             </section>
 
-            <section id="notices" className="scroll-mt-[176px]">
+            <section id="notices" className="scroll-mt-[128px]">
               <p className="text-sm font-black text-ticketground">유의사항</p>
               <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">클린티켓 운영 안내</h2>
               <ul className="mt-5 grid gap-3 text-sm leading-loose text-ink-3">
