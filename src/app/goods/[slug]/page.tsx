@@ -27,6 +27,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
   const scheduledDays = new Set(show.schedules.map((schedule) => Number(schedule.date.split(".").at(-1))));
   const firstPrice = show.prices[0];
   const venue = getVenueForShow(show);
+  const venueHref = venue ? `/place/${venue.slug}` : "/place";
   const artistHref = show.artistSlug ? `/artist/${show.artistSlug}` : undefined;
 
   return (
@@ -89,7 +90,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
             </section>
           </section>
 
-          <DetailBookingPanel slug={show.slug} title={show.title} schedules={show.schedules} />
+          <DetailBookingPanel slug={show.slug} title={show.title} venueHref={venueHref} schedules={show.schedules} />
 
           <nav className="no-scrollbar sticky top-[46px] z-20 flex gap-2 overflow-x-auto border-b border-line bg-white py-3 shadow-sm sm:top-[50px] lg:col-span-3" aria-label="상세 정보 바로가기">
             {tabLinks.map((tab) => (
@@ -208,7 +209,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                       </div>
                     </dl>
                   </div>
-                  <Link href={venue ? `/place/${venue.slug}` : "/place"} className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
+                  <Link href={venueHref} className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
                     <span>
                       <span className="block text-2xl font-black">{venue?.cardTitle ?? show.venue}</span>
                       <span className="mt-2 block text-sm font-bold text-white/75">공연장 상세 보기</span>

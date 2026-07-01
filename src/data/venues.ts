@@ -58,6 +58,20 @@ export const ticketVenues: readonly TicketVenue[] = [
     aliases: ["예술의전당"],
     searchQuery: "베를린필",
   },
+  {
+    slug: "jamsil-olympic-main-stadium",
+    name: "잠실종합운동장 주경기장",
+    displayName: "잠실종합운동장 주경기장",
+    cardTitle: "JAMSIL OLYMPIC MAIN STADIUM",
+    description: "대형 콘서트와 월드투어에 맞춘 야외 스타디움입니다. 게이트별 입장 동선과 좌석 권역을 예매 전에 확인할 수 있습니다.",
+    address: "서울 송파구 올림픽로 25",
+    seats: "6만석 이상",
+    inquiry: "1661-5000",
+    transport: ["2호선·9호선 종합운동장역 도보 이동", "공연 당일 주변 도로와 주차장이 매우 혼잡해 대중교통 이용을 권장합니다.", "지정 게이트와 입장 시간을 예매 내역에서 미리 확인해 주세요."],
+    zones: ["VIP 플로어", "R 1층 지정석", "S 2층 지정석", "A 3층 지정석"],
+    aliases: ["잠실종합운동장", "잠실 올림픽 주경기장"],
+    searchQuery: "IU",
+  },
 ] as const;
 
 export function getVenue(slug: string) {
