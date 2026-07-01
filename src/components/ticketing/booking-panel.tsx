@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
-import { currency, getTicketShowBackendEventId } from "@/data/ticketing";
+import { getTicketShowBackendEventId } from "@/data/ticketing-backend-events";
+import { currency } from "@/data/ticketing";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";

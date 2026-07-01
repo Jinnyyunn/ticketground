@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { currency, getTicketShowBackendEventId } from "@/data/ticketing";
+import { getTicketShowBackendEventId } from "@/data/ticketing-backend-events";
+import { currency } from "@/data/ticketing";
 import { buyTicket, getState } from "@/lib/ticketground-api";
 import type { Reservation, TicketShow } from "@/types";
 

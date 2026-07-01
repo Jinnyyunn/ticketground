@@ -28,7 +28,7 @@ test("booking pages fetch each show's mapped backend event", async (t) => {
   });
 });
 
-test("checkout fallback buys from the current show's mapped backend event", async (t) => {
+test("checkout fallback uses the current show's mapped backend event", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
