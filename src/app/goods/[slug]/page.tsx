@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DetailBookingPanel } from "@/components/ticketing/detail-booking-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { currency, getShow, ticketShows } from "@/data/ticketing";
+import { getVenueForShow } from "@/data/venues";
 
 const tabLinks = [
   { href: "#intro", label: "공연소개" },
@@ -25,31 +26,26 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
   const calendarDays = Array.from({ length: 31 }, (_, index) => index + 1);
   const scheduledDays = new Set(show.schedules.map((schedule) => Number(schedule.date.split(".").at(-1))));
   const firstPrice = show.prices[0];
+  const venue = getVenueForShow(show);
+  const venueHref = venue ? `/place/${venue.slug}` : "/place";
   const artistHref = show.artistSlug ? `/artist/${show.artistSlug}` : undefined;
 
   return (
     <TicketingPageShell>
       <main className="ticketground-container py-10">
         <section className="grid min-w-0 gap-8 lg:grid-cols-[320px_minmax(0,1fr)_360px]">
-          <article className="min-w-0 overflow-hidden rounded-lg bg-ink text-white shadow-ticket-3">
-            <div className="relative min-h-[426px] overflow-hidden">
-              <Image
-                src={show.poster}
-                alt={`${show.title} 포스터`}
-                fill
-                priority
-                unoptimized
-                data-detail-poster
-                sizes="(min-width: 1024px) 320px, 100vw"
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
-              <div className="relative z-10 flex min-h-[426px] flex-col justify-end p-6">
-                <p className="text-sm font-bold text-white/75">{show.category}</p>
-                <h1 className="balanced-title mt-3 text-[32px] font-black leading-tight sm:text-4xl">{show.shortTitle}</h1>
-                <p className="mt-3 text-sm font-bold text-white/80">{show.venue}</p>
-              </div>
-            </div>
+          <article className="h-fit min-w-0 self-start overflow-hidden rounded-lg bg-card shadow-ticket-3">
+            <Image
+              src={show.poster}
+              alt={`${show.title} 포스터`}
+              width={750}
+              height={1000}
+              priority
+              unoptimized
+              data-detail-poster
+              sizes="(min-width: 1024px) 320px, 100vw"
+              className="block h-auto w-full object-cover"
+            />
           </article>
 
           <section className="min-w-0">
@@ -87,7 +83,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
             </section>
           </section>
 
-          <DetailBookingPanel slug={show.slug} title={show.title} schedules={show.schedules} />
+          <DetailBookingPanel slug={show.slug} title={show.title} venueHref={venueHref} schedules={show.schedules} />
 
           <nav className="no-scrollbar sticky top-[46px] z-20 flex gap-2 overflow-x-auto border-b border-line bg-white py-3 shadow-sm sm:top-[50px] lg:col-span-3" aria-label="상세 정보 바로가기">
             {tabLinks.map((tab) => (
@@ -206,9 +202,9 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                       </div>
                     </dl>
                   </div>
-                  <Link href="/place" className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
+                  <Link href={venueHref} className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
                     <span>
-                      <span className="block text-2xl font-black">BLUE SQUARE</span>
+                      <span className="block text-2xl font-black">{venue?.cardTitle ?? show.venue}</span>
                       <span className="mt-2 block text-sm font-bold text-white/75">공연장 상세 보기</span>
                     </span>
                   </Link>

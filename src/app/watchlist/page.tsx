@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { WatchlistBoard } from "@/components/watchlist/watchlist-board";
+import { featuredShow, genreRecommendations, miniShows, rankings, type PosterFit } from "@/components/home/home-content";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { ticketShows } from "@/data/ticketing";
 
@@ -8,8 +9,22 @@ export const metadata: Metadata = {
   description: "Ticketground 관심공연 예매 오픈 알림 설정",
 };
 
+type HomePosterEntry = {
+  readonly poster: string;
+  readonly posterFit?: PosterFit;
+};
+
+const homePosterEntries = [featuredShow, ...miniShows, ...rankings, ...genreRecommendations.flatMap((group) => group.items)];
+const homePosterBySlug = new Map<string, HomePosterEntry>(
+  homePosterEntries.map((show) => [
+    show.href.replace("/goods/", ""),
+    { poster: show.poster, posterFit: "posterFit" in show ? show.posterFit : undefined },
+  ]),
+);
+
 export default function WatchlistPage() {
   const watchShows = ticketShows.slice(0, 3).map((show, index) => ({
+    ...(homePosterBySlug.get(show.slug) ?? { poster: show.poster }),
     slug: show.slug,
     title: show.shortTitle,
     venue: show.venue,

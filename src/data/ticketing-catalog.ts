@@ -1,12 +1,45 @@
-import type { Reservation, TicketShow } from "@/types";
+import type { TicketShow } from "@/types";
 
 const P = "/images/posters";
 const R = "/images/real-posters";
 
+// allow: SIZE_OK — catalog seed data stays together for route generation.
 export const supportingTicketShows: TicketShow[] = [
+  {
+    slug: "iu-world-tour",
+    code: "CTI-IU26",
+    category: "콘서트",
+    title: "IU 2026 WORLD TOUR",
+    shortTitle: "IU 2026 WORLD TOUR",
+    venue: "잠실종합운동장 주경기장",
+    period: "2026.09.12 ~ 2026.09.13",
+    runtime: "150분",
+    ageLimit: "8세 이상 관람가",
+    poster: `${R}/iu-world-tour.jpg`,
+    ranking: "콘서트 주간 1위",
+    badge: "단독판매",
+    prices: [
+      { grade: "VIP", seat: "VIP석", price: 198000 },
+      { grade: "R", seat: "R석", price: 165000 },
+      { grade: "S", seat: "S석", price: 132000 },
+      { grade: "A", seat: "A석", price: 99000 },
+    ],
+    schedules: [
+      { label: "9월 12일", date: "2026.09.12", times: ["19:00"] },
+      { label: "9월 13일", date: "2026.09.13", times: ["18:00"] },
+    ],
+    casts: ["IU", "밴드", "스트링 세션"],
+    notices: [
+      "회차별 1인 2매까지 예매할 수 있습니다.",
+      "모바일 티켓과 현장 본인 확인이 함께 진행됩니다.",
+      "공식 재판매 정책은 공연별 공지에 따라 제한될 수 있습니다.",
+    ],
+    summary: "잠실종합운동장에서 열리는 IU 월드투어 서울 공연입니다. 홈 대표 카드와 대기열 예매 흐름의 기준 상품입니다.",
+  },
   {
     slug: "dracula",
     code: "L0000142",
+    backendEventId: "event_musical_001",
     category: "뮤지컬",
     title: "뮤지컬 드라큘라 (Dracula：The Musical)",
     shortTitle: "뮤지컬 드라큘라",
@@ -41,6 +74,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "beethoven",
     code: "26006232",
+    backendEventId: "event_musical_001",
     category: "뮤지컬",
     title: "［Ticketground 단독］ 뮤지컬 〈베토벤〉",
     shortTitle: "뮤지컬 베토벤",
@@ -67,6 +101,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "palette-festival",
     code: "26007850",
+    backendEventId: "event_festival_001",
     category: "콘서트",
     title: "2026 Palette Festival",
     shortTitle: "Palette Festival",
@@ -91,6 +126,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "king-lear",
     code: "26008115",
+    backendEventId: "event_musical_001",
     category: "연극",
     title: "국립극단 리어왕",
     shortTitle: "국립극단 리어왕",
@@ -117,6 +153,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "berlin-phil",
     code: "26007169",
+    backendEventId: "event_musical_001",
     category: "클래식",
     title: "베를린필 내한공연",
     shortTitle: "베를린필 내한공연",
@@ -144,6 +181,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "banksy",
     code: "26008579",
+    backendEventId: "event_festival_001",
     category: "전시/행사",
     title: "［얼리버드］ 뱅크시 : Still Here",
     shortTitle: "뱅크시 : Still Here",
@@ -168,6 +206,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "breadbarbershop",
     code: "26008899",
+    backendEventId: "event_festival_001",
     category: "아동/가족",
     title: "브레드이발소 여름방학 특별전",
     shortTitle: "브레드이발소",
@@ -189,52 +228,5 @@ export const supportingTicketShows: TicketShow[] = [
     casts: ["브레드", "윌크", "초코", "마카롱"],
     notices: ["아동/가족 장르 대표 예매 흐름입니다.", "보호자 동반 입장과 회차별 입장 시간이 지정됩니다."],
     summary: "브레드이발소 캐릭터를 체험형 전시와 공연으로 만나는 아동/가족 대표 상품입니다.",
-  },
-];
-
-export const supportingReservations: Reservation[] = [
-  {
-    id: "CTI-260710-001",
-    showSlug: "dracula",
-    showTitle: "뮤지컬 드라큘라 (Dracula：The Musical)",
-    venue: "LG아트센터 서울 LG SIGNATURE 홀",
-    date: "2026.07.10",
-    time: "19:30",
-    seat: "VIP A열 12번",
-    price: "180,000원",
-    status: "예매완료",
-  },
-  {
-    id: "CTI-26006232-001",
-    showSlug: "beethoven",
-    showTitle: "［Ticketground 단독］ 뮤지컬 〈베토벤〉",
-    venue: "세종문화회관 대극장",
-    date: "2026.06.30",
-    time: "19:30",
-    seat: "VIP A열 12번",
-    price: "160,000원",
-    status: "예매완료",
-  },
-  {
-    id: "CTI-26007850-001",
-    showSlug: "palette-festival",
-    showTitle: "2026 Palette Festival",
-    venue: "올림픽공원 88잔디마당",
-    date: "2026.08.15",
-    time: "12:00",
-    seat: "1일권 A열 12번",
-    price: "121,000원",
-    status: "예매완료",
-  },
-  {
-    id: "CTI-26008579-001",
-    showSlug: "banksy",
-    showTitle: "［얼리버드］ 뱅크시 : Still Here",
-    venue: "더현대서울 6층 ALT.1",
-    date: "2026.07.22",
-    time: "10:30",
-    seat: "성인 A열 12번",
-    price: "13,800원",
-    status: "예매완료",
   },
 ];

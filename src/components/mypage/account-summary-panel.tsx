@@ -7,7 +7,7 @@ import { readDemoCancelHistory } from "@/lib/demo-cancel-history";
 
 type AccountSummaryPanelProps = {
   readonly reservationCount: number;
-  readonly transferableSeatCount: number;
+  readonly resaleSeatCount: number;
   readonly inquiryCount: number;
 };
 
@@ -16,7 +16,7 @@ type AuthState = "loading" | "signed-in" | "signed-out" | "error";
 const demoAuthStorageKey = "ticketground:demo-auth-state";
 const signedOutValue = "signed-out";
 
-export function AccountSummaryPanel({ reservationCount, transferableSeatCount, inquiryCount }: AccountSummaryPanelProps) {
+export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiryCount }: AccountSummaryPanelProps) {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [session, setSession] = useState<ApiSession | null>(null);
   const [cancelHistoryCount, setCancelHistoryCount] = useState(0);
@@ -110,7 +110,7 @@ export function AccountSummaryPanel({ reservationCount, transferableSeatCount, i
   const counters = [
     { label: "예매", count: reservationCount, href: "/mypage#reservations" },
     { label: "취소", count: cancelHistoryCount, href: "/mypage#cancel-history" },
-    { label: "양도", count: transferableSeatCount, href: "/transfer" },
+    { label: "공식 재판매", count: resaleSeatCount, href: "/resale" },
     { label: "문의", count: inquiryCount, href: "/inquiry" },
   ] as const;
 
@@ -123,7 +123,7 @@ export function AccountSummaryPanel({ reservationCount, transferableSeatCount, i
             {displayName} 회원
           </h1>
           <p className="mt-2 text-[15px] text-[#d8d8d8]">
-            클린티켓 인증 기기 1대 · 예매 {reservationCount}건 · 양도 가능 {transferableSeatCount}석
+            클린티켓 인증 기기 1대 · 예매 {reservationCount}건 · 공식 재판매 가능 {resaleSeatCount}석
           </p>
           <p className="mt-2 text-[13px] font-bold text-white/70" data-account-status>
             {status}

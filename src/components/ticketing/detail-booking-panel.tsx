@@ -13,10 +13,11 @@ type DetailSchedule = {
 type DetailBookingPanelProps = {
   readonly slug: string;
   readonly title: string;
+  readonly venueHref: string;
   readonly schedules: readonly DetailSchedule[];
 };
 
-export function DetailBookingPanel({ slug, title, schedules }: DetailBookingPanelProps) {
+export function DetailBookingPanel({ slug, title, venueHref, schedules }: DetailBookingPanelProps) {
   const [selectedDate, setSelectedDate] = useState(schedules[0]?.date ?? "");
   const selectedSchedule = schedules.find((schedule) => schedule.date === selectedDate) ?? schedules[0];
   const [selectedTime, setSelectedTime] = useState(selectedSchedule?.times[0] ?? "");
@@ -114,7 +115,7 @@ export function DetailBookingPanel({ slug, title, schedules }: DetailBookingPane
         선택 회차 예매
       </Link>
       <Link
-        href="/place"
+        href={venueHref}
         className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line bg-background text-sm font-bold text-ink-2 whitespace-nowrap transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         공연장 좌석 미리보기

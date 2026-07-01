@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { currency } from "@/data/ticketing";
-import { readDemoCancelHistory, type DemoCancelHistoryEntry } from "@/lib/demo-cancel-history";
+import { readDemoCancelHistory, subscribeDemoCancelHistory } from "@/lib/demo-cancel-history";
+
+const emptyCancelHistory = [] as const;
 
 export function CancelHistoryPanel() {
-  const [history, setHistory] = useState<readonly DemoCancelHistoryEntry[]>([]);
-
-  useEffect(() => {
-    setHistory(readDemoCancelHistory());
-  }, []);
+  const history = useSyncExternalStore(subscribeDemoCancelHistory, readDemoCancelHistory, () => emptyCancelHistory);
 
   return (
     <section id="cancel-history" className="mt-8 scroll-mt-[176px]" aria-live="polite">

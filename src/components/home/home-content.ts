@@ -39,6 +39,7 @@ export type RankingShow = {
   readonly title: string;
   readonly venue: string;
   readonly date: string;
+  readonly href: string;
   readonly movement: "up" | "down" | "same";
   readonly delta: string;
   readonly gradient: PosterGradient;
@@ -66,6 +67,7 @@ export type Recommendation = {
   readonly title: string;
   readonly venue: string;
   readonly date: string;
+  readonly href: string;
   readonly gradient: PosterGradient;
   readonly poster: string;
   readonly posterFit?: PosterFit;
@@ -81,7 +83,7 @@ export const featuredShow: FeaturedShow = {
   eyebrow: "FEATURED",
   venue: "잠실종합운동장 주경기장",
   date: "2026.09.12 ~ 2026.09.13",
-  href: "/queue/palette-festival",
+  href: "/goods/iu-world-tour",
   gradient: "g1",
   poster: posterImages.iu,
   cta: "예매하기",
@@ -93,7 +95,7 @@ export const miniShows: readonly FeaturedShow[] = [
     eyebrow: "MUSICAL",
     venue: "블루스퀘어 신한카드홀",
     date: "2026.05.13 ~ 2026.08.30",
-    href: "/goods/dracula",
+    href: "/goods/les-miserables",
     gradient: "g2",
     poster: posterImages.lesMiserables,
     cta: "상세보기",
@@ -103,7 +105,7 @@ export const miniShows: readonly FeaturedShow[] = [
     eyebrow: "CLASSIC",
     venue: "예술의전당 콘서트홀",
     date: "2026.10.21",
-    href: "/contents/genre/musical",
+    href: "/goods/berlin-phil",
     gradient: "g4",
     poster: posterImages.berlinPhil,
     cta: "알림받기",
@@ -111,16 +113,16 @@ export const miniShows: readonly FeaturedShow[] = [
 ];
 
 export const rankings: readonly RankingShow[] = [
-  { rank: 1, title: "IU 2026 WORLD TOUR", venue: "잠실종합운동장", date: "2026.09.12", movement: "up", delta: "2", gradient: "g1", poster: posterImages.iu },
-  { rank: 2, title: "레미제라블 40주년", venue: "블루스퀘어", date: "2026.05.13", movement: "same", delta: "-", gradient: "g2", poster: posterImages.lesMiserables },
-  { rank: 3, title: "SEVENTEEN TOUR", venue: "고척스카이돔", date: "2026.08.08", movement: "up", delta: "1", gradient: "g6", poster: posterImages.seventeen },
-  { rank: 4, title: "하데스타운", venue: "샤롯데씨어터", date: "2026.07.04", movement: "down", delta: "1", gradient: "g10", poster: posterImages.hadestown },
-  { rank: 5, title: "베를린필 내한공연", venue: "예술의전당", date: "2026.10.21", movement: "up", delta: "4", gradient: "g4", poster: posterImages.berlinPhil },
-  { rank: 6, title: "NCT WISH FANMEETING", venue: "KSPO DOME", date: "2026.07.25", movement: "same", delta: "-", gradient: "g8", poster: posterImages.nctWish, posterFit: "contain" },
-  { rank: 7, title: "조성진 피아노 리사이틀", venue: "롯데콘서트홀", date: "2026.11.02", movement: "up", delta: "3", gradient: "g9", poster: posterImages.choSeongJin },
-  { rank: 8, title: "오페라의 유령", venue: "세종문화회관", date: "2026.06.30", movement: "down", delta: "2", gradient: "g5", poster: posterImages.phantom },
-  { rank: 9, title: "DAY6 Special Live", venue: "인스파이어 아레나", date: "2026.08.29", movement: "same", delta: "-", gradient: "g7", poster: posterImages.day6 },
-  { rank: 10, title: "국립극단 리어왕", venue: "명동예술극장", date: "2026.07.18", movement: "up", delta: "5", gradient: "g12", poster: posterImages.kingLear, posterFit: "contain" },
+  { rank: 1, title: "IU 2026 WORLD TOUR", venue: "잠실종합운동장", date: "2026.09.12", href: "/goods/iu-world-tour", movement: "up", delta: "2", gradient: "g1", poster: posterImages.iu },
+  { rank: 2, title: "레미제라블 40주년", venue: "블루스퀘어", date: "2026.05.13", href: "/goods/les-miserables", movement: "same", delta: "-", gradient: "g2", poster: posterImages.lesMiserables },
+  { rank: 3, title: "SEVENTEEN TOUR", venue: "고척스카이돔", date: "2026.08.08", href: "/goods/seventeen-tour", movement: "up", delta: "1", gradient: "g6", poster: posterImages.seventeen },
+  { rank: 4, title: "하데스타운", venue: "샤롯데씨어터", date: "2026.07.04", href: "/goods/hadestown", movement: "down", delta: "1", gradient: "g10", poster: posterImages.hadestown },
+  { rank: 5, title: "베를린필 내한공연", venue: "예술의전당", date: "2026.10.21", href: "/goods/berlin-phil", movement: "up", delta: "4", gradient: "g4", poster: posterImages.berlinPhil },
+  { rank: 6, title: "NCT WISH FANMEETING", venue: "KSPO DOME", date: "2026.07.25", href: "/goods/nct-wish-fanmeeting", movement: "same", delta: "-", gradient: "g8", poster: posterImages.nctWish, posterFit: "contain" },
+  { rank: 7, title: "조성진 피아노 리사이틀", venue: "롯데콘서트홀", date: "2026.11.02", href: "/goods/cho-seong-jin", movement: "up", delta: "3", gradient: "g9", poster: posterImages.choSeongJin },
+  { rank: 8, title: "오페라의 유령", venue: "세종문화회관", date: "2026.06.30", href: "/goods/phantom-of-the-opera", movement: "down", delta: "2", gradient: "g5", poster: posterImages.phantom },
+  { rank: 9, title: "DAY6 Special Live", venue: "인스파이어 아레나", date: "2026.08.29", href: "/goods/day6-special-live", movement: "same", delta: "-", gradient: "g7", poster: posterImages.day6 },
+  { rank: 10, title: "국립극단 리어왕", venue: "명동예술극장", date: "2026.07.18", href: "/goods/king-lear", movement: "up", delta: "5", gradient: "g12", poster: posterImages.kingLear, posterFit: "contain" },
 ];
 
 export const ticketOpens: readonly TicketOpen[] = [
@@ -155,31 +157,31 @@ export const genreRecommendations: readonly RecommendationGroup[] = [
   {
     title: "콘서트 추천",
     items: [
-      { title: "IU 2026 WORLD TOUR", venue: "잠실종합운동장", date: "2026.09.12", gradient: "g1", poster: posterImages.iu },
-      { title: "SEVENTEEN TOUR", venue: "고척스카이돔", date: "2026.08.08", gradient: "g6", poster: posterImages.seventeen },
-      { title: "DAY6 Special Live", venue: "인스파이어 아레나", date: "2026.08.29", gradient: "g7", poster: posterImages.day6 },
-      { title: "NCT WISH FANMEETING", venue: "KSPO DOME", date: "2026.07.25", gradient: "g8", poster: posterImages.nctWish, posterFit: "contain" },
-      { title: "Palette Festival", venue: "KINTEX HALL 9", date: "2026.07.04", gradient: "g11", poster: posterImages.paletteFestival, posterFit: "contain" },
+      { title: "IU 2026 WORLD TOUR", venue: "잠실종합운동장", date: "2026.09.12", href: "/goods/iu-world-tour", gradient: "g1", poster: posterImages.iu },
+      { title: "SEVENTEEN TOUR", venue: "고척스카이돔", date: "2026.08.08", href: "/goods/seventeen-tour", gradient: "g6", poster: posterImages.seventeen },
+      { title: "DAY6 Special Live", venue: "인스파이어 아레나", date: "2026.08.29", href: "/goods/day6-special-live", gradient: "g7", poster: posterImages.day6 },
+      { title: "NCT WISH FANMEETING", venue: "KSPO DOME", date: "2026.07.25", href: "/goods/nct-wish-fanmeeting", gradient: "g8", poster: posterImages.nctWish, posterFit: "contain" },
+      { title: "Palette Festival", venue: "KINTEX HALL 9", date: "2026.07.04", href: "/goods/palette-festival", gradient: "g11", poster: posterImages.paletteFestival, posterFit: "contain" },
     ],
   },
   {
     title: "뮤지컬 추천",
     items: [
-      { title: "레미제라블 40주년", venue: "블루스퀘어", date: "2026.05.13", gradient: "g2", poster: posterImages.lesMiserables },
-      { title: "하데스타운", venue: "샤롯데씨어터", date: "2026.07.04", gradient: "g10", poster: posterImages.hadestown },
-      { title: "오페라의 유령", venue: "세종문화회관", date: "2026.06.30", gradient: "g5", poster: posterImages.phantom },
-      { title: "뮤지컬 베토벤", venue: "세종문화회관", date: "2026.06.18", gradient: "g9", poster: posterImages.beethoven, posterFit: "contain" },
-      { title: "드라큘라", venue: "LG아트센터", date: "2026.07.10", gradient: "g3", poster: posterImages.dracula, posterFit: "contain" },
+      { title: "레미제라블 40주년", venue: "블루스퀘어", date: "2026.05.13", href: "/goods/les-miserables", gradient: "g2", poster: posterImages.lesMiserables },
+      { title: "하데스타운", venue: "샤롯데씨어터", date: "2026.07.04", href: "/goods/hadestown", gradient: "g10", poster: posterImages.hadestown },
+      { title: "오페라의 유령", venue: "세종문화회관", date: "2026.06.30", href: "/goods/phantom-of-the-opera", gradient: "g5", poster: posterImages.phantom },
+      { title: "뮤지컬 베토벤", venue: "세종문화회관", date: "2026.06.18", href: "/goods/beethoven", gradient: "g9", poster: posterImages.beethoven, posterFit: "contain" },
+      { title: "드라큘라", venue: "LG아트센터", date: "2026.07.10", href: "/goods/dracula", gradient: "g3", poster: posterImages.dracula, posterFit: "contain" },
     ],
   },
   {
     title: "연극·클래식 추천",
     items: [
-      { title: "베를린필 내한공연", venue: "예술의전당", date: "2026.10.21", gradient: "g4", poster: posterImages.berlinPhil },
-      { title: "조성진 피아노 리사이틀", venue: "롯데콘서트홀", date: "2026.11.02", gradient: "g9", poster: posterImages.choSeongJin },
-      { title: "국립극단 리어왕", venue: "명동예술극장", date: "2026.07.18", gradient: "g12", poster: posterImages.kingLear, posterFit: "contain" },
-      { title: "백건우와 라벨", venue: "통영국제음악당", date: "2026.09.04", gradient: "g8", poster: posterImages.kunWooPaik },
-      { title: "연극 벚꽃동산", venue: "대학로예술극장", date: "2026.08.06", gradient: "g11", poster: posterImages.cherryOrchard },
+      { title: "베를린필 내한공연", venue: "예술의전당", date: "2026.10.21", href: "/goods/berlin-phil", gradient: "g4", poster: posterImages.berlinPhil },
+      { title: "조성진 피아노 리사이틀", venue: "롯데콘서트홀", date: "2026.11.02", href: "/goods/cho-seong-jin", gradient: "g9", poster: posterImages.choSeongJin },
+      { title: "국립극단 리어왕", venue: "명동예술극장", date: "2026.07.18", href: "/goods/king-lear", gradient: "g12", poster: posterImages.kingLear, posterFit: "contain" },
+      { title: "백건우와 라벨", venue: "통영국제음악당", date: "2026.09.04", href: "/goods/kun-woo-paik-ravel", gradient: "g8", poster: posterImages.kunWooPaik },
+      { title: "연극 벚꽃동산", venue: "대학로예술극장", date: "2026.08.06", href: "/goods/cherry-orchard", gradient: "g11", poster: posterImages.cherryOrchard },
     ],
   },
 ];
