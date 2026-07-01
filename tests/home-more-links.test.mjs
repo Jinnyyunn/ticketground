@@ -69,3 +69,30 @@ test("home section more links route to their matching pages instead of search", 
     }
   }
 });
+
+test("floating inquiry shortcut does not cover desktop home more links", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  const inquiryShortcut = page.locator('a[aria-label="1:1 문의"]');
+  await inquiryShortcut.waitFor({ timeout: 5000 });
+  const shortcutBox = await inquiryShortcut.boundingBox();
+  assert.ok(shortcutBox, "floating inquiry shortcut is visible on desktop");
+
+  for (const item of sectionMoreLinks) {
+    const moreLink = page.locator(`[data-section="${item.section}"]`).getByRole("link", { name: "더보기", exact: true });
+    await moreLink.evaluate((node) => node.scrollIntoView({ block: "center", inline: "nearest" }));
+    const moreLinkBox = await moreLink.boundingBox();
+    assert.ok(moreLinkBox, `${item.section} more link is measurable`);
+    assert.equal(overlaps(shortcutBox, moreLinkBox), false, `${item.section} more link is not covered by floating inquiry shortcut`);
+  }
+});
+
+function overlaps(first, second) {
+  return first.x < second.x + second.width && first.x + first.width > second.x && first.y < second.y + second.height && first.y + first.height > second.y;
+}
