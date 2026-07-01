@@ -29,7 +29,10 @@ export function QueueWaitingRoom({
   const [ahead, setAhead] = useState(INITIAL_AHEAD);
   const [tick, setTick] = useState(0);
   const [countdown, setCountdown] = useState(5);
+  const [redirectStarted, setRedirectStarted] = useState(false);
+  const [redirectFallbackVisible, setRedirectFallbackVisible] = useState(false);
   const tickRef = useRef(0);
+  const redirectedRef = useRef(false);
   const isReady = ahead === 0;
   const decrements = testMode === "fast" ? FAST_DECREMENTS : NORMAL_DECREMENTS;
   const latestDecrease = decrements[Math.max(0, tick - 1) % decrements.length] ?? decrements[0];
@@ -55,13 +58,23 @@ export function QueueWaitingRoom({
   useEffect(() => {
     if (!isReady) return;
 
-    if (countdown === 0) {
-      router.replace(bookingHref);
-      return;
+    if (countdown > 0) {
+      const timeout = window.setTimeout(() => setCountdown((current) => current - 1), 1000);
+      return () => window.clearTimeout(timeout);
     }
 
-    const timeout = window.setTimeout(() => setCountdown((current) => current - 1), 1000);
-    return () => window.clearTimeout(timeout);
+    if (!redirectedRef.current) {
+      redirectedRef.current = true;
+      const redirectTimeout = window.setTimeout(() => {
+        setRedirectStarted(true);
+        router.replace(bookingHref);
+      }, 0);
+      const fallbackTimeout = window.setTimeout(() => setRedirectFallbackVisible(true), 2500);
+      return () => {
+        window.clearTimeout(redirectTimeout);
+        window.clearTimeout(fallbackTimeout);
+      };
+    }
   }, [bookingHref, countdown, isReady, router]);
 
   return (
@@ -136,8 +149,13 @@ export function QueueWaitingRoom({
             {isReady ? (
               <div>
                 <p data-queue-ready className="mt-2 text-[20px] font-black text-[#ffe92e]">
-                  입장 차례입니다. {countdown}초 후 좌석 선택으로 이동합니다.
+                  {redirectStarted ? "좌석 선택 화면으로 이동 중입니다." : `입장 차례입니다. ${countdown}초 후 좌석 선택으로 이동합니다.`}
                 </p>
+                {redirectFallbackVisible && (
+                  <p data-queue-redirect-fallback className="mt-3 text-[13px] font-bold text-[#ffb8bf]">
+                    자동 이동이 지연되고 있습니다. 아래 버튼으로 좌석 선택 화면을 다시 열어 주세요.
+                  </p>
+                )}
                 <Link
                   data-queue-continue
                   href={bookingHref}
