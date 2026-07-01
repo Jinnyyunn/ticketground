@@ -1,0 +1,26 @@
+✖ home-visible shows are searchable and link to detail pages (11714.743208ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13449.096125
+
+✖ failing tests:
+
+test at tests/search-home-visible-shows.test.mjs:12:1
+✖ home-visible shows are searchable and link to detail pages (11714.743208ms)
+  AssertionError [ERR_ASSERTION]: IU should return at least one result
+      at TestContext.<anonymous> (file:///private/tmp/ticketground-issue-worktrees/issue-58-home-search-index/tests/search-home-visible-shows.test.mjs:24:12)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '총 0개 전체 결과',
+    expected: /총 [1-9]\d*개 전체 결과/,
+    operator: 'match',
+    diff: 'simple'
+  }
+exit_code=1

@@ -9,6 +9,7 @@ import type {
   WatchlistAlert,
   InquiryThread,
 } from "@/types";
+import { homeTicketShows } from "./home-ticketing-catalog";
 import { supportingReservations, supportingTicketShows } from "./ticketing-catalog";
 
 const P = "/images/posters";
@@ -103,6 +104,7 @@ export const ticketShows: TicketShow[] = [
     summary: "블루스퀘어에서 만나는 레미제라블 40주년 대표 회차입니다. CTI 클린티켓 데이터의 기준 공연입니다.",
   },
   ...supportingTicketShows,
+  ...homeTicketShows,
 ];
 
 export const cleanTicketReservation: CleanTicketReservation = {
