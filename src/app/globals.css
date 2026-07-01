@@ -308,4 +308,9 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  .balanced-title {
+    text-wrap: balance;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
 }

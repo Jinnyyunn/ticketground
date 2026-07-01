@@ -14,17 +14,20 @@ export default async function BookingPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ date?: string | string[]; time?: string | string[] }>;
+  searchParams: Promise<{ date?: string | string[]; time?: string | string[]; timer?: string | string[] }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
   const show = getShow(slug);
   if (!show) notFound();
+  const timerQuery = queryParam(query.timer);
+  const timerParam = Number(timerQuery);
+  const initialTimerSeconds = timerQuery && Number.isFinite(timerParam) ? Math.max(0, Math.min(7 * 60, Math.floor(timerParam))) : undefined;
 
   return (
     <TicketingPageShell>
       <Suspense fallback={<div className="ticketground-container py-10 text-[16px] font-bold">좌석 선택 정보를 불러오는 중입니다.</div>}>
-        <BookingPanel show={show} initialSelection={{ date: queryParam(query.date), time: queryParam(query.time) }} />
+        <BookingPanel show={show} initialSelection={{ date: queryParam(query.date), time: queryParam(query.time) }} initialTimerSeconds={initialTimerSeconds} />
       </Suspense>
     </TicketingPageShell>
   );

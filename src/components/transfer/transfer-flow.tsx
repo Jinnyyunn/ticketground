@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CleanTicketPolicyBanner,
   SummaryRow,
@@ -9,6 +9,7 @@ import {
   TicketgroundToast,
 } from "@/components/ticketground/primitives";
 import { currency } from "@/data/ticketing";
+import { buyTicket, DEMO_EVENT_ID, directTransferAttempt, getState, getUserTickets, type ApiTicket } from "@/lib/ticketground-api";
 import type { CleanTicketReservation, TransferRecipientField } from "@/types";
 
 type TransferErrors = {
@@ -16,6 +17,8 @@ type TransferErrors = {
   readonly recipient?: string;
   readonly amount?: string;
 };
+
+type TransferOutcome = "allowed" | "blocked" | null;
 
 const recipientFeeAmount = 2000;
 
@@ -54,14 +57,58 @@ export function TransferFlow({ reservation }: { readonly reservation: CleanTicke
   const [amountValue, setAmountValue] = useState("0");
   const [errors, setErrors] = useState<TransferErrors>({});
   const [toastVisible, setToastVisible] = useState(false);
+  const [transferOutcome, setTransferOutcome] = useState<TransferOutcome>(null);
+  const [backendTickets, setBackendTickets] = useState<readonly ApiTicket[]>([]);
+  const [backendStatus, setBackendStatus] = useState("양도 가능 티켓 확인 중");
+  const [backendBusy, setBackendBusy] = useState(false);
 
   const selectedSeat = reservation.seats.find((seat) => seat.id === selectedSeatId);
+  const selectedBackendTicket = backendTickets.find((ticket) => ticket.id === selectedSeatId);
+  const selectedSeatLabel = selectedBackendTicket?.seatLabel ?? selectedSeat?.label ?? "미선택";
   const selectedField = fields.find((field) => field.id === recipientMethod);
   const amount = useMemo(() => parseAmount(amountValue), [amountValue]);
-  const maxAmount = Math.round(((selectedSeat?.faceValue ?? 0) * reservation.transfer.maxAmountPercent) / 100);
+  const maxAmount = Math.round(((selectedBackendTicket?.faceValue ?? selectedSeat?.faceValue ?? 0) * reservation.transfer.maxAmountPercent) / 100);
   const totalRecipientPay = (Number.isFinite(amount) ? amount : 0) + recipientFeeAmount;
 
-  const handleSubmit = () => {
+  async function refreshBackendTickets() {
+    try {
+      const tickets = await getUserTickets();
+      setBackendTickets(tickets);
+      if (tickets[0]) {
+        setSelectedSeatId(tickets[0].id);
+        setBackendStatus(`${tickets.length}건의 보유 티켓 확인`);
+      } else {
+        setBackendStatus("보유 티켓이 없어 테스트 티켓 확보가 필요합니다.");
+      }
+    } catch (error) {
+      setBackendStatus(error instanceof Error ? error.message : "티켓을 불러오지 못했습니다.");
+    }
+  }
+
+  useEffect(() => {
+    void refreshBackendTickets();
+  }, []);
+
+  async function ensureTicket() {
+    if (selectedBackendTicket) return selectedBackendTicket;
+    setBackendBusy(true);
+    setBackendStatus("양도 정책 테스트 티켓 확보 중");
+    try {
+      const state = await getState();
+      const ticket = state.tickets.find((item) => item.eventId === DEMO_EVENT_ID && item.status === "ON_SALE");
+      if (!ticket) throw new Error("판매 가능한 티켓이 없습니다.");
+      const purchase = await buyTicket(ticket.id);
+      const tickets = await getUserTickets();
+      setBackendTickets(tickets);
+      setSelectedSeatId(purchase.ticket.id);
+      setBackendStatus(`${purchase.ticket.seatLabel} 테스트 티켓 확보`);
+      return purchase.ticket;
+    } finally {
+      setBackendBusy(false);
+    }
+  }
+
+  const handleSubmit = async () => {
     const nextErrors = buildErrors({
       amount,
       maxAmount,
@@ -69,7 +116,22 @@ export function TransferFlow({ reservation }: { readonly reservation: CleanTicke
       seatId: selectedSeatId,
     });
     setErrors(nextErrors);
-    setToastVisible(Object.keys(nextErrors).length === 0);
+    setToastVisible(false);
+    setTransferOutcome(null);
+    if (Object.keys(nextErrors).length > 0) return;
+    setBackendBusy(true);
+    setBackendStatus("지정 양도 가능 여부 확인 중");
+    try {
+      const ticket = await ensureTicket();
+      const result = await directTransferAttempt(ticket.id);
+      setBackendStatus(result.blocked ? `${ticket.seatLabel} 지정 양도 차단 · 신뢰 정책 적용` : "양도 요청이 허용되었습니다.");
+      setTransferOutcome(result.blocked ? "blocked" : "allowed");
+      setToastVisible(true);
+    } catch (error) {
+      setBackendStatus(error instanceof Error ? error.message : "양도 검증에 실패했습니다.");
+    } finally {
+      setBackendBusy(false);
+    }
   };
 
   return (
@@ -94,9 +156,9 @@ export function TransferFlow({ reservation }: { readonly reservation: CleanTicke
             </p>
           </div>
           <div className="flex flex-wrap gap-2" aria-label="양도 가능 좌석">
-            {reservation.seats.map((seat) => (
+            {(backendTickets.length ? backendTickets : reservation.seats).map((seat) => (
               <TicketgroundChip key={seat.id} active={seat.id === selectedSeatId} onClick={() => setSelectedSeatId(seat.id)}>
-                {seat.label}
+                {"seatLabel" in seat ? seat.seatLabel : seat.label}
               </TicketgroundChip>
             ))}
           </div>
@@ -148,7 +210,7 @@ export function TransferFlow({ reservation }: { readonly reservation: CleanTicke
           <p className="text-sm text-ink-3">정책 범위: 0원 ~ {currency(maxAmount)}</p>
           {errors.amount && <p className="text-sm font-bold text-destructive">{errors.amount}</p>}
           <dl className="rounded-lg bg-surface px-4">
-            <SummaryRow label="선택 좌석" value={selectedSeat?.label ?? "미선택"} />
+            <SummaryRow label="선택 좌석" value={selectedSeatLabel} />
             <SummaryRow label="양도 금액" value={Number.isFinite(amount) ? currency(amount) : "입력 오류"} />
             <SummaryRow label="양수자 수수료" value={currency(recipientFeeAmount)} />
             <SummaryRow label="양수자 결제 예정" value={currency(totalRecipientPay)} strong />
@@ -156,19 +218,25 @@ export function TransferFlow({ reservation }: { readonly reservation: CleanTicke
           <button
             type="button"
             className="h-12 rounded-lg bg-ink px-5 text-base font-black text-white transition hover:bg-ink-2 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
+            disabled={backendBusy}
           >
-            양도 요청
+            {backendBusy ? "검증 중" : "양도 요청"}
           </button>
+          <p className="text-sm font-bold text-ink-3" aria-live="polite">{backendStatus}</p>
         </TicketgroundSurface>
       </div>
 
       {toastVisible && (
         <div className="fixed bottom-6 right-6 z-40 w-[340px]">
           <TicketgroundToast
-            title="양도 요청이 접수되었습니다"
-            description={`${selectedSeat?.label ?? "선택 좌석"} · ${selectedField?.label ?? "수신 방법"}으로 받는 사람 확인을 기다립니다.`}
-            tone="success"
+            title={transferOutcome === "blocked" ? "지정 양도가 차단되었습니다" : "양도 요청이 접수되었습니다"}
+            description={
+              transferOutcome === "blocked"
+                ? `${selectedSeatLabel} · 클린티켓 정책상 직접 양도는 지원하지 않습니다.`
+                : `${selectedSeatLabel} · ${selectedField?.label ?? "수신 방법"}으로 받는 사람 확인을 기다립니다.`
+            }
+            tone={transferOutcome === "blocked" ? "error" : "success"}
           />
         </div>
       )}

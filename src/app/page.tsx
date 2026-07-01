@@ -3,6 +3,7 @@ import {
   EditorialEventsSection,
   GenreRecommendationsSection,
   HomeHeroSection,
+  OfficialResaleSection,
   RealtimeTop10Section,
   ShortcutsSection,
   TicketOpenSection,
@@ -18,6 +19,7 @@ export default function Home() {
         <HomeHeroSection />
         <RealtimeTop10Section />
         <TicketOpenSection />
+        <OfficialResaleSection />
         <EditorialEventsSection />
         <GenreRecommendationsSection />
         <ShortcutsSection />

@@ -12,7 +12,7 @@ export const categoryNav = [
   "아동",
   "스포츠",
 ];
-export const categoryNavHighlight = ["티켓오픈 캘린더"];
+export const categoryNavHighlight = ["티켓오픈 캘린더", "티켓 재판매"];
 
 // Top promo row — baked mini banners (rotating)
 export const promoBanners = [
@@ -132,10 +132,10 @@ export const reviews: ReviewItem[] = [
 ];
 
 export const footerLinks = [
-  { label: "회사소개", href: "/event/ticketground-day" },
-  { label: "이용약관", href: "/help" },
-  { label: "개인정보처리방침", href: "/help" },
-  { label: "티켓판매안내", href: "/open" },
+  { label: "회사소개", href: "/company" },
+  { label: "이용약관", href: "/terms" },
+  { label: "개인정보처리방침", href: "/privacy" },
+  { label: "티켓판매안내", href: "/seller" },
 ] as const;
 
 export const footerColumnLinks = [
@@ -151,6 +151,7 @@ export const footerColumnLinks = [
     title: "마이",
     links: [
       { label: "예매내역", href: "/mypage#reservations" },
+      { label: "공식 재판매", href: "/resale" },
       { label: "관심공연", href: "/watchlist" },
       { label: "취소/환불", href: "/cancel" },
     ],

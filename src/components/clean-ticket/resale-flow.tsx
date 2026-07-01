@@ -3,226 +3,271 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
-import { CleanTicketPolicyBanner, SegmentedControl, SummaryRow, TicketgroundSurface, TicketgroundTag, TicketgroundToast } from "@/components/ticketground/primitives";
-import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/ticketground/primitives";
+import {
+  buyTicket,
+  DEMO_EVENT_ID,
+  drawResale,
+  getState,
+  getUserTickets,
+  joinResale,
+  listResale,
+  purchaseResale,
+  type ApiResalePool,
+  type ApiResaleResult,
+  type ApiTicket,
+} from "@/lib/ticketground-api";
+import { ResaleAuditAside } from "./resale-audit-aside";
 import { ResaleFindPanel } from "./resale-find-panel";
-import { useResaleBackend, type ResaleTicketOption } from "./use-resale-backend";
+import { createPoolCells, feeFor, matchCandidates, resaleTabs, type OwnedSeatOption, type ResaleTab } from "./resale-flow-data";
+import { ResaleIntro } from "./resale-intro";
+import { ResaleSellPanel } from "./resale-sell-panel";
 
-type ResaleTab = "sell" | "find";
-
-const resaleTabs = [
-  { label: "팔기", value: "sell" },
-  { label: "구하기", value: "find" },
-] as const;
-
-const resaleFeePercent = 5;
-
-function feeFor(amount: number) {
-  return Math.ceil(amount * (resaleFeePercent / 100));
-}
-
-export function ResaleFlow({ reservation, sessionUserId, showTitle }: {
+export function ResaleFlow({
+  reservation,
+  sessionUserId,
+  showTitle,
+}: {
   readonly reservation: CleanTicketReservation;
   readonly sessionUserId: string;
   readonly showTitle: string;
 }) {
-  const policy = reservation.resale.policy;
-  const fallbackTickets = useMemo<readonly ResaleTicketOption[]>(
-    () => reservation.seats.map((seat) => ({
-      id: seat.id,
-      label: seat.label,
-      faceValue: seat.faceValue,
-      minPrice: Math.round(seat.faceValue * (policy.minPercent / 100)),
-      maxPrice: Math.round(seat.faceValue * (policy.maxPercent / 100)),
-    })),
-    [policy.maxPercent, policy.minPercent, reservation.seats],
-  );
-  const backendResale = useResaleBackend({ sessionUserId });
-  const sellOptions = backendResale.loaded ? backendResale.ownedTickets : fallbackTickets;
-  const firstSeat = sellOptions[0] ?? fallbackTickets[0];
+  const firstSeat = reservation.seats[0];
   const [tab, setTab] = useState<ResaleTab>("sell");
   const [seatId, setSeatId] = useState(firstSeat?.id ?? "");
-  const selectedSeat = sellOptions.find((seat) => seat.id === seatId) ?? firstSeat;
+  const selectedSeat = reservation.seats.find((seat) => seat.id === seatId) ?? firstSeat;
   const faceValue = selectedSeat?.faceValue ?? 0;
   const [price, setPrice] = useState(Math.round(faceValue * 0.95));
+  const [toast, setToast] = useState("");
   const [grade, setGrade] = useState("VIP");
   const [zone, setZone] = useState("1층 중앙");
   const [maxPrice, setMaxPrice] = useState(190000);
   const [pairOnly, setPairOnly] = useState(false);
   const [activeCell, setActiveCell] = useState<number | null>(null);
+  const [result, setResult] = useState<(typeof matchCandidates)[number] | null>(null);
+  const [backendTickets, setBackendTickets] = useState<readonly ApiTicket[]>([]);
+  const [backendPool, setBackendPool] = useState<ApiResalePool | null>(null);
+  const [backendResult, setBackendResult] = useState<ApiResaleResult | null>(null);
+  const [apiStatus, setApiStatus] = useState("보유 티켓 확인 중");
+  const [apiBusy, setApiBusy] = useState(false);
   const [drawing, setDrawing] = useState(false);
-  const result = backendResale.result;
 
-  const minPrice = selectedSeat?.minPrice ?? Math.round(faceValue * (policy.minPercent / 100));
-  const maxAllowedPrice = selectedSeat?.maxPrice ?? Math.round(faceValue * (policy.maxPercent / 100));
+  const selectedBackendTicket = backendTickets.find((ticket) => ticket.id === seatId);
+  const policy = reservation.resale.policy;
+  const effectiveFaceValue = selectedBackendTicket?.faceValue ?? faceValue;
+  const minPrice = selectedBackendTicket?.minPrice ?? Math.round(effectiveFaceValue * (policy.minPercent / 100));
+  const maxAllowedPrice = selectedBackendTicket?.maxPrice ?? Math.round(effectiveFaceValue * (policy.maxPercent / 100));
   const isPriceValid = price >= minPrice && price <= maxAllowedPrice;
   const sellFee = feeFor(price);
   const settlement = price;
-  const filteredCandidates = backendResale.openPools.filter((candidate) => candidate.grade === grade && candidate.zone === zone && candidate.amount <= maxPrice && (!pairOnly || candidate.pair));
-  const canRegister = backendResale.loaded && sellOptions.length > 0 && Boolean(selectedSeat) && isPriceValid && !backendResale.busy;
+  const resultFee = result ? feeFor(result.amount) : 0;
+  const filteredCandidates = matchCandidates.filter((candidate) => candidate.grade === grade && candidate.zone === zone && candidate.amount <= maxPrice && (!pairOnly || candidate.pair));
+
+  async function refreshBackendTickets() {
+    try {
+      const tickets = await getUserTickets(sessionUserId);
+      setBackendTickets(tickets);
+      if (tickets[0]) {
+        setSeatId(tickets[0].id);
+        setPrice(tickets[0].faceValue);
+        setApiStatus(`${tickets.length}건의 보유 티켓 확인`);
+      } else {
+        setApiStatus("보유 티켓이 없습니다. 버튼으로 테스트 티켓을 먼저 확보하세요.");
+      }
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "보유 티켓을 불러오지 못했습니다.");
+    }
+  }
 
   useEffect(() => {
-    const nextSeat = sellOptions[0];
-    if (!nextSeat || sellOptions.some((seat) => seat.id === seatId)) return;
-    setSeatId(nextSeat.id);
-    setPrice(Math.round(nextSeat.faceValue * 0.95));
-  }, [seatId, sellOptions]);
+    void refreshBackendTickets();
+  }, []);
+
+  async function ensureBackendTicket() {
+    if (selectedBackendTicket) return selectedBackendTicket;
+    setApiBusy(true);
+    setApiStatus("판매 가능 티켓 확보 중");
+    try {
+      const state = await getState();
+      const ticket = state.tickets.find((item) => item.eventId === DEMO_EVENT_ID && item.status === "ON_SALE");
+      if (!ticket) throw new Error("판매 가능한 티켓이 없습니다.");
+      const purchase = await buyTicket(ticket.id, sessionUserId);
+      const nextTickets = await getUserTickets(sessionUserId);
+      setBackendTickets(nextTickets);
+      setSeatId(purchase.ticket.id);
+      setPrice(purchase.ticket.faceValue);
+      setApiStatus(`${purchase.ticket.seatLabel} 보유 티켓 확보`);
+      return purchase.ticket;
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
+  async function registerBackendPool() {
+    if (!isPriceValid || apiBusy) return null;
+    setApiBusy(true);
+    setApiStatus("공식 재판매 풀 등록 중");
+    try {
+      const ticket = await ensureBackendTicket();
+      const pool = await listResale(ticket.id, price, sessionUserId);
+      const joined = await joinResale(pool.id);
+      setBackendPool(joined);
+      setBackendResult(null);
+      setToast(`${ticket.seatLabel} 공식 재판매 풀 등록 완료`);
+      setApiStatus(`풀 ${joined.id} 등록 · 대기자 ${joined.buyerCount}명`);
+      return joined;
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "공식 재판매 등록에 실패했습니다.");
+      return null;
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
+  async function runBackendPurchase() {
+    if (apiBusy) return;
+    setApiBusy(true);
+    setApiStatus("즉시 매칭 중");
+    try {
+      const state = backendPool?.status === "OPEN" ? null : await getState();
+      const pool = backendPool?.status === "OPEN"
+        ? backendPool
+        : state?.resalePools.find((item) => item.status === "OPEN" && item.price <= maxPrice);
+      if (!pool) {
+        setApiStatus("구매 가능한 공식 재판매 풀이 없습니다.");
+        return;
+      }
+      const nextResult = await purchaseResale(pool.id, sessionUserId);
+      setBackendResult(nextResult);
+      setBackendPool(nextResult.pool);
+      setApiStatus(`매칭 완료 · 구매자 총액 ${currency(nextResult.buyerTotal)}`);
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "재판매 구매에 실패했습니다.");
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
+  const poolCells = useMemo(createPoolCells, []);
 
   const updateSeat = (nextSeatId: string) => {
-    const nextSeat = sellOptions.find((seat) => seat.id === nextSeatId);
+    const nextSeat = reservation.seats.find((seat) => seat.id === nextSeatId);
+    const nextBackendTicket = backendTickets.find((ticket) => ticket.id === nextSeatId);
     setSeatId(nextSeatId);
     if (nextSeat) setPrice(Math.round(nextSeat.faceValue * 0.95));
+    if (nextBackendTicket) setPrice(nextBackendTicket.faceValue);
   };
 
-  const registerSelectedTicket = () => {
-    if (!selectedSeat || !canRegister) return;
-    void backendResale.registerTicket({ ticketId: selectedSeat.id, price });
-  };
+  const ownedSeatOptions: readonly OwnedSeatOption[] = backendTickets.length
+    ? backendTickets.map((ticket) => ({
+      id: ticket.id,
+      label: ticket.seatLabel,
+      faceValue: ticket.faceValue,
+    }))
+    : reservation.seats.map((seat) => ({
+      id: seat.id,
+      label: seat.label,
+      faceValue: seat.faceValue,
+    }));
 
-  const runDraw = async () => {
-    if (drawing || filteredCandidates.length === 0) return;
+  const runDraw = () => {
+    if (drawing || filteredCandidates.length === 0 || apiBusy) return;
+    setResult(null);
     setDrawing(true);
-    const selectedCandidate = filteredCandidates[0];
     let step = 0;
     const timer = window.setInterval(() => {
       const candidate = filteredCandidates[step % filteredCandidates.length];
       setActiveCell((step * 7 + candidate.seat.length) % 60);
       step += 1;
+      if (step >= 14) {
+        window.clearInterval(timer);
+        setResult(filteredCandidates[13 % filteredCandidates.length]);
+        setDrawing(false);
+        void runBackendDraw();
+      }
     }, 90);
-    try {
-      await new Promise((resolve) => window.setTimeout(resolve, 720));
-      await backendResale.purchasePool(selectedCandidate.poolId);
-    } finally {
-      window.clearInterval(timer);
-      setDrawing(false);
-    }
   };
+
+  async function runBackendDraw() {
+    if (apiBusy) return;
+    setApiStatus("랜덤 추첨 중");
+    try {
+      const pool = backendPool?.status === "OPEN" ? backendPool : await registerBackendPool();
+      if (!pool) return;
+      setApiBusy(true);
+      const nextResult = await drawResale(pool.id);
+      setBackendResult(nextResult);
+      setBackendPool(nextResult.pool);
+      setApiStatus(`랜덤 추첨 완료 · 수수료 ${currency(nextResult.fee)}`);
+    } catch (error) {
+      setApiStatus(error instanceof Error ? error.message : "랜덤 추첨에 실패했습니다.");
+    } finally {
+      setApiBusy(false);
+    }
+  }
 
   return (
     <section className="ticketground-container py-10">
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="grid gap-6">
-          <header>
-            <TicketgroundTag tone="sale">CLEAN TICKET</TicketgroundTag>
-            <h1 className="mt-3 text-4xl font-black text-ink">공식 재판매</h1>
-            <p className="mt-3 max-w-[720px] text-base leading-loose text-ink-3">
-              좌석 지정 거래를 막고 공식 풀에서 조건부 랜덤 매칭으로 배정합니다. 재판매 등록은 정가의 90~100%만 허용됩니다.
-            </p>
-          </header>
-
-          <CleanTicketPolicyBanner>
-            <ul className="grid gap-2 sm:grid-cols-3">
-              <li>등록가: 정가의 90~100%</li>
-              <li>구매 수수료: 거래액 {resaleFeePercent}%</li>
-              <li>구매자는 좌석번호 직접 선택 불가</li>
-            </ul>
-          </CleanTicketPolicyBanner>
-
+          <ResaleIntro apiStatus={apiStatus} />
           <SegmentedControl label="공식 재판매 탭" options={resaleTabs} value={tab} onValueChange={(value) => setTab(value === "find" ? "find" : "sell")} />
 
           {tab === "sell" ? (
-            <TicketgroundSurface className="grid gap-5">
-              <div>
-                <h2 className="text-2xl font-black text-ink">보유 티켓 등록</h2>
-                <p className="mt-1 text-sm text-ink-3">{showTitle} · {reservation.date} {reservation.time}</p>
-              </div>
-              <label className="grid gap-2 text-sm font-bold text-ink-2">
-                보유 좌석
-                <select
-                  className="h-11 rounded-sm border border-line bg-background px-3 text-base"
-                  value={seatId}
-                  onChange={(event) => updateSeat(event.currentTarget.value)}
-                  data-testid="owned-ticket-select"
-                >
-                  {sellOptions.length ? sellOptions.map((seat) => (
-                    <option key={seat.id} value={seat.id}>
-                      {seat.label} · 정가 {currency(seat.faceValue)}
-                    </option>
-                  )) : <option value="">백엔드 보유 티켓 없음</option>}
-                </select>
-              </label>
-              <div className="grid gap-3">
-                <label className="grid gap-2 text-sm font-bold text-ink-2">
-                  등록 가격
-                  <input
-                    className={cn("h-11 rounded-sm border px-3 text-base", isPriceValid ? "border-line" : "border-destructive bg-tint-red")}
-                    type="number"
-                    min={0}
-                    value={price}
-                    onChange={(event) => setPrice(Number(event.currentTarget.value))}
-                    data-testid="resale-price-input"
-                  />
-                </label>
-                <input
-                  aria-label="등록 가격 슬라이더"
-                  type="range"
-                  min={minPrice}
-                  max={maxAllowedPrice}
-                  step={500}
-                  value={Math.min(Math.max(price, minPrice), maxAllowedPrice)}
-                  onChange={(event) => setPrice(Number(event.currentTarget.value))}
-                />
-                <p className={cn("text-sm font-bold", isPriceValid ? "text-ok" : "text-destructive")} data-testid="policy-message">
-                  {backendResale.error
-                    ? backendResale.error
-                    : isPriceValid
-                    ? `정책 OK: ${policy.minPercent}~${policy.maxPercent}% 범위 안입니다.`
-                    : `오류: 정가 ${currency(faceValue)} 기준 ${currency(minPrice)}~${currency(maxAllowedPrice)}만 등록할 수 있습니다.`}
-                </p>
-              </div>
-              <dl className="rounded-lg bg-surface px-4">
-                <SummaryRow label="등록가" value={currency(price)} />
-                <SummaryRow label={`구매 수수료 ${resaleFeePercent}%`} value={currency(sellFee)} />
-                <SummaryRow label="정산 예정액" value={currency(settlement)} strong />
-              </dl>
-              <button
-                type="button"
-                disabled={!canRegister}
-                onClick={registerSelectedTicket}
-                className="h-12 rounded-sm bg-ink px-5 text-base font-black text-white disabled:bg-ink-4"
-                data-testid="resale-register"
-              >
-                {backendResale.busy ? "등록 중" : "공식 풀에 등록"}
-              </button>
-            </TicketgroundSurface>
+            <ResaleSellPanel
+              apiBusy={apiBusy}
+              faceValue={faceValue}
+              isPriceValid={isPriceValid}
+              maxAllowedPrice={maxAllowedPrice}
+              minPrice={minPrice}
+              onEnsureTicket={() => void ensureBackendTicket()}
+              onPriceChange={setPrice}
+              onRegister={() => void registerBackendPool()}
+              onSeatChange={updateSeat}
+              ownedSeatOptions={ownedSeatOptions}
+              policyMaxPercent={policy.maxPercent}
+              policyMinPercent={policy.minPercent}
+              price={price}
+              seatId={seatId}
+              sellFee={sellFee}
+              settlement={settlement}
+              showDate={reservation.date}
+              showTime={reservation.time}
+              showTitle={showTitle}
+            />
           ) : (
             <ResaleFindPanel
               activeCell={activeCell}
-              busy={backendResale.busy}
+              apiBusy={apiBusy}
+              backendResult={backendResult}
               drawing={drawing}
               filteredCandidates={filteredCandidates}
               grade={grade}
               maxPrice={maxPrice}
-              onPurchase={() => {
-                void runDraw();
-              }}
+              onBackendPurchase={() => void runBackendPurchase()}
+              onDraw={runDraw}
+              onGradeChange={setGrade}
+              onMaxPriceChange={setMaxPrice}
+              onPairOnlyChange={setPairOnly}
+              onZoneChange={setZone}
               pairOnly={pairOnly}
-              resaleFeePercent={resaleFeePercent}
+              poolCells={poolCells}
               reservationId={reservation.id}
               result={result}
-              setGrade={setGrade}
-              setMaxPrice={setMaxPrice}
-              setPairOnly={setPairOnly}
-              setZone={setZone}
+              resultFee={resultFee}
               zone={zone}
             />
           )}
         </div>
 
-        <aside className="h-fit rounded-xl border border-line bg-card p-5 shadow-ticket-1">
-          <p className="text-sm font-bold text-ticketground">감사 원장 연동</p>
-          <h2 className="mt-2 text-2xl font-black text-ink">{reservation.id}</h2>
-          <p className="mt-2 text-sm font-bold text-ink-3">
-            현재 데모 계정: {backendResale.sessionUser?.name ?? sessionUserId}
-          </p>
-          <dl className="mt-4 rounded-lg bg-surface px-4">
-            <SummaryRow label="공연" value={reservation.showTitle} />
-            <SummaryRow label="보유 좌석" value={reservation.seat} />
-            <SummaryRow label="정책 범위" value={`${policy.minPercent}~${policy.maxPercent}%`} />
-            <SummaryRow label="구매 수수료" value={`${resaleFeePercent}%`} strong />
-          </dl>
-          {backendResale.toast && <div className="mt-4" data-testid="resale-toast"><TicketgroundToast title={backendResale.toast} tone={backendResale.error ? "error" : "success"} /></div>}
-        </aside>
+        <ResaleAuditAside
+          policyMaxPercent={policy.maxPercent}
+          policyMinPercent={policy.minPercent}
+          reservationId={reservation.id}
+          seatLabel={selectedBackendTicket?.seatLabel ?? reservation.seat}
+          showTitle={reservation.showTitle}
+          toast={toast}
+        />
       </div>
     </section>
   );

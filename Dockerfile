@@ -1,8 +1,8 @@
 # SRC https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile
 
-# ============================================
+# --------------------------------------------
 # Stage 1: Dependencies Installation Stage
-# ============================================
+# --------------------------------------------
 
 # IMPORTANT: Node.js Version Maintenance
 # This Dockerfile defaults to Node.js 24.14.1-slim to match the repo's Node 24 baseline.
@@ -65,9 +65,9 @@ RUN if [ -f package-lock.json ]; then \
   echo "No lockfile found." && exit 1; \
   fi
 
-# ============================================
+# --------------------------------------------
 # Stage 3: Run Next.js application
-# ============================================
+# --------------------------------------------
 
 FROM node:${NODE_VERSION} AS runner
 

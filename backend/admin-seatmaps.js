@@ -26,28 +26,28 @@ function adminVenueRecord(venue) {
       category: "concert",
       mapId: "jamsil-indoor",
       mapTitle: "잠실 실내체육관 도면",
-      mapImage: "/admin-assets/jamsil-indoor.svg",
+      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
       description: "원형 실내 공연장 좌석 배치도입니다."
     },
     venue_jamsil_olympic: {
       category: "sports",
       mapId: "jamsil-main-stadium",
       mapTitle: "잠실 올림픽주경기장 도면",
-      mapImage: "/admin-assets/jamsil-main-stadium.svg",
+      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
       description: "대형 경기장형 관람석 배치도입니다."
     },
     venue_nanjipark: {
       category: "festival",
       mapId: "jamsil-aux-field",
       mapTitle: "잠실 보조 경기장 도면",
-      mapImage: "/admin-assets/jamsil-aux-field.svg",
+      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
       description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치도입니다."
     },
     venue_bluesquare: {
       category: "musical",
       mapId: "blue-square-theater",
       mapTitle: "블루스퀘어 좌석도",
-      mapImage: "/좌석 도면/블루스퀘어/블루스퀘어 1층.png",
+      mapImage: "/assets/seatmaps/bluesquare-floor-1.png",
       description: "블루스퀘어 1층·2층·3층 도면 기반 극장형 좌석 배치도입니다."
     }
   };
@@ -57,7 +57,7 @@ function adminVenueRecord(venue) {
     category: mapByVenue[venue.id]?.category || venue.map?.type || "concert",
     mapId: mapByVenue[venue.id]?.mapId || venue.map?.type || venue.id,
     mapTitle: mapByVenue[venue.id]?.mapTitle || venue.map?.imageSource || `${venue.name} 도면`,
-    mapImage: mapByVenue[venue.id]?.mapImage || venue.map?.imageUrl || "/admin-assets/jamsil-main-stadium.svg",
+    mapImage: mapByVenue[venue.id]?.mapImage || venue.map?.imageUrl || "/assets/jamsil-olympic-main-stadium.svg",
     description: mapByVenue[venue.id]?.description || venue.map?.helper || `${venue.name} 좌석 배치도입니다.`
   };
 }

@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { TicketShow } from "@/types";
 import { ShowTile } from "./show-tile";
@@ -11,6 +14,8 @@ type SearchPanelsProps = {
 const tabs = ["전체", "공연", "아티스트", "장소", "기획전"] as const;
 const relatedTerms = ["레미제라블 좌석", "블루스퀘어 신한카드홀", "레미제라블 캐스팅", "뮤지컬 클린티켓"] as const;
 
+type SearchTab = (typeof tabs)[number];
+
 function titleWithHighlight(show: TicketShow, query: string) {
   if (!query.includes("레미제라블") || !show.title.includes("레미제라블")) {
     return show.title;
@@ -23,21 +28,53 @@ function titleWithHighlight(show: TicketShow, query: string) {
   );
 }
 
+function includesQuery(value: string, query: string) {
+  return value.toLowerCase().includes(query);
+}
+
+function filterShowsByTab(tab: SearchTab, query: string, results: readonly TicketShow[], fallbackShows: readonly TicketShow[]) {
+  if (!query) return [];
+  if (tab === "전체") return results;
+
+  return fallbackShows.filter((show) => {
+    if (tab === "공연") {
+      return [show.title, show.shortTitle, show.category, show.summary].some((value) => includesQuery(value, query));
+    }
+    if (tab === "아티스트") {
+      return show.casts.some((cast) => includesQuery(cast, query));
+    }
+    if (tab === "장소") {
+      return includesQuery(show.venue, query);
+    }
+    return [show.badge, show.ranking].some((value) => value ? includesQuery(value, query) : false);
+  });
+}
+
+function emptyMessageLabel(tab: SearchTab) {
+  if (tab === "전체") return "판매중/예정 공연";
+  return `${tab} 결과`;
+}
+
 export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProps) {
   const emptyQuery = query.trim().length === 0;
-  const visibleResults = emptyQuery ? [] : results;
+  const normalizedQuery = query.trim().toLowerCase();
+  const [activeTab, setActiveTab] = useState<SearchTab>("전체");
+  const visibleResults = useMemo(
+    () => filterShowsByTab(activeTab, normalizedQuery, results, fallbackShows),
+    [activeTab, fallbackShows, normalizedQuery, results],
+  );
   const lesMiserablesMode = query.includes("레미제라블");
 
   return (
-    <section className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_300px]">
-      <div>
-        <form action="/contents/search" className="flex rounded-full border border-line bg-white p-1">
-          <input name="q" defaultValue={query} placeholder="공연명, 장소, 장르를 검색하세요" className="h-11 flex-1 rounded-full px-4 text-base outline-none" />
-          <button className="h-11 rounded-full bg-ink px-6 text-base font-black text-white">검색</button>
+    <section className="ticketground-container grid min-w-0 gap-8 py-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0">
+        <form action="/contents/search" className="flex min-w-0 rounded-full border border-line bg-white p-1">
+          <input name="q" defaultValue={query} placeholder="공연명, 장소, 장르를 검색하세요" className="h-11 min-w-0 flex-1 rounded-full px-4 text-base outline-none" />
+          <button className="h-11 shrink-0 whitespace-nowrap rounded-full bg-ink px-5 text-base font-black text-white sm:px-6">검색</button>
         </form>
 
         <div className="mt-8 border-b border-line pb-4">
-          <h1 className="text-4xl font-black text-ink">
+          <h1 className="balanced-title text-[30px] font-black text-ink sm:text-4xl">
             {emptyQuery ? (
               "검색어를 입력하세요"
             ) : lesMiserablesMode ? (
@@ -63,12 +100,14 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
         </div>
 
         <div role="tablist" aria-label="검색 분류" className="mt-5 flex flex-wrap gap-2">
-          {tabs.map((tab, index) => (
+          {tabs.map((tab) => (
             <button
               key={tab}
               role="tab"
-              aria-selected={index === 0}
-              className={index === 0 ? "h-9 rounded-full bg-ink px-4 text-sm font-black text-white" : "h-9 rounded-full border border-line px-4 text-sm font-black text-ink"}
+              aria-selected={activeTab === tab}
+              className={activeTab === tab ? "h-11 rounded-full bg-ink px-4 text-sm font-black text-white" : "h-11 rounded-full border border-line px-4 text-sm font-black text-ink"}
+              data-search-tab={tab}
+              onClick={() => setActiveTab(tab)}
               type="button"
             >
               {tab}
@@ -76,16 +115,24 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
           ))}
         </div>
 
-        <div className="mt-8 grid gap-4">
+        {!emptyQuery && (
+          <p className="mt-4 text-sm font-bold text-ink-3" data-search-result-count>
+            총 {visibleResults.length}개 {activeTab} 결과
+          </p>
+        )}
+
+        <div className="mt-8 grid gap-4" data-search-results>
           {visibleResults.length === 0 ? (
-            <div className="rounded-lg bg-surface p-10 text-center">
-              <h2 className="text-2xl font-black text-ink">&quot;{query}&quot;에 대한 판매중/예정 공연이 없습니다.</h2>
-              <p className="mt-3 text-base text-ink-3">판매종료된 공연 또는 인기 공연 정보를 확인해 보세요.</p>
+            <div className="min-w-0 rounded-lg bg-surface p-6 text-center sm:p-10" data-search-empty>
+              <h2 className="balanced-title min-w-0 break-words text-[22px] font-black leading-tight text-ink [overflow-wrap:anywhere] sm:text-2xl">
+                {emptyQuery ? "검색어를 입력하면 결과가 표시됩니다." : `"${query}"에 대한 ${emptyMessageLabel(activeTab)}가 없습니다.`}
+              </h2>
+              <p className="mt-3 text-base text-ink-3">다른 검색어를 입력하거나 인기 공연 정보를 확인해 보세요.</p>
             </div>
           ) : (
             visibleResults.map((show) => (
-              <article key={show.slug} className="rounded-lg border border-line bg-white p-4">
-                <h2 className="text-2xl font-black text-ink">{titleWithHighlight(show, query)}</h2>
+              <article key={show.slug} className="min-w-0 rounded-lg border border-line bg-white p-4">
+                <h2 className="balanced-title min-w-0 break-words text-2xl font-black text-ink [overflow-wrap:anywhere]">{titleWithHighlight(show, query)}</h2>
                 <div className="mt-4">
                   <ShowTile show={show} compact />
                 </div>

@@ -35,7 +35,7 @@ export function DetailBookingPanel({ slug, title, schedules }: DetailBookingPane
   return (
     <aside
       data-testid="detail-booking-panel"
-      className="h-fit w-full rounded-lg border border-line bg-card p-5 shadow-ticket-2 lg:sticky lg:top-[124px] lg:w-[360px]"
+      className="h-fit min-w-0 w-full rounded-lg border border-line bg-card p-5 shadow-ticket-2 lg:sticky lg:top-[124px] lg:w-[360px]"
       aria-label={`${title} 예매 선택`}
     >
       <div className="flex items-start justify-between gap-4">
@@ -43,7 +43,7 @@ export function DetailBookingPanel({ slug, title, schedules }: DetailBookingPane
           <p className="text-xs font-bold text-ticketground">공식 예매</p>
           <h2 className="mt-1 text-xl font-black text-ink">상품 예매하기</h2>
         </div>
-        <span className="rounded bg-tint-yellow px-2 py-1 text-xs font-black text-ink">대기열 입장</span>
+        <span className="shrink-0 whitespace-nowrap rounded bg-tint-yellow px-2 py-1 text-xs font-black text-ink">대기열 입장</span>
       </div>
 
       <div className="mt-5">
@@ -56,9 +56,10 @@ export function DetailBookingPanel({ slug, title, schedules }: DetailBookingPane
                 key={schedule.date}
                 type="button"
                 aria-pressed={active}
+                data-allow-wrap="true"
                 onClick={() => chooseDate(schedule)}
                 className={cn(
-                  "rounded-sm border px-3 py-3 text-left text-sm font-bold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
+                  "min-w-0 rounded-sm border px-3 py-3 text-left text-sm font-bold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
                   active ? "border-ink bg-ink text-white" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
                 )}
               >
@@ -82,7 +83,7 @@ export function DetailBookingPanel({ slug, title, schedules }: DetailBookingPane
                 aria-pressed={active}
                 onClick={() => setSelectedTime(time)}
                 className={cn(
-                  "flex items-center justify-between rounded-sm border px-3 py-3 text-sm font-bold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
+                  "flex min-w-0 items-center justify-between gap-3 rounded-sm border px-3 py-3 text-sm font-bold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
                   active ? "border-ticketground bg-tint-red text-ticketground" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
                 )}
               >
@@ -108,13 +109,13 @@ export function DetailBookingPanel({ slug, title, schedules }: DetailBookingPane
       <Link
         data-testid="detail-queue-link"
         href={queueHref}
-        className="mt-6 flex h-13 items-center justify-center rounded-sm bg-ink text-base font-black text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
+        className="mt-6 flex h-13 items-center justify-center rounded-sm bg-ink text-base font-black text-white whitespace-nowrap transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
       >
         선택 회차 예매
       </Link>
       <Link
         href="/place"
-        className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line bg-background text-sm font-bold text-ink-2 transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line bg-background text-sm font-bold text-ink-2 whitespace-nowrap transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         공연장 좌석 미리보기
       </Link>

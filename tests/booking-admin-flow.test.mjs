@@ -48,6 +48,17 @@ test("public and admin HTTP surfaces stay separated", async (t) => {
   assert.equal(adminStatic.status, 404);
 });
 
+test("admin venue map images resolve through public assets", async (t) => {
+  const server = await startServer(t);
+  const venues = await adminApi(server, "/api/admin/venues");
+
+  for (const venue of venues.data.venues) {
+    assert.match(venue.mapImage, /^\/assets\//, `${venue.id} map image uses public assets`);
+    const response = await fetch(`${server.baseUrl}${venue.mapImage}`);
+    assert.equal(response.status, 200, `${venue.id} map image status`);
+  }
+});
+
 test("admin sale settings update public event state and ticket prices", async (t) => {
   const server = await startServer(t);
   const { baseUrl } = server;

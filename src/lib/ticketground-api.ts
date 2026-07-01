@@ -1,234 +1,252 @@
-import ky, { HTTPError } from "ky";
+import {
+  apiDirectTransferResultSchema,
+  apiPurchaseResultSchema,
+  apiResalePoolSchema,
+  apiResaleResultSchema,
+  apiSeatMapSchema,
+  apiSessionSchema,
+  apiStateSchema,
+  apiSupportThreadSchema,
+  apiTicketSchema,
+  apiVirtualQrSchema,
+  apiWatchlistItemSchema,
+  notifyWatchlistResultSchema,
+  upsertWatchlistResultSchema,
+} from "./ticketground-api-schemas";
+import type { ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
+import { z, type ZodType } from "zod";
 
-export type PublicTicket = {
-  readonly id: string;
-  readonly eventId: string;
-  readonly performanceDateId: string;
-  readonly zoneId: string;
-  readonly seatLabel: string;
-  readonly status: string;
-  readonly faceValue: number;
-  readonly minPrice: number;
-  readonly maxPrice: number;
-};
+export const DEMO_USER_ID = "user_fan_a";
+export const DEMO_BUYER_ID = "user_fan_b";
+export const DEMO_SCALPER_ID = "user_scalper";
+export const DEMO_EVENT_ID = "event_kpop_001";
 
-export type PublicResalePool = {
-  readonly id: string;
-  readonly eventId: string;
-  readonly performanceDateId: string;
-  readonly zoneId: string;
-  readonly ticketId: string;
-  readonly price: number;
-  readonly buyerFee: number | null;
-  readonly buyerTotal: number | null;
-  readonly sellerSettlement: number | null;
-  readonly buyerCount: number;
-  readonly status: string;
-  readonly createdAt: string;
-  readonly matchedAt: string | null;
-};
+export type {
+  ApiDirectTransferResult,
+  ApiEvent,
+  ApiPurchaseResult,
+  ApiResalePool,
+  ApiResaleResult,
+  ApiSeat,
+  ApiSeatMap,
+  ApiSession,
+  ApiState,
+  ApiSupportThread,
+  ApiTicket,
+  ApiVirtualQr,
+  ApiWatchlistItem,
+} from "./ticketground-api-types";
 
-export type PublicPayment = {
-  readonly method: string;
-  readonly label: string;
-  readonly status: string;
-};
-
-export type PublicSessionUser = {
-  readonly id: string;
-  readonly name: string;
-  readonly status: string;
-  readonly trustScore: number;
-};
-
-export type ResalePurchaseResult = {
-  readonly pool: PublicResalePool;
-  readonly ticket: PublicTicket;
-  readonly fee: number;
-  readonly buyerTotal: number;
-  readonly sellerSettlement: number;
-  readonly payment: PublicPayment;
-};
+export type PublicTicket = ApiTicket;
+export type PublicResalePool = ApiResalePool;
+export type PublicPayment = ApiResaleResult["payment"];
+export type PublicSessionUser = ApiSession;
+export type ResalePurchaseResult = ApiResaleResult;
 
 export class TicketgroundApiError extends Error {
   readonly code: string;
   readonly status: number;
-  readonly detail: unknown;
 
-  constructor({ code, message, status, detail }: { readonly code: string; readonly message: string; readonly status: number; readonly detail: unknown }) {
+  constructor(message: string, code: string, status: number) {
     super(message);
     this.name = "TicketgroundApiError";
     this.code = code;
     this.status = status;
-    this.detail = detail;
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+type ApiEnvelope<T> =
+  | { readonly ok: true; readonly data: T }
+  | { readonly ok: false; readonly error: { readonly code?: string; readonly message?: string; readonly detail?: unknown } };
+
+function apiEnvelopeSchema<T>(dataSchema: ZodType<T>) {
+  return z.discriminatedUnion("ok", [
+    z.object({ ok: z.literal(true), data: dataSchema }),
+    z.object({
+      ok: z.literal(false),
+      error: z.object({
+        code: z.string().optional(),
+        message: z.string().optional(),
+        detail: z.unknown().optional(),
+      }),
+    }),
+  ]) satisfies ZodType<ApiEnvelope<T>>;
 }
 
-function stringValue(value: unknown) {
-  return typeof value === "string" ? value : "";
-}
-
-function numberValue(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function nullableNumberValue(value: unknown) {
-  if (value === null || value === undefined) return null;
-  return numberValue(value);
-}
-
-function nullableStringValue(value: unknown) {
-  if (value === null || value === undefined) return null;
-  return stringValue(value);
-}
-
-function parseTicket(value: unknown): PublicTicket {
-  if (!isRecord(value)) throw new TicketgroundApiError({ code: "BAD_TICKET_RESPONSE", message: "티켓 응답을 확인해주세요.", status: 500, detail: value });
-  return {
-    id: stringValue(value.id),
-    eventId: stringValue(value.eventId),
-    performanceDateId: stringValue(value.performanceDateId),
-    zoneId: stringValue(value.zoneId),
-    seatLabel: stringValue(value.seatLabel),
-    status: stringValue(value.status),
-    faceValue: numberValue(value.faceValue),
-    minPrice: numberValue(value.minPrice),
-    maxPrice: numberValue(value.maxPrice),
-  };
-}
-
-function parsePool(value: unknown): PublicResalePool {
-  if (!isRecord(value)) throw new TicketgroundApiError({ code: "BAD_RESALE_POOL_RESPONSE", message: "재판매 풀 응답을 확인해주세요.", status: 500, detail: value });
-  return {
-    id: stringValue(value.id),
-    eventId: stringValue(value.eventId),
-    performanceDateId: stringValue(value.performanceDateId),
-    zoneId: stringValue(value.zoneId),
-    ticketId: stringValue(value.ticketId),
-    price: numberValue(value.price),
-    buyerFee: nullableNumberValue(value.buyerFee),
-    buyerTotal: nullableNumberValue(value.buyerTotal),
-    sellerSettlement: nullableNumberValue(value.sellerSettlement),
-    buyerCount: numberValue(value.buyerCount),
-    status: stringValue(value.status),
-    createdAt: stringValue(value.createdAt),
-    matchedAt: nullableStringValue(value.matchedAt),
-  };
-}
-
-function parsePayment(value: unknown): PublicPayment {
-  if (!isRecord(value)) throw new TicketgroundApiError({ code: "BAD_PAYMENT_RESPONSE", message: "결제 응답을 확인해주세요.", status: 500, detail: value });
-  return {
-    method: stringValue(value.method),
-    label: stringValue(value.label),
-    status: stringValue(value.status),
-  };
-}
-
-function parseSessionUser(value: unknown): PublicSessionUser {
-  if (!isRecord(value)) throw new TicketgroundApiError({ code: "BAD_SESSION_RESPONSE", message: "세션 응답을 확인해주세요.", status: 500, detail: value });
-  const id = stringValue(value.id);
-  if (!id) throw new TicketgroundApiError({ code: "BAD_SESSION_RESPONSE", message: "세션 사용자 ID를 확인해주세요.", status: 500, detail: value });
-  return {
-    id,
-    name: stringValue(value.name),
-    status: stringValue(value.status),
-    trustScore: numberValue(value.trustScore),
-  };
-}
-
-const publicApi = ky.create({
-  retry: 0,
-  timeout: 10000,
-});
-
-async function jsonFromError(error: HTTPError) {
+async function readApi<T>(path: string, dataSchema: ZodType<T>, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+  let rawPayload: unknown;
   try {
-    return await error.response.json<unknown>();
-  } catch (cause) {
-    if (cause instanceof Error) {
-      throw new TicketgroundApiError({
-        code: "BAD_ERROR_RESPONSE",
-        message: "오류 응답을 확인해주세요.",
-        status: error.response.status,
-        detail: cause.message,
-      });
-    }
-    throw new TicketgroundApiError({
-      code: "BAD_ERROR_RESPONSE",
-      message: "오류 응답을 확인해주세요.",
-      status: error.response.status,
-      detail: cause,
-    });
-  }
-}
-
-async function requestData(path: string, body?: Record<string, unknown>) {
-  let payload: unknown;
-  let status = 200;
-  try {
-    payload = await publicApi(path, {
-      method: body ? "post" : "get",
-      json: body,
-    }).json<unknown>();
+    rawPayload = await response.json();
   } catch (error) {
-    if (error instanceof HTTPError) {
-      payload = await jsonFromError(error);
-      status = error.response.status;
-    } else if (error instanceof Error) {
-      throw new TicketgroundApiError({ code: "NETWORK_ERROR", message: error.message, status: 0, detail: error.name });
-    } else {
-      throw new TicketgroundApiError({ code: "NETWORK_ERROR", message: "네트워크 요청을 처리하지 못했습니다.", status: 0, detail: error });
-    }
+    console.error("Ticketground API returned non-JSON response", { path, status: response.status, error });
+    throw new TicketgroundApiError("서버 응답 형식이 일치하지 않습니다.", "INVALID_API_RESPONSE", response.status);
   }
-  if (!isRecord(payload)) {
-    throw new TicketgroundApiError({ code: "BAD_API_RESPONSE", message: "API 응답을 확인해주세요.", status, detail: payload });
-  }
-  if (payload.ok === true) return payload.data;
 
-  const error = isRecord(payload.error) ? payload.error : {};
-  throw new TicketgroundApiError({
-    code: stringValue(error.code) || "API_ERROR",
-    message: stringValue(error.message) || "요청을 처리하지 못했습니다.",
-    status,
-    detail: error.detail,
+  const parsedPayload = apiEnvelopeSchema(dataSchema).safeParse(rawPayload);
+  if (!parsedPayload.success) {
+    console.error("Ticketground API response validation failed", {
+      path,
+      status: response.status,
+      issues: parsedPayload.error.issues,
+    });
+    throw new TicketgroundApiError("서버 응답 형식이 일치하지 않습니다.", "INVALID_API_RESPONSE", response.status);
+  }
+
+  const payload = parsedPayload.data;
+  if (!response.ok || !payload.ok) {
+    const message = payload.ok ? "요청을 처리하지 못했습니다." : payload.error.message ?? "요청을 처리하지 못했습니다.";
+    const code = payload.ok ? "HTTP_ERROR" : payload.error.code ?? "API_ERROR";
+    throw new TicketgroundApiError(message, code, response.status);
+  }
+  return payload.data;
+}
+
+function post<T>(path: string, dataSchema: ZodType<T>, body: Record<string, unknown>) {
+  return readApi(path, dataSchema, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }
 
-export async function getUserTickets(userId: string) {
-  const data = await requestData(`/api/users/${encodeURIComponent(userId)}/tickets`);
-  if (!Array.isArray(data)) return [];
-  return data.map(parseTicket);
+export function getState() {
+  return readApi("/api/state", apiStateSchema);
 }
 
-export async function getDemoSession(userId: string) {
-  return parseSessionUser(await requestData(`/api/users/${encodeURIComponent(userId)}/session`));
+export function getSeatMap(eventId = DEMO_EVENT_ID) {
+  return readApi(`/api/seat-map?eventId=${encodeURIComponent(eventId)}`, apiSeatMapSchema);
+}
+
+export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
+  return post("/api/tickets/buy", apiPurchaseResultSchema, {
+    userId,
+    ticketId,
+    paymentMethod: "CREDIT_CARD",
+  });
+}
+
+export function getUserTickets(userId = DEMO_USER_ID) {
+  return readApi(`/api/users/${encodeURIComponent(userId)}/tickets`, z.array(apiTicketSchema));
+}
+
+export function getDemoSession(userId: string) {
+  return getSession(userId);
 }
 
 export async function getPublicResalePools() {
-  const data = await requestData("/api/state");
-  if (!isRecord(data) || !Array.isArray(data.resalePools)) return [];
-  return data.resalePools.map(parsePool);
+  const state = await getState();
+  return state.resalePools;
 }
 
-export async function listTicketForResale({ sellerId, ticketId, price }: { readonly sellerId: string; readonly ticketId: string; readonly price: number }) {
-  return parsePool(await requestData("/api/resale/list", { sellerId, ticketId, price }));
+export function listTicketForResale({ sellerId, ticketId, price }: { readonly sellerId: string; readonly ticketId: string; readonly price: number }) {
+  return listResale(ticketId, price, sellerId);
 }
 
-export async function purchaseResaleTicket({ buyerId, poolId }: { readonly buyerId: string; readonly poolId: string }) {
-  const data = await requestData("/api/resale/purchase", { buyerId, poolId, paymentMethod: "CREDIT_CARD" });
-  if (!isRecord(data)) throw new TicketgroundApiError({ code: "BAD_RESALE_PURCHASE_RESPONSE", message: "재판매 구매 응답을 확인해주세요.", status: 500, detail: data });
-  return {
-    pool: parsePool(data.pool),
-    ticket: parseTicket(data.ticket),
-    fee: numberValue(data.fee),
-    buyerTotal: numberValue(data.buyerTotal),
-    sellerSettlement: numberValue(data.sellerSettlement),
-    payment: parsePayment(data.payment),
-  } satisfies ResalePurchaseResult;
+export function purchaseResaleTicket({ buyerId, poolId }: { readonly buyerId: string; readonly poolId: string }) {
+  return purchaseResale(poolId, buyerId);
+}
+
+export function listResale(ticketId: string, price: number, sellerId = DEMO_USER_ID) {
+  return post("/api/resale/list", apiResalePoolSchema, {
+    sellerId,
+    ticketId,
+    price,
+  });
+}
+
+export function joinResale(poolId: string, buyerId = DEMO_SCALPER_ID) {
+  return post("/api/resale/join", apiResalePoolSchema, {
+    buyerId,
+    poolId,
+  });
+}
+
+export function drawResale(poolId: string) {
+  return post("/api/resale/draw", apiResaleResultSchema, {
+    poolId,
+    paymentMethod: "CREDIT_CARD",
+  });
+}
+
+export function purchaseResale(poolId: string, buyerId = DEMO_BUYER_ID) {
+  return post("/api/resale/purchase", apiResaleResultSchema, {
+    buyerId,
+    poolId,
+    paymentMethod: "CREDIT_CARD",
+  });
+}
+
+export function getVirtualQr(ticketId: string, userId = DEMO_USER_ID) {
+  return post("/api/tickets/virtual-qr", apiVirtualQrSchema, {
+    userId,
+    ticketId,
+  });
+}
+
+export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYER_ID) {
+  return post("/api/security/direct-transfer-attempt", apiDirectTransferResultSchema, {
+    actorId: DEMO_USER_ID,
+    ticketId,
+    targetUserId,
+    offeredPrice: 2000,
+  });
+}
+
+export function getSession(userId = DEMO_USER_ID) {
+  return readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
+}
+
+export function updateProfile(name: string, userId = DEMO_USER_ID) {
+  return post(`/api/users/${encodeURIComponent(userId)}/profile`, apiSessionSchema, {
+    name,
+  });
+}
+
+export function getWatchlist(userId = DEMO_USER_ID) {
+  return readApi(`/api/users/${encodeURIComponent(userId)}/watchlist`, z.array(apiWatchlistItemSchema));
+}
+
+export function upsertWatchlist(eventId: string, channels: readonly string[], userId = DEMO_USER_ID) {
+  return post("/api/watchlist", upsertWatchlistResultSchema, {
+    userId,
+    eventId,
+    channels,
+    calendarEnabled: true,
+    notificationEnabled: true,
+  });
+}
+
+export function notifyWatchlist(eventId: string, userId = DEMO_USER_ID) {
+  return post("/api/watchlist/notify", notifyWatchlistResultSchema, {
+    userId,
+    eventId,
+    type: "STATUS_CHANGE",
+    dispatchNow: true,
+  });
+}
+
+export function getSupportThreads(userId = DEMO_USER_ID) {
+  return readApi(`/api/support/threads?userId=${encodeURIComponent(userId)}`, z.array(apiSupportThreadSchema));
+}
+
+export function createSupportThread(message: string, subject = "1:1 실시간 문의", userId = DEMO_USER_ID) {
+  return post("/api/support/threads", apiSupportThreadSchema, {
+    userId,
+    subject,
+    message,
+  });
+}
+
+export function addSupportMessage(threadId: string, message: string, actorId = DEMO_USER_ID) {
+  return post("/api/support/messages", apiSupportThreadSchema, {
+    threadId,
+    actorId,
+    message,
+  });
 }

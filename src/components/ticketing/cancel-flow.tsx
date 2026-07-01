@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
+import { appendDemoCancelHistory } from "@/lib/demo-cancel-history";
 
 type CancelFlowProps = {
   readonly reservation: CleanTicketReservation;
@@ -23,7 +24,24 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
   const [agreed, setAgreed] = useState(false);
   const [completed, setCompleted] = useState(false);
   const refundAmount = reservation.totalAmount;
-  const canComplete = reason.length > 0 && agreed;
+  const canComplete = reason.length > 0;
+
+  function completeCancelRequest() {
+    if (!reason) return;
+
+    appendDemoCancelHistory({
+      reservationId: reservation.id,
+      showTitle: reservation.showTitle,
+      venue: reservation.venue,
+      date: reservation.date,
+      time: reservation.time,
+      seat: reservation.seat,
+      reason,
+      refundAmount,
+      requestedAt: new Date().toISOString(),
+    });
+    setCompleted(true);
+  }
 
   if (completed) {
     return (
@@ -47,10 +65,10 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
       <p className="text-sm font-black text-ticketground">취소/환불</p>
       <h1 className="mt-2 text-[34px] font-black text-ink">예매 취소 요청</h1>
       <p className="mt-3 text-sm leading-loose text-ink-3">
-        이 화면은 실제 결제 취소를 수행하지 않는 mock 취소·환불 플로우입니다. 사유와 동의가 모두 있어야 완료 버튼이 활성화됩니다.
+        이 화면은 실제 결제 취소를 수행하지 않는 mock 취소·환불 플로우입니다. 취소 사유를 선택하면 완료 버튼이 활성화됩니다.
       </p>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:pr-24 2xl:pr-0">
         <div className="grid gap-5">
           <article className="rounded-[12px] border border-line bg-white p-6">
             <StepHeader index="01" title="예매 확인" />
@@ -130,7 +148,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
             <label className="mt-4 flex items-start gap-3 rounded-[10px] border border-line p-4 text-sm leading-relaxed text-ink-2">
               <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1 accent-[#1a47ff]" />
               <span>
-                취소 수수료와 환불 예정 금액을 확인했습니다. 이 동의는 실제 결제 취소가 아닌 mock 플로우 완료 조건입니다.
+                취소 수수료와 환불 예정 금액을 확인했습니다. 이 항목은 실제 결제 취소가 아닌 mock 플로우 확인용입니다.
               </span>
             </label>
           </article>
@@ -146,12 +164,12 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
           <button
             type="button"
             disabled={!canComplete}
-            onClick={() => setCompleted(true)}
+            onClick={completeCancelRequest}
             className="mt-6 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-black text-white transition enabled:hover:bg-ticketground/90 disabled:bg-surface-3 disabled:text-ink-4"
           >
             mock 취소 요청 완료
           </button>
-          {!canComplete && <p className="mt-3 text-sm font-bold text-warn">취소 사유와 환불 동의를 모두 선택해야 완료할 수 있습니다.</p>}
+          {!canComplete && <p className="mt-3 text-sm font-bold text-warn">취소 사유를 선택해야 완료할 수 있습니다.</p>}
         </aside>
       </div>
     </section>
