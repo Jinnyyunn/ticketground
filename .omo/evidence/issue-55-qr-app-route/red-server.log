@@ -1,4 +1,0 @@
-Ticketground public app running at http://127.0.0.1:45955
-Ticketground admin API running at http://127.0.0.1:55955
-○ Compiling /reservation/[id] ...
- GET /reservation/CTI-260629-DAYQR 404 in 11.1s (next.js: 10.4s, generate-params: 1122ms, application-code: 692ms)
