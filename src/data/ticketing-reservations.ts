@@ -1,4 +1,26 @@
-import type { Reservation } from "@/types";
+import type { Reservation, TicketShow } from "@/types";
+import { homeTicketShows } from "./home-ticketing-catalog";
+
+function reservationFromShow(show: TicketShow): Reservation {
+  const schedule = show.schedules[0];
+  const price = show.prices[0];
+  const seat = price ? `${price.seat} A열 12번` : "일반석 A열 12번";
+  const amount = price?.price ?? 0;
+
+  return {
+    id: `CTI-${show.code}-001`,
+    showSlug: show.slug,
+    showTitle: show.title,
+    venue: show.venue,
+    date: schedule?.date ?? show.period,
+    time: schedule?.times[0] ?? "",
+    seat,
+    price: `${amount.toLocaleString("ko-KR")}원`,
+    status: "예매완료",
+  };
+}
+
+const homeTicketReservations = homeTicketShows.map(reservationFromShow);
 
 export const supportingReservations: Reservation[] = [
   {
@@ -78,4 +100,5 @@ export const supportingReservations: Reservation[] = [
     price: "18,000원",
     status: "예매완료",
   },
+  ...homeTicketReservations,
 ];

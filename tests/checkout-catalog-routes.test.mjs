@@ -5,6 +5,51 @@ import { startServer } from "./backend-test-utils.mjs";
 
 const checkoutRoutes = [
   {
+    slug: "iu-world-tour",
+    title: "IU 2026 WORLD TOUR",
+    query: "date=2026.09.12&time=18%3A00&seat=VIP%EC%84%9D%20A-12&base=198000&fee=1000&total=199000&count=1",
+  },
+  {
+    slug: "seventeen-tour",
+    title: "SEVENTEEN TOUR",
+    query: "date=2026.08.08&time=18%3A00&seat=VIP%EC%84%9D%20A-12&base=198000&fee=1000&total=199000&count=1",
+  },
+  {
+    slug: "hadestown",
+    title: "하데스타운",
+    query: "date=2026.07.04&time=19%3A30&seat=VIP%EC%84%9D%20A-12&base=170000&fee=1000&total=171000&count=1",
+  },
+  {
+    slug: "nct-wish-fanmeeting",
+    title: "NCT WISH FANMEETING",
+    query: "date=2026.07.25&time=18%3A00&seat=R%EC%84%9D%20A-12&base=143000&fee=1000&total=144000&count=1",
+  },
+  {
+    slug: "cho-seong-jin",
+    title: "조성진 피아노 리사이틀",
+    query: "date=2026.11.02&time=20%3A00&seat=VIP%EC%84%9D%20A-12&base=220000&fee=1000&total=221000&count=1",
+  },
+  {
+    slug: "phantom-of-the-opera",
+    title: "오페라의 유령",
+    query: "date=2026.06.30&time=19%3A30&seat=VIP%EC%84%9D%20A-12&base=180000&fee=1000&total=181000&count=1",
+  },
+  {
+    slug: "day6-special-live",
+    title: "DAY6 Special Live",
+    query: "date=2026.08.29&time=18%3A00&seat=R%EC%84%9D%20A-12&base=154000&fee=1000&total=155000&count=1",
+  },
+  {
+    slug: "kun-woo-paik-ravel",
+    title: "백건우와 라벨",
+    query: "date=2026.09.04&time=19%3A30&seat=R%EC%84%9D%20A-12&base=120000&fee=1000&total=121000&count=1",
+  },
+  {
+    slug: "cherry-orchard",
+    title: "연극 벚꽃동산",
+    query: "date=2026.08.06&time=19%3A30&seat=R%EC%84%9D%20A-12&base=66000&fee=1000&total=67000&count=1",
+  },
+  {
     slug: "king-lear",
     title: "국립극단 리어왕",
     query: "date=2026.07.18&time=19%3A30&seat=R%EC%84%9D%20A-12&base=70000&fee=1000&total=71000&count=1",
