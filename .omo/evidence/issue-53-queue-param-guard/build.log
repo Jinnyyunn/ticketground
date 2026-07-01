@@ -1,0 +1,61 @@
+
+> ticketground-platform@0.3.1 build
+> next build
+
+▲ Next.js 16.2.1 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 33.2s
+  Running TypeScript ...
+  Finished TypeScript in 34.3s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/67) ...
+  Generating static pages using 7 workers (16/67) 
+  Generating static pages using 7 workers (33/67) 
+  Generating static pages using 7 workers (50/67) 
+✓ Generating static pages using 7 workers (67/67) in 784ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ● /artist/[slug]
+│ └ /artist/dracula-cast
+├ ƒ /booking/[slug]
+├ ○ /cancel
+├ ƒ /checkout/[slug]
+├ ● /contents/genre/[genre]
+│ ├ /contents/genre/musical
+│ ├ /contents/genre/concert
+│ ├ /contents/genre/theater
+│ └ [+4 more paths]
+├ ○ /contents/notice
+├ ○ /contents/ranking
+├ ○ /contents/region
+├ ƒ /contents/search
+├ ○ /event/ticketground-day
+├ ● /goods/[slug]
+│ ├ /goods/les-miserables
+│ ├ /goods/dracula
+│ ├ /goods/beethoven
+│ └ [+5 more paths]
+├ ○ /help
+├ ○ /inquiry
+├ ○ /login
+├ ○ /mypage
+├ ○ /open
+├ ○ /place
+├ ƒ /queue/[slug]
+├ ○ /resale
+├ ƒ /reservation/[id]
+├ ○ /signup
+├ ○ /support/inquiry
+├ ○ /terms
+├ ○ /transfer
+└ ○ /watchlist
+
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+

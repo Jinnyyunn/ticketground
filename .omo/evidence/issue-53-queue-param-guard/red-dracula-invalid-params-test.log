@@ -1,0 +1,29 @@
+✖ selected performance enters queue and reaches booking without repeated waiting loop (18460.338834ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20078.129041
+
+✖ failing tests:
+
+test at tests/queue-booking-transition.test.mjs:6:1
+✖ selected performance enters queue and reaches booking without repeated waiting loop (18460.338834ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at assertInvalidQueueScheduleParamsAreSanitized (file:///private/tmp/ticketground-issue-worktrees/issue-53-queue-param-guard/tests/queue-booking-transition.test.mjs:22:12)
+      at async TestContext.<anonymous> (file:///private/tmp/ticketground-issue-worktrees/issue-53-queue-param-guard/tests/queue-booking-transition.test.mjs:11:3)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
