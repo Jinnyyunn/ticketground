@@ -36,7 +36,9 @@ function minutes(seconds: number) {
   return `${mm}:${ss}`;
 }
 
-export function BookingPanel({ show, initialSelection }: { show: TicketShow; initialSelection: Pick<BookingSelection, "date" | "time"> }) {
+type BookingPanelProps = { readonly show: TicketShow; readonly initialSelection: Pick<BookingSelection, "date" | "time">; readonly initialTimerSeconds?: number };
+
+export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 * 60 }: BookingPanelProps) {
   const prices = useMemo(() => priceMap(show), [show]);
   const seats = useMemo(() => createSeatMap(prices), [prices]);
   const [date, setDate] = useState(initialSelection.date || show.schedules[0]?.date || "");
@@ -47,12 +49,15 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
   const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
   const [seatMapStatus, setSeatMapStatus] = useState("좌석도 로딩 중");
   const [selectedBackendTicketId, setSelectedBackendTicketId] = useState("");
-  const [timerSeconds, setTimerSeconds] = useState(7 * 60);
+  const [timerSeconds, setTimerSeconds] = useState(initialTimerSeconds);
+  const timerExpired = timerSeconds === 0;
 
   useEffect(() => {
+    if (timerExpired) return;
+
     const timer = window.setInterval(() => setTimerSeconds((value) => Math.max(0, value - 1)), 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [timerExpired]);
 
   useEffect(() => {
     let mounted = true;
@@ -83,8 +88,8 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
   const baseAmount = selectedBackendSeat?.price ?? selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
   const feeAmount = selectedCount * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
-  const canChooseSeats = Boolean(date && time && quantity);
-  const canPay = selectedBackendSeat ? true : selectedSeats.length > 0 && selectedSeats.length <= quantity;
+  const canChooseSeats = !timerExpired && Boolean(date && time && quantity);
+  const canPay = !timerExpired && (selectedBackendSeat ? true : selectedSeats.length > 0 && selectedSeats.length <= quantity);
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&base=${baseAmount}&fee=${feeAmount}&total=${totalAmount}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketId)}`;
 
   function toggleSeat(seat: SeatOption) {
@@ -109,7 +114,14 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
             <p className="text-[13px] font-black text-ticketground">Ticketground Booking</p>
             <h1 className="balanced-title text-[18px] font-black text-ink sm:text-[20px]">{show.shortTitle}</h1>
           </div>
-          <div className="shrink-0 rounded-[8px] bg-ink px-4 py-2 text-[18px] font-black tabular-nums text-white" aria-label="남은 예매 시간">
+          <div
+            data-booking-timer
+            className={cn(
+              "shrink-0 rounded-[8px] px-4 py-2 text-[18px] font-black tabular-nums text-white",
+              timerExpired ? "bg-ticketground" : "bg-ink",
+            )}
+            aria-label="남은 예매 시간"
+          >
             {minutes(timerSeconds)}
           </div>
         </div>
@@ -135,6 +147,19 @@ export function BookingPanel({ show, initialSelection }: { show: TicketShow; ini
               );
             })}
           </nav>
+
+          {timerExpired && (
+            <section data-booking-expired className="rounded-[12px] border border-ticketground/25 bg-[#fff1f3] p-4 text-ink sm:p-5" aria-live="polite">
+              <p className="text-[18px] font-black text-ticketground">예매 시간이 만료되었습니다</p>
+              <p className="mt-2 text-[14px] font-bold text-ink-3">좌석 선점과 결제를 다시 진행하려면 대기열부터 재입장해 주세요.</p>
+              <Link
+                href={`/queue/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`}
+                className="mt-4 inline-flex h-11 items-center justify-center rounded-[8px] bg-ink px-4 text-[14px] font-black text-white"
+              >
+                다시 예매하기
+              </Link>
+            </section>
+          )}
 
           {step === "schedule" && (
             <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
