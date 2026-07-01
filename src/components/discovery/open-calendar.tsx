@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { TicketShow } from "@/types";
 import { cn } from "@/lib/utils";
+import { OpenAlertButton } from "./open-alert-button";
 
 type OpenCalendarProps = {
   readonly shows: readonly TicketShow[];
@@ -75,9 +76,7 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
                   <h3 className="text-[13px] font-black text-ink">{show.shortTitle}</h3>
                   <p className="clamp-1 text-sm text-ink-3">{show.venue}</p>
                 </div>
-                <button className="h-8 whitespace-nowrap rounded-lg border border-line bg-white px-2 text-[13px] font-black text-ink sm:px-3 sm:text-sm" type="button">
-                  알림
-                </button>
+                <OpenAlertButton />
               </div>
             ))}
           </div>
