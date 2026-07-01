@@ -93,14 +93,20 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
   );
 }
 
-export function SectionHead({ title, subtitle }: { readonly title: string; readonly subtitle?: string }) {
+type SectionHeadProps = {
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly moreHref?: string;
+};
+
+export function SectionHead({ title, subtitle, moreHref = "/contents/search" }: SectionHeadProps) {
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div className="min-w-0">
         <h2 className="text-[28px] font-black leading-tight text-ink">{title}</h2>
         {subtitle && <p data-section-subtitle className="mt-2 text-[14px] leading-snug text-ink-3 sm:text-[15px]">{subtitle}</p>}
       </div>
-      <Link href="/contents/search" className="shrink-0 text-[13px] font-black text-link hover:text-ticketground">
+      <Link href={moreHref} className="shrink-0 text-[13px] font-black text-link hover:text-ticketground">
         더보기
       </Link>
     </div>

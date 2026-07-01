@@ -20,7 +20,7 @@ export function HomeHeroSection() {
 export function RealtimeTop10Section() {
   return (
     <section data-section="realtime-top10" className="ticketground-container mt-16">
-      <SectionHead title="실시간 예매 랭킹 TOP10" subtitle="지금 가장 빠르게 움직이는 공연입니다." />
+      <SectionHead title="실시간 예매 랭킹 TOP10" subtitle="지금 가장 빠르게 움직이는 공연입니다." moreHref="/contents/ranking" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {rankings.map((item) => (
           <Link
@@ -46,7 +46,7 @@ export function RealtimeTop10Section() {
 export function TicketOpenSection() {
   return (
     <section data-section="ticket-open" className="ticketground-container mt-16">
-      <SectionHead title="티켓오픈 예정" subtitle="오픈 시간과 회차를 확인하고 알림을 준비하세요." />
+      <SectionHead title="티켓오픈 예정" subtitle="오픈 시간과 회차를 확인하고 알림을 준비하세요." moreHref="/open" />
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 lg:gap-4">
         {ticketOpens.map((item) => (
           <Link
@@ -76,7 +76,7 @@ export function TicketOpenSection() {
 export function OfficialResaleSection() {
   return (
     <section data-section="official-resale" className="ticketground-container mt-16">
-      <SectionHead title="공식 재판매·양도" subtitle="보유 티켓은 플랫폼 안에서만 안전하게 이동합니다." />
+      <SectionHead title="공식 재판매·양도" subtitle="보유 티켓은 플랫폼 안에서만 안전하게 이동합니다." moreHref="/resale" />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
         <Link
           href="/resale"
