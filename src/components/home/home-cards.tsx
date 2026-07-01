@@ -96,10 +96,10 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
 type SectionHeadProps = {
   readonly title: string;
   readonly subtitle?: string;
-  readonly moreHref?: string;
+  readonly moreHref: string;
 };
 
-export function SectionHead({ title, subtitle, moreHref = "/contents/search" }: SectionHeadProps) {
+export function SectionHead({ title, subtitle, moreHref }: SectionHeadProps) {
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div className="min-w-0">

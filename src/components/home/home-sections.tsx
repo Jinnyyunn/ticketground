@@ -111,7 +111,7 @@ export function OfficialResaleSection() {
 export function EditorialEventsSection() {
   return (
     <section data-section="editorial-events" className="ticketground-container mt-16">
-      <SectionHead title="기획전" subtitle="공연을 고르는 기준이 분명한 큐레이션입니다." />
+      <SectionHead title="기획전" subtitle="공연을 고르는 기준이 분명한 큐레이션입니다." moreHref="/event/ticketground-day" />
       <div className="grid gap-4 md:grid-cols-3">
         {events.map((event) => (
           <Link
@@ -138,7 +138,7 @@ export function EditorialEventsSection() {
 export function GenreRecommendationsSection() {
   return (
     <section data-section="genre-recommendations" className="ticketground-container mt-16">
-      <SectionHead title="장르별 추천" subtitle="콘서트·뮤지컬·연극·클래식을 비교하세요." />
+      <SectionHead title="장르별 추천" subtitle="콘서트·뮤지컬·연극·클래식을 비교하세요." moreHref="/contents/genre" />
       <div className="grid gap-10">
         {genreRecommendations.map((group) => (
           <div key={group.title}>
@@ -168,7 +168,7 @@ export function GenreRecommendationsSection() {
 export function ShortcutsSection() {
   return (
     <section data-section="shortcuts" className="ticketground-container my-16">
-      <SectionHead title="바로가기" />
+      <SectionHead title="바로가기" moreHref="/contents/shortcuts" />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {shortcuts.map((shortcut) => (
           <Link
