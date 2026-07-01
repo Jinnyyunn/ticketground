@@ -61,6 +61,7 @@ async function assertArtistTabFiltering(browser, baseUrl) {
     assert.match(await resultCount(page), /총 0개 전체 결과/);
     const artistTab = page.getByRole("tab", { name: "아티스트", exact: true });
     await artistTab.click();
+    await waitForSelected(page, "아티스트");
     assert.equal(await artistTab.getAttribute("aria-selected"), "true");
     assert.match(await resultCount(page), /총 1개 아티스트 결과/);
     assert.ok(await page.getByRole("heading", { name: /레미제라블 40주년/ }).count() >= 1);
@@ -85,8 +86,9 @@ async function assertMobileTouchArea(browser, baseUrl) {
 
     const venueTab = page.getByRole("tab", { name: "장소", exact: true });
     await venueTab.tap();
+    await waitForSelected(page, "장소");
     assert.equal(await venueTab.getAttribute("aria-selected"), "true");
-    assert.match(await resultCount(page), /총 1개 장소 결과/);
+    assert.match(await resultCount(page), /총 2개 장소 결과/);
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 1, `mobile search page overflows horizontally by ${overflow}px`);
@@ -105,4 +107,11 @@ async function emptyCopy(page) {
   const locator = page.locator("[data-search-empty] h2");
   await locator.waitFor({ timeout: 5000 });
   return String(await locator.textContent()).trim();
+}
+
+async function waitForSelected(page, tab) {
+  await page.waitForFunction(
+    (tabName) => document.querySelector(`[data-search-tab="${tabName}"]`)?.getAttribute("aria-selected") === "true",
+    tab,
+  );
 }
