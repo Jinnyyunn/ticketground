@@ -52,7 +52,7 @@ function fromBackendThread(thread: ApiSupportThread): ChatThread {
     subject: thread.subject,
     status: statusMap[thread.status],
     reservationId: "문의 접수",
-    showSlug: "les-miserables-40",
+    showSlug: "les-miserables",
     messages: thread.messages.map((message) => ({
       id: message.id,
       author: message.role === "ADMIN" ? "agent" : "member",
