@@ -21,6 +21,11 @@ test("booking pages fetch each show's mapped backend event", async (t) => {
     eventId: "event_festival_001",
     sourceTitle: "Tig Summer Beat Festival"
   });
+  await assertBookingEventSource(page, baseUrl, {
+    slug: "hadestown",
+    eventId: "event_musical_001",
+    sourceTitle: "Midnight Sonata"
+  });
 });
 
 test("checkout fallback buys from the current show's mapped backend event", async (t) => {
