@@ -8,9 +8,25 @@ test("selected performance enters queue and reaches booking without repeated wai
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
 
+  await assertInvalidQueueScheduleParamsAreSanitized(browser, baseUrl);
   await assertDetailSelectionToFastBooking(browser, baseUrl);
   await assertNormalQueueEventuallyReachesBooking(browser, baseUrl);
 });
+
+async function assertInvalidQueueScheduleParamsAreSanitized(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  try {
+    await page.goto(`${baseUrl}/queue/dracula?date=bad-date&time=bad-time`, { waitUntil: "networkidle" });
+
+    await page.getByText("Ticketground Waiting Room").waitFor({ timeout: 5000 });
+    assert.equal(await page.getByText("bad-date").count(), 0);
+    assert.equal(await page.getByText("bad-time").count(), 0);
+    assert.ok(await page.getByText("2026.07.10").first().isVisible());
+    assert.ok(await page.getByText("19:30").first().isVisible());
+  } finally {
+    await page.close();
+  }
+}
 
 async function assertDetailSelectionToFastBooking(browser, baseUrl) {
   const page = await browser.newPage({ viewport: { width: 1293, height: 1043 }, deviceScaleFactor: 1 });
