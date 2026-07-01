@@ -70,7 +70,7 @@ export const cleanTicketAdminLedgerRows: readonly AdminLedgerRow[] = [
   },
 ];
 
-export const ticketShows: TicketShow[] = [
+const catalogTicketShows: TicketShow[] = [
   {
     slug: "les-miserables",
     code: "CTI-LM40",
@@ -105,7 +105,11 @@ export const ticketShows: TicketShow[] = [
     summary: "블루스퀘어에서 만나는 레미제라블 40주년 대표 회차입니다. CTI 클린티켓 데이터의 기준 공연입니다.",
   },
   ...supportingTicketShows,
-  ...homeTicketShows,
+];
+
+export const ticketShows: TicketShow[] = [
+  ...catalogTicketShows,
+  ...homeTicketShows.filter((homeShow) => !catalogTicketShows.some((catalogShow) => catalogShow.slug === homeShow.slug)),
 ];
 
 export const cleanTicketReservation: CleanTicketReservation = {
