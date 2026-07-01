@@ -49,6 +49,7 @@ export const supportingTicketShows: TicketShow[] = [
     poster: `${P}/L0000142_p.gif`,
     ranking: "뮤지컬 주간 3위",
     badge: "좌석우위",
+    artistSlug: "dracula-cast",
     prices: [
       { grade: "OP", seat: "OP석", price: 180000 },
       { grade: "VIP", seat: "VIP석", price: 180000 },

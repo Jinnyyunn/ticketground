@@ -9,6 +9,7 @@ import type {
   WatchlistAlert,
   InquiryThread,
 } from "@/types";
+import { homeTicketShows } from "./home-ticketing-catalog";
 import { supportingReservations, supportingTicketShows } from "./ticketing-catalog";
 
 const P = "/images/posters";
@@ -83,6 +84,7 @@ export const ticketShows: TicketShow[] = [
     poster: `${P}/26006232_p.gif`,
     ranking: "뮤지컬 주간 1위",
     badge: "클린티켓",
+    artistSlug: "les-miserables-cast",
     prices: [
       { grade: "VIP", seat: "VIP석", price: 190000 },
       { grade: "R", seat: "R석", price: 160000 },
@@ -103,6 +105,7 @@ export const ticketShows: TicketShow[] = [
     summary: "블루스퀘어에서 만나는 레미제라블 40주년 대표 회차입니다. CTI 클린티켓 데이터의 기준 공연입니다.",
   },
   ...supportingTicketShows,
+  ...homeTicketShows,
 ];
 
 export const cleanTicketReservation: CleanTicketReservation = {
@@ -137,6 +140,18 @@ export const cleanTicketReservation: CleanTicketReservation = {
     maxAmountPercent: 10,
   },
   ledger: cleanTicketAdminLedgerRows,
+};
+
+export const appOnlyQrReservation: Reservation = {
+  id: "CTI-260629-DAYQR",
+  showSlug: "dracula",
+  showTitle: "뮤지컬 드라큘라 (Dracula：The Musical)",
+  venue: "LG아트센터 서울 LG SIGNATURE 홀",
+  date: "2026.06.29",
+  time: "19:30",
+  seat: "VIP A열 12번",
+  price: "180,000원",
+  status: "예매완료",
 };
 
 export const watchlistAlerts: readonly WatchlistAlert[] = [

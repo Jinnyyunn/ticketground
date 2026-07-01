@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
+import { appendDemoCancelHistory } from "@/lib/demo-cancel-history";
 
 type CancelFlowProps = {
   readonly reservation: CleanTicketReservation;
@@ -24,6 +25,23 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
   const [completed, setCompleted] = useState(false);
   const refundAmount = reservation.totalAmount;
   const canComplete = reason.length > 0;
+
+  function completeCancelRequest() {
+    if (!reason) return;
+
+    appendDemoCancelHistory({
+      reservationId: reservation.id,
+      showTitle: reservation.showTitle,
+      venue: reservation.venue,
+      date: reservation.date,
+      time: reservation.time,
+      seat: reservation.seat,
+      reason,
+      refundAmount,
+      requestedAt: new Date().toISOString(),
+    });
+    setCompleted(true);
+  }
 
   if (completed) {
     return (
@@ -146,7 +164,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
           <button
             type="button"
             disabled={!canComplete}
-            onClick={() => setCompleted(true)}
+            onClick={completeCancelRequest}
             className="mt-6 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-black text-white transition enabled:hover:bg-ticketground/90 disabled:bg-surface-3 disabled:text-ink-4"
           >
             mock 취소 요청 완료

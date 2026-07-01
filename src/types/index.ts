@@ -70,6 +70,7 @@ export interface TicketShow {
   readonly poster: string;
   readonly ranking?: string;
   readonly badge?: string;
+  readonly artistSlug?: string;
   readonly prices: readonly TicketPrice[];
   readonly schedules: ReadonlyArray<{
     readonly label: string;
