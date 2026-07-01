@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { getSession, type ApiSession, updateProfile } from "@/lib/ticketground-api";
+import { readDemoCancelHistory } from "@/lib/demo-cancel-history";
 
 type AccountSummaryPanelProps = {
   readonly reservationCount: number;
@@ -18,6 +19,7 @@ const signedOutValue = "signed-out";
 export function AccountSummaryPanel({ reservationCount, transferableSeatCount, inquiryCount }: AccountSummaryPanelProps) {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [session, setSession] = useState<ApiSession | null>(null);
+  const [cancelHistoryCount, setCancelHistoryCount] = useState(0);
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [status, setStatus] = useState("세션 확인 중");
@@ -40,6 +42,8 @@ export function AccountSummaryPanel({ reservationCount, transferableSeatCount, i
   }, []);
 
   useEffect(() => {
+    setCancelHistoryCount(readDemoCancelHistory().length);
+
     if (window.localStorage.getItem(demoAuthStorageKey) === signedOutValue) {
       setAuthState("signed-out");
       setSession(null);
@@ -105,7 +109,7 @@ export function AccountSummaryPanel({ reservationCount, transferableSeatCount, i
   const displayName = session?.name ?? (authState === "loading" ? "세션 확인 중" : "회원");
   const counters = [
     { label: "예매", count: reservationCount, href: "/mypage#reservations" },
-    { label: "취소", count: 0, href: "/cancel" },
+    { label: "취소", count: cancelHistoryCount, href: "/mypage#cancel-history" },
     { label: "양도", count: transferableSeatCount, href: "/transfer" },
     { label: "문의", count: inquiryCount, href: "/inquiry" },
   ] as const;

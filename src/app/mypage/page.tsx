@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { AccountSummaryPanel } from "@/components/mypage/account-summary-panel";
 import { BackendTicketPanel } from "@/components/mypage/backend-ticket-panel";
+import { CancelHistoryPanel } from "@/components/mypage/cancel-history-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { appOnlyQrReservation, reservations } from "@/data/ticketing";
 
 const sideNav = [
   ["예매내역", "/mypage#reservations"],
-  ["취소내역", "/cancel"],
+  ["취소내역", "/mypage#cancel-history"],
   ["관심공연", "/watchlist"],
   ["1:1 문의", "/inquiry"],
 ] as const;
@@ -73,6 +74,7 @@ export default function MyPage() {
                 );
               })}
             </div>
+            <CancelHistoryPanel />
           </div>
         </div>
       </section>
