@@ -25,6 +25,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
   const calendarDays = Array.from({ length: 31 }, (_, index) => index + 1);
   const scheduledDays = new Set(show.schedules.map((schedule) => Number(schedule.date.split(".").at(-1))));
   const firstPrice = show.prices[0];
+  const artistHref = show.artistSlug ? `/artist/${show.artistSlug}` : undefined;
 
   return (
     <TicketingPageShell>
@@ -111,20 +112,34 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                   <p className="text-sm font-black text-ticketground">출연진</p>
                   <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">주요 캐스트</h2>
                 </div>
-                <Link href="/artist/dracula-cast" className="text-sm font-bold text-ticketground">
-                  아티스트 보기
-                </Link>
+                {artistHref ? (
+                  <Link href={artistHref} className="text-sm font-bold text-ticketground">
+                    아티스트 보기
+                  </Link>
+                ) : (
+                  <span className="text-sm font-bold text-ink-3">아티스트 페이지 준비 중</span>
+                )}
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {show.casts.map((cast) => (
-                  <Link key={cast} href="/artist/dracula-cast" data-allow-wrap="true" className="group rounded-lg border border-line bg-card p-4 text-center transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50">
-                    <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-white transition-colors group-hover:bg-ticketground">
-                      {cast.slice(0, 1)}
-                    </span>
-                    <span className="mt-3 block text-sm font-black text-ink">{cast}</span>
-                  </Link>
-                ))}
+                {show.casts.map((cast) =>
+                  artistHref ? (
+                    <Link key={cast} href={artistHref} data-allow-wrap="true" className="group rounded-lg border border-line bg-card p-4 text-center transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50">
+                      <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-white transition-colors group-hover:bg-ticketground">
+                        {cast.slice(0, 1)}
+                      </span>
+                      <span className="mt-3 block text-sm font-black text-ink">{cast}</span>
+                    </Link>
+                  ) : (
+                    <article key={cast} data-allow-wrap="true" className="rounded-lg border border-line bg-card p-4 text-center">
+                      <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-white">
+                        {cast.slice(0, 1)}
+                      </span>
+                      <span className="mt-3 block text-sm font-black text-ink">{cast}</span>
+                    </article>
+                  ),
+                )}
               </div>
+              {!artistHref && <p className="mt-4 text-sm font-semibold text-ink-3">이 공연의 아티스트 상세 페이지는 준비 중입니다.</p>}
             </section>
 
             <section id="schedule" className="scroll-mt-[176px]">

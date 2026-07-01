@@ -83,6 +83,7 @@ export const ticketShows: TicketShow[] = [
     poster: `${P}/26006232_p.gif`,
     ranking: "뮤지컬 주간 1위",
     badge: "클린티켓",
+    artistSlug: "les-miserables-cast",
     prices: [
       { grade: "VIP", seat: "VIP석", price: 190000 },
       { grade: "R", seat: "R석", price: 160000 },
