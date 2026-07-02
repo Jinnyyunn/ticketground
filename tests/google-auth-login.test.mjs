@@ -73,22 +73,56 @@ test("login page renders Google Identity Services wiring as a social button surf
 
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   try {
+    await page.addInitScript(() => {
+      window.google = {
+        accounts: {
+          id: {
+            initialize: () => {},
+            renderButton: (element) => {
+              element.replaceChildren();
+              const button = document.createElement("button");
+              button.type = "button";
+              button.textContent = "Google 계정으로 로그인하기";
+              button.style.height = "48px";
+              button.style.width = "100%";
+              button.style.border = "1px solid rgb(218, 220, 224)";
+              button.style.borderRadius = "8px";
+              button.style.background = "white";
+              element.appendChild(button);
+            }
+          }
+        }
+      };
+    });
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
 
     const googleArea = page.locator("[data-google-client-id]").first();
     await googleArea.waitFor({ timeout: 5000 });
+    await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
     assert.equal(await googleArea.getAttribute("data-google-scope"), "openid email profile");
-    assert.ok(await googleArea.getByText(/Google로 계속하기|Google 계정으로 로그인|Sign in with Google/).first().isVisible());
+    assert.ok(await googleArea.getByText("Google 계정으로 로그인하기").first().isVisible());
     assert.equal(await page.getByText("이메일과 프로필 확인 범위만 요청합니다.").count(), 0);
     assert.equal(await page.getByText("Google 버튼 로드 중").count(), 0);
-    const kakaoButton = page.getByRole("button", { name: "카카오로 계속하기", exact: true });
+    const kakaoButton = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
     const googleBox = await googleArea.boundingBox();
     const kakaoBox = await kakaoButton.boundingBox();
     assert.ok(googleBox, "Google login control has a rendered box");
     assert.ok(kakaoBox, "Kakao login button has a rendered box");
+    const googleElement = await googleArea.evaluate((element) => ({
+      tagName: element.tagName,
+      borderTopWidth: window.getComputedStyle(element).borderTopWidth,
+    }));
+    assert.deepEqual(googleElement, {
+      tagName: "DIV",
+      borderTopWidth: "0px",
+    });
     assert.ok(
       Math.abs(googleBox.height - kakaoBox.height) <= 8,
       `Google control height ${googleBox.height} should be comparable to Kakao button height ${kakaoBox.height}`,
+    );
+    assert.ok(
+      Math.abs(googleBox.width - kakaoBox.width) <= 8,
+      `Google control width ${googleBox.width} should match Kakao button width ${kakaoBox.width}`,
     );
 
     const mockLoginButton = page.getByRole("button", { name: "mock 로그인 확인" });
@@ -124,18 +158,24 @@ test("login page initializes Google Identity Services only once in a browser ses
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await page.addInitScript(() => {
-      window.__ticketgroundGoogleCalls = { initialize: 0, renderButton: 0 };
+      window.__ticketgroundGoogleCalls = { initialize: 0, renderButton: 0, credential: 0 };
       window.google = {
         accounts: {
           id: {
-            initialize: () => {
+            initialize: (options) => {
               window.__ticketgroundGoogleCalls.initialize += 1;
+              window.__ticketgroundGoogleCallback = options.callback;
             },
             renderButton: (element) => {
               window.__ticketgroundGoogleCalls.renderButton += 1;
+              element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
-              button.textContent = "Google 계정으로 로그인";
+              button.textContent = "Google 계정으로 로그인하기";
+              button.addEventListener("click", () => {
+                window.__ticketgroundGoogleCalls.credential += 1;
+                window.__ticketgroundGoogleCallback?.({ credential: "ticketground-google-test-credential" });
+              });
               element.appendChild(button);
             }
           }
@@ -155,6 +195,7 @@ test("login page initializes Google Identity Services only once in a browser ses
     const calls = await page.evaluate(() => window.__ticketgroundGoogleCalls);
     assert.equal(calls.initialize, 1);
     assert.ok(calls.renderButton >= 2, `Google button should render after returning to login, got ${calls.renderButton}`);
+    assert.equal(calls.credential, 0);
   } finally {
     await page.close();
   }

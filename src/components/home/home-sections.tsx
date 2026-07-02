@@ -4,6 +4,30 @@ import { cn } from "@/lib/utils";
 import { FeaturedCard, GradientPoster, Movement, SectionHead } from "./home-cards";
 import { events, featuredShow, genreRecommendations, miniShows, rankings, shortcuts, ticketOpens } from "./home-content";
 
+const editorialCardTone = {
+  dark: {
+    card: "border-ink bg-ink text-white shadow-ticket-2",
+    accent: "bg-white",
+    eyebrow: "border-white/15 bg-white/10 text-white/75",
+    index: "border-white/15 text-white/55",
+    cta: "border-white/15 bg-white/10 text-white group-hover:bg-white group-hover:text-ink",
+  },
+  red: {
+    card: "border-line bg-white text-ink shadow-ticket-1 hover:border-ticketground/35 hover:bg-tint-red/35",
+    accent: "bg-ticketground",
+    eyebrow: "border-ticketground/20 bg-tint-red text-ticketground",
+    index: "border-line text-ink-4",
+    cta: "border-line bg-surface text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-white",
+  },
+  cream: {
+    card: "border-line bg-white text-ink shadow-ticket-1 hover:border-accent-2 hover:bg-tint-yellow/35",
+    accent: "bg-accent-2",
+    eyebrow: "border-accent-2 bg-tint-yellow text-ink",
+    index: "border-line text-ink-4",
+    cta: "border-line bg-surface text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-white",
+  },
+} as const;
+
 export function HomeHeroSection() {
   return (
     <section data-section="spec-hero" className="ticketground-container grid gap-5 pt-8 lg:grid-cols-[1.55fr_1fr]">
@@ -80,8 +104,9 @@ export function OfficialResaleSection() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
         <Link
           href="/resale"
-          className="group min-w-0 rounded-lg border border-line bg-ink p-5 text-white transition-transform hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-6"
+          className="group relative isolate min-w-0 overflow-hidden rounded-lg border border-ink bg-ink p-5 text-white shadow-ticket-2 transition-transform before:absolute before:-right-24 before:-top-24 before:size-56 before:rounded-full before:bg-white/10 before:blur-2xl hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-6"
         >
+          <div className="relative z-10">
           <p className="text-[13px] font-black text-white/60">CLEAN TICKET POOL</p>
           <h3 className="balanced-title mt-3 text-[24px] font-black leading-tight sm:text-[30px]">공식 재판매</h3>
           <p className="mt-3 max-w-[560px] text-[14px] leading-relaxed text-white/75 sm:text-[15px]">
@@ -90,15 +115,18 @@ export function OfficialResaleSection() {
           <span className="mt-5 inline-flex h-10 items-center rounded-lg bg-white px-4 text-[14px] font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
             공식 풀 보기
           </span>
+          </div>
         </Link>
         <div className="grid gap-3">
           {[
             ["보유 티켓 확인", "마이페이지 예매 내역에서 양도 가능한 좌석을 확인합니다."],
             ["정책 자동 판별", "공식 재판매 또는 동반자 양도 흐름으로 안전하게 연결합니다."],
             ["QR 보호", "현장 입장 QR은 앱 본인 기기에서만 활성화됩니다."],
-          ].map(([title, description]) => (
-            <div key={title} className="rounded-lg border border-line bg-surface p-4">
-              <h3 className="text-[15px] font-black text-ink">{title}</h3>
+          ].map(([title, description], index) => (
+            <div key={title} className="group relative overflow-hidden rounded-lg border border-line bg-white p-4 pl-5 shadow-ticket-1 transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ticket-2">
+              <span className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-ink" aria-hidden="true" />
+              <span className="absolute right-4 top-4 text-[12px] font-black text-ink-4" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+              <h3 className="pr-10 text-[15px] font-black text-ink">{title}</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{description}</p>
             </div>
           ))}
@@ -113,23 +141,38 @@ export function EditorialEventsSection() {
     <section data-section="editorial-events" className="ticketground-container mt-16">
       <SectionHead title="기획전" subtitle="공연을 고르는 기준이 분명한 큐레이션입니다." moreHref="/event/ticketground-day" />
       <div className="grid gap-4 md:grid-cols-3">
-        {events.map((event) => (
-          <Link
-            href={event.href}
-            key={event.title}
-            data-card="editorial-event"
-            className={cn(
-              "min-h-[210px] rounded-xl border p-6 transition-transform hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50",
-              event.tone === "dark" && "border-ink bg-ink text-white",
-              event.tone === "red" && "border-ticketground bg-tint-red text-ink",
-              event.tone === "cream" && "border-accent-2 bg-tint-yellow text-ink",
-            )}
-          >
-            <p className="text-[13px] font-black opacity-75">EDITORIAL</p>
-            <h3 className="balanced-title mt-8 text-[24px] font-black leading-tight sm:text-[28px]">{event.title}</h3>
-            <p className="mt-4 text-[15px] leading-loose opacity-85">{event.description}</p>
-          </Link>
-        ))}
+        {events.map((event, index) => {
+          const tone = editorialCardTone[event.tone];
+
+          return (
+            <Link
+              href={event.href}
+              key={event.title}
+              data-card="editorial-event"
+              className={cn(
+                "group relative min-h-[220px] overflow-hidden rounded-lg border p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-6",
+                tone.card,
+              )}
+            >
+              <span data-card-accent className={cn("absolute inset-x-0 top-0 h-1", tone.accent)} aria-hidden="true" />
+              <div className="relative z-10 flex h-full min-h-[178px] flex-col">
+                <div className="flex items-center justify-between gap-3">
+                  <p className={cn("inline-flex h-7 items-center rounded-lg border px-3 text-[12px] font-black tracking-normal", tone.eyebrow)}>
+                    EDITORIAL
+                  </p>
+                  <span className={cn("inline-flex h-7 min-w-9 items-center justify-center rounded-lg border px-2 text-[12px] font-black", tone.index)}>
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
+                <h3 className="balanced-title mt-7 text-[23px] font-black leading-tight sm:text-[28px]">{event.title}</h3>
+                <p className="mt-4 text-[15px] leading-loose opacity-85">{event.description}</p>
+                <span className={cn("mt-auto inline-flex h-9 w-fit items-center rounded-lg border px-3 text-[13px] font-black transition-colors", tone.cta)}>
+                  기획전 보기 <span className="ml-1" aria-hidden="true">→</span>
+                </span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

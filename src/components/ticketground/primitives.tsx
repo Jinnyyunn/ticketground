@@ -48,7 +48,7 @@ export function TicketgroundChip({ children, active = false, error = false, clas
     <button
       type={type}
       aria-pressed={active}
-      aria-invalid={error}
+      data-invalid={error ? "" : undefined}
       className={cn(
         "inline-flex h-9 items-center rounded-full border px-4 text-sm font-bold transition-colors",
         "focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-45",

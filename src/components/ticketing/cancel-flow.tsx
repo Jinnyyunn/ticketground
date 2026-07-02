@@ -24,10 +24,10 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
   const [agreed, setAgreed] = useState(false);
   const [completed, setCompleted] = useState(false);
   const refundAmount = reservation.totalAmount;
-  const canComplete = reason.length > 0;
+  const canComplete = reason.length > 0 && agreed;
 
   function completeCancelRequest() {
-    if (!reason) return;
+    if (!canComplete) return;
 
     appendDemoCancelHistory({
       reservationId: reservation.id,
@@ -65,7 +65,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
       <p className="text-sm font-black text-ticketground">취소/환불</p>
       <h1 className="mt-2 text-[34px] font-black text-ink">예매 취소 요청</h1>
       <p className="mt-3 text-sm leading-loose text-ink-3">
-        이 화면은 실제 결제 취소를 수행하지 않는 mock 취소·환불 플로우입니다. 취소 사유를 선택하면 완료 버튼이 활성화됩니다.
+        이 화면은 실제 결제 취소를 수행하지 않는 mock 취소·환불 플로우입니다. 취소 사유와 환불 예정 금액 확인을 모두 완료해야 요청할 수 있습니다.
       </p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:pr-24 2xl:pr-0">
@@ -169,7 +169,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
           >
             mock 취소 요청 완료
           </button>
-          {!canComplete && <p className="mt-3 text-sm font-bold text-warn">취소 사유를 선택해야 완료할 수 있습니다.</p>}
+          {!canComplete && <p className="mt-3 text-sm font-bold text-warn">취소 사유 선택과 환불 예정 금액 확인이 필요합니다.</p>}
         </aside>
       </div>
     </section>

@@ -54,6 +54,7 @@ export type PublicResalePool = ApiResalePool;
 export type PublicPayment = ApiResaleResult["payment"];
 export type PublicSessionUser = ApiSession;
 export type ResalePurchaseResult = ApiResaleResult;
+export type SocialLoginProvider = "kakao" | "naver";
 
 export class TicketgroundApiError extends Error {
   readonly code: string;
@@ -212,6 +213,10 @@ export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYE
 
 export function getSession(userId = currentSessionUserId()) {
   return readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
+}
+
+export function completeSocialLogin(provider: SocialLoginProvider) {
+  return readApi(`/api/auth/${provider}/session`, apiSessionSchema);
 }
 
 export function loginWithGoogle(credential: string) {

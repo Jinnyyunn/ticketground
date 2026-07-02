@@ -10,6 +10,14 @@ const posterCases = [
   { slug: "banksy", query: "뱅크시" },
 ];
 
+function posterPathFromSrc(src) {
+  const url = new URL(src, "http://ticketground.test");
+  if (url.pathname === "/_next/image") {
+    return url.searchParams.get("url") ?? "";
+  }
+  return url.pathname;
+}
+
 test("goods detail pages preserve the poster image from show list cards", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -31,7 +39,7 @@ test("goods detail pages preserve the poster image from show list cards", async 
     const detailPoster = page.locator("[data-detail-poster]");
     await detailPoster.waitFor({ timeout: 5000 });
     const detailPosterSrc = await detailPoster.getAttribute("src");
-    assert.equal(detailPosterSrc, listPosterSrc, `${item.slug} detail poster uses the list poster`);
+    assert.equal(posterPathFromSrc(detailPosterSrc), posterPathFromSrc(listPosterSrc), `${item.slug} detail poster uses the list poster`);
 
     const imageState = await detailPoster.evaluate((image) => {
       if (!(image instanceof HTMLImageElement)) {

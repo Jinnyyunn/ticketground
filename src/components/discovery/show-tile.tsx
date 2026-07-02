@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { TicketShow } from "@/types";
 import { currency } from "@/data/ticketing";
 import { cn } from "@/lib/utils";
@@ -19,11 +20,13 @@ export function ShowTile({ show, compact = false }: ShowTileProps) {
         compact ? "grid-cols-[52px_1fr] gap-2 p-2" : "gap-4 p-4 xl:grid-cols-[120px_1fr]",
       )}
     >
-      <div className="relative">
-        <img
+      <div className={cn("relative overflow-hidden rounded-lg bg-surface-2", compact ? "aspect-[3/4] w-[52px]" : "aspect-[3/4] w-full xl:w-[120px]")}>
+        <Image
           src={show.poster}
           alt={show.title}
-          className={cn("aspect-[3/4] w-full rounded-lg bg-surface-2 object-cover", compact ? "w-[52px]" : "xl:w-[120px]")}
+          fill
+          sizes={compact ? "52px" : "(min-width: 1280px) 120px, (min-width: 640px) 25vw, 100vw"}
+          className="object-cover"
         />
       </div>
       <div className="min-w-0">

@@ -14,12 +14,11 @@ import { createSeatMap, SeatMap, type SeatOption, type SeatTier } from "./seat-m
 const serviceFeePerSeat = 2000;
 const maxSelectableSeats = 2;
 
-type BookingStep = "schedule" | "seats" | "payment";
+type BookingStep = "schedule" | "seats";
 
 const steps: readonly { readonly id: BookingStep; readonly label: string }[] = [
   { id: "schedule", label: "날짜·회차" },
   { id: "seats", label: "좌석 선택" },
-  { id: "payment", label: "결제" },
 ];
 
 function priceMap(show: TicketShow): Record<SeatTier, number> {
@@ -131,7 +130,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
       <div className="ticketground-container grid min-w-0 gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <main className="min-w-0 space-y-5">
-          <nav className="grid grid-cols-3 gap-2" aria-label="예매 단계">
+          <nav className="grid grid-cols-2 gap-2" aria-label="예매 단계">
             {steps.map((item, index) => {
               const active = item.id === step;
               return (
@@ -225,24 +224,6 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 <div className="mt-4 min-w-0">
                   <SeatMap seats={seats} selectedSeatIds={selectedSeatIds} onToggleSeat={toggleSeat} />
                 </div>
-              </div>
-              <button type="button" disabled={!canPay} onClick={() => setStep("payment")} className="mt-6 h-12 rounded-[8px] bg-ticketground px-6 text-[15px] font-black text-white whitespace-nowrap disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
-                결제 단계로 이동
-              </button>
-            </section>
-          )}
-
-          {step === "payment" && (
-            <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
-              <p className="text-[13px] font-black text-ticketground">STEP 3</p>
-              <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">결제 정보 확인</h2>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {["신용카드", "간편결제", "계좌이체", "휴대폰", "무통장입금(입금대기)"].map((method) => (
-                  <label key={method} className="flex min-h-12 min-w-0 items-center gap-3 rounded-[8px] border border-line bg-white px-4 text-[14px] font-bold text-ink">
-                    <input name="payment-method" type="radio" defaultChecked={method === "신용카드"} />
-                    <span className="min-w-0">{method}</span>
-                  </label>
-                ))}
               </div>
               <Link href={canPay ? checkoutHref : "#"} aria-disabled={!canPay} className={cn("mt-6 flex h-12 w-full items-center justify-center rounded-[8px] text-[16px] font-black", canPay ? "bg-ticketground text-white" : "pointer-events-none bg-surface-3 text-ink-4")}>
                 결제하기

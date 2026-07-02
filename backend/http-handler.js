@@ -56,8 +56,19 @@ async function handleRequest(req, res, db, surface) {
     if (req.url.startsWith("/api/")) {
       const result = await handleApi(req, res, db, surface);
       await saveDb(db);
-      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: true, data: result }, null, 2));
+      if (result?.redirect) {
+        res.writeHead(result.status || 302, {
+          Location: result.redirect,
+          ...(result.headers || {})
+        });
+        res.end();
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        ...(result?.responseHeaders || {})
+      });
+      res.end(JSON.stringify({ ok: true, data: result?.responseBody ?? result }, null, 2));
       return;
     }
     if (surface === "admin" && !fallbackAdmin) {

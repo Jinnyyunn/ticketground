@@ -2,10 +2,13 @@ import crypto from "node:crypto";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import nextEnv from "@next/env";
 import next from "next";
 import { createTicketgroundApp } from "./backend/app.js";
 
 const projectDir = path.dirname(fileURLToPath(import.meta.url));
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(projectDir, process.env.NODE_ENV !== "production");
 const publicDir = path.join(projectDir, "public");
 const adminDir = path.join(projectDir, "admin");
 const seatMapDir = path.join(projectDir, "좌석 도면");

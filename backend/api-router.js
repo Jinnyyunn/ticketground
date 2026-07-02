@@ -19,6 +19,9 @@ export function createApiRouter({
   publicResalePool,
   publicState,
   publicTicketsForUser,
+  socialAuthCallback,
+  socialAuthSession,
+  socialAuthStart,
   buyPrimary,
   seatMap,
   supportThreadForUser,
@@ -72,6 +75,12 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
+  if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
+  if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
+  if (req.method === "GET" && url.pathname === "/api/auth/kakao/callback") return socialAuthCallback(db, req, "kakao", url.searchParams);
+  if (req.method === "GET" && url.pathname === "/api/auth/naver/callback") return socialAuthCallback(db, req, "naver", url.searchParams);
+  if (req.method === "GET" && url.pathname === "/api/auth/kakao/session") return socialAuthSession(db, req, "kakao");
+  if (req.method === "GET" && url.pathname === "/api/auth/naver/session") return socialAuthSession(db, req, "naver");
   if (req.method === "GET" && url.pathname === "/api/ledger/verify") return verifyLedger(db);
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
   if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);

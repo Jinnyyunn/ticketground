@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
 import { SegmentedControl } from "@/components/ticketground/primitives";
@@ -63,7 +63,7 @@ export function ResaleFlow({
   const resultFee = result ? feeFor(result.amount) : 0;
   const filteredCandidates = matchCandidates.filter((candidate) => candidate.grade === grade && candidate.zone === zone && candidate.amount <= maxPrice && (!pairOnly || candidate.pair));
 
-  async function refreshBackendTickets() {
+  const refreshBackendTickets = useCallback(async () => {
     try {
       const tickets = await getUserTickets(sessionUserId);
       setBackendTickets(tickets);
@@ -75,11 +75,11 @@ export function ResaleFlow({
     } catch (error) {
       setApiStatus(error instanceof Error ? error.message : "보유 티켓을 불러오지 못했습니다.");
     }
-  }
+  }, [sessionUserId]);
 
   useEffect(() => {
     void refreshBackendTickets();
-  }, []);
+  }, [refreshBackendTickets]);
 
   async function ensureBackendTicket() {
     if (selectedBackendTicket) return selectedBackendTicket;

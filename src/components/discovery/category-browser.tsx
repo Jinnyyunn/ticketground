@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import type { TicketShow } from "@/types";
 import { currency } from "@/data/ticketing";
@@ -143,7 +144,13 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
                 index === 0 ? "lg:col-span-3 lg:row-span-2" : "lg:col-span-3",
               )}
             >
-              <img src={show.poster} alt={show.title} className="absolute inset-0 size-full object-cover opacity-70 transition group-hover:scale-[1.03]" />
+              <Image
+                src={show.poster}
+                alt={show.title}
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover opacity-70 transition group-hover:scale-[1.03]"
+              />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/70 to-transparent p-5">
                 <span className="text-sm font-black text-accent-2">{show.badge ?? show.category}</span>
                 <h2 className="mt-2 clamp-2 text-2xl font-black leading-tight">{show.shortTitle}</h2>

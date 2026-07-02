@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
 
-test("cancel request button follows required reason state", async (t) => {
+test("cancel request button requires reason and refund agreement", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -18,20 +18,22 @@ test("cancel request button follows required reason state", async (t) => {
 
   await page.getByLabel("일정 변경").check();
   await page.getByText("선택 사유: 일정 변경").waitFor();
-  assert.equal(await submitButton.isDisabled(), false, "reason selection enables the request button");
+  assert.equal(await submitButton.isDisabled(), true, "reason alone keeps the request button disabled");
 
   const refundConfirmation = page.getByLabel(/취소 수수료와 환불 예정 금액을 확인했습니다/);
-  assert.equal(await refundConfirmation.isChecked(), false, "refund confirmation is optional for enabling");
+  assert.equal(await refundConfirmation.isChecked(), false, "refund confirmation starts unchecked");
 
   await refundConfirmation.check();
-  assert.equal(await submitButton.isDisabled(), false, "checking optional confirmation keeps the button enabled");
+  assert.equal(await submitButton.isDisabled(), false, "reason and refund confirmation enable the button");
 
   await refundConfirmation.uncheck();
-  assert.equal(await submitButton.isDisabled(), false, "unchecking optional confirmation does not disable the button");
+  assert.equal(await submitButton.isDisabled(), true, "unchecking refund confirmation disables the button again");
 
   await page.getByLabel("좌석 변경 후 재예매").check();
   await page.getByText("선택 사유: 좌석 변경 후 재예매").waitFor();
-  assert.equal(await submitButton.isDisabled(), false, "changing reason keeps the button enabled");
+  assert.equal(await submitButton.isDisabled(), true, "changing reason still requires refund confirmation");
+  await refundConfirmation.check();
+  assert.equal(await submitButton.isDisabled(), false, "checking refund confirmation after changing reason enables the button");
 
   await submitButton.click();
   await page.getByRole("heading", { name: "취소·환불 요청이 기록되었습니다" }).waitFor();
@@ -64,6 +66,7 @@ test("cancel request updates mypage cancel history in demo state", async (t) => 
 
   await page.goto(`${baseUrl}/cancel`, { waitUntil: "networkidle" });
   await page.getByLabel("일정 변경").check();
+  await page.getByLabel(/취소 수수료와 환불 예정 금액을 확인했습니다/).check();
   await page.getByRole("button", { name: /mock 취소 요청 완료/ }).click();
   await page.getByRole("heading", { name: "취소·환불 요청이 기록되었습니다" }).waitFor();
   await page.getByRole("link", { name: "마이페이지로 이동" }).click();

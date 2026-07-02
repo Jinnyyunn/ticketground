@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   clearSessionUser,
+  completeSocialLogin,
   DEMO_USER_ID,
   getSession,
   storedSessionUserId,
   TicketgroundApiError,
   type ApiSession,
+  type SocialLoginProvider,
   rememberSessionUser,
   updateProfile,
 } from "@/lib/ticketground-api";
@@ -16,9 +18,14 @@ import { GoogleSignInCard } from "@/components/ticketing/google-sign-in-card";
 import { LoginHomeLink } from "@/components/ticketing/login-home-link";
 import { LoginHeroAside } from "@/components/ticketing/login-hero-aside";
 import { LoginModeTabs } from "@/components/ticketing/login-mode-tabs";
+import { LoginSessionPanel } from "@/components/ticketing/login-session-panel";
 import { SocialLoginButtons } from "@/components/ticketing/social-login-buttons";
 
 type LoginMode = "login" | "signup";
+
+function isSocialLoginProvider(value: string | null): value is SocialLoginProvider {
+  return value === "kakao" || value === "naver";
+}
 
 export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: LoginMode }) {
   const router = useRouter();
@@ -35,9 +42,45 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
   const canLogin = email.trim().length > 3 && password.length > 3;
   const canSignup = canLogin && name.trim().length > 1 && identityChecked && termsChecked;
 
+  const applySession = useCallback((nextSession: ApiSession, message: string) => {
+    setSession(nextSession);
+    setProfileName(nextSession.name);
+    setStatus(message);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     const loadInitialSession = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const socialProvider = searchParams.get("socialProvider")?.trim() || null;
+      const socialError = searchParams.get("socialError")?.trim();
+      if (socialError) {
+        clearSessionUser();
+        setStatus(`${socialError} 소셜 로그인 요청을 처리하지 못했습니다.`);
+        return;
+      }
+      if (isSocialLoginProvider(socialProvider)) {
+        setStatus(`${socialProvider} 세션 확인 중`);
+        try {
+          const nextSession = await completeSocialLogin(socialProvider);
+          if (!mounted) return;
+          rememberSessionUser(nextSession);
+          applySession(nextSession, `${nextSession.name} ${socialProvider} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
+          window.history.replaceState(null, "", window.location.pathname);
+          return;
+        } catch (error: unknown) {
+          if (!mounted) return;
+          setStatus(error instanceof Error ? error.message : "소셜 세션을 확인하지 못했습니다.");
+          clearSessionUser();
+          return;
+        }
+      }
+      if (socialProvider) {
+        clearSessionUser();
+        setStatus("지원하지 않는 소셜 로그인 요청입니다.");
+        return;
+      }
+
       const storedUserId = storedSessionUserId();
       if (storedUserId) {
         try {
@@ -59,19 +102,15 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
       try {
         const nextSession = await getSession(DEMO_USER_ID);
         if (!mounted) return;
-        setSession(nextSession);
-        setProfileName(nextSession.name);
-        setStatus(`${nextSession.name} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
+        applySession(nextSession, `${nextSession.name} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
       } catch (error: unknown) {
         if (!mounted) return;
         setStatus(error instanceof Error ? error.message : "세션을 불러오지 못했습니다.");
       }
     };
     void loadInitialSession();
-    return () => {
-      mounted = false;
-    };
-  }, [router]);
+    return () => { mounted = false; };
+  }, [applySession, router]);
 
   async function saveProfile() {
     const nextName = profileName.trim();
@@ -81,9 +120,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
     try {
       const nextSession = await updateProfile(nextName, session.id);
       rememberSessionUser(nextSession);
-      setSession(nextSession);
-      setProfileName(nextSession.name);
-      setStatus(`${nextSession.name} 프로필 저장 완료`);
+      applySession(nextSession, `${nextSession.name} 프로필 저장 완료`);
       router.push("/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "프로필 저장에 실패했습니다.");
@@ -94,10 +131,8 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   const handleGoogleSession = useCallback((nextSession: ApiSession) => {
     rememberSessionUser(nextSession);
-    setSession(nextSession);
-    setProfileName(nextSession.name);
-    setStatus(`${nextSession.name} Google 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
-  }, []);
+    applySession(nextSession, `${nextSession.name} Google 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
+  }, [applySession]);
 
   async function confirmMockAccount() {
     if (mode === "login" && !canLogin) return;
@@ -107,9 +142,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
     try {
       const nextSession = await getSession(DEMO_USER_ID);
       rememberSessionUser(nextSession);
-      setSession(nextSession);
-      setProfileName(nextSession.name);
-      setStatus(mode === "login" ? `${nextSession.name} 데모 세션 연결됨` : `${nextSession.name} 데모 회원가입 완료`);
+      applySession(nextSession, mode === "login" ? `${nextSession.name} 데모 세션 연결됨` : `${nextSession.name} 데모 회원가입 완료`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "데모 계정 확인에 실패했습니다.");
     }
@@ -139,33 +172,16 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
             </p>
           </div>
 
-          <div className="mt-5 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
-            <p className="text-sm font-black text-ink">세션 상태</p>
-            <p className="mt-1 text-sm font-bold text-ink-3">{status}</p>
-            {session && (
-              <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-                <label className="grid gap-2 text-sm font-black text-ink">
-                  닉네임
-                  <input
-                    value={profileName}
-                    onChange={(event) => setProfileName(event.target.value)}
-                    maxLength={12}
-                    className="h-11 rounded-[8px] border border-line-strong bg-white px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={saving || !profileName.trim()}
-                  onClick={saveProfile}
-                  className="h-11 self-end rounded-[8px] bg-ink px-4 text-sm font-black text-white disabled:bg-surface-3 disabled:text-ink-4"
-                >
-                  {saving ? "저장 중" : "프로필 저장"}
-                </button>
-              </div>
-            )}
-          </div>
+          <LoginSessionPanel
+            onProfileNameChange={setProfileName}
+            onSaveProfile={saveProfile}
+            profileName={profileName}
+            saving={saving}
+            session={session}
+            status={status}
+          />
 
-          <div className="mt-7 grid gap-3">
+          <div className="mx-auto mt-7 grid w-full max-w-[400px] gap-3">
             <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={setStatus} />
             <SocialLoginButtons />
           </div>

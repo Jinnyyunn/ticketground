@@ -1,10 +1,11 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createSocialOAuthBackend } from "./social-oauth.js";
 
 const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
 
-export function createSessionBackend({ appendLedger, findUser, httpError, now, stableId }) {
+export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, now, stableId }) {
   function publicSessionUser(user) {
     return {
       id: user.id,
@@ -13,6 +14,16 @@ export function createSessionBackend({ appendLedger, findUser, httpError, now, s
       trustScore: user.trustScore
     };
   }
+
+  const socialOAuth = createSocialOAuthBackend({
+    appendLedger,
+    currentTimeMs,
+    hmac,
+    httpError,
+    now,
+    publicSessionUser,
+    stableId
+  });
 
   function googleAuthError() {
     return httpError(401, "GOOGLE_AUTH_INVALID", "Google 인증 정보를 확인할 수 없습니다.");
@@ -111,6 +122,9 @@ export function createSessionBackend({ appendLedger, findUser, httpError, now, s
   return {
     demoSession,
     googleSession,
+    socialAuthCallback: socialOAuth.socialAuthCallback,
+    socialAuthSession: socialOAuth.socialAuthSession,
+    socialAuthStart: socialOAuth.socialAuthStart,
     updateDemoProfile
   };
 }

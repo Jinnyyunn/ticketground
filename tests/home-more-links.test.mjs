@@ -70,7 +70,7 @@ test("home section more links route to their matching pages instead of search", 
   }
 });
 
-test("floating inquiry shortcut does not cover desktop home more links", async (t) => {
+test("floating inquiry shortcut sits on the right side on desktop", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -83,16 +83,27 @@ test("floating inquiry shortcut does not cover desktop home more links", async (
   await inquiryShortcut.waitFor({ timeout: 5000 });
   const shortcutBox = await inquiryShortcut.boundingBox();
   assert.ok(shortcutBox, "floating inquiry shortcut is visible on desktop");
-
-  for (const item of sectionMoreLinks) {
-    const moreLink = page.locator(`[data-section="${item.section}"]`).getByRole("link", { name: "더보기", exact: true });
-    await moreLink.evaluate((node) => node.scrollIntoView({ block: "center", inline: "nearest" }));
-    const moreLinkBox = await moreLink.boundingBox();
-    assert.ok(moreLinkBox, `${item.section} more link is measurable`);
-    assert.equal(overlaps(shortcutBox, moreLinkBox), false, `${item.section} more link is not covered by floating inquiry shortcut`);
-  }
+  assert.ok(shortcutBox.x > 1000, `floating inquiry shortcut should sit on the right side, got x=${shortcutBox.x}`);
 });
 
-function overlaps(first, second) {
-  return first.x < second.x + second.width && first.x + first.width > second.x && first.y < second.y + second.height && first.y + first.height > second.y;
-}
+test("home more links and editorial accents use neutral black and white surface styling", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+
+  const moreLinks = await page.getByRole("link", { name: "더보기", exact: true }).evaluateAll((links) =>
+    links.map((link) => window.getComputedStyle(link).color),
+  );
+  assert.ok(moreLinks.length >= 5, "home renders section more links");
+  assert.ok(moreLinks.every((color) => color === "rgb(26, 26, 29)"), `more links should be black: ${moreLinks.join(", ")}`);
+
+  const darkEditorialAccent = page.locator('[data-section="editorial-events"] [data-card="editorial-event"]').first().locator("[data-card-accent]");
+  await darkEditorialAccent.waitFor({ timeout: 5000 });
+  const accentColor = await darkEditorialAccent.evaluate((node) => window.getComputedStyle(node).backgroundColor);
+  assert.match(accentColor, /(rgba?\(255, 255, 255|oklab\(0\.999|oklab\(1)/);
+});

@@ -70,7 +70,9 @@ export async function createTicketgroundApp(options) {
   });
   const session = createSessionBackend({
     appendLedger: persistence.appendLedger,
+    currentTimeMs: runtime.currentTimeMs,
     findUser: runtime.findUser,
+    hmac: runtime.hmac,
     httpError: runtime.httpError,
     now: runtime.now,
     stableId: runtime.stableId
