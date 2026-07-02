@@ -11,7 +11,7 @@ const detailTabs = [
   { href: "#notices", label: "유의사항" },
 ];
 
-test("detail sticky tab bar attaches to the category header and keeps anchors visible", async (t) => {
+test("detail sticky tab bar pins to the viewport top and keeps anchors visible", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -20,20 +20,16 @@ test("detail sticky tab bar attaches to the category header and keeps anchors vi
   try {
     await page.goto(`${baseUrl}/goods/les-miserables`, { waitUntil: "networkidle" });
 
-    const categoryNav = page.getByRole("navigation", { name: "카테고리" });
     const detailNav = page.getByRole("navigation", { name: "상세 정보 바로가기" });
-    await categoryNav.waitFor({ timeout: 5000 });
     await detailNav.waitFor({ timeout: 5000 });
 
     await scrollUntilSticky(page);
     const stickyState = await readStickyState(page);
     assert.ok(
-      stickyState.gapPx >= 0 && stickyState.gapPx <= 2 && stickyState.isOpaqueWhite && stickyState.backdropFilter === "none",
+      stickyState.detailTop >= 0 && stickyState.detailTop <= 2 && stickyState.isOpaqueWhite && stickyState.backdropFilter === "none",
       [
-        "detail sticky tab bar should sit directly below category header with opaque white background and no blur",
-        `categoryBottom=${stickyState.categoryBottom}`,
+        "detail sticky tab bar should pin to viewport top with opaque white background and no blur",
         `detailTop=${stickyState.detailTop}`,
-        `gapPx=${stickyState.gapPx}`,
         `backgroundColor=${stickyState.backgroundColor}`,
         `backdropFilter=${stickyState.backdropFilter}`,
       ].join(" | "),
@@ -97,11 +93,9 @@ async function scrollUntilSticky(page) {
 
 async function readStickyState(page) {
   const state = await page.evaluate(() => {
-    const category = document.querySelector('nav[aria-label="카테고리"]')?.closest(".sticky");
     const detail = document.querySelector('nav[aria-label="상세 정보 바로가기"]');
-    if (!category || !detail) return null;
+    if (!detail) return null;
 
-    const categoryRect = category.getBoundingClientRect();
     const detailRect = detail.getBoundingClientRect();
     const style = window.getComputedStyle(detail);
     const backgroundColor = style.backgroundColor;
@@ -110,9 +104,7 @@ async function readStickyState(page) {
     const alpha = colorParts.length === 4 ? colorParts[3] : 1;
 
     return {
-      categoryBottom: categoryRect.height,
       detailTop: detailRect.top,
-      gapPx: detailRect.top - categoryRect.height,
       backgroundColor,
       isOpaqueWhite: colorParts[0] === 255 && colorParts[1] === 255 && colorParts[2] === 255 && alpha === 1,
       backdropFilter: style.backdropFilter,
@@ -121,6 +113,6 @@ async function readStickyState(page) {
     };
   });
 
-  assert.ok(state, "sticky category header and detail nav exist");
+  assert.ok(state, "sticky detail nav exists");
   return state;
 }

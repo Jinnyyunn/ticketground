@@ -12,6 +12,7 @@ const detailTabs = [
   { href: "#notices", label: "유의사항" },
 ];
 const viewports = [
+  { name: "user-964x950", width: 964, height: 950, deviceScaleFactor: 1, isMobile: false },
   { name: "desktop", width: 1293, height: 1043, deviceScaleFactor: 1, isMobile: false },
   { name: "tablet", width: 768, height: 1024, deviceScaleFactor: 1, isMobile: false },
   { name: "iphone-like", width: 390, height: 844, deviceScaleFactor: 2, isMobile: true },
@@ -38,7 +39,7 @@ const report = {
   baseUrl,
   route: "/goods/les-miserables",
   thresholds: {
-    gapPx: "0..2",
+    detailTop: "0..2",
     backgroundColor: "opaque white",
     backdropFilter: "none",
     maxHorizontalOverflowPx: 1,
@@ -96,9 +97,7 @@ async function runViewport(activeBrowser, viewport) {
 
   try {
     await page.goto(`${baseUrl}/goods/les-miserables`, { waitUntil: "networkidle" });
-    const categoryNav = page.getByRole("navigation", { name: "카테고리" });
     const detailNav = page.getByRole("navigation", { name: "상세 정보 바로가기" });
-    await categoryNav.waitFor();
     await detailNav.waitFor();
 
     await scrollUntilSticky(page);
@@ -106,8 +105,8 @@ async function runViewport(activeBrowser, viewport) {
     viewportReport.measurements = measurements;
 
     assert.ok(
-      measurements.gapPx >= 0 && measurements.gapPx <= 2,
-      `gapPx must be 0..2: ${measurements.gapPx}`,
+      measurements.detailTop >= 0 && measurements.detailTop <= 2,
+      `detailTop must be 0..2: ${measurements.detailTop}`,
     );
     assert.equal(measurements.isOpaqueWhite, true, `detail nav background must be opaque white: ${measurements.backgroundColor}`);
     assert.equal(measurements.backdropFilter, "none", `detail nav backdropFilter must be none: ${measurements.backdropFilter}`);
@@ -138,39 +137,32 @@ async function runViewport(activeBrowser, viewport) {
 
 async function scrollUntilSticky(page) {
   await page.evaluate(async () => {
-    const category = document.querySelector('nav[aria-label="카테고리"]')?.closest(".sticky");
     const detail = document.querySelector('nav[aria-label="상세 정보 바로가기"]');
-    if (!category || !detail) throw new Error("sticky category header or detail nav missing");
+    if (!detail) throw new Error("sticky detail nav missing");
 
-    const targetTop = category.getBoundingClientRect().height;
     const maxScrollY = Math.max(1800, document.documentElement.scrollHeight - window.innerHeight);
     for (let scrollY = 0; scrollY <= maxScrollY; scrollY += 40) {
       window.scrollTo(0, scrollY);
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const top = detail.getBoundingClientRect().top;
-      if (top <= targetTop + 2) return;
+      if (top <= 2) return;
     }
   });
 }
 
 async function readStickyState(page) {
   const state = await page.evaluate(() => {
-    const category = document.querySelector('nav[aria-label="카테고리"]')?.closest(".sticky");
     const detail = document.querySelector('nav[aria-label="상세 정보 바로가기"]');
-    if (!category || !detail) return null;
+    if (!detail) return null;
 
-    const categoryRect = category.getBoundingClientRect();
     const detailRect = detail.getBoundingClientRect();
     const style = window.getComputedStyle(detail);
     const backgroundColor = style.backgroundColor;
     const colorParts = parseRgb(backgroundColor);
     const alpha = colorParts.length === 4 ? colorParts[3] : 1;
-    const categoryBottom = categoryRect.height;
 
     return {
-      categoryBottom,
       detailTop: detailRect.top,
-      gapPx: detailRect.top - categoryBottom,
       backgroundColor,
       isOpaqueWhite: colorParts[0] === 255 && colorParts[1] === 255 && colorParts[2] === 255 && alpha === 1,
       backdropFilter: style.backdropFilter,
@@ -186,7 +178,7 @@ async function readStickyState(page) {
     }
   });
 
-  assert.ok(state, "sticky category header and detail nav exist");
+  assert.ok(state, "sticky detail nav exists");
   return state;
 }
 

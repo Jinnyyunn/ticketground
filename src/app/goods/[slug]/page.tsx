@@ -85,7 +85,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
           <DetailBookingPanel slug={show.slug} title={show.title} venueHref={venueHref} schedules={show.schedules} />
 
-          <nav className="no-scrollbar sticky top-[46px] z-20 flex gap-2 overflow-x-auto border-b border-line bg-white py-3 shadow-sm sm:top-[50px] lg:col-span-3" aria-label="상세 정보 바로가기">
+          <nav className="no-scrollbar sticky top-0 z-20 flex gap-2 overflow-x-auto border-b border-line bg-white py-3 shadow-sm lg:col-span-3" aria-label="상세 정보 바로가기">
             {tabLinks.map((tab) => (
               <Link key={tab.href} href={tab.href} className="whitespace-nowrap rounded-md px-4 py-2 text-sm font-black text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
                 {tab.label}
