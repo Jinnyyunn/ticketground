@@ -20,6 +20,9 @@ export const DEMO_USER_ID = "user_fan_a";
 export const DEMO_BUYER_ID = "user_fan_b";
 export const DEMO_SCALPER_ID = "user_scalper";
 export const DEMO_EVENT_ID = "event_kpop_001";
+export const SESSION_USER_STORAGE_KEY = "ticketground:session-user-id";
+export const DEMO_AUTH_STORAGE_KEY = "ticketground:demo-auth-state";
+export const SIGNED_OUT_VALUE = "signed-out";
 
 export type {
   ApiDirectTransferResult,
@@ -115,6 +118,24 @@ function post<T>(path: string, dataSchema: ZodType<T>, body: Record<string, unkn
   });
 }
 
+export function currentSessionUserId() {
+  if (typeof window === "undefined") return DEMO_USER_ID;
+  const storedUserId = window.localStorage.getItem(SESSION_USER_STORAGE_KEY)?.trim();
+  return storedUserId || DEMO_USER_ID;
+}
+
+export function rememberSessionUser(session: ApiSession) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SESSION_USER_STORAGE_KEY, session.id);
+  window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
+}
+
+export function clearSessionUser() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(SESSION_USER_STORAGE_KEY);
+  window.localStorage.setItem(DEMO_AUTH_STORAGE_KEY, SIGNED_OUT_VALUE);
+}
+
 export function getState() {
   return readApi("/api/state", apiStateSchema);
 }
@@ -198,11 +219,17 @@ export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYE
   });
 }
 
-export function getSession(userId = DEMO_USER_ID) {
+export function getSession(userId = currentSessionUserId()) {
   return readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
 }
 
-export function updateProfile(name: string, userId = DEMO_USER_ID) {
+export function loginWithGoogle(credential: string) {
+  return post("/api/auth/google", apiSessionSchema, {
+    credential,
+  });
+}
+
+export function updateProfile(name: string, userId = currentSessionUserId()) {
   return post(`/api/users/${encodeURIComponent(userId)}/profile`, apiSessionSchema, {
     name,
   });

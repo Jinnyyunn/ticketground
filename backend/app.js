@@ -72,7 +72,8 @@ export async function createTicketgroundApp(options) {
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
     httpError: runtime.httpError,
-    now: runtime.now
+    now: runtime.now,
+    stableId: runtime.stableId
   });
   const commerce = createCommerceBackend({
     appendLedger: persistence.appendLedger,

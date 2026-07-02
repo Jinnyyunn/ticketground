@@ -1,4 +1,10 @@
-export function createSessionBackend({ appendLedger, findUser, httpError, now }) {
+import { createRemoteJWKSet, jwtVerify } from "jose";
+
+const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
+const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
+const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
+
+export function createSessionBackend({ appendLedger, findUser, httpError, now, stableId }) {
   function publicSessionUser(user) {
     return {
       id: user.id,
@@ -8,8 +14,81 @@ export function createSessionBackend({ appendLedger, findUser, httpError, now })
     };
   }
 
+  function googleAuthError() {
+    return httpError(401, "GOOGLE_AUTH_INVALID", "Google 인증 정보를 확인할 수 없습니다.");
+  }
+
+  function googleClientId() {
+    const clientId = process.env.TIG_GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (clientId) return clientId;
+    throw httpError(500, "GOOGLE_AUTH_NOT_CONFIGURED", "Google 로그인 클라이언트 ID가 설정되지 않았습니다.");
+  }
+
+  function googleSessionUser(db, claims) {
+    const subject = String(claims.sub || "").trim();
+    const email = String(claims.email || "").trim();
+    const name = String(claims.name || email || "Google 사용자").trim();
+    const emailVerified = claims.email_verified === true;
+    if (!subject || !email || !emailVerified) throw googleAuthError();
+
+    const id = claims.ticketgroundUserId || stableId("google_user", subject);
+    const existingUser = db.users.find((user) => user.id === id);
+    if (existingUser) {
+      existingUser.name = name;
+      return existingUser;
+    }
+
+    const user = {
+      id,
+      name,
+      balance: 0,
+      status: "ACTIVE",
+      trustScore: 90,
+      sanctions: []
+    };
+    db.users.push(user);
+    appendLedger(db, user.id, "GOOGLE_USER_REGISTERED", {
+      provider: "google",
+      emailHash: stableId("google_email", email),
+      registeredAt: now()
+    });
+    return user;
+  }
+
+  async function verifyGoogleCredential(credential) {
+    const token = String(credential || "").trim();
+    if (!token) throw googleAuthError();
+    if (process.env.TIG_GOOGLE_AUTH_TEST_MODE === "1" && token === GOOGLE_AUTH_TEST_CREDENTIAL) {
+      return {
+        sub: "test",
+        email: "google-test@ticketground.local",
+        email_verified: true,
+        name: "Google 테스트 사용자",
+        ticketgroundUserId: "google_user_test"
+      };
+    }
+    try {
+      const { payload } = await jwtVerify(token, GOOGLE_JWKS, {
+        audience: googleClientId(),
+        issuer: GOOGLE_ISSUERS
+      });
+      return payload;
+    } catch {
+      throw googleAuthError();
+    }
+  }
+
   function demoSession(db, userId) {
     return publicSessionUser(findUser(db, userId));
+  }
+
+  async function googleSession(db, { credential }) {
+    const user = googleSessionUser(db, await verifyGoogleCredential(credential));
+    appendLedger(db, user.id, "GOOGLE_SESSION_CREATED", {
+      provider: "google",
+      authenticatedAt: now()
+    });
+    return publicSessionUser(user);
   }
 
   function updateDemoProfile(db, { userId, name }) {
@@ -31,6 +110,7 @@ export function createSessionBackend({ appendLedger, findUser, httpError, now })
 
   return {
     demoSession,
+    googleSession,
     updateDemoProfile
   };
 }

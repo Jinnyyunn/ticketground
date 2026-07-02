@@ -6,6 +6,7 @@ export function createApiRouter({
   demoSession,
   directTransferAttempt,
   drawPool,
+  googleSession,
   httpError,
   issueQr,
   joinPool,
@@ -99,6 +100,10 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/support/messages") {
     requireBody(body, ["threadId", "actorId", "message"]);
     return addSupportMessage(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/auth/google") {
+    requireBody(body, ["credential"]);
+    return googleSession(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist") {
     requireBody(body, ["userId", "eventId"]);

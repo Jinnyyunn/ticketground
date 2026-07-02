@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Home } from "lucide-react";
-import { DEMO_USER_ID, getSession, type ApiSession, updateProfile } from "@/lib/ticketground-api";
+import { DEMO_USER_ID, getSession, type ApiSession, rememberSessionUser, updateProfile } from "@/lib/ticketground-api";
+import { GoogleSignInCard } from "@/components/ticketing/google-sign-in-card";
+import { LoginHeroAside } from "@/components/ticketing/login-hero-aside";
 
 type LoginMode = "login" | "signup";
 
@@ -12,8 +14,6 @@ const socialProviders = [
   { label: "네이버로 계속하기", tone: "bg-[#03C75A] text-white" },
   { label: "Apple로 계속하기", tone: "bg-ink text-white" },
 ] as const;
-
-const perks = ["공식 재판매 풀", "동적 QR 입장", "예매 내역 통합 관리"] as const;
 
 export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: LoginMode }) {
   const [mode, setMode] = useState<LoginMode>(initialMode);
@@ -49,11 +49,12 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   async function saveProfile() {
     const nextName = profileName.trim();
-    if (!nextName) return;
+    if (!nextName || !session) return;
     setSaving(true);
     setStatus("프로필 저장 중");
     try {
-      const nextSession = await updateProfile(nextName);
+      const nextSession = await updateProfile(nextName, session.id);
+      rememberSessionUser(nextSession);
       setSession(nextSession);
       setProfileName(nextSession.name);
       setStatus(`${nextSession.name} 프로필 저장 완료`);
@@ -64,49 +65,33 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
     }
   }
 
+  const handleGoogleSession = useCallback((nextSession: ApiSession) => {
+    rememberSessionUser(nextSession);
+    setSession(nextSession);
+    setProfileName(nextSession.name);
+    setStatus(`${nextSession.name} Google 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
+  }, []);
+
+  async function confirmMockAccount() {
+    if (mode === "login" && !canLogin) return;
+    if (mode === "signup" && !canSignup) return;
+
+    setStatus(mode === "login" ? "데모 로그인 확인 중" : "데모 회원가입 확인 중");
+    try {
+      const nextSession = await getSession(DEMO_USER_ID);
+      rememberSessionUser(nextSession);
+      setSession(nextSession);
+      setProfileName(nextSession.name);
+      setStatus(mode === "login" ? `${nextSession.name} 데모 세션 연결됨` : `${nextSession.name} 데모 회원가입 완료`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "데모 계정 확인에 실패했습니다.");
+    }
+  }
+
   return (
     <section className="ticketground-container py-10">
       <div className="grid overflow-hidden rounded-[20px] border border-line bg-white shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
-        <aside className="flex min-h-[560px] flex-col gap-8 bg-ink p-8 text-white lg:p-10">
-          <div>
-            <p className="text-sm font-black text-accent-2">Ticketground Members</p>
-            <h1 className="balanced-title mt-4 text-[31px] font-black leading-tight sm:text-[37px]">
-              클린 티켓 예매와
-              <br />
-              환불 관리를 한 계정에서
-            </h1>
-            <p className="mt-5 max-w-[360px] text-sm leading-loose text-white/70">
-              데모 계정으로 계정 상태와 프로필 갱신을 확인합니다. 실제 소셜 인증은 별도 인증 제공자 연동 전까지 데모 계정으로 동작합니다.
-            </p>
-          </div>
-
-          <div className="grid gap-3 rounded-[12px] bg-white/8 p-5">
-            <p className="text-sm font-black text-white">회원 기능 미리보기</p>
-            <dl className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <dt className="text-[12px] text-white/55">예매번호</dt>
-                <dd className="mt-1 text-sm font-black">CTI</dd>
-              </div>
-              <div>
-                <dt className="text-[12px] text-white/55">QR</dt>
-                <dd className="mt-1 text-sm font-black">20초</dd>
-              </div>
-              <div>
-                <dt className="text-[12px] text-white/55">재판매</dt>
-                <dd className="mt-1 text-sm font-black">공식</dd>
-              </div>
-            </dl>
-          </div>
-
-          <ul className="mt-auto grid gap-3 text-sm font-bold text-white/80">
-            {perks.map((perk) => (
-              <li key={perk} className="flex items-center gap-3">
-                <span className="h-px w-6 bg-accent-2" aria-hidden />
-                {perk}
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <LoginHeroAside />
 
         <div className="p-6 sm:p-8 lg:p-10">
           <div className="mb-5 flex justify-end">
@@ -180,6 +165,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           </div>
 
           <div className="mt-7 grid gap-3">
+            <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={setStatus} />
             {socialProviders.map((provider) => (
               <button key={provider.label} type="button" className={`h-12 rounded-[8px] text-[15px] font-black ${provider.tone}`}>
                 {provider.label}
@@ -258,6 +244,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           <button
             type="button"
             disabled={mode === "login" ? !canLogin : !canSignup}
+            onClick={confirmMockAccount}
             className="mt-6 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-black text-white transition enabled:hover:bg-ticketground/90 disabled:bg-surface-3 disabled:text-ink-4"
           >
             {mode === "login" ? "mock 로그인 확인" : "mock 회원가입 완료"}

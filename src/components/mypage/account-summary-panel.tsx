@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { getSession, type ApiSession, updateProfile } from "@/lib/ticketground-api";
+import { clearSessionUser, DEMO_AUTH_STORAGE_KEY, getSession, rememberSessionUser, SIGNED_OUT_VALUE, type ApiSession, updateProfile } from "@/lib/ticketground-api";
 import { readDemoCancelHistory } from "@/lib/demo-cancel-history";
 
 type AccountSummaryPanelProps = {
@@ -12,9 +12,6 @@ type AccountSummaryPanelProps = {
 };
 
 type AuthState = "loading" | "signed-in" | "signed-out" | "error";
-
-const demoAuthStorageKey = "ticketground:demo-auth-state";
-const signedOutValue = "signed-out";
 
 export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiryCount }: AccountSummaryPanelProps) {
   const [authState, setAuthState] = useState<AuthState>("loading");
@@ -34,7 +31,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
       setDraftName(nextSession.name);
       setAuthState("signed-in");
       setStatus(`${nextSession.name} 세션 연결됨`);
-      window.localStorage.removeItem(demoAuthStorageKey);
+      rememberSessionUser(nextSession);
     } catch (error) {
       setAuthState("error");
       setStatus(error instanceof Error ? error.message : "세션을 불러오지 못했습니다.");
@@ -44,7 +41,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
   useEffect(() => {
     setCancelHistoryCount(readDemoCancelHistory().length);
 
-    if (window.localStorage.getItem(demoAuthStorageKey) === signedOutValue) {
+    if (window.localStorage.getItem(DEMO_AUTH_STORAGE_KEY) === SIGNED_OUT_VALUE) {
       setAuthState("signed-out");
       setSession(null);
       setStatus("로그아웃되었습니다.");
@@ -61,7 +58,8 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
     setSaving(true);
     setStatus("회원 정보를 저장하는 중");
     try {
-      const nextSession = await updateProfile(nextName);
+      const nextSession = await updateProfile(nextName, session?.id);
+      rememberSessionUser(nextSession);
       setSession(nextSession);
       setDraftName(nextSession.name);
       setEditing(false);
@@ -75,7 +73,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
   }
 
   function logout() {
-    window.localStorage.setItem(demoAuthStorageKey, signedOutValue);
+    clearSessionUser();
     setSession(null);
     setEditing(false);
     setAuthState("signed-out");
