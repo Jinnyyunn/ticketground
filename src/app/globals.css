@@ -273,6 +273,12 @@
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 @layer utilities {
   .shell,
   .ticketground-container {

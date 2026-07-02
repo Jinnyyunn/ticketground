@@ -18,6 +18,7 @@ const viewports = [
   { name: "iphone-like", width: 390, height: 844, deviceScaleFactor: 2, isMobile: true },
   { name: "galaxy-like", width: 412, height: 915, deviceScaleFactor: 2, isMobile: true },
 ];
+const routes = ["/goods/les-miserables", "/goods/dracula"];
 
 function optionValue(name, fallback) {
   const index = args.indexOf(name);
@@ -37,9 +38,10 @@ const report = {
   status: "fail",
   startedAt: new Date().toISOString(),
   baseUrl,
-  route: "/goods/les-miserables",
+  routes,
   thresholds: {
     detailTop: "0..2",
+    tabGroupCenterDelta: "<= 1px when tabs fit the visible tab bar",
     backgroundColor: "opaque white",
     backdropFilter: "none",
     maxHorizontalOverflowPx: 1,
@@ -55,7 +57,9 @@ try {
   browser = await chromium.launch({ channel: "chrome", headless: true });
 
   for (const viewport of viewports) {
-    await runViewport(browser, viewport);
+    for (const route of routes) {
+      await runViewport(browser, route, viewport);
+    }
   }
 
   report.status = report.viewports.every((viewport) => viewport.status === "pass") ? "pass" : "fail";
@@ -76,7 +80,7 @@ if (report.status !== "pass") {
   console.log(JSON.stringify(report, null, 2));
 }
 
-async function runViewport(activeBrowser, viewport) {
+async function runViewport(activeBrowser, route, viewport) {
   const page = await activeBrowser.newPage({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.deviceScaleFactor,
@@ -85,6 +89,7 @@ async function runViewport(activeBrowser, viewport) {
   page.setDefaultTimeout(10000);
 
   const viewportReport = {
+    route,
     name: viewport.name,
     viewport: { width: viewport.width, height: viewport.height },
     status: "fail",
@@ -96,7 +101,7 @@ async function runViewport(activeBrowser, viewport) {
   report.viewports.push(viewportReport);
 
   try {
-    await page.goto(`${baseUrl}/goods/les-miserables`, { waitUntil: "networkidle" });
+    await page.goto(`${baseUrl}${route}`, { waitUntil: "networkidle" });
     const detailNav = page.getByRole("navigation", { name: "상세 정보 바로가기" });
     await detailNav.waitFor();
 
@@ -114,8 +119,15 @@ async function runViewport(activeBrowser, viewport) {
       measurements.scrollWidth <= measurements.viewportWidth + 1,
       `document scrollWidth must not exceed viewportWidth + 1: scrollWidth=${measurements.scrollWidth} viewportWidth=${measurements.viewportWidth}`,
     );
+    if (measurements.tabGroupFitsVisibleBar) {
+      assert.ok(
+        measurements.tabGroupCenterDelta <= 1,
+        `tab group must be centered when it fits: delta=${measurements.tabGroupCenterDelta}`,
+      );
+    }
 
-    const screenshotPath = path.join(evidenceDir, `issue28-${viewport.name}-sticky.png`);
+    const routeName = route.replace(/^\/goods\//, "").replace(/[^a-z0-9-]/gi, "-");
+    const screenshotPath = path.join(evidenceDir, `issue28-${routeName}-${viewport.name}-sticky.png`);
     await page.screenshot({ path: screenshotPath, fullPage: false });
     report.screenshots.push(screenshotPath);
     viewportReport.screenshot = screenshotPath;
@@ -142,7 +154,7 @@ async function scrollUntilSticky(page) {
 
     const maxScrollY = Math.max(1800, document.documentElement.scrollHeight - window.innerHeight);
     for (let scrollY = 0; scrollY <= maxScrollY; scrollY += 40) {
-      window.scrollTo(0, scrollY);
+      window.scrollTo({ top: scrollY, behavior: "instant" });
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const top = detail.getBoundingClientRect().top;
       if (top <= 2) return;
@@ -163,6 +175,12 @@ async function readStickyState(page) {
 
     return {
       detailTop: detailRect.top,
+      navCenter: detailRect.left + detailRect.width / 2,
+      tabGroupCenter: readTabGroupCenter(detail),
+      tabGroupCenterDelta: Math.abs(detailRect.left + detailRect.width / 2 - readTabGroupCenter(detail)),
+      tabGroupWidth: readTabGroupWidth(detail),
+      tabGroupFitsVisibleBar: readTabGroupWidth(detail) <= detailRect.width,
+      scrollBehavior: window.getComputedStyle(document.documentElement).scrollBehavior,
       backgroundColor,
       isOpaqueWhite: colorParts[0] === 255 && colorParts[1] === 255 && colorParts[2] === 255 && alpha === 1,
       backdropFilter: style.backdropFilter,
@@ -176,6 +194,22 @@ async function readStickyState(page) {
       const normalized = match[1].replace(/\//g, " ").replace(/,/g, " ");
       return normalized.split(/\s+/).filter(Boolean).map(Number);
     }
+
+    function readTabGroupCenter(detailNav) {
+      const links = Array.from(detailNav.querySelectorAll("a"));
+      const first = links.at(0)?.getBoundingClientRect();
+      const last = links.at(-1)?.getBoundingClientRect();
+      if (!first || !last) return Number.NaN;
+      return (first.left + last.right) / 2;
+    }
+
+    function readTabGroupWidth(detailNav) {
+      const links = Array.from(detailNav.querySelectorAll("a"));
+      const first = links.at(0)?.getBoundingClientRect();
+      const last = links.at(-1)?.getBoundingClientRect();
+      if (!first || !last) return Number.NaN;
+      return last.right - first.left;
+    }
   });
 
   assert.ok(state, "sticky detail nav exists");
@@ -186,7 +220,15 @@ async function clickAndMeasureTab(page, tab) {
   const detailNav = page.getByRole("navigation", { name: "상세 정보 바로가기" });
   await detailNav.getByRole("link", { name: tab.label, exact: true }).click();
   await page.waitForFunction((expectedHash) => window.location.hash === expectedHash, tab.href);
-  await page.waitForTimeout(100);
+  await page.waitForFunction((href) => {
+    const detail = document.querySelector('nav[aria-label="상세 정보 바로가기"]');
+    const target = document.querySelector(href);
+    if (!detail || !target) return false;
+
+    const detailRect = detail.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    return targetRect.top >= detailRect.bottom - 1 && targetRect.top < window.innerHeight;
+  }, tab.href);
 
   const state = await page.evaluate((href) => {
     const detail = document.querySelector('nav[aria-label="상세 정보 바로가기"]');
