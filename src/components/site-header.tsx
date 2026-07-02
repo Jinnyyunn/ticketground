@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { clearSessionUser, getSession, SESSION_USER_CHANGED_EVENT, storedSessionUserId, TicketgroundApiError } from "@/lib/ticketground-api";
 import { categoryNav, categoryNavHighlight } from "@/data/content";
 import { SearchIcon, StarIcon, TicketIcon, UserIcon } from "@/components/icons";
 
-const utilityLinks = [
+const utilityLinksBeforeAuth = [
   { label: "고객센터", href: "/help" },
   { label: "MY", href: "/mypage" },
-  { label: "로그인", href: "/login" },
-  { label: "회원가입", href: "/signup" },
 ] as const;
+
+const utilityLinkClassName = "hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50";
+const loginLink = { label: "로그인", href: "/login" } as const;
+const signupLink = { label: "회원가입", href: "/signup" } as const;
 
 const iconLinks = [
   { label: "관심공연", href: "/watchlist", Icon: StarIcon },
@@ -67,6 +70,56 @@ function SearchBar({ className, keyboardReachable = true }: { readonly className
   );
 }
 
+function HeaderAuthLinks() {
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const syncAuthState = () => {
+      const userId = storedSessionUserId();
+      if (!userId) {
+        setSignedIn(false);
+        return;
+      }
+      void getSession(userId)
+        .then(() => {
+          if (active) setSignedIn(storedSessionUserId() === userId);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof TicketgroundApiError && error.code === "USER_NOT_FOUND") clearSessionUser();
+          if (active) setSignedIn(false);
+        });
+    };
+    syncAuthState();
+    window.addEventListener("storage", syncAuthState);
+    window.addEventListener(SESSION_USER_CHANGED_EVENT, syncAuthState);
+    return () => {
+      active = false;
+      window.removeEventListener("storage", syncAuthState);
+      window.removeEventListener(SESSION_USER_CHANGED_EVENT, syncAuthState);
+    };
+  }, []);
+
+  if (!signedIn) {
+    return (
+      <>
+        <Link href={loginLink.href} className={utilityLinkClassName}>
+          {loginLink.label}
+        </Link>
+        <Link href={signupLink.href} className={utilityLinkClassName}>
+          {signupLink.label}
+        </Link>
+      </>
+    );
+  }
+
+  return (
+    <button type="button" className={utilityLinkClassName} onClick={clearSessionUser}>
+      로그아웃
+    </button>
+  );
+}
+
 type SiteHeaderProps = {
   readonly showSearchBar?: boolean;
 };
@@ -85,11 +138,12 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
     <header className="relative z-50 w-full bg-white text-ink">
       <div className="hidden border-b border-line bg-surface sm:block">
         <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-[13px] font-bold text-ink-3">
-          {utilityLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
+          {utilityLinksBeforeAuth.map((link) => (
+            <Link key={link.href} href={link.href} className={utilityLinkClassName}>
               {link.label}
             </Link>
           ))}
+          <HeaderAuthLinks />
         </div>
       </div>
 

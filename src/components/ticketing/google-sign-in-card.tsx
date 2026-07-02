@@ -42,6 +42,15 @@ type GoogleSignInCardProps = {
   readonly onStatusChange: (message: string) => void;
 };
 
+type GoogleCredentialHandler = (response: GoogleCredentialResponse) => void;
+
+let initializedGoogleClientId = "";
+let activeGoogleCredentialHandler: GoogleCredentialHandler | null = null;
+
+function handleGlobalGoogleCredential(response: GoogleCredentialResponse) {
+  activeGoogleCredentialHandler?.(response);
+}
+
 export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSignInCardProps) {
   const [googleReady, setGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
@@ -67,17 +76,27 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
     }
 
     let cancelled = false;
+    activeGoogleCredentialHandler = handleGoogleCredential;
+    function clearGoogleHandler() {
+      cancelled = true;
+      if (activeGoogleCredentialHandler === handleGoogleCredential) {
+        activeGoogleCredentialHandler = null;
+      }
+    }
 
     function renderGoogleButton() {
       const target = googleButtonRef.current;
       const googleId = window.google?.accounts.id;
       if (!target || !googleId || cancelled) return;
       target.replaceChildren();
-      googleId.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredential,
-        ux_mode: "popup",
-      });
+      if (initializedGoogleClientId !== GOOGLE_CLIENT_ID) {
+        googleId.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGlobalGoogleCredential,
+          ux_mode: "popup",
+        });
+        initializedGoogleClientId = GOOGLE_CLIENT_ID;
+      }
       googleId.renderButton(target, {
         type: "standard",
         theme: "outline",
@@ -91,9 +110,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
 
     if (window.google?.accounts.id) {
       renderGoogleButton();
-      return () => {
-        cancelled = true;
-      };
+      return clearGoogleHandler;
     }
 
     const handleScriptError = () => onStatusChange("Google 로그인 스크립트를 불러오지 못했습니다.");
@@ -107,7 +124,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
     if (!existingScript) document.head.appendChild(script);
 
     return () => {
-      cancelled = true;
+      clearGoogleHandler();
       script.removeEventListener("load", renderGoogleButton);
       script.removeEventListener("error", handleScriptError);
     };
@@ -115,19 +132,27 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
 
   if (!GOOGLE_CLIENT_ID) {
     return (
-      <div className="rounded-[10px] border border-line bg-white p-4" data-google-client-id="" data-google-scope={GOOGLE_AUTH_SCOPE}>
-        <p className="text-sm font-black text-ink">Google로 계속하기</p>
-        <p className="mt-1 text-xs font-bold text-ink-4">환경변수 NEXT_PUBLIC_GOOGLE_CLIENT_ID 설정 후 사용할 수 있습니다.</p>
-      </div>
+      <button
+        type="button"
+        disabled
+        className="h-12 w-full rounded-[8px] border border-line bg-white text-[15px] font-black text-ink-4"
+        data-google-client-id=""
+        data-google-scope={GOOGLE_AUTH_SCOPE}
+      >
+        Google로 계속하기
+      </button>
     );
   }
 
   return (
-    <div className="rounded-[10px] border border-line bg-white p-4" data-google-client-id={GOOGLE_CLIENT_ID} data-google-scope={GOOGLE_AUTH_SCOPE}>
-      <p className="text-sm font-black text-ink">Google로 계속하기</p>
-      <p className="mt-1 text-xs font-bold text-ink-4">이메일과 프로필 확인 범위만 요청합니다.</p>
-      <div ref={googleButtonRef} className="mt-3 min-h-10" aria-label="Google 로그인 버튼" />
-      {!googleReady && <p className="mt-3 text-sm font-bold text-ink-3">Google 버튼 로드 중</p>}
+    <div
+      className="relative flex h-12 w-full items-center justify-center overflow-hidden rounded-[8px] border border-line bg-white text-[15px] font-black text-ink"
+      data-google-client-id={GOOGLE_CLIENT_ID}
+      data-google-scope={GOOGLE_AUTH_SCOPE}
+      data-google-ready={googleReady ? "true" : "false"}
+    >
+      <div ref={googleButtonRef} className="relative z-10 w-full [&>div]:mx-auto" aria-label="Google 로그인 버튼" />
+      {!googleReady && <span className="pointer-events-none absolute inset-0 flex items-center justify-center">Google로 계속하기</span>}
     </div>
   );
 }

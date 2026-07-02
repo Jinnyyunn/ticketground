@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { clearSessionUser, DEMO_AUTH_STORAGE_KEY, getSession, rememberSessionUser, SIGNED_OUT_VALUE, type ApiSession, updateProfile } from "@/lib/ticketground-api";
+import {
+  clearSessionUser,
+  DEMO_AUTH_STORAGE_KEY,
+  getSession,
+  rememberSessionUser,
+  SESSION_USER_CHANGED_EVENT,
+  SIGNED_OUT_VALUE,
+  type ApiSession,
+  updateProfile,
+} from "@/lib/ticketground-api";
 import { readDemoCancelHistory } from "@/lib/demo-cancel-history";
 
 type AccountSummaryPanelProps = {
@@ -21,6 +30,13 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
   const [draftName, setDraftName] = useState("");
   const [status, setStatus] = useState("세션 확인 중");
   const [saving, setSaving] = useState(false);
+
+  const showSignedOut = useCallback(() => {
+    setSession(null);
+    setEditing(false);
+    setAuthState("signed-out");
+    setStatus("로그아웃되었습니다.");
+  }, []);
 
   const loadSession = useCallback(async () => {
     setAuthState("loading");
@@ -42,14 +58,26 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
     setCancelHistoryCount(readDemoCancelHistory().length);
 
     if (window.localStorage.getItem(DEMO_AUTH_STORAGE_KEY) === SIGNED_OUT_VALUE) {
-      setAuthState("signed-out");
-      setSession(null);
-      setStatus("로그아웃되었습니다.");
+      showSignedOut();
       return;
     }
 
     void loadSession();
-  }, [loadSession]);
+  }, [loadSession, showSignedOut]);
+
+  useEffect(() => {
+    const syncSignedOut = () => {
+      if (window.localStorage.getItem(DEMO_AUTH_STORAGE_KEY) === SIGNED_OUT_VALUE) {
+        showSignedOut();
+      }
+    };
+    window.addEventListener("storage", syncSignedOut);
+    window.addEventListener(SESSION_USER_CHANGED_EVENT, syncSignedOut);
+    return () => {
+      window.removeEventListener("storage", syncSignedOut);
+      window.removeEventListener(SESSION_USER_CHANGED_EVENT, syncSignedOut);
+    };
+  }, [showSignedOut]);
 
   async function saveProfile() {
     const nextName = draftName.trim();
@@ -74,10 +102,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
 
   function logout() {
     clearSessionUser();
-    setSession(null);
-    setEditing(false);
-    setAuthState("signed-out");
-    setStatus("로그아웃되었습니다.");
+    showSignedOut();
   }
 
   if (authState === "signed-out") {

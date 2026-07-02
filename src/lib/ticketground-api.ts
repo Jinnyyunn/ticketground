@@ -14,15 +14,24 @@ import {
   upsertWatchlistResultSchema,
 } from "./ticketground-api-schemas";
 import type { ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
+import { currentSessionUserId, DEMO_USER_ID } from "./ticketground-session-storage";
 import { z, type ZodType } from "zod";
 
-export const DEMO_USER_ID = "user_fan_a";
 export const DEMO_BUYER_ID = "user_fan_b";
 export const DEMO_SCALPER_ID = "user_scalper";
 export const DEMO_EVENT_ID = "event_kpop_001";
-export const SESSION_USER_STORAGE_KEY = "ticketground:session-user-id";
-export const DEMO_AUTH_STORAGE_KEY = "ticketground:demo-auth-state";
-export const SIGNED_OUT_VALUE = "signed-out";
+export {
+  clearSessionUser,
+  currentSessionUserId,
+  DEMO_AUTH_STORAGE_KEY,
+  DEMO_USER_ID,
+  hasStoredSessionUser,
+  rememberSessionUser,
+  SESSION_USER_CHANGED_EVENT,
+  SESSION_USER_STORAGE_KEY,
+  SIGNED_OUT_VALUE,
+  storedSessionUserId,
+} from "./ticketground-session-storage";
 
 export type {
   ApiDirectTransferResult,
@@ -116,24 +125,6 @@ function post<T>(path: string, dataSchema: ZodType<T>, body: Record<string, unkn
     method: "POST",
     body: JSON.stringify(body),
   });
-}
-
-export function currentSessionUserId() {
-  if (typeof window === "undefined") return DEMO_USER_ID;
-  const storedUserId = window.localStorage.getItem(SESSION_USER_STORAGE_KEY)?.trim();
-  return storedUserId || DEMO_USER_ID;
-}
-
-export function rememberSessionUser(session: ApiSession) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(SESSION_USER_STORAGE_KEY, session.id);
-  window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
-}
-
-export function clearSessionUser() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(SESSION_USER_STORAGE_KEY);
-  window.localStorage.setItem(DEMO_AUTH_STORAGE_KEY, SIGNED_OUT_VALUE);
 }
 
 export function getState() {

@@ -8,18 +8,12 @@ const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
 
 function configureGoogleEnv(t, testMode) {
   const previousTestMode = process.env.TIG_GOOGLE_AUTH_TEST_MODE;
-  const previousPublicClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const previousServerClientId = process.env.TIG_GOOGLE_CLIENT_ID;
   t.after(() => {
     if (previousTestMode === undefined) {
       delete process.env.TIG_GOOGLE_AUTH_TEST_MODE;
     } else {
       process.env.TIG_GOOGLE_AUTH_TEST_MODE = previousTestMode;
-    }
-    if (previousPublicClientId === undefined) {
-      delete process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    } else {
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = previousPublicClientId;
     }
     if (previousServerClientId === undefined) {
       delete process.env.TIG_GOOGLE_CLIENT_ID;
@@ -33,7 +27,6 @@ function configureGoogleEnv(t, testMode) {
   } else {
     delete process.env.TIG_GOOGLE_AUTH_TEST_MODE;
   }
-  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = TEST_GOOGLE_CLIENT_ID;
   process.env.TIG_GOOGLE_CLIENT_ID = TEST_GOOGLE_CLIENT_ID;
 }
 
@@ -72,7 +65,7 @@ test("Google auth endpoint accepts deterministic test credential only in test mo
   assert.equal(malformed.error.code, "GOOGLE_AUTH_INVALID");
 });
 
-test("login page renders Google Identity Services wiring without removing mock login", async (t) => {
+test("login page renders Google Identity Services wiring as a social button surface without removing mock login", async (t) => {
   configureGoogleEnv(t, false);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -82,10 +75,22 @@ test("login page renders Google Identity Services wiring without removing mock l
   try {
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
 
-    const googleArea = page.locator(`[data-google-client-id="${TEST_GOOGLE_CLIENT_ID}"]`);
+    const googleArea = page.locator("[data-google-client-id]").first();
     await googleArea.waitFor({ timeout: 5000 });
     assert.equal(await googleArea.getAttribute("data-google-scope"), "openid email profile");
-    await page.getByText("Google로 계속하기").waitFor({ timeout: 5000 });
+    assert.ok(await googleArea.getByText(/Google로 계속하기|Google 계정으로 로그인|Sign in with Google/).first().isVisible());
+    assert.equal(await page.getByText("이메일과 프로필 확인 범위만 요청합니다.").count(), 0);
+    assert.equal(await page.getByText("Google 버튼 로드 중").count(), 0);
+    const kakaoButton = page.getByRole("button", { name: "카카오로 계속하기", exact: true });
+    const googleBox = await googleArea.boundingBox();
+    const kakaoBox = await kakaoButton.boundingBox();
+    assert.ok(googleBox, "Google login control has a rendered box");
+    assert.ok(kakaoBox, "Kakao login button has a rendered box");
+    assert.ok(
+      Math.abs(googleBox.height - kakaoBox.height) <= 8,
+      `Google control height ${googleBox.height} should be comparable to Kakao button height ${kakaoBox.height}`,
+    );
+
     const mockLoginButton = page.getByRole("button", { name: "mock 로그인 확인" });
     await mockLoginButton.waitFor({ timeout: 5000 });
     await page.getByPlaceholder("qa@ticketground.kr").fill("qa@ticketground.kr");
@@ -94,7 +99,110 @@ test("login page renders Google Identity Services wiring without removing mock l
     await page.getByText("민서 데모 세션 연결됨").waitFor({ timeout: 5000 });
     const storedUserId = await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id"));
     assert.equal(storedUserId, "user_fan_a");
+
+    await page.getByLabel("닉네임").fill("서연");
+    await page.getByRole("button", { name: "프로필 저장", exact: true }).click();
+    await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const utilityBar = page.locator("header > div").first();
+    await utilityBar.getByRole("button", { name: "로그아웃", exact: true }).waitFor({ timeout: 5000 });
   } finally {
     await page.close();
+  }
+});
+
+test("login page initializes Google Identity Services only once in a browser session", async (t) => {
+  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+    t.skip("NEXT_PUBLIC_GOOGLE_CLIENT_ID is required at Next.js build time for Google button wiring");
+    return;
+  }
+
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.addInitScript(() => {
+      window.__ticketgroundGoogleCalls = { initialize: 0, renderButton: 0 };
+      window.google = {
+        accounts: {
+          id: {
+            initialize: () => {
+              window.__ticketgroundGoogleCalls.initialize += 1;
+            },
+            renderButton: (element) => {
+              window.__ticketgroundGoogleCalls.renderButton += 1;
+              const button = document.createElement("button");
+              button.type = "button";
+              button.textContent = "Google 계정으로 로그인";
+              element.appendChild(button);
+            }
+          }
+        }
+      };
+    });
+
+    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+    await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
+    await page.waitForFunction(() => window.__ticketgroundGoogleCalls.renderButton > 0);
+    await page.locator('a[href="/"]').first().click();
+    await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
+    await page.locator('a[href="/login"]').first().click();
+    await page.waitForURL(`${baseUrl}/login`, { timeout: 5000 });
+    await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
+
+    const calls = await page.evaluate(() => window.__ticketgroundGoogleCalls);
+    assert.equal(calls.initialize, 1);
+    assert.ok(calls.renderButton >= 2, `Google button should render after returning to login, got ${calls.renderButton}`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("authenticated users are redirected away from login and signup pages", async (t) => {
+  configureGoogleEnv(t, false);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  for (const pathName of ["/login", "/signup"]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    await context.addInitScript(() => {
+      window.localStorage.setItem("ticketground:session-user-id", "user_fan_a");
+      window.localStorage.removeItem("ticketground:demo-auth-state");
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${baseUrl}${pathName}`, { waitUntil: "domcontentloaded" });
+      await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
+      assert.equal(new URL(page.url()).pathname, "/");
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test("stale stored user ids do not redirect away from login and signup pages", async (t) => {
+  configureGoogleEnv(t, false);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  for (const pathName of ["/login", "/signup"]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    await context.addInitScript(() => {
+      window.localStorage.setItem("ticketground:session-user-id", "not-a-real-user");
+      window.localStorage.removeItem("ticketground:demo-auth-state");
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${baseUrl}${pathName}`, { waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => window.localStorage.getItem("ticketground:session-user-id") === null);
+      assert.equal(new URL(page.url()).pathname, pathName);
+      assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:demo-auth-state")), "signed-out");
+    } finally {
+      await context.close();
+    }
   }
 });

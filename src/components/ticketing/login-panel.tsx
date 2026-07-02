@@ -1,21 +1,27 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Home } from "lucide-react";
-import { DEMO_USER_ID, getSession, type ApiSession, rememberSessionUser, updateProfile } from "@/lib/ticketground-api";
+import {
+  clearSessionUser,
+  DEMO_USER_ID,
+  getSession,
+  storedSessionUserId,
+  TicketgroundApiError,
+  type ApiSession,
+  rememberSessionUser,
+  updateProfile,
+} from "@/lib/ticketground-api";
 import { GoogleSignInCard } from "@/components/ticketing/google-sign-in-card";
+import { LoginHomeLink } from "@/components/ticketing/login-home-link";
 import { LoginHeroAside } from "@/components/ticketing/login-hero-aside";
+import { LoginModeTabs } from "@/components/ticketing/login-mode-tabs";
+import { SocialLoginButtons } from "@/components/ticketing/social-login-buttons";
 
 type LoginMode = "login" | "signup";
 
-const socialProviders = [
-  { label: "카카오로 계속하기", tone: "bg-[#FEE500] text-ink" },
-  { label: "네이버로 계속하기", tone: "bg-[#03C75A] text-white" },
-  { label: "Apple로 계속하기", tone: "bg-ink text-white" },
-] as const;
-
 export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: LoginMode }) {
+  const router = useRouter();
   const [mode, setMode] = useState<LoginMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,21 +37,41 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   useEffect(() => {
     let mounted = true;
-    getSession()
-      .then((nextSession) => {
+    const loadInitialSession = async () => {
+      const storedUserId = storedSessionUserId();
+      if (storedUserId) {
+        try {
+          const nextSession = await getSession(storedUserId);
+          if (!mounted) return;
+          rememberSessionUser(nextSession);
+          router.replace("/");
+          return;
+        } catch (error: unknown) {
+          if (error instanceof TicketgroundApiError && error.code === "USER_NOT_FOUND") {
+            clearSessionUser();
+          } else {
+            if (!mounted) return;
+            setStatus(error instanceof Error ? error.message : "세션을 확인하지 못했습니다.");
+            return;
+          }
+        }
+      }
+      try {
+        const nextSession = await getSession(DEMO_USER_ID);
         if (!mounted) return;
         setSession(nextSession);
         setProfileName(nextSession.name);
         setStatus(`${nextSession.name} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (!mounted) return;
         setStatus(error instanceof Error ? error.message : "세션을 불러오지 못했습니다.");
-      });
+      }
+    };
+    void loadInitialSession();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
   async function saveProfile() {
     const nextName = profileName.trim();
@@ -58,6 +84,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
       setSession(nextSession);
       setProfileName(nextSession.name);
       setStatus(`${nextSession.name} 프로필 저장 완료`);
+      router.push("/");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "프로필 저장에 실패했습니다.");
     } finally {
@@ -95,36 +122,10 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
         <div className="p-6 sm:p-8 lg:p-10">
           <div className="mb-5 flex justify-end">
-            <Link
-              href="/"
-              aria-label="메인 홈으로 이동"
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-line bg-white px-3 text-sm font-black text-ink transition hover:border-line-strong hover:bg-surface focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
-            >
-              <Home className="size-4" aria-hidden="true" />
-              <span>홈</span>
-            </Link>
+            <LoginHomeLink />
           </div>
 
-          <div className="grid grid-cols-2 rounded-[10px] bg-surface p-1" role="tablist" aria-label="로그인 회원가입 전환">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "login"}
-              className={`h-11 rounded-[8px] text-sm font-black transition ${mode === "login" ? "bg-white text-ink shadow-ticket-1" : "text-ink-3"}`}
-              onClick={() => setMode("login")}
-            >
-              로그인
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "signup"}
-              className={`h-11 rounded-[8px] text-sm font-black transition ${mode === "signup" ? "bg-white text-ink shadow-ticket-1" : "text-ink-3"}`}
-              onClick={() => setMode("signup")}
-            >
-              회원가입
-            </button>
-          </div>
+          <LoginModeTabs mode={mode} onChange={setMode} />
 
           <div className="mt-8">
             <p className="text-sm font-black text-ticketground">{mode === "login" ? "로그인" : "회원가입"}</p>
@@ -166,11 +167,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
           <div className="mt-7 grid gap-3">
             <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={setStatus} />
-            {socialProviders.map((provider) => (
-              <button key={provider.label} type="button" className={`h-12 rounded-[8px] text-[15px] font-black ${provider.tone}`}>
-                {provider.label}
-              </button>
-            ))}
+            <SocialLoginButtons />
           </div>
 
           <div className="my-7 flex items-center gap-3 text-xs font-bold text-ink-4">
