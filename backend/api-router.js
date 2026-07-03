@@ -4,6 +4,7 @@ export function createApiRouter({
   adminVenues,
   cancelResaleListing,
   createSupportThread,
+  createEventDraft,
   demoSession,
   directTransferAttempt,
   drawPool,
@@ -200,6 +201,10 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/events/sale") {
     requireBody(body, ["eventId", "title", "category", "startsAt", "venueId", "prices"]);
     return updateEventSale(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/events/create") {
+    requireBody(body, ["title", "category", "startsAt", "venueId", "prices"]);
+    return createEventDraft(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/users/status") {
     requireBody(body, ["userId", "status"]);

@@ -35,6 +35,7 @@ export async function createTicketgroundApp(options) {
   const admin = createAdminBackend({
     adminTicket: dtos.adminTicket,
     appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
     ensureTicketsForEvent: catalog.ensureTicketsForEvent,
     httpError: runtime.httpError,
     id: runtime.id,

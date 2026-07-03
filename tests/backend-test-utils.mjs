@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 const repoRoot = new URL("../", import.meta.url);
 const appAttestationSecret = "backend-test-app-attestation-secret";
 const adminToken = "backend-test-admin-token";
+const adminSessionSecret = "backend-test-admin-session-secret";
 
 export function appAttestation(purpose, ...parts) {
   return crypto
@@ -29,7 +30,7 @@ async function freePort() {
   });
 }
 
-export async function startServer(t, { now = "2026-09-19T17:00:00+09:00" } = {}) {
+export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = {} } = {}) {
   const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-backend-"));
   const port = await freePort();
   const adminPort = await freePort();
@@ -41,11 +42,15 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00" } = {})
       PORT: String(port),
       ADMIN_PORT: String(adminPort),
       TIG_ADMIN_TOKEN: adminToken,
+      TIG_ADMIN_SESSION_SECRET: adminSessionSecret,
+      TIG_ADMIN_USERNAME: "admin",
+      TIG_ADMIN_PASSWORD: "admin",
       TIG_DB_PATH: path.join(tempDir, "db.json"),
       TIG_NOW: now,
       TIG_APP_ATTESTATION_SECRET: appAttestationSecret,
       TIG_PORTONE_IDENTITY_TEST_MODE: "1",
-      TIG_SECRET: "backend-test-runtime-secret"
+      TIG_SECRET: "backend-test-runtime-secret",
+      ...env
     },
     stdio: ["ignore", "pipe", "pipe"]
   });

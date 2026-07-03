@@ -4,6 +4,7 @@ import { createAdminSeatMapBackend } from "./admin-seatmaps.js";
 export function createAdminBackend({
   adminTicket,
   appendLedger,
+  clone,
   ensureTicketsForEvent,
   httpError,
   id,
@@ -22,6 +23,93 @@ export function createAdminBackend({
     httpError,
     seatLayoutForVenue
   });
+
+const allowedCategories = ["concert", "festival", "musical", "sports"];
+const allowedSaleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"];
+
+function eventZonesFromPrices(prices) {
+  const priceMap = prices && typeof prices === "object" ? prices : {};
+  const defaults = [
+    { id: "zone_vip", name: "VIP", faceValue: 154000, resaleFeeRate: 0.08, maxTransferCount: 1 },
+    { id: "zone_r", name: "R석", faceValue: 121000, resaleFeeRate: 0.07, maxTransferCount: 1 },
+    { id: "zone_s", name: "S석", faceValue: 99000, resaleFeeRate: 0.06, maxTransferCount: 1 }
+  ];
+  return defaults.map((zone) => {
+    const nextPrice = money(priceMap[zone.id] ?? zone.faceValue);
+    if (!Number.isFinite(nextPrice) || nextPrice <= 0) {
+      throw httpError(422, "INVALID_ZONE_PRICE", `${zone.name} 가격을 확인해주세요.`);
+    }
+    return { ...zone, faceValue: nextPrice };
+  });
+}
+
+function normalizeAdminEventInput({ title, category, startsAt, venueId, prices, saleState, saleNote, discountRate, organizer }) {
+  const cleanTitle = String(title || "").trim();
+  if (!cleanTitle) throw httpError(400, "MISSING_FIELD", "행사명을 입력해주세요.");
+  const parsedDate = Date.parse(startsAt);
+  if (!startsAt || Number.isNaN(parsedDate)) {
+    throw httpError(422, "INVALID_EVENT_DATE", "개최 날짜와 시간을 확인해주세요.");
+  }
+  const nextCategory = String(category || "concert");
+  if (!allowedCategories.includes(nextCategory)) {
+    throw httpError(422, "INVALID_EVENT_CATEGORY", "지원하지 않는 행사 유형입니다.");
+  }
+  const nextSaleState = String(saleState || "OPEN_SOON");
+  if (!allowedSaleStates.includes(nextSaleState)) {
+    throw httpError(422, "INVALID_SALE_STATE", "지원하지 않는 판매 상태입니다.");
+  }
+  return {
+    category: nextCategory,
+    discountRate: Math.max(0, Math.min(90, Number(discountRate || 0))),
+    organizer: String(organizer || "Ticketground Admin").trim().slice(0, 80),
+    prices,
+    saleNote: String(saleNote || "").trim().slice(0, 80),
+    saleState: nextSaleState,
+    startsAt,
+    title: cleanTitle,
+    venueId
+  };
+}
+
+function createEventDraft(db, payload) {
+  const input = normalizeAdminEventInput(payload);
+  const venue = resolveVenue(db, input.venueId);
+  if (!venue) throw httpError(404, "VENUE_NOT_FOUND", "공연장을 찾을 수 없습니다.");
+  const eventId = stableId("event", input.title, input.startsAt, venue.id);
+  if (db.events.some((event) => event.id === eventId)) {
+    throw httpError(409, "EVENT_ALREADY_EXISTS", "같은 공연 초안이 이미 있습니다.");
+  }
+  const event = {
+    id: eventId,
+    category: input.category,
+    title: input.title,
+    venueId: venue.id,
+    venue: venue.name,
+    date: input.startsAt,
+    dates: [{ id: stableId("perf", eventId, input.startsAt), startsAt: input.startsAt, label: "1회차" }],
+    organizer: input.organizer,
+    image: "/assets/neon-stage-hero.png",
+    badge: "관리자 등록",
+    saleState: input.saleState,
+    saleNote: input.saleNote || "관리자 초안",
+    discountRate: input.discountRate,
+    durationMinutes: 120,
+    ageLimit: "전체 관람",
+    rating: "0.0",
+    zones: eventZonesFromPrices(input.prices)
+  };
+  db.events.push(event);
+  const beforeTickets = db.tickets.length;
+  ensureTicketsForEvent(db, event);
+  const ticketsCreated = db.tickets.length - beforeTickets;
+  appendLedger(db, "ADMIN", "EVENT_DRAFT_CREATED", {
+    eventId: event.id,
+    title: event.title,
+    venueId: venue.id,
+    ticketsCreated
+  });
+  return { event: clone(event), venue, ticketsCreated, seatMap: venueMapForEvent(db, event.id) };
+}
 
 function updateEventVenue(db, { eventId, venueId }) {
   const event = db.events.find((item) => item.id === eventId);
@@ -44,8 +132,6 @@ function updateEventSale(db, { eventId, title, category, startsAt, venueId, pric
   const event = db.events.find((item) => item.id === eventId);
   if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
   const venue = resolveVenue(db, venueId || event.venueId);
-  const allowedCategories = ["concert", "festival", "musical", "sports"];
-  const allowedSaleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"];
   const nextCategory = String(category || event.category || "concert");
   if (!allowedCategories.includes(nextCategory)) {
     throw httpError(422, "INVALID_EVENT_CATEGORY", "지원하지 않는 행사 유형입니다.");
@@ -220,6 +306,7 @@ function updateTicketStatus(db, { ticketId, status }) {
     adminSummary,
     adminVenues,
     adminVenueRecord,
+    createEventDraft,
     resolveVenue,
     seatMap,
     updateEventSale,
