@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { networkInterfaces } from "node:os";
 import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
 
@@ -52,6 +53,77 @@ test("cancel request button requires reason and refund agreement", async (t) => 
   assert.equal(overlaps(floatingInquiryBox, refundAmountBox), false, "floating inquiry link does not cover refund amount");
 });
 
+test("cancel page uses the selected reservation from the query string", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  t.after(() => page.close());
+
+  await page.goto(`${baseUrl}/cancel?reservation=CTI-26007169-001`, { waitUntil: "networkidle" });
+
+  await page.getByRole("heading", { name: "베를린필 내한공연" }).waitFor();
+  await page.getByText("예술의전당 콘서트홀").waitFor();
+  await page.getByText("VIP석 A열 12번").waitFor();
+  assert.equal(await page.getByRole("heading", { name: "레미제라블 40주년" }).count(), 0, "different reservation cancel page must not fall back to Les Miserables");
+});
+
+test("cancel page accepts reservationId as a legacy query alias", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  t.after(() => page.close());
+
+  await page.goto(`${baseUrl}/cancel?reservationId=CTI-26007169-001`, { waitUntil: "networkidle" });
+
+  await page.getByRole("heading", { name: "베를린필 내한공연" }).waitFor();
+  await page.getByText("예술의전당 콘서트홀").waitFor();
+});
+
+test("cancel request button hydrates through the Tailscale dev origin", async (t) => {
+  const tailscaleHost = tailscaleIpv4Address();
+  if (!tailscaleHost) t.skip("Tailscale IPv4 address is not available on this machine");
+
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  t.after(() => page.close());
+
+  const tailscaleBaseUrl = baseUrl.replace("127.0.0.1", tailscaleHost);
+  await page.goto(`${tailscaleBaseUrl}/cancel?reservation=CTI-26007169-001`, { waitUntil: "networkidle" });
+
+  const submitButton = page.getByRole("button", { name: /mock 취소 요청 완료/ });
+  await page.getByLabel("일정 변경").check();
+  await page.getByLabel(/취소 수수료와 환불 예정 금액을 확인했습니다/).check();
+  await page.getByText("선택 사유: 일정 변경").waitFor();
+
+  assert.equal(await submitButton.isDisabled(), false, "Tailscale dev origin must hydrate the cancel form and enable the submit button");
+});
+
+test("mypage cancel links carry the selected reservation id", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  t.after(() => page.close());
+
+  await page.goto(`${baseUrl}/mypage`, { waitUntil: "networkidle" });
+
+  const berlinReservation = page.locator("article").filter({ hasText: "베를린필 내한공연" }).first();
+  await berlinReservation.getByRole("heading", { name: "베를린필 내한공연" }).waitFor();
+  assert.equal(
+    await berlinReservation.getByRole("link", { name: "취소" }).getAttribute("href"),
+    "/cancel?reservation=CTI-26007169-001",
+    "cancel link should preserve the reservation id that the user selected",
+  );
+});
+
 test("cancel request updates mypage cancel history in demo state", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -81,4 +153,19 @@ test("cancel request updates mypage cancel history in demo state", async (t) => 
 
 function overlaps(first, second) {
   return first.x < second.x + second.width && first.x + first.width > second.x && first.y < second.y + second.height && first.y + first.height > second.y;
+}
+
+function tailscaleIpv4Address() {
+  for (const items of Object.values(networkInterfaces())) {
+    for (const item of items || []) {
+      if (item.family === "IPv4" && !item.internal && isTailscaleIpv4Address(item.address)) return item.address;
+    }
+  }
+  return "";
+}
+
+function isTailscaleIpv4Address(address) {
+  const octets = address.split(".").map((part) => Number.parseInt(part, 10));
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  return octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127;
 }

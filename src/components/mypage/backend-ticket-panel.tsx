@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { currency } from "@/data/ticketing";
 import { getUserTickets, getVirtualQr, type ApiTicket, type ApiVirtualQr } from "@/lib/ticketground-api";
+import type { Reservation } from "@/types";
+import { ReservationHistorySearch } from "./reservation-history-search";
 
-export function BackendTicketPanel() {
+type BackendTicketPanelProps = {
+  readonly reservations: readonly Reservation[];
+};
+
+export function BackendTicketPanel({ reservations }: BackendTicketPanelProps) {
   const [tickets, setTickets] = useState<readonly ApiTicket[]>([]);
   const [qr, setQr] = useState<ApiVirtualQr | null>(null);
   const [status, setStatus] = useState("백엔드 예매내역 동기화 중");
@@ -50,31 +56,34 @@ export function BackendTicketPanel() {
 
   return (
     <section className="mt-5 min-w-0 rounded-[10px] border border-line bg-surface p-5" aria-live="polite">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[14px] font-black text-ticketground">백엔드 예매 내역</p>
-          <h3 className="balanced-title mt-1 text-[22px] font-black text-ink">소유 티켓·가상 QR</h3>
+      <ReservationHistorySearch reservations={reservations} />
+      <div className="mt-5 rounded-[10px] border border-line bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-black text-ticketground">백엔드 소유 티켓</p>
+            <h3 className="balanced-title mt-1 text-[18px] font-black text-ink">가상 QR 확인</h3>
+          </div>
+          <button type="button" onClick={refreshTickets} className="h-10 whitespace-nowrap rounded-[8px] border border-line bg-white px-4 text-[13px] font-black text-ink">
+            새로고침
+          </button>
         </div>
-        <button type="button" onClick={refreshTickets} className="h-10 whitespace-nowrap rounded-[8px] border border-line bg-white px-4 text-[13px] font-black text-ink">
-          새로고침
-        </button>
-      </div>
-      <p className="mt-2 break-words text-[13px] font-bold text-ink-3">{status}</p>
-      <div className="mt-4 grid gap-3">
-        {tickets.map((ticket) => (
-          <article key={ticket.id} className="rounded-[8px] border border-line bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[15px] font-black text-ink">{ticket.seatLabel}</p>
-                <p className="mt-1 text-[13px] font-bold text-ink-3">{ticket.status} · {currency(ticket.faceValue)}</p>
+        <p className="mt-2 break-words text-[13px] font-bold text-ink-3">{status}</p>
+        <div className="mt-4 grid gap-3">
+          {tickets.map((ticket) => (
+            <article key={ticket.id} className="rounded-[8px] border border-line bg-surface p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[15px] font-black text-ink">{ticket.seatLabel}</p>
+                  <p className="mt-1 text-[13px] font-bold text-ink-3">{ticket.status} · {currency(ticket.faceValue)}</p>
+                </div>
+                <button type="button" onClick={() => loadQr(ticket.id)} className="h-10 whitespace-nowrap rounded-[8px] bg-ink px-4 text-[13px] font-black text-white">
+                  가상 QR 확인
+                </button>
               </div>
-              <button type="button" onClick={() => loadQr(ticket.id)} className="h-10 whitespace-nowrap rounded-[8px] bg-ink px-4 text-[13px] font-black text-white">
-                가상 QR 확인
-              </button>
-            </div>
-          </article>
-        ))}
-        {tickets.length === 0 && <p className="rounded-[8px] bg-white p-4 text-[13px] font-bold text-ink-3">결제 완료 후 이 영역에 백엔드 티켓이 표시됩니다.</p>}
+            </article>
+          ))}
+          {tickets.length === 0 && <p className="rounded-[8px] bg-surface p-4 text-[13px] font-bold text-ink-3">백엔드 구매 티켓이 아직 없습니다.</p>}
+        </div>
       </div>
       {qr && (
         <div className="mt-4 rounded-[8px] border border-ok bg-white p-4">

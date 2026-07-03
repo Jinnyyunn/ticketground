@@ -36,7 +36,7 @@ export default function MyPage() {
           <div id="reservations" className="min-w-0 scroll-mt-[176px]">
             <p className="text-[14px] font-bold text-ticketground">내 예약</p>
             <h2 className="mt-2 text-[30px] font-bold text-[#29292d]">예매 내역</h2>
-            <BackendTicketPanel />
+            <BackendTicketPanel reservations={displayReservations} />
             <div className="mt-5 grid gap-4">
               {displayReservations.map((reservation) => {
                 const active = reservation.date === today;
@@ -65,7 +65,7 @@ export default function MyPage() {
                         <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
                           공식 재판매
                         </Link>
-                        <Link href="/cancel" className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
+                        <Link href={`/cancel?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
                           취소
                         </Link>
                       </div>

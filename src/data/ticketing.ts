@@ -195,6 +195,16 @@ export function getReservationForShow(slug: string) {
   return reservations.find((reservation) => reservation.showSlug === slug);
 }
 
+export function getCleanTicketReservation(reservationId: string | undefined): CleanTicketReservation {
+  if (!reservationId || reservationId === cleanTicketReservation.id) return cleanTicketReservation;
+  if (reservationId === appOnlyQrReservation.id) return toCleanTicketReservation(appOnlyQrReservation);
+
+  const reservation = getReservation(reservationId);
+  if (!reservation) return cleanTicketReservation;
+  if (isCleanTicketReservation(reservation)) return reservation;
+  return toCleanTicketReservation(reservation);
+}
+
 export function searchShows(query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
@@ -205,4 +215,56 @@ export function searchShows(query: string) {
 
 export function currency(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
+}
+
+function isCleanTicketReservation(reservation: Reservation): reservation is CleanTicketReservation {
+  return "seats" in reservation && "resale" in reservation;
+}
+
+function toCleanTicketReservation(reservation: Reservation): CleanTicketReservation {
+  const grade = gradeForSeat(reservation.seat);
+  const faceValue = priceFromReservation(reservation.price);
+  const seat = {
+    id: `${reservation.id}-SEAT-1`,
+    grade,
+    label: reservation.seat,
+    row: "A",
+    number: 1,
+    faceValue,
+  };
+
+  return {
+    ...reservation,
+    seats: [seat],
+    subtotalAmount: faceValue,
+    discountAmount: 0,
+    serviceFeeAmount: 0,
+    totalAmount: faceValue,
+    paymentMethod: "기존 결제 정보",
+    qr: {
+      currentStage: "virtual",
+      stages: cleanTicketQrStages,
+    },
+    resale: {
+      policy: cleanTicketResalePolicy,
+      eligibleSeatIds: [seat.id],
+    },
+    transfer: {
+      recipientFields: transferRecipientFields,
+      maxAmountPercent: 10,
+    },
+    ledger: cleanTicketAdminLedgerRows,
+  };
+}
+
+function gradeForSeat(seat: string): "VIP" | "R" | "S" | "A" {
+  if (seat.includes("VIP")) return "VIP";
+  if (seat.includes("R석")) return "R";
+  if (seat.includes("S석")) return "S";
+  return "A";
+}
+
+function priceFromReservation(price: string): number {
+  const parsed = Number.parseInt(price.replaceAll(/[^0-9]/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
 }

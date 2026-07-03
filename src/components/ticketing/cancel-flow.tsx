@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
 import { appendDemoCancelHistory } from "@/lib/demo-cancel-history";
+import { cn } from "@/lib/utils";
 
 type CancelFlowProps = {
   readonly reservation: CleanTicketReservation;
@@ -48,8 +49,8 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
       <section className="ticketground-container py-10">
         <div className="mx-auto max-w-[720px] rounded-[20px] border border-line bg-white p-8 text-center shadow-ticket-2">
           <p className="text-sm font-black text-ticketground">mock 취소 요청 접수</p>
-          <h1 className="mt-3 text-[34px] font-black text-ink">취소·환불 요청이 기록되었습니다</h1>
-          <p className="mx-auto mt-4 max-w-[520px] text-sm leading-loose text-ink-3">
+          <h1 className="mt-3 break-keep text-[34px] font-black text-ink">취소·환불 요청이 기록되었습니다</h1>
+          <p className="mx-auto mt-4 max-w-[520px] break-keep text-sm leading-loose text-ink-3">
             실제 결제 취소나 환불은 발생하지 않았습니다. 이 완료 화면은 Ticketground 취소 플로우를 검증하기 위한 프론트엔드 mock 상태입니다.
           </p>
           <Link href="/mypage" className="mt-7 inline-flex h-12 items-center justify-center rounded-[8px] bg-ticketground px-6 text-[16px] font-black text-white">
@@ -122,7 +123,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
                   <tr>
                     <th className="px-4 py-3 font-black">시점</th>
                     <th className="px-4 py-3 font-black">취소 수수료</th>
-                    <th className="px-4 py-3 font-black">상태</th>
+                    <th className="px-4 py-3 font-black whitespace-nowrap">상태</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,7 +131,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
                     <tr key={policy.timing} className={policy.note === "현재 적용" ? "bg-tint-yellow font-black text-ink" : "border-t border-line text-ink-3"}>
                       <td className="px-4 py-3">{policy.timing}</td>
                       <td className="px-4 py-3">{policy.fee}</td>
-                      <td className="px-4 py-3">{policy.note}</td>
+                      <td className="px-4 py-3 whitespace-nowrap break-keep">{policy.note}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -165,7 +166,10 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
             type="button"
             disabled={!canComplete}
             onClick={completeCancelRequest}
-            className="mt-6 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-black text-white transition enabled:hover:bg-ticketground/90 disabled:bg-surface-3 disabled:text-ink-4"
+            className={cn(
+              "mt-6 h-12 w-full rounded-[8px] text-[16px] font-black transition",
+              canComplete ? "bg-ticketground text-white shadow-ticket-1 hover:bg-ticketground/90" : "bg-surface-3 text-ink-4",
+            )}
           >
             mock 취소 요청 완료
           </button>
