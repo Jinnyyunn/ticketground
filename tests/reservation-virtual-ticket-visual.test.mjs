@@ -16,17 +16,24 @@ test("reservation page renders a non-entry virtual ticket visual without the old
     assert.equal(response?.status(), 200);
 
     // Then: the visual is explicitly a virtual ticket, not a web entry QR.
-    const visual = page.getByLabel("소유 확인용 가상 티켓 이미지");
-    await visual.waitFor({ timeout: 5000 });
+    const virtualTickets = page.locator('figure[aria-label="소유 확인용 가상 티켓 이미지"]');
+    await virtualTickets.first().waitFor({ timeout: 5000 });
+    assert.equal(await virtualTickets.count(), 2, "each booked seat must render its own virtual ticket");
     await assert.rejects(page.getByText("▦").waitFor({ state: "visible", timeout: 300 }));
-    await page.getByText("VIRTUAL TICKET").waitFor({ timeout: 5000 });
-    await page.getByText("APP ONLY").waitFor({ timeout: 5000 });
+    assert.equal(await page.getByText("VIRTUAL TICKET").count(), 2);
+    assert.equal(await page.getByText("APP ONLY").count(), 2);
     await page.getByText("CTI-260513-A4F2K9").first().waitFor({ timeout: 5000 });
+    await virtualTickets.nth(0).getByText("VIP H-14").waitFor({ timeout: 5000 });
+    await virtualTickets.nth(1).getByText("VIP H-15").waitFor({ timeout: 5000 });
 
     const bodyText = await page.locator("body").innerText();
     assert.match(bodyText, /소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다\./);
+    assert.doesNotMatch(bodyText, /펀치 절취선/);
     assert.doesNotMatch(bodyText, /▦/);
     assert.doesNotMatch(bodyText, /ADMISSION|credential|deviceToken|ttlSeconds|signature|nonce/i);
+    for (let index = 0; index < await virtualTickets.count(); index += 1) {
+      assert.equal(await virtualTickets.nth(index).locator('[class*="border-dashed"]').count(), 0, "virtual ticket visual must not render dashed perforation separators");
+    }
     assert.equal(await page.locator("[data-entry-qr]").count(), 0);
   } finally {
     await page.close();

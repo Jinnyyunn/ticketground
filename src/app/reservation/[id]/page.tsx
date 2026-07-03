@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackendAdmissionPanel } from "@/components/ticketing/backend-admission-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
+import { VirtualTicketCard } from "@/components/ticketing/virtual-ticket-card";
 import { appOnlyQrReservation, cleanTicketQrStages, getReservation, reservations } from "@/data/ticketing";
 import { queryParam } from "@/lib/search-params";
-import type { Reservation } from "@/types";
+import type { Reservation, TicketSeat } from "@/types";
 
 export function generateStaticParams() {
   return [...reservations.map((reservation) => ({ id: reservation.id })), { id: appOnlyQrReservation.id }];
@@ -37,6 +38,7 @@ export default async function ReservationPage({
   const total = queryParam(query.total);
   const price = total ? `${Number.parseInt(total, 10).toLocaleString("ko-KR")}원` : queryParam(query.price) || reservation.price;
   const ticketId = queryParam(query.ticketId);
+  const virtualTicketSeats = resolveVirtualTicketSeats(reservation, queryParam(query.seats) || queryParam(query.seat));
 
   return (
     <TicketingPageShell>
@@ -71,7 +73,6 @@ export default async function ReservationPage({
               <h2 className="balanced-title mt-2 text-[24px] font-bold sm:text-[26px]">{reservation.showTitle}</h2>
               <p className="mt-2 text-[14px] text-[#d8d8d8]">{reservation.venue}</p>
             </div>
-            <div className="border-y border-dashed border-[#bbb] px-6 py-3 text-center text-[13px] font-bold text-[#777]">펀치 절취선</div>
             <div className="grid gap-6 p-6 md:grid-cols-[1fr_220px]">
               <dl className="grid gap-4 text-[15px]">
                 {[
@@ -87,43 +88,11 @@ export default async function ReservationPage({
                 ))}
               </dl>
               <div className="rounded-[10px] border border-line bg-surface p-4 text-center">
-                <figure
-                  aria-label="소유 확인용 가상 티켓 이미지"
-                  className="relative aspect-square overflow-hidden rounded-[10px] border border-line bg-white p-3 shadow-ticket-1"
-                >
-                  <div className="absolute inset-x-0 top-0 h-2 bg-ticketground" />
-                  <div className="flex h-full flex-col rounded-[8px] border border-line bg-surface">
-                    <div className="border-b border-dashed border-line bg-white px-3 py-3 text-left">
-                      <p className="text-[11px] font-black tracking-[0.08em] text-ticketground">TICKETGROUND</p>
-                      <p className="mt-1 text-[18px] leading-tight font-black text-ink">VIRTUAL TICKET</p>
-                    </div>
-                    <div className="grid flex-1 grid-cols-[1fr_56px]">
-                      <div className="flex min-w-0 flex-col justify-between p-3 text-left">
-                        <div>
-                          <p className="text-[11px] font-black text-ink-3">소유 확인</p>
-                          <p className="mt-1 truncate text-[13px] font-black text-ink">{reservation.id}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-[11px]">
-                          <div className="rounded-[6px] border border-line bg-white px-2 py-1">
-                            <p className="font-black text-ink-3">DATE</p>
-                            <p className="mt-0.5 font-bold text-ink">{date}</p>
-                          </div>
-                          <div className="rounded-[6px] border border-line bg-white px-2 py-1">
-                            <p className="font-black text-ink-3">SEAT</p>
-                            <p className="mt-0.5 truncate font-bold text-ink">{seats}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="relative border-l border-dashed border-line bg-white">
-                        <span className="absolute -left-2 top-5 size-4 rounded-full border border-line bg-surface" />
-                        <span className="absolute -left-2 bottom-5 size-4 rounded-full border border-line bg-surface" />
-                        <div className="flex h-full items-center justify-center px-2">
-                          <p className="[writing-mode:vertical-rl] text-[11px] font-black tracking-[0.18em] text-warn">APP ONLY</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </figure>
+                <div className="grid gap-3" aria-label="좌석별 가상 티켓 목록">
+                  {virtualTicketSeats.map((seatLabel, index) => (
+                    <VirtualTicketCard key={`${seatLabel}-${index}`} date={date} reservationId={reservation.id} seatLabel={seatLabel} ticketIndex={index} ticketTotal={virtualTicketSeats.length} />
+                  ))}
+                </div>
                 <span className="mt-3 inline-flex rounded-full bg-[#29292d] px-3 py-1 text-[13px] font-bold text-white">잠금 · 가상 티켓</span>
                 <p className="mt-3 text-[14px] font-bold text-[#29292d]">입장 불가</p>
                 <p className="mt-1 break-keep text-[13px] leading-relaxed text-[#666]">소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다.</p>
@@ -147,6 +116,24 @@ export default async function ReservationPage({
       </section>
     </TicketingPageShell>
   );
+}
+
+function resolveVirtualTicketSeats(reservation: Reservation, seatOverride: string | undefined): readonly string[] {
+  if (seatOverride) return splitSeatLabels(seatOverride);
+  if (hasSeatList(reservation)) return reservation.seats.map((seat) => seat.label);
+  return splitSeatLabels(reservation.seat);
+}
+
+function hasSeatList(reservation: Reservation): reservation is Reservation & { readonly seats: readonly TicketSeat[] } {
+  return "seats" in reservation && Array.isArray(reservation.seats);
+}
+
+function splitSeatLabels(value: string): readonly string[] {
+  const labels = value
+    .split(/\s*(?:\/|,)\s*/u)
+    .map((label) => label.trim())
+    .filter(Boolean);
+  return labels.length > 0 ? labels : [value];
 }
 
 function AppOnlyQrGuard({ reservation }: { readonly reservation: Reservation }) {
