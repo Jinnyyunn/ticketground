@@ -145,6 +145,83 @@ test("login page renders Google Identity Services wiring as a social button surf
   }
 });
 
+test("login page does not request Google Identity Services from unsupported preview origins", async (t) => {
+  configureGoogleEnv(t, false);
+  const previousAllowedOrigins = process.env.TIG_ALLOWED_DEV_ORIGINS;
+  process.env.TIG_ALLOWED_DEV_ORIGINS = "unsupported.ticketground.test";
+  t.after(() => {
+    if (previousAllowedOrigins === undefined) {
+      delete process.env.TIG_ALLOWED_DEV_ORIGINS;
+    } else {
+      process.env.TIG_ALLOWED_DEV_ORIGINS = previousAllowedOrigins;
+    }
+  });
+
+  const { baseUrl } = await startServer(t);
+  const port = new URL(baseUrl).port;
+  const browser = await chromium.launch({
+    channel: "chrome",
+    headless: true,
+    args: ["--host-resolver-rules=MAP unsupported.ticketground.test 127.0.0.1"],
+  });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  try {
+    let requestedGoogleScript = false;
+    await page.route("https://accounts.google.com/gsi/client", async (route) => {
+      requestedGoogleScript = true;
+      await route.abort();
+    });
+
+    await page.goto(`http://unsupported.ticketground.test:${port}/login`, { waitUntil: "domcontentloaded" });
+    const googleArea = page.locator("[data-google-client-id]").first();
+    await googleArea.waitFor({ timeout: 5000 });
+    await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
+    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
+
+    assert.equal(requestedGoogleScript, false);
+  } finally {
+    await page.close();
+  }
+});
+
+test("login page does not assume localhost is Google-authorized without an explicit origin allowlist", async (t) => {
+  configureGoogleEnv(t, false);
+  const previousPublicAllowedOrigins = process.env.NEXT_PUBLIC_GOOGLE_ALLOWED_ORIGINS;
+  delete process.env.NEXT_PUBLIC_GOOGLE_ALLOWED_ORIGINS;
+  t.after(() => {
+    if (previousPublicAllowedOrigins === undefined) {
+      delete process.env.NEXT_PUBLIC_GOOGLE_ALLOWED_ORIGINS;
+    } else {
+      process.env.NEXT_PUBLIC_GOOGLE_ALLOWED_ORIGINS = previousPublicAllowedOrigins;
+    }
+  });
+
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  try {
+    let requestedGoogleScript = false;
+    await page.route("https://accounts.google.com/gsi/client", async (route) => {
+      requestedGoogleScript = true;
+      await route.abort();
+    });
+
+    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+    await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
+    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
+
+    assert.equal(requestedGoogleScript, false);
+  } finally {
+    await page.close();
+  }
+});
+
 test("login page initializes Google Identity Services only once in a browser session", async (t) => {
   if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
     t.skip("NEXT_PUBLIC_GOOGLE_CLIENT_ID is required at Next.js build time for Google button wiring");
