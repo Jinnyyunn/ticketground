@@ -37,6 +37,7 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00" } = {})
     cwd: repoRoot,
     env: {
       ...process.env,
+      TIG_NEXT_DEV: "0",
       PORT: String(port),
       ADMIN_PORT: String(adminPort),
       TIG_ADMIN_TOKEN: adminToken,

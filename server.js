@@ -8,7 +8,14 @@ import { createTicketgroundApp } from "./backend/app.js";
 
 const projectDir = path.dirname(fileURLToPath(import.meta.url));
 const { loadEnvConfig } = nextEnv;
-loadEnvConfig(projectDir, process.env.NODE_ENV !== "production");
+const nextDevOverride = process.env.TIG_NEXT_DEV;
+const isDev = nextDevOverride === undefined ? process.env.NODE_ENV !== "production" : nextDevOverride === "1";
+loadEnvConfig(projectDir, isDev);
+if (process.env.TIG_SOCIAL_AUTH_TEST_MODE === "1" && process.env.NODE_ENV !== "production") {
+  process.env.TIG_SOCIAL_AUTH_TEST_MODE_ACTIVE = "1";
+} else {
+  delete process.env.TIG_SOCIAL_AUTH_TEST_MODE_ACTIVE;
+}
 const publicDir = path.join(projectDir, "public");
 const adminDir = path.join(projectDir, "admin");
 const seatMapDir = path.join(projectDir, "좌석 도면");
@@ -17,7 +24,6 @@ const port = Number(process.env.PORT || 4173);
 const adminPort = Number(process.env.ADMIN_PORT || 50084);
 const hostname = process.env.HOSTNAME || "0.0.0.0";
 const adminHostname = process.env.ADMIN_HOSTNAME || "127.0.0.1";
-const isDev = process.env.NODE_ENV !== "production";
 
 function requiredSecret(name) {
   const value = process.env[name];

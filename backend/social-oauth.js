@@ -127,7 +127,7 @@ async function fetchProfile(config, accessToken) {
 }
 
 function socialAuthTestModeEnabled() {
-  return process.env.TIG_SOCIAL_AUTH_TEST_MODE === "1" && process.env.NODE_ENV !== "production";
+  return process.env.TIG_SOCIAL_AUTH_TEST_MODE === "1" && (process.env.NODE_ENV !== "production" || process.env.TIG_SOCIAL_AUTH_TEST_MODE_ACTIVE === "1");
 }
 
 function testProfile(provider, code) {
