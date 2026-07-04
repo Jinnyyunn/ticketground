@@ -51,7 +51,7 @@ export default async function CheckoutPage({
 
   return (
     <TicketingPageShell>
-      <Suspense fallback={<div className="ticketground-container py-10 text-[16px] font-bold">결제 정보를 불러오는 중입니다.</div>}>
+      <Suspense fallback={<div className="ticketground-container py-10 text-lg font-bold">결제 정보를 불러오는 중입니다.</div>}>
         <CheckoutPanel
           show={show}
           reservation={reservation}

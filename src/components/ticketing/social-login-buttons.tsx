@@ -10,7 +10,7 @@ export function SocialLoginButtons() {
         <a
           key={provider.label}
           href={provider.href}
-          className={`flex h-12 items-center justify-center rounded-[8px] border px-4 text-[15px] font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 ${provider.tone}`}
+          className={`flex h-12 items-center justify-center rounded-sm border px-4 text-base font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 ${provider.tone}`}
         >
           {provider.label}
         </a>

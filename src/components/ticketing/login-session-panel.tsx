@@ -31,14 +31,14 @@ export function LoginSessionPanel({
               value={profileName}
               onChange={(event) => onProfileNameChange(event.target.value)}
               maxLength={12}
-              className="h-11 rounded-[8px] border border-line-strong bg-white px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+              className="h-11 rounded-sm border border-line-strong bg-white px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
             />
           </label>
           <button
             type="button"
             disabled={saving || !profileName.trim()}
             onClick={onSaveProfile}
-            className="h-11 self-end rounded-[8px] bg-ink px-4 text-sm font-black text-white disabled:bg-surface-3 disabled:text-ink-4"
+            className="h-11 self-end rounded-sm bg-ink px-4 text-sm font-black text-white disabled:bg-surface-3 disabled:text-ink-4"
           >
             {saving ? "저장 중" : "프로필 저장"}
           </button>

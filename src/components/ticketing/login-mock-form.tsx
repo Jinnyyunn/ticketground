@@ -42,7 +42,7 @@ export function LoginMockForm({
             <input
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
-              className="h-12 rounded-[8px] border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+              className="h-12 rounded-sm border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
               placeholder="홍길동"
             />
           </label>
@@ -52,7 +52,7 @@ export function LoginMockForm({
           <input
             value={email}
             onChange={(event) => onEmailChange(event.target.value)}
-            className="h-12 rounded-[8px] border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+            className="h-12 rounded-sm border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
             placeholder="qa@ticketground.kr"
           />
         </label>
@@ -62,7 +62,7 @@ export function LoginMockForm({
             type="password"
             value={password}
             onChange={(event) => onPasswordChange(event.target.value)}
-            className="h-12 rounded-[8px] border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+            className="h-12 rounded-sm border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
             placeholder="mock password"
           />
         </label>
@@ -75,7 +75,7 @@ export function LoginMockForm({
               type="checkbox"
               checked={identityChecked}
               onChange={(event) => onIdentityCheckedChange(event.target.checked)}
-              className="mt-1 accent-[#1a47ff]"
+              className="mt-1 accent-link"
             />
             <span>
               <strong className="block text-ink">본인인증 완료</strong>
@@ -87,7 +87,7 @@ export function LoginMockForm({
               type="checkbox"
               checked={termsChecked}
               onChange={(event) => onTermsCheckedChange(event.target.checked)}
-              className="mt-1 accent-[#1a47ff]"
+              className="mt-1 accent-link"
             />
             <span>
               <strong className="block text-ink">필수 약관 동의</strong>
@@ -101,7 +101,7 @@ export function LoginMockForm({
         type="button"
         disabled={mode === "login" ? !canLogin : !canSignup}
         onClick={onConfirm}
-        className="mt-6 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-black text-white transition enabled:hover:bg-ticketground/90 disabled:bg-surface-3 disabled:text-ink-4"
+        className="mt-6 h-12 w-full rounded-sm bg-ticketground text-lg font-black text-white transition enabled:hover:bg-ticketground/90 disabled:bg-surface-3 disabled:text-ink-4"
       >
         {mode === "login" ? "mock 로그인 확인" : "mock 회원가입 완료"}
       </button>

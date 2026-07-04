@@ -125,13 +125,13 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
       <div className="border-b border-line bg-white">
         <div className="ticketground-container flex h-auto min-h-16 items-center justify-between gap-4 py-3">
           <div className="min-w-0">
-            <p className="text-[13px] font-black text-ticketground">Ticketground Booking</p>
-            <h1 className="balanced-title text-[18px] font-black text-ink sm:text-[20px]">{show.shortTitle}</h1>
+            <p className="text-sm font-black text-ticketground">Ticketground Booking</p>
+            <h1 className="balanced-title text-xl font-black text-ink sm:text-2xl">{show.shortTitle}</h1>
           </div>
           <div
             data-booking-timer
             className={cn(
-              "shrink-0 rounded-[8px] px-4 py-2 text-[18px] font-black tabular-nums text-white",
+              "shrink-0 rounded-sm px-4 py-2 text-xl font-black tabular-nums text-white",
               timerExpired ? "bg-ticketground" : timerWarning ? "bg-warn" : "bg-ink",
             )}
             aria-label="남은 예매 시간"
@@ -153,7 +153,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   onClick={() => setStep(item.id)}
                   disabled={item.id === "seats" && !canChooseSeats}
                   className={cn(
-                    "h-12 rounded-[8px] border text-[14px] font-black whitespace-nowrap",
+                    "h-12 rounded-sm border text-[14px] font-black whitespace-nowrap",
                     active ? "border-ink bg-ink text-white" : "border-line bg-white text-ink-3",
                     item.id === "seats" && !canChooseSeats && "cursor-not-allowed opacity-50",
                   )}
@@ -168,56 +168,56 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           <BookingTimerWarning visible={timerWarning} />
 
           {step === "schedule" && (
-            <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
-              <p className="text-[13px] font-black text-ticketground">STEP 1</p>
+            <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-white p-4 sm:p-6">
+              <p className="text-sm font-black text-ticketground">STEP 1</p>
               <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">관람일·회차·매수를 선택하세요</h2>
               <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr_180px]">
                 <div>
-                  <h3 className="text-[16px] font-black text-ink">관람일</h3>
+                  <h3 className="text-lg font-black text-ink">관람일</h3>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {show.schedules.map((schedule) => (
-                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-[8px] border px-3 py-3 text-[14px] font-bold", date === schedule.date ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
+                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-[14px] font-bold", date === schedule.date ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
                         {schedule.label}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-[16px] font-black text-ink">회차</h3>
+                  <h3 className="text-lg font-black text-ink">회차</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {(show.schedules.find((schedule) => schedule.date === date)?.times ?? []).map((item) => (
-                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-[8px] border px-3 py-3 text-[14px] font-bold", time === item ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
+                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-[14px] font-bold", time === item ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
                         {item}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-[16px] font-black text-ink">매수</h3>
-                  <div className="mt-3 flex rounded-[8px] border border-line bg-white p-1">
+                  <h3 className="text-lg font-black text-ink">매수</h3>
+                  <div className="mt-3 flex rounded-sm border border-line bg-white p-1">
                     {[1, 2].map((count) => (
-                      <button key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-[15px] font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3")}>
+                      <button key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3")}>
                         {count}매
                       </button>
                     ))}
                   </div>
-                  <p className="mt-3 text-[13px] font-bold text-ink-3">최대 2매, 초과 선택 시 오래된 좌석이 자동 해제됩니다.</p>
+                  <p className="mt-3 text-sm font-bold text-ink-3">최대 2매, 초과 선택 시 오래된 좌석이 자동 해제됩니다.</p>
                 </div>
               </div>
-              <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 h-12 rounded-[8px] bg-ticketground px-6 text-[15px] font-black text-white disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
+              <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 h-12 rounded-sm bg-ticketground px-6 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
                 좌석 선택으로 이동
               </button>
             </section>
           )}
 
           {step === "seats" && (
-            <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
+            <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-white p-4 sm:p-6">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="text-[13px] font-black text-ticketground">STEP 2</p>
+                  <p className="text-sm font-black text-ticketground">STEP 2</p>
                   <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">좌석 선택</h2>
                 </div>
-                <p className="text-[13px] font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
+                <p className="text-sm font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
               </div>
               <div className="mt-5 min-w-0">
                 {useBackendSeatMap ? (
@@ -228,7 +228,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                     onSelect={selectBackendSeat}
                   />
                 ) : (
-                  <div className="rounded-[12px] border border-line bg-surface p-4 text-[14px] font-bold text-ink-3" role="status">
+                  <div className="rounded-lg border border-line bg-surface p-4 text-[14px] font-bold text-ink-3" role="status">
                     {showStaticSeatMap ? "실시간 좌석도를 불러오지 못해 기본 좌석표로 선택합니다." : seatMapStatus}
                   </div>
                 )}
@@ -239,11 +239,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 ) : null}
               </div>
               {canPay ? (
-                <Link href={checkoutHref} className="mt-6 flex h-12 w-full items-center justify-center rounded-[8px] bg-ticketground text-[16px] font-black text-white">
+                <Link href={checkoutHref} className="mt-6 flex h-12 w-full items-center justify-center rounded-sm bg-ticketground text-lg font-black text-white">
                   결제하기
                 </Link>
               ) : (
-                <button type="button" disabled className="mt-6 h-12 w-full rounded-[8px] bg-surface-3 text-[16px] font-black text-ink-4">
+                <button type="button" disabled className="mt-6 h-12 w-full rounded-sm bg-surface-3 text-lg font-black text-ink-4">
                   결제하기
                 </button>
               )}
@@ -251,8 +251,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           )}
         </main>
 
-        <aside className="h-fit min-w-0 rounded-[12px] border border-line bg-white p-6 shadow-ticket-1 lg:sticky lg:top-6">
-          <h2 className="clamp-2 text-[20px] font-black text-ink">{show.title}</h2>
+        <aside className="h-fit min-w-0 rounded-lg border border-line bg-white p-6 shadow-ticket-1 lg:sticky lg:top-6">
+          <h2 className="clamp-2 text-2xl font-black text-ink">{show.title}</h2>
           <dl className="mt-5 space-y-3 text-[14px]">
             <BookingSummaryRow label="관람일" value={date || "선택 전"} />
             <BookingSummaryRow label="회차" value={time || "선택 전"} />
@@ -262,7 +262,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             <BookingSummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
             <BookingSummaryRow label="총 결제금액" value={currency(totalAmount)} total />
           </dl>
-          <p className="mt-4 rounded-[8px] bg-tint-yellow px-3 py-2 text-[13px] font-bold text-ink">정책: 3번째 좌석 선택 시 가장 오래된 좌석이 자동 해제됩니다.</p>
+          <p className="mt-4 rounded-sm bg-tint-yellow px-3 py-2 text-sm font-bold text-ink">정책: 3번째 좌석 선택 시 가장 오래된 좌석이 자동 해제됩니다.</p>
         </aside>
       </div>
     </div>

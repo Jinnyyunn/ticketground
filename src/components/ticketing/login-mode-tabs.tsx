@@ -14,7 +14,7 @@ export function LoginModeTabs({ mode, onChange }: LoginModeTabsProps) {
           type="button"
           role="tab"
           aria-selected={mode === nextMode}
-          className={`h-11 rounded-[8px] text-sm font-black transition ${mode === nextMode ? "bg-white text-ink shadow-ticket-1" : "text-ink-3"}`}
+          className={`h-11 rounded-sm text-sm font-black transition ${mode === nextMode ? "bg-white text-ink shadow-ticket-1" : "text-ink-3"}`}
           onClick={() => onChange(nextMode)}
         >
           {nextMode === "login" ? "로그인" : "회원가입"}

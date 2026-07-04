@@ -16,7 +16,7 @@ export function ShowCard({ show, compact = false }: { show: TicketShow; compact?
         alt={show.title}
         width={120}
         height={160}
-        className="aspect-[3/4] w-full rounded-[8px] bg-[#f3f3f3] object-cover sm:w-[120px]"
+        className="aspect-[3/4] w-full rounded-sm bg-surface-2 object-cover sm:w-[120px]"
         unoptimized={show.poster.endsWith(".gif")}
       />
       <div className="min-w-0">
@@ -24,13 +24,13 @@ export function ShowCard({ show, compact = false }: { show: TicketShow; compact?
           {show.badge && (
             <span className="rounded bg-[#eef0ff] px-2 py-1 text-[12px] font-bold text-ticketground">{show.badge}</span>
           )}
-          <span className="text-[13px] font-bold text-[#7e7e81]">{show.category}</span>
+          <span className="text-sm font-bold text-[#7e7e81]">{show.category}</span>
         </div>
-        <h2 className="mt-2 clamp-2 text-[18px] font-bold leading-[1.35] text-[#29292d]">{show.title}</h2>
+        <h2 className="mt-2 clamp-2 text-xl font-bold leading-[1.35] text-ink-2">{show.title}</h2>
         <p className="mt-2 text-[14px] text-[#666]">{show.venue}</p>
         <p className="mt-1 text-[14px] text-[#9b9b9b]">{show.period}</p>
         {!compact && <p className="mt-3 clamp-2 text-[14px] leading-[1.6] text-[#555]">{show.summary}</p>}
-        <p className="mt-3 text-[15px] font-bold text-[#29292d]">최저 {currency(lowestPrice)}</p>
+        <p className="mt-3 text-base font-bold text-ink-2">최저 {currency(lowestPrice)}</p>
       </div>
     </Link>
   );

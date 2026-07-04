@@ -192,7 +192,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         disabled
-        className="h-12 w-full rounded-[8px] border border-line bg-white text-[15px] font-black text-ink-4"
+        className="h-12 w-full rounded-sm border border-line bg-white text-base font-black text-ink-4"
         data-google-client-id=""
         data-google-scope={GOOGLE_AUTH_SCOPE}
       >
@@ -206,7 +206,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         onClick={() => onStatusChange("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.")}
-        className="flex h-12 w-full items-center justify-center rounded-[8px] border border-line bg-white px-4 text-[15px] font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+        className="flex h-12 w-full items-center justify-center rounded-sm border border-line bg-white px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
         data-google-client-id={googleClientId}
         data-google-scope={GOOGLE_AUTH_SCOPE}
         data-google-ready="false"
@@ -220,7 +220,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
   return (
     <div
       aria-label="Google 계정으로 로그인하기"
-      className="relative h-12 w-full overflow-hidden rounded-[8px] bg-white"
+      className="relative h-12 w-full overflow-hidden rounded-sm bg-white"
       data-google-client-id={googleClientId}
       data-google-scope={GOOGLE_AUTH_SCOPE}
       data-google-ready={googleReady ? "true" : "false"}
@@ -234,7 +234,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         <button
           type="button"
           onClick={() => onStatusChange("Google 로그인 버튼을 불러오는 중입니다.")}
-          className="absolute inset-0 flex h-12 w-full items-center justify-center rounded-[8px] border border-line bg-white px-4 text-[15px] font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+          className="absolute inset-0 flex h-12 w-full items-center justify-center rounded-sm border border-line bg-white px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
         >
           Google 계정으로 로그인하기
         </button>

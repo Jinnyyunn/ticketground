@@ -122,8 +122,8 @@ export function CheckoutPanel({
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
       <section className="rounded-[10px] border border-[#eee] p-6">
         <p className="text-[14px] font-bold text-ticketground">STEP 3</p>
-        <h1 className="mt-1 text-[28px] font-bold text-[#29292d]">결제 정보 확인</h1>
-        <p className="mt-2 text-[15px] text-[#666]">좌석과 금액을 확인한 뒤 결제수단과 약관을 선택해 예매를 확정합니다.</p>
+        <h1 className="mt-1 text-4xl font-bold text-ink-2">결제 정보 확인</h1>
+        <p className="mt-2 text-base text-[#666]">좌석과 금액을 확인한 뒤 결제수단과 약관을 선택해 예매를 확정합니다.</p>
 
         <div className="mt-7 rounded-[10px] bg-[#f8f8f8] p-5">
           <h2 className="text-[19px] font-bold">예매 정보</h2>
@@ -146,7 +146,7 @@ export function CheckoutPanel({
           <h2 className="text-[19px] font-bold">결제수단</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {paymentMethods.map((item) => (
-              <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-[8px] border border-[#ddd] px-4 py-3 text-[14px] font-bold">
+              <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-[#ddd] px-4 py-3 text-[14px] font-bold">
                 <input
                   suppressHydrationWarning
                   type="radio"
@@ -157,7 +157,7 @@ export function CheckoutPanel({
                 />
                 <span>
                   {item.label}
-                  <small className="block pt-1 text-[13px] font-medium text-[#777]">{item.note}</small>
+                  <small className="block pt-1 text-sm font-medium text-[#777]">{item.note}</small>
                 </span>
               </label>
             ))}
@@ -181,7 +181,7 @@ export function CheckoutPanel({
       </section>
 
       <aside className="h-fit rounded-[10px] border border-[#eee] p-6 lg:sticky lg:top-6">
-        <h2 className="clamp-2 text-[20px] font-bold text-[#29292d]">{show.title}</h2>
+        <h2 className="clamp-2 text-2xl font-bold text-ink-2">{show.title}</h2>
         <dl className="mt-5 space-y-3 text-[14px]">
           <div className="flex justify-between gap-4">
             <dt className="text-[#7e7e81]">관람일</dt>
@@ -207,14 +207,14 @@ export function CheckoutPanel({
           ))}
           <div className="flex justify-between gap-4 border-t border-[#eee] pt-4">
             <dt className="text-[#7e7e81]">총 결제금액</dt>
-            <dd className="text-[20px] font-bold text-ticketground">{amountLabel(trustedTotalAmount)}</dd>
+            <dd className="text-2xl font-bold text-ticketground">{amountLabel(trustedTotalAmount)}</dd>
           </div>
         </dl>
         <button
           type="button"
           disabled={!agreed || submitting || amountPending}
           onClick={completePayment}
-          className="mt-5 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-bold text-white disabled:bg-[#d8d8d8]"
+          className="mt-5 h-12 w-full rounded-sm bg-ticketground text-lg font-bold text-white disabled:bg-[#d8d8d8]"
         >
           {submitting ? "결제 처리 중" : "결제 완료"}
         </button>

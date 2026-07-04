@@ -43,14 +43,14 @@ export default async function ReservationPage({
   return (
     <TicketingPageShell>
       <section className="ticketground-container py-10">
-        <div className="min-w-0 rounded-[12px] border border-[#eee] p-5 sm:p-7">
+        <div className="min-w-0 rounded-lg border border-[#eee] p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex size-14 items-center justify-center rounded-full bg-[#eef0ff] text-[26px] font-bold text-ticketground">✓</div>
-              <h1 className="balanced-title mt-4 text-[26px] font-bold text-[#29292d] sm:text-[30px]">예매가 완료되었습니다</h1>
-              <p className="mt-2 text-[15px] font-bold text-[#666]">예매번호 {reservation.id}</p>
+              <h1 className="balanced-title mt-4 text-[26px] font-bold text-ink-2 sm:text-[30px]">예매가 완료되었습니다</h1>
+              <p className="mt-2 text-base font-bold text-[#666]">예매번호 {reservation.id}</p>
             </div>
-            <Link href="/mypage" className="flex h-11 items-center rounded-[8px] bg-[#29292d] px-5 text-[14px] font-bold text-white">
+            <Link href="/mypage" className="flex h-11 items-center rounded-sm bg-ink-2 px-5 text-[14px] font-bold text-white">
               내 예약 보기
             </Link>
           </div>
@@ -58,8 +58,8 @@ export default async function ReservationPage({
           <div className="mt-7 grid gap-3 md:grid-cols-3">
             {cleanTicketQrStages.map((stage, index) => (
               <article key={stage.code} className="rounded-[10px] border border-[#eee] bg-[#f8f8f8] p-4">
-                <p className="text-[13px] font-bold text-ticketground">{index + 1}단계 · {stage.timing}</p>
-                <h2 className="mt-2 text-[18px] font-bold text-[#29292d]">{stage.label}</h2>
+                <p className="text-sm font-bold text-ticketground">{index + 1}단계 · {stage.timing}</p>
+                <h2 className="mt-2 text-xl font-bold text-ink-2">{stage.label}</h2>
                 <p className="mt-2 text-[14px] text-[#666]">{stage.description}</p>
               </article>
             ))}
@@ -67,14 +67,14 @@ export default async function ReservationPage({
         </div>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
-          <article className="min-w-0 overflow-hidden rounded-[12px] border border-[#29292d] bg-white shadow-sm">
-            <div className="bg-[#29292d] p-6 text-white">
-              <p className="text-[13px] font-bold text-[#ffe92e]">CLEAN TICKET</p>
+          <article className="min-w-0 overflow-hidden rounded-lg border border-ink-2 bg-white shadow-sm">
+            <div className="bg-ink-2 p-6 text-white">
+              <p className="text-sm font-bold text-accent-2">CLEAN TICKET</p>
               <h2 className="balanced-title mt-2 text-[24px] font-bold sm:text-[26px]">{reservation.showTitle}</h2>
               <p className="mt-2 text-[14px] text-[#d8d8d8]">{reservation.venue}</p>
             </div>
             <div className="grid gap-6 p-6 md:grid-cols-[1fr_220px]">
-              <dl className="grid gap-4 text-[15px]">
+              <dl className="grid gap-4 text-base">
                 {[
                   ["DATE", `${date} ${time}`],
                   ["VENUE", reservation.venue],
@@ -82,8 +82,8 @@ export default async function ReservationPage({
                   ["PRICE", price],
                 ].map(([label, value]) => (
                   <div key={label} className="grid gap-1">
-                    <dt className="text-[13px] font-bold text-[#999]">{label}</dt>
-                    <dd className="break-words font-bold text-[#29292d]">{value}</dd>
+                    <dt className="text-sm font-bold text-ink-4">{label}</dt>
+                    <dd className="break-words font-bold text-ink-2">{value}</dd>
                   </div>
                 ))}
               </dl>
@@ -93,24 +93,24 @@ export default async function ReservationPage({
                     <VirtualTicketCard key={`${seatLabel}-${index}`} date={date} reservationId={reservation.id} seatLabel={seatLabel} ticketIndex={index} ticketTotal={virtualTicketSeats.length} />
                   ))}
                 </div>
-                <span className="mt-3 inline-flex rounded-full bg-[#29292d] px-3 py-1 text-[13px] font-bold text-white">잠금 · 가상 티켓</span>
-                <p className="mt-3 text-[14px] font-bold text-[#29292d]">입장 불가</p>
-                <p className="mt-1 break-keep text-[13px] leading-relaxed text-[#666]">소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다.</p>
+                <span className="mt-3 inline-flex rounded-full bg-ink-2 px-3 py-1 text-sm font-bold text-white">잠금 · 가상 티켓</span>
+                <p className="mt-3 text-[14px] font-bold text-ink-2">입장 불가</p>
+                <p className="mt-1 break-keep text-sm leading-relaxed text-[#666]">소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다.</p>
               </div>
             </div>
           </article>
 
-          <aside className="h-fit rounded-[12px] border border-[#eee] p-5">
-            <h2 className="text-[20px] font-bold text-[#29292d]">입장 QR 안내</h2>
+          <aside className="h-fit rounded-lg border border-[#eee] p-5">
+            <h2 className="text-2xl font-bold text-ink-2">입장 QR 안내</h2>
             <p className="mt-3 text-[14px] text-[#666]">동적 QR은 공연 2~3시간 전 전용 앱에서만 열리며 20초마다 갱신됩니다.</p>
-            <button type="button" disabled className="mt-5 h-11 w-full rounded-[8px] bg-[#d8d8d8] text-[14px] font-bold text-white">
+            <button type="button" disabled className="mt-5 h-11 w-full rounded-sm bg-[#d8d8d8] text-[14px] font-bold text-white">
               앱에서 열림(비활성)
             </button>
             <BackendAdmissionPanel ticketId={ticketId} />
-            <Link href={`/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-[8px] border border-[#ddd] text-[14px] font-bold whitespace-nowrap">
+            <Link href={`/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-sm border border-[#ddd] text-[14px] font-bold whitespace-nowrap">
               공식 재판매
             </Link>
-            <p className="mt-4 text-[13px] text-[#777]">QR 캡처나 직접 전달은 지원하지 않습니다.</p>
+            <p className="mt-4 text-sm text-[#777]">QR 캡처나 직접 전달은 지원하지 않습니다.</p>
           </aside>
         </div>
       </section>
@@ -143,7 +143,7 @@ function AppOnlyQrGuard({ reservation }: { readonly reservation: Reservation }) 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0 rounded-xl border border-line bg-white p-5 shadow-ticket-1 sm:p-7">
             <p className="text-sm font-black text-ticketground">앱 전용 입장 QR</p>
-            <h1 className="balanced-title mt-2 text-[28px] font-black text-ink sm:text-[34px]">{reservation.showTitle}</h1>
+            <h1 className="balanced-title mt-2 text-4xl font-black text-ink sm:text-[34px]">{reservation.showTitle}</h1>
             <p className="mt-3 text-sm leading-loose text-ink-3">
               웹에서는 실제 입장 QR을 표시하지 않습니다. 공연장 입장용 동적 QR은 본인 인증된 Ticketground 앱에서만 열리며, 웹 화면은
               안전 안내와 앱 이동 경로만 제공합니다.

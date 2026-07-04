@@ -81,35 +81,35 @@ export function QueueWaitingRoom({
     <main className="min-h-screen overflow-x-hidden bg-[#08090d] px-4 py-8 text-white sm:px-6">
       <section className="mx-auto grid min-h-[calc(100vh-64px)] min-w-0 max-w-[1180px] items-center gap-8 lg:grid-cols-[minmax(0,1fr)_460px]">
         <div className="min-w-0">
-          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 sm:text-[13px] sm:tracking-[0.18em]">Ticketground Waiting Room</p>
+          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 sm:text-sm sm:tracking-[0.18em]">Ticketground Waiting Room</p>
           <h1 className="balanced-title mt-4 max-w-[760px] text-[32px] font-black leading-[1.12] sm:text-[44px] sm:leading-[1.08]">
             접속 순서가 되면 자동으로 좌석 선택 화면으로 이동합니다.
           </h1>
           <div className="mt-8 grid min-w-0 max-w-[720px] gap-4 border-y border-white/12 py-6 sm:grid-cols-3">
             <div>
-              <p className="text-[13px] text-white/45">공연</p>
-              <p className="balanced-title mt-2 text-[17px] font-bold sm:text-[18px]">{title}</p>
+              <p className="text-sm text-white/45">공연</p>
+              <p className="balanced-title mt-2 text-[17px] font-bold sm:text-xl">{title}</p>
             </div>
             <div>
-              <p className="text-[13px] text-white/45">일시</p>
-              <p className="mt-2 text-[17px] font-bold sm:text-[18px]">
+              <p className="text-sm text-white/45">일시</p>
+              <p className="mt-2 text-[17px] font-bold sm:text-xl">
                 {date} · {time}
               </p>
             </div>
             <div>
-              <p className="text-[13px] text-white/45">장소</p>
-              <p className="balanced-title mt-2 text-[17px] font-bold sm:text-[18px]">{venue}</p>
+              <p className="text-sm text-white/45">장소</p>
+              <p className="balanced-title mt-2 text-[17px] font-bold sm:text-xl">{venue}</p>
             </div>
           </div>
-          <p data-queue-warning className="mt-6 max-w-[620px] rounded-[8px] border border-[#ff2d3f]/50 bg-[#ff2d3f]/12 px-4 py-3 text-[14px] font-semibold text-[#ffb8bf]">
+          <p data-queue-warning className="mt-6 max-w-[620px] rounded-sm border border-ticketground/50 bg-ticketground/12 px-4 py-3 text-[14px] font-semibold text-[#ffb8bf]">
             새로고침하거나 창을 닫으면 현재 대기 순서가 초기화될 수 있습니다.
           </p>
         </div>
 
-        <div className="min-w-0 rounded-[12px] border border-white/12 bg-white/[0.06] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.36)] sm:p-7">
+        <div className="min-w-0 rounded-lg border border-white/12 bg-white/[0.06] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.36)] sm:p-7">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[13px] font-bold text-white/50">내 앞 대기 인원</p>
+              <p className="text-sm font-bold text-white/50">내 앞 대기 인원</p>
               <p data-queue-ahead className="mt-2 text-[64px] font-black leading-none tabular-nums">
                 {numberFormatter.format(ahead)}
               </p>
@@ -120,7 +120,7 @@ export function QueueWaitingRoom({
           </div>
 
           <div className="mt-8">
-            <div className="flex items-center justify-between text-[13px] font-semibold text-white/60">
+            <div className="flex items-center justify-between text-sm font-semibold text-white/60">
               <span>진행률</span>
               <span>{progress}%</span>
             </div>
@@ -130,42 +130,42 @@ export function QueueWaitingRoom({
           </div>
 
           <div className="mt-7 grid grid-cols-2 gap-3">
-            <div className="rounded-[8px] bg-black/24 p-4">
-              <p className="text-[13px] text-white/45">처리속도</p>
-              <p data-queue-speed className="mt-2 text-[16px] font-bold whitespace-nowrap sm:text-[18px]">
+            <div className="rounded-sm bg-black/24 p-4">
+              <p className="text-sm text-white/45">처리속도</p>
+              <p data-queue-speed className="mt-2 text-lg font-bold whitespace-nowrap sm:text-xl">
                 {`분당 ${numberFormatter.format(speedPerMinute)}명`}
               </p>
             </div>
-            <div className="rounded-[8px] bg-black/24 p-4">
-              <p className="text-[13px] text-white/45">예상시간</p>
-              <p data-queue-eta className="mt-2 text-[18px] font-bold">
+            <div className="rounded-sm bg-black/24 p-4">
+              <p className="text-sm text-white/45">예상시간</p>
+              <p data-queue-eta className="mt-2 text-xl font-bold">
                 {isReady ? "입장 준비" : `약 ${etaMinutes}분`}
               </p>
             </div>
           </div>
 
-          <div data-queue-countdown className="mt-7 rounded-[8px] border border-white/12 bg-black/28 p-4 text-center">
-            <p className="text-[13px] font-semibold text-white/50">상태</p>
+          <div data-queue-countdown className="mt-7 rounded-sm border border-white/12 bg-black/28 p-4 text-center">
+            <p className="text-sm font-semibold text-white/50">상태</p>
             {isReady ? (
               <div>
-                <p data-queue-ready className="mt-2 text-[20px] font-black text-[#ffe92e]">
+                <p data-queue-ready className="mt-2 text-2xl font-black text-accent-2">
                   {redirectStarted ? "좌석 선택 화면으로 이동 중입니다." : `입장 차례입니다. ${countdown}초 후 좌석 선택으로 이동합니다.`}
                 </p>
                 {redirectFallbackVisible && (
-                  <p data-queue-redirect-fallback className="mt-3 text-[13px] font-bold text-[#ffb8bf]">
+                  <p data-queue-redirect-fallback className="mt-3 text-sm font-bold text-[#ffb8bf]">
                     자동 이동이 지연되고 있습니다. 아래 버튼으로 좌석 선택 화면을 다시 열어 주세요.
                   </p>
                 )}
                 <Link
                   data-queue-continue
                   href={bookingHref}
-                  className="mt-4 inline-flex h-10 items-center justify-center rounded-[8px] bg-white px-4 text-[14px] font-black text-ink"
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-sm bg-white px-4 text-[14px] font-black text-ink"
                 >
                   좌석 선택으로 이동
                 </Link>
               </div>
             ) : (
-              <p className="mt-2 text-[20px] font-black">대기열을 통과하는 중입니다.</p>
+              <p className="mt-2 text-2xl font-black">대기열을 통과하는 중입니다.</p>
             )}
           </div>
         </div>

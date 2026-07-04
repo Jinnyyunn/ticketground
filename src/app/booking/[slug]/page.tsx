@@ -26,7 +26,7 @@ export default async function BookingPage({
 
   return (
     <TicketingPageShell>
-      <Suspense fallback={<div className="ticketground-container py-10 text-[16px] font-bold">좌석 선택 정보를 불러오는 중입니다.</div>}>
+      <Suspense fallback={<div className="ticketground-container py-10 text-lg font-bold">좌석 선택 정보를 불러오는 중입니다.</div>}>
         <BookingPanel show={show} initialSelection={{ date: queryParam(query.date), time: queryParam(query.time) }} initialTimerSeconds={initialTimerSeconds} />
       </Suspense>
     </TicketingPageShell>

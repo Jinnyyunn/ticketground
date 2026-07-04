@@ -63,9 +63,9 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
   return (
     <div className="mt-4 min-w-0 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
       <p className="text-[14px] font-black text-ink">입장권 상태</p>
-      <p className="mt-1 break-words text-[13px] font-bold text-ink-3">{status}</p>
+      <p className="mt-1 break-words text-sm font-bold text-ink-3">{status}</p>
       {qr && (
-        <dl className="mt-3 grid gap-2 text-[13px] font-bold text-ink-2">
+        <dl className="mt-3 grid gap-2 text-sm font-bold text-ink-2">
           <div className="flex min-w-0 justify-between gap-3">
             <dt>티켓</dt>
         <dd className="min-w-0 break-words text-right">소유 확인 완료</dd>
@@ -84,7 +84,7 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
         type="button"
         disabled={!activeTicketId}
         onClick={() => loadVirtualQr()}
-        className="mt-4 h-10 w-full rounded-[8px] bg-ink text-[13px] font-black text-white whitespace-nowrap disabled:bg-surface-3 disabled:text-ink-4"
+        className="mt-4 h-10 w-full rounded-sm bg-ink text-sm font-black text-white whitespace-nowrap disabled:bg-surface-3 disabled:text-ink-4"
       >
         가상 티켓 QR 다시 확인
       </button>

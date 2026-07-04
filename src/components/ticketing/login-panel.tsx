@@ -167,7 +167,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   return (
     <section className="ticketground-container py-10">
-      <div className="grid overflow-hidden rounded-[20px] border border-line bg-white shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
+      <div className="grid overflow-hidden rounded-xl border border-line bg-white shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
         <LoginHeroAside />
 
         <div className="p-6 sm:p-8 lg:p-10">
@@ -179,7 +179,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
           <div className="mt-8">
             <p className="text-sm font-black text-ticketground">{mode === "login" ? "로그인" : "회원가입"}</p>
-            <h2 className="balanced-title mt-2 text-[24px] font-black leading-tight text-ink sm:text-[28px]">
+            <h2 className="balanced-title mt-2 text-[24px] font-black leading-tight text-ink sm:text-4xl">
               {mode === "login" ? "예매 내역을 확인해 주세요" : "본인 확인 후 가입을 진행해 주세요"}
             </h2>
             <p className="mt-3 text-sm leading-loose text-ink-3">

@@ -15,12 +15,12 @@ export function VirtualTicketCard({ date, reservationId, seatLabel, ticketIndex,
       className="relative mx-auto aspect-[4/5] w-full max-w-[260px] overflow-hidden rounded-[10px] border border-line bg-white p-3 shadow-ticket-1"
     >
       <div className="absolute inset-x-0 top-0 h-2 bg-ticketground" />
-      <div className="flex h-full flex-col rounded-[8px] border border-line bg-surface">
+      <div className="flex h-full flex-col rounded-sm border border-line bg-surface">
         <div className="bg-white px-3 py-3 text-left">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[11px] font-black tracking-[0.08em] text-ticketground">TICKETGROUND</p>
-              <p className="mt-1 text-[18px] leading-tight font-black text-ink">VIRTUAL TICKET</p>
+              <p className="mt-1 text-xl leading-tight font-black text-ink">VIRTUAL TICKET</p>
             </div>
             <p className="rounded-full border border-line bg-surface px-2 py-1 text-[10px] font-black text-ink-3">
               {ticketIndex + 1}/{ticketTotal}
@@ -30,7 +30,7 @@ export function VirtualTicketCard({ date, reservationId, seatLabel, ticketIndex,
         <div className="flex flex-1 flex-col justify-between p-3 text-left">
           <div>
             <p className="text-[11px] font-black text-ink-3">소유 확인</p>
-            <p className="mt-1 break-all text-[13px] font-black text-ink">{displayReservationId}</p>
+            <p className="mt-1 break-all text-sm font-black text-ink">{displayReservationId}</p>
           </div>
           <div className="grid gap-2 text-[11px]">
             <div className="rounded-[6px] border border-line bg-white px-2 py-1">

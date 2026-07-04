@@ -56,8 +56,8 @@ export function SeatMap({
   const seatsById = useMemo(() => new Map(seats.map((seat) => [seat.id, seat])), [seats]);
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-surface p-4 sm:p-5" data-static-seat-map>
-      <div className="mx-auto mb-5 flex h-9 max-w-[520px] items-center justify-center rounded-t-[50%] border border-line-strong bg-white text-[13px] font-black text-ink-3">
+    <div className="min-w-0 overflow-hidden rounded-lg border border-line bg-surface p-4 sm:p-5" data-static-seat-map>
+      <div className="mx-auto mb-5 flex h-9 max-w-[520px] items-center justify-center rounded-t-[50%] border border-line-strong bg-white text-sm font-black text-ink-3">
         STAGE
       </div>
       <div className="relative">
@@ -67,7 +67,7 @@ export function SeatMap({
         <div className="mx-auto w-max space-y-1" data-seat-grid="20x22">
           {seatRows.map((row) => (
             <div key={row} className="grid grid-cols-[28px_auto_14px_auto] items-center gap-1.5">
-              <span className="text-center text-[13px] font-black text-ink-3">{row}</span>
+              <span className="text-center text-sm font-black text-ink-3">{row}</span>
               {[seatColumns.slice(0, 11), seatColumns.slice(11)].map((columns, groupIndex) => (
                 <div key={`${row}-${groupIndex}`} className={cn("grid grid-cols-11 gap-1.5", groupIndex === 0 ? "col-start-2" : "col-start-4")}>
                   {columns.map((number) => {
@@ -86,7 +86,7 @@ export function SeatMap({
                         aria-pressed={picked}
                         onClick={() => onToggleSeat(seat)}
                         className={cn(
-                          "relative flex size-8 items-center justify-center rounded-[5px] border text-[13px] font-black transition sm:size-9 sm:text-[14px]",
+                          "relative flex size-8 items-center justify-center rounded-[5px] border text-sm font-black transition sm:size-9 sm:text-[14px]",
                           tierStyles[seat.tier],
                           seat.sold && "cursor-not-allowed border-line bg-surface-3 text-ink-4 opacity-55",
                           picked && "ring-2 ring-accent-2 ring-offset-2 ring-offset-white",
@@ -104,10 +104,10 @@ export function SeatMap({
         </div>
         </div>
       </div>
-      <p id="seat-map-scroll-hint" className="mt-3 text-[13px] font-bold text-ink-3">
+      <p id="seat-map-scroll-hint" className="mt-3 text-sm font-bold text-ink-3">
         좌석표가 화면보다 넓으면 좌우로 밀어 전체 구역을 확인할 수 있습니다.
       </p>
-      <div className="mt-5 flex flex-wrap items-center gap-3 text-[13px] font-bold" aria-label="좌석 등급 범례">
+      <div className="mt-5 flex flex-wrap items-center gap-3 text-sm font-bold" aria-label="좌석 등급 범례">
         {(["VIP", "R", "S", "A"] as const).map((tier) => (
           <span key={tier} className="inline-flex items-center gap-2">
             <span className={cn("size-3 rounded-[3px]", tierStyles[tier])} />
