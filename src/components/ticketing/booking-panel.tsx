@@ -9,6 +9,7 @@ import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";
 import { BookingSummaryRow } from "./booking-summary-row";
+import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
 import { createSeatMap, SeatMap, type SeatOption, type SeatTier } from "./seat-map";
 
 const serviceFeePerSeat = 2000;
@@ -48,9 +49,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const [selectedSeatIds, setSelectedSeatIds] = useState<readonly string[]>([]);
   const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
   const [seatMapStatus, setSeatMapStatus] = useState("좌석도 로딩 중");
+  const [seatMapFailed, setSeatMapFailed] = useState(false);
   const [selectedBackendTicketId, setSelectedBackendTicketId] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(initialTimerSeconds);
   const timerExpired = timerSeconds === 0;
+  const timerWarning = !timerExpired && timerSeconds <= 60;
   const backendEventId = useMemo(() => getTicketShowBackendEventId(show), [show]);
 
   useEffect(() => {
@@ -62,16 +65,18 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
   useEffect(() => {
     let mounted = true;
+    setSeatMapFailed(false);
+    setSelectedBackendTicketId("");
     getSeatMap(backendEventId)
       .then((nextSeatMap) => {
         if (!mounted) return;
-        const firstAvailableSeat = nextSeatMap.seats.find((seat) => seat.available);
         setSeatMap(nextSeatMap);
-        setSelectedBackendTicketId(firstAvailableSeat?.id ?? "");
         setSeatMapStatus(`${nextSeatMap.event.title} · ${nextSeatMap.seats.length}석 로드`);
       })
       .catch((error: unknown) => {
         if (!mounted) return;
+        setSeatMap(null);
+        setSeatMapFailed(true);
         setSeatMapStatus(error instanceof Error ? error.message : "좌석도를 불러오지 못했습니다.");
       });
     return () => {
@@ -84,6 +89,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     .filter((seat): seat is SeatOption => Boolean(seat));
   const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
   const selectedBackendSeat = seatMap?.seats.find((seat) => seat.id === selectedBackendTicketId);
+  const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
+  const showStaticSeatMap = !useBackendSeatMap && Boolean(seatMapFailed || (seatMap && backendSeats.length === 0));
   const selectedLabels = selectedBackendSeat ? selectedBackendSeat.displayCode : selectedSeatIds.join(", ");
   const selectedCount = selectedBackendSeat ? 1 : selectedSeats.length;
   const baseAmount = selectedBackendSeat?.price ?? selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
@@ -91,9 +98,15 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const totalAmount = baseAmount + feeAmount;
   const canChooseSeats = !timerExpired && Boolean(date && time && quantity);
   const canPay = !timerExpired && (selectedBackendSeat ? true : selectedSeats.length > 0 && selectedSeats.length <= quantity);
-  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&base=${baseAmount}&fee=${feeAmount}&total=${totalAmount}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketId)}`;
+  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketId)}`;
+
+  function selectBackendSeat(ticketId: string) {
+    setSelectedSeatIds([]);
+    setSelectedBackendTicketId(ticketId);
+  }
 
   function toggleSeat(seat: SeatOption) {
+    setSelectedBackendTicketId("");
     setSelectedSeatIds((current) => {
       if (current.includes(seat.id)) return current.filter((id) => id !== seat.id);
       const allowedCount = Math.min(quantity, maxSelectableSeats);
@@ -119,7 +132,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             data-booking-timer
             className={cn(
               "shrink-0 rounded-[8px] px-4 py-2 text-[18px] font-black tabular-nums text-white",
-              timerExpired ? "bg-ticketground" : "bg-ink",
+              timerExpired ? "bg-ticketground" : timerWarning ? "bg-warn" : "bg-ink",
             )}
             aria-label="남은 예매 시간"
           >
@@ -138,9 +151,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   key={item.id}
                   type="button"
                   onClick={() => setStep(item.id)}
+                  disabled={item.id === "seats" && !canChooseSeats}
                   className={cn(
                     "h-12 rounded-[8px] border text-[14px] font-black whitespace-nowrap",
                     active ? "border-ink bg-ink text-white" : "border-line bg-white text-ink-3",
+                    item.id === "seats" && !canChooseSeats && "cursor-not-allowed opacity-50",
                   )}
                 >
                   {index + 1}. {item.label}
@@ -149,18 +164,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             })}
           </nav>
 
-          {timerExpired && (
-            <section data-booking-expired className="rounded-[12px] border border-ticketground/25 bg-[#fff1f3] p-4 text-ink sm:p-5" aria-live="polite">
-              <p className="text-[18px] font-black text-ticketground">예매 시간이 만료되었습니다</p>
-              <p className="mt-2 text-[14px] font-bold text-ink-3">좌석 선점과 결제를 다시 진행하려면 대기열부터 재입장해 주세요.</p>
-              <Link
-                href={`/queue/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`}
-                className="mt-4 inline-flex h-11 items-center justify-center rounded-[8px] bg-ink px-4 text-[14px] font-black text-white"
-              >
-                다시 예매하기
-              </Link>
-            </section>
-          )}
+          <BookingExpiryNotice date={date} expired={timerExpired} showSlug={show.slug} time={time} />
+          <BookingTimerWarning visible={timerWarning} />
 
           {step === "schedule" && (
             <section className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-white p-4 sm:p-6">
@@ -215,19 +220,33 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 <p className="text-[13px] font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
               </div>
               <div className="mt-5 min-w-0">
-                <BackendSeatPicker
-                  seats={backendSeats}
-                  selectedTicketId={selectedBackendTicketId}
-                  status={seatMapStatus}
-                  onSelect={setSelectedBackendTicketId}
-                />
-                <div className="mt-4 min-w-0">
-                  <SeatMap seats={seats} selectedSeatIds={selectedSeatIds} onToggleSeat={toggleSeat} />
-                </div>
+                {useBackendSeatMap ? (
+                  <BackendSeatPicker
+                    seats={backendSeats}
+                    selectedTicketId={selectedBackendTicketId}
+                    status={seatMapStatus}
+                    onSelect={selectBackendSeat}
+                  />
+                ) : (
+                  <div className="rounded-[12px] border border-line bg-surface p-4 text-[14px] font-bold text-ink-3" role="status">
+                    {showStaticSeatMap ? "실시간 좌석도를 불러오지 못해 기본 좌석표로 선택합니다." : seatMapStatus}
+                  </div>
+                )}
+                {showStaticSeatMap ? (
+                  <div className="mt-3 min-w-0">
+                    <SeatMap seats={seats} selectedSeatIds={selectedSeatIds} onToggleSeat={toggleSeat} />
+                  </div>
+                ) : null}
               </div>
-              <Link href={canPay ? checkoutHref : "#"} aria-disabled={!canPay} className={cn("mt-6 flex h-12 w-full items-center justify-center rounded-[8px] text-[16px] font-black", canPay ? "bg-ticketground text-white" : "pointer-events-none bg-surface-3 text-ink-4")}>
-                결제하기
-              </Link>
+              {canPay ? (
+                <Link href={checkoutHref} className="mt-6 flex h-12 w-full items-center justify-center rounded-[8px] bg-ticketground text-[16px] font-black text-white">
+                  결제하기
+                </Link>
+              ) : (
+                <button type="button" disabled className="mt-6 h-12 w-full rounded-[8px] bg-surface-3 text-[16px] font-black text-ink-4">
+                  결제하기
+                </button>
+              )}
             </section>
           )}
         </main>

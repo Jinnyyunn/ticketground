@@ -177,27 +177,6 @@ export function TicketgroundToast({
   );
 }
 
-export function TicketgroundModal({
-  title,
-  children,
-  open,
-}: {
-  readonly title: string;
-  readonly children: ReactNode;
-  readonly open: boolean;
-}) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink/45 p-5" role="presentation">
-      <section role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-[520px] rounded-xl bg-card p-6 shadow-ticket-3">
-        <h2 className="text-2xl font-black text-ink">{title}</h2>
-        <div className="mt-4 text-sm leading-loose text-ink-3">{children}</div>
-      </section>
-    </div>
-  );
-}
-
 export function QrStateChip({
   children,
   active = false,

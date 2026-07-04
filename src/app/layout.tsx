@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={`${notoSansKr.variable} h-full antialiased`}>
+    <html lang="ko" data-scroll-behavior="smooth" className={`${notoSansKr.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-white">{children}</body>
     </html>
   );

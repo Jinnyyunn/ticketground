@@ -16,17 +16,20 @@ export type WatchShow = {
   readonly openLabel: string;
   readonly dDayLabel: string;
   readonly defaultEnabled: boolean;
+  readonly priority?: boolean;
 };
 
 export function WatchlistShowCard({
   enabled,
   onRecordNotification,
   onToggle,
+  priority = false,
   show,
 }: {
   readonly enabled: boolean;
   readonly onRecordNotification: () => void;
   readonly onToggle: () => void;
+  readonly priority?: boolean;
   readonly show: WatchShow;
 }) {
   return (
@@ -43,6 +46,11 @@ export function WatchlistShowCard({
             fill
             unoptimized
             sizes="(max-width: 639px) 100vw, 128px"
+            preload={priority}
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
+            placeholder={priority ? "blur" : "empty"}
+            blurDataURL="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
             className={cn(
               "transition-transform duration-300 group-hover/poster:scale-[1.03]",
               show.posterFit === "contain" ? "bg-surface object-contain" : "object-cover",

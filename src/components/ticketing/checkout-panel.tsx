@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getTicketShowBackendEventId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
 import { buyTicket, getState } from "@/lib/ticketground-api";
@@ -14,6 +14,8 @@ const paymentMethods = [
   { id: "mobile", label: "휴대폰 결제", note: "통신사 한도 확인" },
   { id: "deposit", label: "무통장입금", note: "입금대기 후 확정" },
 ] as const;
+
+const serviceFeePerSeat = 2000;
 
 type PaymentMethodId = (typeof paymentMethods)[number]["id"];
 
@@ -42,14 +44,48 @@ export function CheckoutPanel({
   const [method, setMethod] = useState<PaymentMethodId>("credit");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState(selection.ticketId ? "좌석 선택 완료" : "좌석 자동 선택 대기");
+  const [status, setStatus] = useState(selection.ticketId ? "좌석 금액 확인 중" : "좌석 자동 선택 대기");
+  const [trustedTicketAmount, setTrustedTicketAmount] = useState<number | null>(null);
   const backendEventId = getTicketShowBackendEventId(show);
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
+  const hasSelectedTicket = Boolean(selection.ticketId);
+  const amountPending = hasSelectedTicket && trustedTicketAmount === null;
+  const trustedBaseAmount = hasSelectedTicket ? trustedTicketAmount ?? 0 : selection.baseAmount;
+  const trustedFeeAmount = amountPending ? 0 : selection.count * serviceFeePerSeat;
+  const trustedTotalAmount = trustedBaseAmount + trustedFeeAmount;
+  const amountLabel = (amount: number) => (amountPending ? "확인 중" : currency(amount));
   const summaryRows = [
-    ["좌석 금액", currency(selection.baseAmount)],
-    ["할인", `-${currency(selection.discountAmount)}`],
-    ["예매 수수료", currency(selection.feeAmount)],
+    ["좌석 금액", amountLabel(trustedBaseAmount)],
+    ["할인", amountPending ? "확인 중" : `-${currency(selection.discountAmount)}`],
+    ["예매 수수료", amountLabel(trustedFeeAmount)],
   ] as const;
+
+  useEffect(() => {
+    let mounted = true;
+    if (!selection.ticketId) {
+      setTrustedTicketAmount(null);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    getState()
+      .then((state) => {
+        if (!mounted) return;
+        const ticket = state.tickets.find((item) => item.id === selection.ticketId && item.eventId === backendEventId);
+        setTrustedTicketAmount(ticket?.faceValue ?? null);
+        setStatus(ticket ? "좌석 선택 완료" : "선택한 좌석을 확인할 수 없습니다.");
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setTrustedTicketAmount(null);
+        setStatus("좌석 금액을 확인하지 못했습니다.");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [backendEventId, selection.ticketId]);
 
   async function completePayment() {
     if (!agreed || submitting) return;
@@ -70,9 +106,6 @@ export function CheckoutPanel({
         date: selection.date,
         time: selection.time,
         seats: purchase.ticket.seatLabel,
-        base: String(purchase.ticket.faceValue),
-        fee: String(selection.feeAmount),
-        total: String(purchase.ticket.faceValue + selection.feeAmount),
         count: "1",
         ticketId: purchase.ticket.id,
       });
@@ -174,12 +207,12 @@ export function CheckoutPanel({
           ))}
           <div className="flex justify-between gap-4 border-t border-[#eee] pt-4">
             <dt className="text-[#7e7e81]">총 결제금액</dt>
-            <dd className="text-[20px] font-bold text-ticketground">{currency(selection.totalAmount)}</dd>
+            <dd className="text-[20px] font-bold text-ticketground">{amountLabel(trustedTotalAmount)}</dd>
           </div>
         </dl>
         <button
           type="button"
-          disabled={!agreed || submitting}
+          disabled={!agreed || submitting || amountPending}
           onClick={completePayment}
           className="mt-5 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-bold text-white disabled:bg-[#d8d8d8]"
         >

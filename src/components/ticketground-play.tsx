@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ticketgroundPlay, playTabs } from "@/data/content";
 import { CarouselRow } from "@/components/carousel-row";
 import { PillTabs } from "@/components/pill-tabs";
@@ -12,9 +13,8 @@ export function TicketgroundPlay() {
         <CarouselRow>
           {ticketgroundPlay.map((v) => (
             <a key={v.title} href="#" className="block w-[413px] shrink-0">
-              <div className="relative overflow-hidden rounded-2xl bg-black">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={v.thumb} alt={v.title} className="aspect-video w-full object-cover opacity-90" />
+              <div className="relative aspect-video overflow-hidden rounded-2xl bg-black">
+                <Image src={v.thumb} alt={v.title} fill sizes="413px" className="object-cover opacity-90" unoptimized={v.thumb.endsWith(".gif")} />
                 <span className="absolute left-3 top-3 rounded-md bg-black/55 px-2 py-1 text-[12px] font-bold text-white">
                   Ticketground
                 </span>
@@ -30,8 +30,7 @@ export function TicketgroundPlay() {
                 )}
               </div>
               <div className="mt-3 flex items-center gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={v.poster} alt="" className="h-12 w-[38px] rounded-md object-cover" />
+                <Image src={v.poster} alt="" width={38} height={48} className="h-12 w-[38px] rounded-md object-cover" unoptimized={v.poster.endsWith(".gif")} />
                 <h3 className="text-[16px] font-bold text-[#29292d]">{v.title}</h3>
               </div>
             </a>

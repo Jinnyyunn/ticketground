@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 export type PosterGradient = `g${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}` | "g10" | "g11" | "g12";
@@ -64,11 +65,13 @@ export function PosterCard({
       <div className={cn("poster relative aspect-[3/4] overflow-hidden rounded-[10px] bg-surface-2", !poster && posterGradientClasses[gradient])}>
         {poster ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={poster}
               alt={title}
-              className="aspect-[3/4] w-full object-cover transition-transform duration-300 group-hover:scale-[1.03] group-active:scale-[1.01]"
+              fill
+              sizes={width === 240 ? "240px" : "206px"}
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03] group-active:scale-[1.01]"
+              unoptimized={poster.endsWith(".gif")}
             />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-ink/60 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
           </>

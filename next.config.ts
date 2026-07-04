@@ -29,6 +29,7 @@ function isTailscaleIpv4(address: string): boolean {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost", ...localTailscaleDevOrigins(), ...configuredDevOrigins],
+  devIndicators: false,
   turbopack: {
     root: projectRoot,
   },

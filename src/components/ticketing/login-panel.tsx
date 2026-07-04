@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearSessionUser,
   completeSocialLogin,
@@ -18,6 +18,7 @@ import { GoogleSignInCard } from "@/components/ticketing/google-sign-in-card";
 import { LoginHomeLink } from "@/components/ticketing/login-home-link";
 import { LoginHeroAside } from "@/components/ticketing/login-hero-aside";
 import { LoginModeTabs } from "@/components/ticketing/login-mode-tabs";
+import { LoginMockForm } from "@/components/ticketing/login-mock-form";
 import { LoginSessionPanel } from "@/components/ticketing/login-session-panel";
 import { SocialLoginButtons } from "@/components/ticketing/social-login-buttons";
 
@@ -29,6 +30,7 @@ function isSocialLoginProvider(value: string | null): value is SocialLoginProvid
 
 export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: LoginMode }) {
   const router = useRouter();
+  const socialStatusLockRef = useRef(false);
   const [mode, setMode] = useState<LoginMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,15 +53,19 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
   useEffect(() => {
     let mounted = true;
     const loadInitialSession = async () => {
-      const searchParams = new URLSearchParams(window.location.search);
-      const socialProvider = searchParams.get("socialProvider")?.trim() || null;
-      const socialError = searchParams.get("socialError")?.trim();
+      const activeSearchParams = new URLSearchParams(window.location.search);
+      const socialProvider = activeSearchParams.get("socialProvider")?.trim() || null;
+      const socialError = activeSearchParams.get("socialError")?.trim();
       if (socialError) {
+        socialStatusLockRef.current = true;
         clearSessionUser();
+        setSession(null);
+        setProfileName("");
         setStatus(`${socialError} 소셜 로그인 요청을 처리하지 못했습니다.`);
         return;
       }
       if (isSocialLoginProvider(socialProvider)) {
+        socialStatusLockRef.current = true;
         setStatus(`${socialProvider} 세션 확인 중`);
         try {
           const nextSession = await completeSocialLogin(socialProvider);
@@ -72,15 +78,21 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           if (!mounted) return;
           setStatus(error instanceof Error ? error.message : "소셜 세션을 확인하지 못했습니다.");
           clearSessionUser();
+          setSession(null);
+          setProfileName("");
           return;
         }
       }
       if (socialProvider) {
+        socialStatusLockRef.current = true;
         clearSessionUser();
+        setSession(null);
+        setProfileName("");
         setStatus("지원하지 않는 소셜 로그인 요청입니다.");
         return;
       }
 
+      socialStatusLockRef.current = false;
       const storedUserId = storedSessionUserId();
       if (storedUserId) {
         try {
@@ -134,6 +146,11 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
     applySession(nextSession, `${nextSession.name} Google 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
   }, [applySession]);
 
+  const handleGoogleStatusChange = useCallback((message: string) => {
+    if (socialStatusLockRef.current) return;
+    setStatus(message);
+  }, []);
+
   async function confirmMockAccount() {
     if (mode === "login" && !canLogin) return;
     if (mode === "signup" && !canSignup) return;
@@ -182,7 +199,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           />
 
           <div className="mx-auto mt-7 grid w-full max-w-[400px] gap-3">
-            <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={setStatus} />
+            <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={handleGoogleStatusChange} />
             <SocialLoginButtons />
           </div>
 
@@ -192,76 +209,22 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
             <span className="h-px flex-1 bg-line" aria-hidden />
           </div>
 
-          <div className="grid gap-4">
-            {mode === "signup" && (
-              <label className="grid gap-2 text-sm font-black text-ink">
-                이름
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  className="h-12 rounded-[8px] border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-                  placeholder="홍길동"
-                />
-              </label>
-            )}
-            <label className="grid gap-2 text-sm font-black text-ink">
-              이메일
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="h-12 rounded-[8px] border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-                placeholder="qa@ticketground.kr"
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-black text-ink">
-              비밀번호
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="h-12 rounded-[8px] border border-line-strong px-3 text-sm font-medium text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-                placeholder="mock password"
-              />
-            </label>
-          </div>
-
-          {mode === "signup" && (
-            <div className="signup-only mt-5 grid gap-3">
-              <label className="flex items-start gap-3 rounded-[10px] border border-line bg-surface p-4 text-sm leading-relaxed text-ink-2">
-                <input
-                  type="checkbox"
-                  checked={identityChecked}
-                  onChange={(event) => setIdentityChecked(event.target.checked)}
-                  className="mt-1 accent-[#1a47ff]"
-                />
-                <span>
-                  <strong className="block text-ink">본인인증 완료</strong>
-                  휴대폰 본인확인과 기기 확인을 완료한 것으로 처리하는 mock 블록입니다.
-                </span>
-              </label>
-              <label className="flex items-start gap-3 rounded-[10px] border border-line bg-surface p-4 text-sm leading-relaxed text-ink-2">
-                <input
-                  type="checkbox"
-                  checked={termsChecked}
-                  onChange={(event) => setTermsChecked(event.target.checked)}
-                  className="mt-1 accent-[#1a47ff]"
-                />
-                <span>
-                  <strong className="block text-ink">필수 약관 동의</strong>
-                  이용약관, 개인정보 처리, 클린티켓 정책 안내를 확인했습니다.
-                </span>
-              </label>
-            </div>
-          )}
-
-          <button
-            type="button"
-            disabled={mode === "login" ? !canLogin : !canSignup}
-            onClick={confirmMockAccount}
-            className="mt-6 h-12 w-full rounded-[8px] bg-ticketground text-[16px] font-black text-white transition enabled:hover:bg-ticketground/90 disabled:bg-surface-3 disabled:text-ink-4"
-          >
-            {mode === "login" ? "mock 로그인 확인" : "mock 회원가입 완료"}
-          </button>
+          <LoginMockForm
+            canLogin={canLogin}
+            canSignup={canSignup}
+            email={email}
+            identityChecked={identityChecked}
+            mode={mode}
+            name={name}
+            onConfirm={confirmMockAccount}
+            onEmailChange={setEmail}
+            onIdentityCheckedChange={setIdentityChecked}
+            onNameChange={setName}
+            onPasswordChange={setPassword}
+            onTermsCheckedChange={setTermsChecked}
+            password={password}
+            termsChecked={termsChecked}
+          />
         </div>
       </div>
     </section>

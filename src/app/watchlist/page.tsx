@@ -32,6 +32,7 @@ export default function WatchlistPage() {
     openLabel: ["2026.05.10 14:00", "2026.05.13 20:00", "2026.05.24 18:00"][index] ?? "2026.06.01 14:00",
     dDayLabel: ["D-3", "D-DAY", "D-12"][index] ?? "D-7",
     defaultEnabled: index < 2,
+    priority: index < 3,
   }));
 
   return (

@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { LoginPanel } from "@/components/ticketing/login-panel";
 
 export default function LoginPage() {
-  return <LoginPanel initialMode="login" />;
+  return (
+    <Suspense fallback={null}>
+      <LoginPanel initialMode="login" />
+    </Suspense>
+  );
 }

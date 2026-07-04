@@ -71,6 +71,9 @@ async function assertBookingTimerExpiresInPlace(browser, baseUrl) {
   try {
     await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30&timer=1`, { waitUntil: "networkidle" });
     const initialDocumentCount = documentRequests.length;
+    const expiryLiveRegion = page.locator("[data-booking-expiry-live]");
+    await expiryLiveRegion.waitFor({ timeout: 4000 });
+    assert.equal(await expiryLiveRegion.getAttribute("hidden"), null);
 
     await page.locator("[data-booking-expired]").waitFor({ timeout: 4000 });
     assert.equal((await page.locator("[data-booking-timer]").textContent())?.trim(), "00:00");

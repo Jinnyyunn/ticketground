@@ -5,6 +5,8 @@ import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { getReservationForShow, getShow, ticketShows } from "@/data/ticketing";
 import { queryParam } from "@/lib/search-params";
 
+const serviceFeePerSeat = 2000;
+
 export function generateStaticParams() {
   return ticketShows.map((show) => ({ slug: show.slug }));
 }
@@ -40,12 +42,12 @@ export default async function CheckoutPage({
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
   };
   const fallbackBase = Number.parseInt(reservation.price.replace(/\D/g, ""), 10);
-  const baseAmount = queryNumber(queryParam(query.base)) || queryNumber(queryParam(query.price)) || fallbackBase;
-  const feeAmount = queryNumber(queryParam(query.fee));
-  const totalAmount = queryNumber(queryParam(query.total)) || baseAmount + feeAmount;
-  const discountAmount = Math.max(0, baseAmount + feeAmount - totalAmount);
   const seats = queryParam(query.seats) || queryParam(query.seat) || reservation.seat;
   const count = queryNumber(queryParam(query.count)) || seats.split(",").filter(Boolean).length || 1;
+  const baseAmount = fallbackBase;
+  const feeAmount = count * serviceFeePerSeat;
+  const totalAmount = baseAmount + feeAmount;
+  const discountAmount = 0;
 
   return (
     <TicketingPageShell>

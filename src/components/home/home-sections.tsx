@@ -7,24 +7,24 @@ import { events, featuredShow, genreRecommendations, miniShows, rankings, shortc
 const editorialCardTone = {
   dark: {
     card: "border-ink bg-ink text-white shadow-ticket-2",
-    accent: "bg-white",
+    accent: null,
     eyebrow: "border-white/15 bg-white/10 text-white/75",
     index: "border-white/15 text-white/55",
     cta: "border-white/15 bg-white/10 text-white group-hover:bg-white group-hover:text-ink",
   },
   red: {
-    card: "border-line bg-white text-ink shadow-ticket-1 hover:border-ticketground/35 hover:bg-tint-red/35",
-    accent: "bg-ticketground",
-    eyebrow: "border-ticketground/20 bg-tint-red text-ticketground",
-    index: "border-line text-ink-4",
-    cta: "border-line bg-surface text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-white",
+    card: "border-ticketground bg-ticketground text-white shadow-ticket-2 hover:border-ticketground hover:bg-ticketground/95",
+    accent: null,
+    eyebrow: "border-white/25 bg-white/15 text-white",
+    index: "border-white/20 text-white/75",
+    cta: "border-white/20 bg-white text-ink group-hover:border-white group-hover:bg-ink group-hover:text-white",
   },
   cream: {
-    card: "border-line bg-white text-ink shadow-ticket-1 hover:border-accent-2 hover:bg-tint-yellow/35",
-    accent: "bg-accent-2",
-    eyebrow: "border-accent-2 bg-tint-yellow text-ink",
-    index: "border-line text-ink-4",
-    cta: "border-line bg-surface text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-white",
+    card: "border-accent-2 bg-accent-2 text-ink shadow-ticket-2 hover:border-accent-2 hover:bg-accent-2/90",
+    accent: null,
+    eyebrow: "border-ink/10 bg-white/35 text-ink",
+    index: "border-ink/10 bg-white/25 text-ink/65",
+    cta: "border-ink/10 bg-white/55 text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-white",
   },
 } as const;
 
@@ -154,7 +154,7 @@ export function EditorialEventsSection() {
                 tone.card,
               )}
             >
-              <span data-card-accent className={cn("absolute inset-x-0 top-0 h-1", tone.accent)} aria-hidden="true" />
+              {tone.accent && <span data-card-accent className={cn("absolute inset-x-0 top-0 h-1", tone.accent)} aria-hidden="true" />}
               <div className="relative z-10 flex h-full min-h-[178px] flex-col">
                 <div className="flex items-center justify-between gap-3">
                   <p className={cn("inline-flex h-7 items-center rounded-lg border px-3 text-[12px] font-black tracking-normal", tone.eyebrow)}>

@@ -86,7 +86,7 @@ test("floating inquiry shortcut sits on the right side on desktop", async (t) =>
   assert.ok(shortcutBox.x > 1000, `floating inquiry shortcut should sit on the right side, got x=${shortcutBox.x}`);
 });
 
-test("home more links and editorial accents use neutral black and white surface styling", async (t) => {
+test("home more links and editorial cards use requested brand color surfaces", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -102,8 +102,14 @@ test("home more links and editorial accents use neutral black and white surface 
   assert.ok(moreLinks.length >= 5, "home renders section more links");
   assert.ok(moreLinks.every((color) => color === "rgb(26, 26, 29)"), `more links should be black: ${moreLinks.join(", ")}`);
 
-  const darkEditorialAccent = page.locator('[data-section="editorial-events"] [data-card="editorial-event"]').first().locator("[data-card-accent]");
-  await darkEditorialAccent.waitFor({ timeout: 5000 });
-  const accentColor = await darkEditorialAccent.evaluate((node) => window.getComputedStyle(node).backgroundColor);
-  assert.match(accentColor, /(rgba?\(255, 255, 255|oklab\(0\.999|oklab\(1)/);
+  const editorialCards = page.locator('[data-section="editorial-events"] [data-card="editorial-event"]');
+  await editorialCards.first().waitFor({ timeout: 5000 });
+
+  assert.equal(await editorialCards.first().locator("[data-card-accent]").count(), 0, "dark editorial card should not render a top accent border");
+
+  const redCardColor = await editorialCards.nth(1).evaluate((node) => window.getComputedStyle(node).backgroundColor);
+  assert.match(redCardColor, /(rgb\(255, 45, 63\)|oklab\(0\.67[^)]*0\.2[^)]*0\.12)/, `second editorial card should use red background: ${redCardColor}`);
+
+  const yellowCardColor = await editorialCards.nth(2).evaluate((node) => window.getComputedStyle(node).backgroundColor);
+  assert.match(yellowCardColor, /(rgb\(255, 233, 46\)|oklab\(0\.91[^)]*-0\.03[^)]*0\.17)/, `third editorial card should use yellow background: ${yellowCardColor}`);
 });

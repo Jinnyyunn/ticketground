@@ -27,9 +27,10 @@ export function BackendSeatPicker({
           <button
             key={seat.id}
             type="button"
+            data-backend-seat={seat.id}
             onClick={() => onSelect(seat.id)}
             className={cn(
-              "flex min-w-0 items-center justify-between gap-3 rounded-[8px] border p-3 text-left text-[13px] font-bold transition focus-visible:ring-3 focus-visible:ring-ring/40",
+              "flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-[8px] border px-4 py-3 text-left text-[13px] font-bold transition focus-visible:ring-3 focus-visible:ring-ring/40 sm:min-h-12",
               selectedTicketId === seat.id ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink hover:border-line-strong",
             )}
           >

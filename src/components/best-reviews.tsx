@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { reviews } from "@/data/content";
 import { RefreshIcon, StarIcon } from "@/components/icons";
 import { SectionHeading } from "@/components/section-heading";
@@ -14,8 +15,7 @@ export function BestReviews() {
               <h3 className="clamp-2 mt-1.5 text-[19px] font-bold leading-snug text-[#29292d]">{r.headline}</h3>
               <p className="clamp-3 mt-2.5 text-[15px] leading-[1.55] text-[#666]">{r.body}</p>
               <div className="mt-auto flex items-center gap-2 pt-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={r.avatar} alt="" className="size-7 rounded-full" />
+                <Image src={r.avatar} alt="" width={28} height={28} className="size-7 rounded-full" />
                 <span className="text-[14px] text-[#41414a]">{r.user}</span>
                 <span className="ml-1 flex items-center gap-0.5">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -25,8 +25,7 @@ export function BestReviews() {
                 <span className="text-[14px] font-bold text-[#29292d]">{r.score}</span>
               </div>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={r.poster} alt="" className="h-[150px] w-[112px] shrink-0 rounded-xl object-cover" />
+            <Image src={r.poster} alt="" width={112} height={150} className="h-[150px] w-[112px] shrink-0 rounded-xl object-cover" unoptimized={r.poster.endsWith(".gif")} />
           </article>
         ))}
       </div>

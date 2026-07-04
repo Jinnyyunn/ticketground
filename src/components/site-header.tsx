@@ -3,40 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { clearSessionUser, getSession, SESSION_USER_CHANGED_EVENT, storedSessionUserId, TicketgroundApiError } from "@/lib/ticketground-api";
+import { useSessionAuth } from "@/lib/use-session-auth";
 import { categoryNav, categoryNavHighlight } from "@/data/content";
-import { SearchIcon, StarIcon, TicketIcon, UserIcon } from "@/components/icons";
-
-const utilityLinksBeforeAuth = [
-  { label: "고객센터", href: "/help" },
-  { label: "MY", href: "/mypage" },
-] as const;
+import { SearchIcon } from "@/components/icons";
+import { categoryHrefs, loginLink, publicIconLinks, signedInIconLinks, signedInUtilityLinks, signupLink, utilityLinksBeforeAuth } from "@/components/header-links";
+import { MobileNav } from "@/components/mobile-nav";
 
 const utilityLinkClassName = "hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50";
-const loginLink = { label: "로그인", href: "/login" } as const;
-const signupLink = { label: "회원가입", href: "/signup" } as const;
-
-const iconLinks = [
-  { label: "관심공연", href: "/watchlist", Icon: StarIcon },
-  { label: "예매내역", href: "/mypage#reservations", Icon: TicketIcon },
-  { label: "MY", href: "/mypage", Icon: UserIcon },
-] as const;
-
-const categoryHrefs: Record<string, string> = {
-  홈: "/",
-  뮤지컬: "/contents/genre/musical",
-  콘서트: "/contents/genre/concert",
-  연극: "/contents/genre/theater",
-  클래식: "/contents/genre/classic",
-  전시: "/contents/genre/exhibition",
-  아동: "/contents/genre/children",
-  스포츠: "/contents/genre/sports",
-  랭킹: "/contents/ranking",
-  "티켓오픈 캘린더": "/open",
-  "티켓 재판매": "/resale",
-  지역별: "/contents/region",
-  공연장: "/place",
-};
 
 function SearchBar({ className, keyboardReachable = true }: { readonly className?: string; readonly keyboardReachable?: boolean }) {
   return (
@@ -70,36 +43,7 @@ function SearchBar({ className, keyboardReachable = true }: { readonly className
   );
 }
 
-function HeaderAuthLinks() {
-  const [signedIn, setSignedIn] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const syncAuthState = () => {
-      const userId = storedSessionUserId();
-      if (!userId) {
-        setSignedIn(false);
-        return;
-      }
-      void getSession(userId)
-        .then(() => {
-          if (active) setSignedIn(storedSessionUserId() === userId);
-        })
-        .catch((error: unknown) => {
-          if (error instanceof TicketgroundApiError && error.code === "USER_NOT_FOUND") clearSessionUser();
-          if (active) setSignedIn(false);
-        });
-    };
-    syncAuthState();
-    window.addEventListener("storage", syncAuthState);
-    window.addEventListener(SESSION_USER_CHANGED_EVENT, syncAuthState);
-    return () => {
-      active = false;
-      window.removeEventListener("storage", syncAuthState);
-      window.removeEventListener(SESSION_USER_CHANGED_EVENT, syncAuthState);
-    };
-  }, []);
-
+function HeaderAuthLinks({ signedIn, signOut }: { readonly signedIn: boolean; readonly signOut: () => void }) {
   if (!signedIn) {
     return (
       <>
@@ -114,9 +58,16 @@ function HeaderAuthLinks() {
   }
 
   return (
-    <button type="button" className={utilityLinkClassName} onClick={clearSessionUser}>
-      로그아웃
-    </button>
+    <>
+      {signedInUtilityLinks.map((link) => (
+        <Link key={link.href} href={link.href} className={utilityLinkClassName}>
+          {link.label}
+        </Link>
+      ))}
+      <button type="button" className={utilityLinkClassName} onClick={signOut}>
+        로그아웃
+      </button>
+    </>
   );
 }
 
@@ -126,6 +77,8 @@ type SiteHeaderProps = {
 
 export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
+  const { signedIn, signOut } = useSessionAuth();
+  const visibleIconLinks = signedIn ? [...publicIconLinks, ...signedInIconLinks] : publicIconLinks;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 110);
@@ -143,7 +96,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
               {link.label}
             </Link>
           ))}
-          <HeaderAuthLinks />
+          <HeaderAuthLinks signedIn={signedIn} signOut={signOut} />
         </div>
       </div>
 
@@ -153,8 +106,9 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
         {showSearchBar && <SearchBar className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />}
+        <MobileNav className="ml-auto sm:hidden" />
         <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-2 md:gap-5">
-          {iconLinks.map(({ label, href, Icon }) => (
+          {visibleIconLinks.map(({ label, href, Icon }) => (
             <Link
               key={label}
               href={href}
@@ -175,7 +129,10 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
         )}
       >
         <div className="ticketground-container flex h-11 items-center gap-4 text-[14px] sm:h-12 sm:gap-7 sm:text-[15px]">
-          <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 flex-1 items-center gap-5 overflow-x-auto sm:gap-7">
+          <div className="relative min-w-0 flex-1">
+            <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-white to-transparent sm:hidden" aria-hidden />
+            <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-white to-transparent sm:hidden" aria-hidden />
+            <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto sm:gap-7">
             {categoryNav.map((c) => (
               <Link
                 key={c}
@@ -194,7 +151,8 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
                 {c}
               </Link>
             ))}
-          </nav>
+            </nav>
+          </div>
           {showSearchBar && (
             <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
               <SearchBar className="mx-auto max-w-[420px]" keyboardReachable={scrolled} />

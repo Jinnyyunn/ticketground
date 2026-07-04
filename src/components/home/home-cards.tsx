@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { posterGradientClasses, type PosterGradient } from "@/components/poster-card";
 import { TicketgroundTag } from "@/components/ticketground/primitives";
@@ -28,16 +29,16 @@ export function GradientPoster({ title, gradient, poster, fit = "cover", classNa
       )}
     >
       {poster ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={poster}
           alt={title}
+          fill
+          sizes="(min-width: 1024px) 260px, 45vw"
           className={cn(
             "size-full transition-transform duration-300",
             fit === "contain" ? "object-contain" : "object-cover group-hover:scale-[1.03]",
           )}
-          loading="lazy"
-          decoding="async"
+          unoptimized={poster.endsWith(".gif")}
         />
       ) : (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/50 to-transparent p-4">
@@ -57,16 +58,18 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
         size === "large" ? "min-h-[420px] md:min-h-[580px]" : "min-h-[280px]",
       )}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={show.poster}
         alt=""
+        fill
+        sizes={size === "large" ? "(min-width: 768px) 56vw, 100vw" : "(min-width: 768px) 34vw, 100vw"}
         className={cn(
           "absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]",
           size === "large" ? "object-top" : "object-center",
         )}
         loading={size === "large" ? "eager" : "lazy"}
-        decoding="async"
+        fetchPriority={size === "large" ? "high" : "auto"}
+        unoptimized={show.poster.endsWith(".gif")}
       />
       <div
         className={cn(

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { promoBanners } from "@/data/content";
 
 export function PromoRow() {
@@ -5,9 +6,8 @@ export function PromoRow() {
     <section className="ticketground-container mt-6">
       <div className="grid grid-cols-3 gap-4">
         {promoBanners.map((src) => (
-          <a key={src} href="#" className="block overflow-hidden rounded-2xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt="" className="aspect-[413/103] w-full object-cover" />
+          <a key={src} href="#" className="relative block aspect-[413/103] overflow-hidden rounded-2xl">
+            <Image src={src} alt="" fill sizes="(min-width: 768px) 33vw, 100vw" className="object-cover" unoptimized={src.endsWith(".gif")} />
           </a>
         ))}
       </div>

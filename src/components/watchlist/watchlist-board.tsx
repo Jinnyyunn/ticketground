@@ -151,6 +151,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
                 enabled={enabled}
                 onRecordNotification={recordNotification}
                 onToggle={() => toggleShow(show.slug)}
+                priority={show.priority}
                 show={show}
               />
             );

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { TicketShow } from "@/types";
 import { currency } from "@/data/ticketing";
@@ -10,11 +11,13 @@ export function ShowCard({ show, compact = false }: { show: TicketShow; compact?
       href={`/goods/${show.slug}`}
       className="group grid gap-4 rounded-[10px] border border-[#eee] bg-white p-4 transition hover:border-[#d9dcff] hover:shadow-[0_12px_28px_rgba(30,30,40,0.08)] sm:grid-cols-[120px_1fr]"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={show.poster}
         alt={show.title}
+        width={120}
+        height={160}
         className="aspect-[3/4] w-full rounded-[8px] bg-[#f3f3f3] object-cover sm:w-[120px]"
+        unoptimized={show.poster.endsWith(".gif")}
       />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">

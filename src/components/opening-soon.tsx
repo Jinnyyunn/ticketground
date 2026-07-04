@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { openingSoon } from "@/data/content";
 import { SectionHeading } from "@/components/section-heading";
 import { MoreButton } from "@/components/more-button";
@@ -13,11 +14,13 @@ export function OpeningSoon() {
             href="#"
             className="flex gap-4 rounded-2xl border border-[#eee] p-3.5 transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.07)]"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={item.poster}
               alt={item.title}
+              width={90}
+              height={120}
               className="h-[120px] w-[90px] shrink-0 rounded-lg object-cover"
+              unoptimized={item.poster.endsWith(".gif")}
             />
             <div className="flex flex-1 flex-col py-1">
               <p className="text-[15px] font-bold text-ticketground">{item.time}</p>

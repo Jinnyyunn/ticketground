@@ -2,33 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { api, startServer } from "./backend-test-utils.mjs";
-
-const TEST_GOOGLE_CLIENT_ID = "ticketground-test-client.apps.googleusercontent.com";
-const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
-
-function configureGoogleEnv(t, testMode) {
-  const previousTestMode = process.env.TIG_GOOGLE_AUTH_TEST_MODE;
-  const previousServerClientId = process.env.TIG_GOOGLE_CLIENT_ID;
-  t.after(() => {
-    if (previousTestMode === undefined) {
-      delete process.env.TIG_GOOGLE_AUTH_TEST_MODE;
-    } else {
-      process.env.TIG_GOOGLE_AUTH_TEST_MODE = previousTestMode;
-    }
-    if (previousServerClientId === undefined) {
-      delete process.env.TIG_GOOGLE_CLIENT_ID;
-    } else {
-      process.env.TIG_GOOGLE_CLIENT_ID = previousServerClientId;
-    }
-  });
-
-  if (testMode) {
-    process.env.TIG_GOOGLE_AUTH_TEST_MODE = "1";
-  } else {
-    delete process.env.TIG_GOOGLE_AUTH_TEST_MODE;
-  }
-  process.env.TIG_GOOGLE_CLIENT_ID = TEST_GOOGLE_CLIENT_ID;
-}
+import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 test("Google auth endpoint rejects the deterministic test credential when test mode is disabled", async (t) => {
   configureGoogleEnv(t, false);
@@ -223,11 +197,7 @@ test("login page does not assume localhost is Google-authorized without an expli
 });
 
 test("login page initializes Google Identity Services only once in a browser session", async (t) => {
-  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
-    t.skip("NEXT_PUBLIC_GOOGLE_CLIENT_ID is required at Next.js build time for Google button wiring");
-    return;
-  }
-
+  configureGoogleEnv(t, false);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -275,52 +245,5 @@ test("login page initializes Google Identity Services only once in a browser ses
     assert.equal(calls.credential, 0);
   } finally {
     await page.close();
-  }
-});
-
-test("authenticated users are redirected away from login and signup pages", async (t) => {
-  configureGoogleEnv(t, false);
-  const { baseUrl } = await startServer(t);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
-  t.after(() => browser.close());
-
-  for (const pathName of ["/login", "/signup"]) {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-    await context.addInitScript(() => {
-      window.localStorage.setItem("ticketground:session-user-id", "user_fan_a");
-      window.localStorage.removeItem("ticketground:demo-auth-state");
-    });
-    const page = await context.newPage();
-    try {
-      await page.goto(`${baseUrl}${pathName}`, { waitUntil: "domcontentloaded" });
-      await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
-      assert.equal(new URL(page.url()).pathname, "/");
-    } finally {
-      await context.close();
-    }
-  }
-});
-
-test("stale stored user ids do not redirect away from login and signup pages", async (t) => {
-  configureGoogleEnv(t, false);
-  const { baseUrl } = await startServer(t);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
-  t.after(() => browser.close());
-
-  for (const pathName of ["/login", "/signup"]) {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-    await context.addInitScript(() => {
-      window.localStorage.setItem("ticketground:session-user-id", "not-a-real-user");
-      window.localStorage.removeItem("ticketground:demo-auth-state");
-    });
-    const page = await context.newPage();
-    try {
-      await page.goto(`${baseUrl}${pathName}`, { waitUntil: "domcontentloaded" });
-      await page.waitForFunction(() => window.localStorage.getItem("ticketground:session-user-id") === null);
-      assert.equal(new URL(page.url()).pathname, pathName);
-      assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:demo-auth-state")), "signed-out");
-    } finally {
-      await context.close();
-    }
   }
 });

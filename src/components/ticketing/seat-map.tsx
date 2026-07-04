@@ -56,17 +56,20 @@ export function SeatMap({
   const seatsById = useMemo(() => new Map(seats.map((seat) => [seat.id, seat])), [seats]);
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-surface p-4 sm:p-5">
+    <div className="min-w-0 overflow-hidden rounded-[12px] border border-line bg-surface p-4 sm:p-5" data-static-seat-map>
       <div className="mx-auto mb-5 flex h-9 max-w-[520px] items-center justify-center rounded-t-[50%] border border-line-strong bg-white text-[13px] font-black text-ink-3">
         STAGE
       </div>
-      <div className="no-scrollbar max-w-full overflow-x-auto pb-2">
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-surface to-transparent" aria-hidden />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-surface to-transparent" aria-hidden />
+        <div className="no-scrollbar max-w-full overflow-x-auto pb-2" aria-describedby="seat-map-scroll-hint">
         <div className="mx-auto w-max space-y-1" data-seat-grid="20x22">
           {seatRows.map((row) => (
-            <div key={row} className="grid grid-cols-[24px_auto_12px_auto] items-center gap-1">
+            <div key={row} className="grid grid-cols-[28px_auto_14px_auto] items-center gap-1.5">
               <span className="text-center text-[13px] font-black text-ink-3">{row}</span>
               {[seatColumns.slice(0, 11), seatColumns.slice(11)].map((columns, groupIndex) => (
-                <div key={`${row}-${groupIndex}`} className={cn("grid grid-cols-11 gap-1", groupIndex === 0 ? "col-start-2" : "col-start-4")}>
+                <div key={`${row}-${groupIndex}`} className={cn("grid grid-cols-11 gap-1.5", groupIndex === 0 ? "col-start-2" : "col-start-4")}>
                   {columns.map((number) => {
                     const id = `${row}-${number}`;
                     const seat = seatsById.get(id);
@@ -83,7 +86,7 @@ export function SeatMap({
                         aria-pressed={picked}
                         onClick={() => onToggleSeat(seat)}
                         className={cn(
-                          "relative flex size-6 items-center justify-center rounded-[4px] border text-[13px] font-black transition",
+                          "relative flex size-8 items-center justify-center rounded-[5px] border text-[13px] font-black transition sm:size-9 sm:text-[14px]",
                           tierStyles[seat.tier],
                           seat.sold && "cursor-not-allowed border-line bg-surface-3 text-ink-4 opacity-55",
                           picked && "ring-2 ring-accent-2 ring-offset-2 ring-offset-white",
@@ -95,11 +98,15 @@ export function SeatMap({
                   })}
                 </div>
               ))}
-              <span aria-hidden="true" className="col-start-3 row-start-1 h-6 border-l border-dashed border-line-strong" />
+              <span aria-hidden="true" className="col-start-3 row-start-1 h-8 border-l border-dashed border-line-strong sm:h-9" />
             </div>
           ))}
         </div>
+        </div>
       </div>
+      <p id="seat-map-scroll-hint" className="mt-3 text-[13px] font-bold text-ink-3">
+        좌석표가 화면보다 넓으면 좌우로 밀어 전체 구역을 확인할 수 있습니다.
+      </p>
       <div className="mt-5 flex flex-wrap items-center gap-3 text-[13px] font-bold" aria-label="좌석 등급 범례">
         {(["VIP", "R", "S", "A"] as const).map((tier) => (
           <span key={tier} className="inline-flex items-center gap-2">
