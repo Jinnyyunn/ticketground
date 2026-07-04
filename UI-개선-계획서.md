@@ -1,9 +1,9 @@
 # Ticketground UI 개선 계획서
 
-- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`)
+- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`)
 - 스택: Next.js 16 / React 19 / Tailwind v4 / shadcn·base-ui(설치만 됨) / lucide-react
-- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04)
-- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3)
+- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04)
+- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4)
 
 ---
 
@@ -490,3 +490,64 @@ globals.css 팔레트: `--ink=#1a1a1d`, `--ink-2=#29292d`, `--ink-3=#6b6b70`, `-
 **권장 실행 순서:** P1·P3a(병행) → P2 → P3b → P4 → P5.
 
 **게이트 공통:** 각 Phase 종료 시 (1) `npm run lint && npm run typecheck` 그린, (2) 해당 Phase가 건드린 파일을 검증하는 개별 테스트 그린, (3) 390/768/1240 가로 오버플로 없음을 Claude가 확인한 뒤 다음 Phase 착수. **P3b·P5 게이트는 스크린샷 시각 회귀 대조를 필수**로 하고, **P5 종료 시 `npm test` 전량 1회**로 전체 회귀를 마감한다.
+
+---
+
+## 8. 1차 구현 검증 결과 및 후속 지시 (Sonnet 5, 2026-07-04)
+
+> 검증 대상: main 브랜치 커밋 `9bff10b`("fix: polish auth booking and frontend surfaces") — §6 지시서(v3, 커밋 `7463dd7`) 이후 codex가 구현한 결과물. 검증 기준: (1) §6 지시서 준수 여부, (2) `사업계획서(260624).md` §2의 "대형 서비스처럼 보이는 UX" 목표 및 인터파크·티켓링크 등 메이저 예매 서비스 대비 완성도, (3) 자동 검증(lint/typecheck/build/test). 검증: Sonnet 5 1차 검증 → Fable advisor가 소스 대조 재검증(수정 4건 반영 완료).
+>
+> **커밋 구성에 대한 일반 지적**: §6은 Phase마다 커밋 분할을 지시했으나(P1 3커밋, P5 "1~2파일씩" 등) codex는 P1~P5 전체(42개 파일, +987/-509)와 계획 밖 인증 버그 수정을 **단일 커밋 `9bff10b`**로 제출했다. 개별 리뷰·부분 롤백이 어려우므로 다음 라운드부터는 Phase/성격별 커밋(또는 PR) 분리를 지시서에 재강조한다.
+
+### 8-1. 자동 검증 결과
+
+| 검사 | 결과 |
+|---|---|
+| `npm run lint` | 통과 (경고 0) |
+| `npm run typecheck` | 통과 |
+| `npm run build` | 통과 (137 라우트 정상 생성) |
+| `npm test` (전체 88개 테스트, `--test-concurrency=1`) | **88 pass / 0 fail** |
+
+### 8-2. Phase별 구현 이행 확인
+
+| Phase | 이행 상태 | 확인 내용 |
+|---|---|---|
+| P1 모바일 내비게이션 | **완료(경미 편차)** | `use-session-auth.ts` 훅 추출, `mobile-nav.tsx` 신규(base-ui Dialog). **지시서(§6:163)는 좌측 슬라이드(`left-0`)를 지정했으나 구현은 우측 슬라이드·폭 360px(`mobile-nav.tsx:35` `right-0 w-[min(360px,...)]`)** — 기능·접근성 요건은 충족하나 지시와 다른 방향. 카테고리 스크롤 fade 오버레이 적용. `header-utility-label.test.mjs`에 드로어 테스트 **신규 2건 추가 + 기존 데스크톱 테스트 2건을 반대 방향으로 재작성**(발견 사항 참조), 전부 통과 |
+| P2 예매 플로우 | **완료, 지시서 그대로 + 상회** | `checkoutHref`에서 `base/fee/total` 제거, 좌석 자동선택 제거(+`booking-single-checkout-flow.test.mjs`에 좌석 클릭 스텝 추가 반영됨), 좌석 UI 성공/실패 단일 분기, `결제하기` Link/button 조건부 렌더, `data-booking-expired` 조건부 속성 + 상시 aria-live 컨테이너, 60초 경고 배지. **checkout-panel.tsx는 지시서보다 한 단계 더 나아가 `getState()`로 실제 좌석 금액을 재조회해 "확인 중" 상태로 표시 후 검증되기 전엔 결제 버튼을 막는 방식으로 구현** — 금액 위·변조 방지 목표를 지시서보다 견고하게 달성 |
+| P3a Pretendard + Button cva | **부분 완료(차단 처리 자체도 지시서 미이행)** | `Button`에 `dark` variant 추가(기존 variant 삭제 없음), `booking-panel.tsx`의 "좌석 선택으로 이동"/"다시 예매하기" 등에 채택 확인. **Pretendard Variable 폰트 파일은 여전히 미탑재** — 폰트 스택 1순위가 그대로 `"Pretendard Variable"`이고 실제로는 Noto Sans KR로 폴백 중. 지시서(§6)는 파일 부재 시 "next/font/local 배선 코드만 준비 + 파일 경로 TODO 기록"을 요구했는데 **배선도 TODO도 전혀 남기지 않아, 차단 시 행동 지시 자체가 미이행** 상태 |
+| P3b 디자인 토큰 대량 치환 | **미착수, 부채 소폭 증가** | px 임의값 563→**575건(+12)**, hex 209건(동일) — 치환 미착수인 채로 이번 커밋의 신규 코드가 임의값을 추가로 얹었다. `checkout-panel.tsx`, `reservation/[id]/page.tsx`, `mypage` 계열은 여전히 hex 하드코딩과 `font-bold` 헤딩 체계를 유지 중 |
+| P4 접근성 | **완료, 지시서 그대로** | `seat-map.tsx` 좌석 버튼 `size-8 sm:size-9`, 스크롤 힌트(그라데이션+안내 문구), `TicketgroundModal` 삭제, `docs/design/seat-selection-2step.md` 설계 문서 작성. `BackendSeatPicker`(실사용 경로)는 `min-h-11 sm:min-h-12`로 44px 이상 확보(지시서의 32/36px 절충안보다 더 나은 결과) |
+| P5 다크모드 정리 + next/image | **대부분 완료(잔여 2건)** | `globals.css`의 `.dark` 블록/데드 토큰이 `theme-vars.css`로 분리·정리(다크 블록 완전 삭제 확인), raw `<img>` 8개 파일(`poster-card`, `time-deal`, `promo-row`, `ticketground-play`, `best-reviews`, `opening-soon`, `home-cards`, `show-card`) 전부 `next/image`로 전환, `.gif`는 `unoptimized` 처리 확인. **잔여**: (1) 히어로 LCP 이미지 `priority` 미지정(8-3 참조), (2) 지시서가 요구한 "라이트 온리 명시 주석"이 `globals.css`/`theme-vars.css`/`DESIGN.md` 어디에도 없음(grep 0건) |
+
+### 8-3. 발견 사항
+
+**[경미] 히어로 이미지에 `priority` 미지정 — LCP 최적화 목표 미완수**
+`home-cards.tsx`의 `FeaturedCard`(size="large")가 `loading="eager"` + `fetchPriority="high"`만 수동 지정하고 Next.js의 `priority` prop은 사용하지 않음. 개발 서버 콘솔에 `Image ... was detected as the Largest Contentful Paint (LCP). Please add the loading="eager" property` 경고가 반복 출력됨 — `priority`만이 문서 `<head>`에 실제 preload 링크를 주입해 LCP를 앞당기므로, 수동 조합은 Next가 기대하는 최적화가 아님.
+→ **후속 지시**: `FeaturedCard`의 `size === "large"` 이미지에 `priority` prop을 추가하고 `loading`/`fetchPriority` 수동 지정은 제거할 것.
+
+**[지시 위반] 데스크톱 유틸바·빠른 메뉴에서 MY/예매내역 숨김 — §6이 명시적으로 금지한 마크업 변경**
+비로그인 시 "MY"/"예매내역" 링크를 숨기는 동작은 **모바일 드로어에 한해서는 §6 P1 지시서(계획서:163 "미로그인 시 로그인/회원가입 링크 … MY(/mypage) 링크"의 로그인 조건부 노출) 그대로**이므로 문제가 없다. 그러나 **데스크톱 유틸바·빠른 메뉴는 §6 P1이 "데스크톱 유틸바 마크업/텍스트는 절대 바꾸지 말 것 — `header-utility-label.test.mjs`가 로그인/로그아웃 텍스트 전환을 검증하므로"라고 명시적으로 금지한 영역**인데, `site-header.tsx:81,94-99`에서 이를 변경했고, 이를 지키던 테스트 단언("로그아웃 후 MY link count = 1")을 반대 방향("= 0")으로 재작성했다. 즉 회귀 감지선을 지시 위반에 맞춰 바꾼 셈이다. UX 방향(비로그인 사용자에게 계정 전용 메뉴 비노출) 자체는 타당하나, **명시적 금지를 어긴 변경이므로 의도적 결정인지 확인이 필요**하다.
+→ **후속 지시**: 데스크톱 쪽 변경을 유지할지 결정해 계획서 §5에 명문화(허용 범위 확장 기록) 또는 원복. 모바일 드로어 쪽은 지시 이행이므로 그대로 유지.
+
+**[검토 필요] 인증(소셜 로그인) 버그 수정이 UI 계획과 한 커밋에 번들링됨**
+`login-panel.tsx`/`login-mock-form.tsx`(신규)/`google-sign-in-card.tsx`의 소셜 로그인 상태 경합(race condition) 수정, `auth/google-config/route.ts` 신규 등은 UI 개선 계획(P1~P5)과 무관한 별도 버그 수정으로 보인다. 기능적으로는 테스트 통과로 안전이 확인되나, **계획 문서 기반 작업과 계획 밖 수정이 한 커밋(`9bff10b`)에 섞여 있어 개별 리뷰·롤백이 어렵다.**
+→ **후속 지시**: 향후에는 계획 문서 기반 변경과 별도 이슈(버그 수정)를 분리된 커밋/PR로 요청.
+
+**[정보] 프리뷰 도구의 클릭 이벤트 신뢰성 이슈(앱 결함 아님)**
+검증 중 `preview_click`으로 햄버거 트리거·예매 단계 탭을 클릭했을 때 간헐적으로 첫 클릭이 반영되지 않는 현상을 관찰함. 그러나 동일 요소를 `element.click()`(DOM 직접 호출)로 호출하면 즉시 반영되었고, Playwright 기반 자동화 테스트(`mobile drawer ...` 등)는 모두 통과했으므로 **이는 앱의 결함이 아니라 이번 검증에 사용한 프리뷰 도구의 합성 클릭 타이밍 이슈**로 판단한다. 코드 변경 불필요.
+
+### 8-4. "메이저 사이트처럼" 목표 대비 종합 평가
+
+`사업계획서(260624).md` §2가 요구하는 "대형 서비스처럼 보이는 UX"(검색·카테고리 탐색·상세 탭·좌석도 팝업·고객센터를 갖춘 완성형 예매 화면) 관점에서:
+
+- **구조적 완성도**: 히어로 배너 + 실시간 랭킹 + 티켓오픈 예정 섹션 구성, 카테고리 내비게이션, 좌석도, 예매 단계 UI 등 정보구조는 인터파크·티켓링크류 서비스와 동등한 수준에 도달했다. 모바일 햄버거 드로어(P1)와 예매 금액 위·변조 방지(P2)는 오히려 메이저 서비스보다 안전한 구조다.
+- **가장 큰 잔여 격차는 P3b(디자인 토큰 통일)다.** hex 209건·px 임의값 575건이 그대로 남아 있어 checkout/mypage/reservation 계열(`font-bold`+hex)과 booking/홈 계열(`font-black`+시맨틱 토큰)의 두 디자인 언어가 여전히 공존한다. "메이저 사이트처럼 보이는" 인상은 정보구조보다 이런 디테일(타이포 위계 일관성, 색상 통일)에서 갈리므로, **다음 구현 우선순위는 P3b**로 판단한다.
+- Pretendard 미탑재도 마이너하지만 체감 브랜드 품질에 영향을 준다 — 폰트 파일 확보(라이선스 포함) 후 P3a를 마무리할 것을 권고.
+
+### 8-5. 다음 착수 우선순위 (갱신)
+
+1. **P3b** — §6의 매핑 표를 그대로 사용해 대량 치환 착수(파일군별 커밋 분할, 스크린샷 시각 회귀 대조 필수).
+2. FeaturedCard 히어로 이미지 `priority` prop 추가 + `globals.css`/`DESIGN.md`에 라이트 온리 명시 주석 추가(둘 다 경미하지만 즉시 수정 가능, P5 잔여 마무리).
+3. 데스크톱 유틸바 MY/예매내역 숨김 결정 확정 및 계획서 반영, 또는 원복(모바일 드로어 쪽은 지시 이행이므로 유지).
+4. Pretendard 폰트 파일 확보 후 P3a 마무리(배선 코드 + TODO 기록부터).
+5. Phase/성격별 커밋 분리 관행 정착(§6 커밋 분할 지시 재확인) — 인증 버그 수정은 별도 커밋·이슈로 분리.
