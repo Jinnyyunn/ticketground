@@ -11,7 +11,8 @@ test("Next dev warning sources are configured for smooth scroll, dev indicator, 
 
   assert.match(nextConfigSource, /devIndicators:\s*false/);
   assert.match(layoutSource, /data-scroll-behavior="smooth"/);
-  assert.match(homeCardsSource, /priority=\{size === "large"\}/);
+  assert.match(homeCardsSource, /preload=\{size === "large"\}/);
+  assert.doesNotMatch(homeCardsSource, /priority=/);
   assert.doesNotMatch(homeCardsSource, /loading=\{size === "large" \? "eager" : "lazy"\}/);
   assert.doesNotMatch(homeCardsSource, /fetchPriority=\{size === "large" \? "high" : "auto"\}/);
   assert.match(watchlistCardSource, /priority\?: boolean/);

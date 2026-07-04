@@ -128,6 +128,7 @@
 - **인증 UX 전반**: mypage가 로그인 게이트 없이 데모 예매내역 노출, resale이 `sessionUserId`를 쿼리스트링으로 수용(`resale/page.tsx:34`), login 페이지 방문만으로 데모 세션 자동 연결(`login-panel.tsx:102-105`) — 프로토타입 데모 편의로 판단되나, 실서비스 전환 시 별도 과제로 다뤄야 함
 - `TicketgroundModal` 등 데드코드의 base-ui 재구현 — 삭제로 대체 (P4에 포함)
 - **§6 P1 수용 편차(보안/인증 게이트):** `9bff10b`의 데스크톱 유틸바 `MY`/`예매내역` 미인증 숨김 처리는 유지한다. §6 P1은 데스크톱 유틸바 마크업/텍스트 변경 금지를 요구했지만, 현재 서비스 보안 요구가 “로그인 전 MY 및 예매내역 접근 차단”이므로 모바일 드로어 조건부 노출과 같은 방향으로 맞춘다.
+- **§6 P5 수용 편차(Next 16 이미지 API):** §6에는 FeaturedCard의 LCP 이미지에 `priority` prop을 추가하라고 되어 있으나, 현재 `next@16.2.1` 문서에서는 `priority`가 deprecated이고 `preload`가 대체 속성이다. 따라서 수동 `loading`/`fetchPriority`는 제거하되, 실제 구현은 `preload={size === "large"}`로 맞춘다.
 - **§8 부재:** 현재 `main` 문서에는 `## 8` 섹션이 존재하지 않아, 이번 라운드 검증 기준은 §6의 Phase별 DoD와 별도 QA 산출물로 추적한다.
 
 ---
