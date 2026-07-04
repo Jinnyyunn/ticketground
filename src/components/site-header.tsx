@@ -90,7 +90,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
   return (
     <header className="relative z-50 w-full bg-white text-ink">
       <div className="hidden border-b border-line bg-surface sm:block">
-        <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-[13px] font-bold text-ink-3">
+        <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-sm font-bold text-ink-3">
           {utilityLinksBeforeAuth.map((link) => (
             <Link key={link.href} href={link.href} className={utilityLinkClassName}>
               {link.label}
@@ -113,7 +113,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
               key={label}
               href={href}
               aria-label={label}
-              className="grid min-w-[42px] justify-items-center gap-0.5 whitespace-nowrap text-[11px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:gap-1 md:text-[13px]"
+              className="grid min-w-[42px] justify-items-center gap-0.5 whitespace-nowrap text-[11px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:gap-1 md:text-sm"
             >
               <Icon className="size-[22px]" />
               <span>{label}</span>
@@ -128,7 +128,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           scrolled && "shadow-ticket-1",
         )}
       >
-        <div className="ticketground-container flex h-11 items-center gap-4 text-[14px] sm:h-12 sm:gap-7 sm:text-[15px]">
+        <div className="ticketground-container flex h-11 items-center gap-4 text-[14px] sm:h-12 sm:gap-7 sm:text-base">
           <div className="relative min-w-0 flex-1">
             <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-white to-transparent sm:hidden" aria-hidden />
             <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-white to-transparent sm:hidden" aria-hidden />

@@ -12,8 +12,8 @@ export function BestReviews() {
           <article key={r.show} className="flex gap-5">
             <div className="flex min-w-0 flex-1 flex-col">
               <p className="text-[14px] text-[#9b9b9b]">{r.show}</p>
-              <h3 className="clamp-2 mt-1.5 text-[19px] font-bold leading-snug text-[#29292d]">{r.headline}</h3>
-              <p className="clamp-3 mt-2.5 text-[15px] leading-[1.55] text-[#666]">{r.body}</p>
+              <h3 className="clamp-2 mt-1.5 text-[19px] font-bold leading-snug text-ink-2">{r.headline}</h3>
+              <p className="clamp-3 mt-2.5 text-base leading-[1.55] text-[#666]">{r.body}</p>
               <div className="mt-auto flex items-center gap-2 pt-4">
                 <Image src={r.avatar} alt="" width={28} height={28} className="size-7 rounded-full" />
                 <span className="text-[14px] text-[#41414a]">{r.user}</span>
@@ -22,7 +22,7 @@ export function BestReviews() {
                     <StarIcon key={i} className="size-3.5 text-[#ffb400]" />
                   ))}
                 </span>
-                <span className="text-[14px] font-bold text-[#29292d]">{r.score}</span>
+                <span className="text-[14px] font-bold text-ink-2">{r.score}</span>
               </div>
             </div>
             <Image src={r.poster} alt="" width={112} height={150} className="h-[150px] w-[112px] shrink-0 rounded-xl object-cover" unoptimized={r.poster.endsWith(".gif")} />
@@ -32,7 +32,7 @@ export function BestReviews() {
       <div className="mt-12 flex justify-center">
         <a
           href="#"
-          className="flex h-[52px] items-center gap-2 rounded-full border border-[#e0e0e0] px-7 text-[16px] font-bold text-[#29292d] hover:border-[#bdbdbd]"
+          className="flex h-[52px] items-center gap-2 rounded-full border border-[#e0e0e0] px-7 text-lg font-bold text-ink-2 hover:border-[#bdbdbd]"
         >
           <RefreshIcon className="size-4" />
           관람후기 새로 보기

@@ -34,7 +34,7 @@ export function MobileNav({ className }: { readonly className?: string }) {
         <Dialog.Backdrop className="fixed inset-0 z-[80] bg-ink/45" />
         <Dialog.Popup className="fixed inset-y-0 right-0 z-[90] flex w-[min(360px,calc(100vw-32px))] flex-col bg-white p-5 text-ink shadow-ticket-3">
           <div className="flex items-center justify-between gap-3 border-b border-line pb-4">
-            <Dialog.Title className="text-[20px] font-black">전체 메뉴</Dialog.Title>
+            <Dialog.Title className="text-2xl font-black">전체 메뉴</Dialog.Title>
             <Dialog.Close
               aria-label="전체 메뉴 닫기"
               className="grid size-10 place-items-center rounded-full border border-line bg-surface text-ink hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -72,7 +72,7 @@ export function MobileNav({ className }: { readonly className?: string }) {
             )}
           </nav>
 
-          <nav aria-label="모바일 카테고리" className="grid gap-2 overflow-y-auto py-4 text-[16px] font-black">
+          <nav aria-label="모바일 카테고리" className="grid gap-2 overflow-y-auto py-4 text-lg font-black">
             {[...categoryNav, ...categoryNavHighlight].map((label) => (
               <Link
                 key={label}

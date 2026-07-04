@@ -23,8 +23,8 @@ export function OpeningSoon() {
               unoptimized={item.poster.endsWith(".gif")}
             />
             <div className="flex flex-1 flex-col py-1">
-              <p className="text-[15px] font-bold text-ticketground">{item.time}</p>
-              <h3 className="clamp-2 mt-1.5 text-[16px] font-bold leading-[1.35] text-[#29292d]">{item.title}</h3>
+              <p className="text-base font-bold text-ticketground">{item.time}</p>
+              <h3 className="clamp-2 mt-1.5 text-lg font-bold leading-[1.35] text-ink-2">{item.title}</h3>
               <p className="mt-1.5 text-[14px] text-[#7e7e81]">{item.type}</p>
               <div className="mt-auto flex gap-1.5 pt-2">
                 {item.hot && (

@@ -3,7 +3,7 @@ export function ReviewCta() {
     <section className="ticketground-container mt-[60px]">
       <div className="relative flex h-[150px] items-center justify-center overflow-hidden rounded-2xl bg-[#6742d8]">
         <div className="text-center text-white">
-          <p className="text-[16px] text-white/85">관람후기/기대평 작성하고</p>
+          <p className="text-lg text-white/85">관람후기/기대평 작성하고</p>
           <p className="mt-1.5 text-[26px] font-bold">공연 초대권 받아가세요!</p>
         </div>
         {/* decorative ticket envelope */}
