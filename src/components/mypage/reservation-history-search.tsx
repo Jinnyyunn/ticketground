@@ -73,13 +73,13 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
       <div className="min-w-0">
         <p className="text-[14px] font-black text-ticketground">내 예약 통합 조회</p>
         <h3 className="balanced-title mt-1 text-[22px] font-black text-ink">내 예매 및 취소공연 검색</h3>
-        <p className="mt-2 break-keep text-[13px] leading-relaxed text-ink-3">
+        <p className="mt-2 break-keep text-sm leading-relaxed text-ink-3">
           최근 3년 범위 안에서 예매완료 공연과 취소 요청 내역을 공연명, 장소, 예매번호로 찾아볼 수 있습니다.
         </p>
       </div>
 
       <div className="mt-4 grid gap-3 rounded-[10px] border border-line bg-white p-4 lg:grid-cols-[minmax(0,1fr)_160px]">
-        <label className="grid gap-2 text-[13px] font-black text-ink">
+        <label className="grid gap-2 text-sm font-black text-ink">
           내역 검색어
           <input
             type="search"
@@ -87,16 +87,16 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="공연명, 장소, 예매번호 검색"
-            className="h-11 min-w-0 rounded-[8px] border border-line bg-surface px-3 text-[15px] font-bold text-ink outline-none transition focus:border-line-strong focus:bg-white"
+            className="h-11 min-w-0 rounded-sm border border-line bg-surface px-3 text-base font-bold text-ink outline-none transition focus:border-line-strong focus:bg-white"
           />
         </label>
-        <label className="grid gap-2 text-[13px] font-black text-ink">
+        <label className="grid gap-2 text-sm font-black text-ink">
           조회 기간
           <select
             aria-label="조회 기간"
             value={range}
             onChange={(event) => setRange(toHistoryRange(event.target.value))}
-            className="h-11 rounded-[8px] border border-line bg-surface px-3 text-[14px] font-black text-ink outline-none transition focus:border-line-strong focus:bg-white"
+            className="h-11 rounded-sm border border-line bg-surface px-3 text-[14px] font-black text-ink outline-none transition focus:border-line-strong focus:bg-white"
           >
             {rangeOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -107,7 +107,7 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
         </label>
         {range === "custom" && (
           <div className="grid gap-3 lg:col-span-2 sm:grid-cols-2">
-            <label className="grid gap-2 text-[13px] font-black text-ink">
+            <label className="grid gap-2 text-sm font-black text-ink">
               시작일
               <input
                 type="date"
@@ -115,10 +115,10 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
                 value={visibleStart}
                 max={visibleEnd}
                 onChange={(event) => setCustomStart(event.target.value)}
-                className="h-11 rounded-[8px] border border-line bg-surface px-3 text-[14px] font-bold text-ink outline-none transition focus:border-line-strong focus:bg-white"
+                className="h-11 rounded-sm border border-line bg-surface px-3 text-[14px] font-bold text-ink outline-none transition focus:border-line-strong focus:bg-white"
               />
             </label>
-            <label className="grid gap-2 text-[13px] font-black text-ink">
+            <label className="grid gap-2 text-sm font-black text-ink">
               종료일
               <input
                 type="date"
@@ -126,14 +126,14 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
                 value={visibleEnd}
                 min={visibleStart}
                 onChange={(event) => setCustomEnd(event.target.value)}
-                className="h-11 rounded-[8px] border border-line bg-surface px-3 text-[14px] font-bold text-ink outline-none transition focus:border-line-strong focus:bg-white"
+                className="h-11 rounded-sm border border-line bg-surface px-3 text-[14px] font-bold text-ink outline-none transition focus:border-line-strong focus:bg-white"
               />
             </label>
           </div>
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-[13px] font-bold text-ink-3">
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-bold text-ink-3">
         <span className="rounded-full bg-white px-3 py-1">{filteredItems.length}건 조회</span>
         <span>
           {startDate} ~ {endDate}
@@ -142,7 +142,7 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
 
       <div className="mt-3 grid gap-3">
         {filteredItems.length === 0 ? (
-          <p className="rounded-[8px] border border-line bg-white p-4 text-[13px] font-bold text-ink-3">
+          <p className="rounded-sm border border-line bg-white p-4 text-sm font-bold text-ink-3">
             조건에 맞는 예매 또는 취소 내역이 없습니다.
           </p>
         ) : (
@@ -156,19 +156,19 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
 function HistoryResultCard({ item }: { readonly item: HistoryItem }) {
   const canceled = item.statusLabel === "취소요청 완료";
   return (
-    <div role="article" data-history-search-row className="rounded-[8px] border border-line bg-white p-4">
+    <div role="article" data-history-search-row className="rounded-sm border border-line bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className={cn("rounded-full px-3 py-1 text-[13px] font-black", canceled ? "bg-tint-yellow text-warn" : "bg-tint-blue text-link")}>
+        <span className={cn("rounded-full px-3 py-1 text-sm font-black", canceled ? "bg-tint-yellow text-warn" : "bg-tint-blue text-link")}>
           {item.statusLabel}
         </span>
-        <span className="text-[13px] font-bold text-ink-3">{item.detail}</span>
+        <span className="text-sm font-bold text-ink-3">{item.detail}</span>
       </div>
-      <h4 className="balanced-title mt-3 text-[18px] font-black text-ink">{item.title}</h4>
+      <h4 className="balanced-title mt-3 text-xl font-black text-ink">{item.title}</h4>
       <p className="mt-2 break-words text-[14px] text-ink-3">{item.venue}</p>
       <p className="mt-1 text-[14px] font-black text-ink">
         {item.date} {item.time} · {item.seat}
       </p>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="font-bold text-ink-3">예매번호 {item.id}</span>
         <span className="font-black text-ticketground">{item.amountLabel}</span>
       </div>

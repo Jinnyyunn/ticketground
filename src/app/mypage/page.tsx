@@ -23,10 +23,10 @@ export default function MyPage() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="h-fit rounded-[10px] border border-[#eee] p-4">
-            <h2 className="px-2 text-[15px] font-bold text-[#29292d]">마이페이지</h2>
+            <h2 className="px-2 text-base font-bold text-ink-2">마이페이지</h2>
             <nav className="mt-3 grid gap-1">
               {sideNav.map(([label, href]) => (
-                <Link key={label} href={href} className="rounded-[8px] px-3 py-2 text-[14px] font-bold text-[#666] hover:bg-[#f7f7f8]">
+                <Link key={label} href={href} className="rounded-sm px-3 py-2 text-[14px] font-bold text-[#666] hover:bg-[#f7f7f8]">
                   {label}
                 </Link>
               ))}
@@ -35,7 +35,7 @@ export default function MyPage() {
 
           <div id="reservations" className="min-w-0 scroll-mt-[176px]">
             <p className="text-[14px] font-bold text-ticketground">내 예약</p>
-            <h2 className="mt-2 text-[30px] font-bold text-[#29292d]">예매 내역</h2>
+            <h2 className="mt-2 text-[30px] font-bold text-ink-2">예매 내역</h2>
             <BackendTicketPanel reservations={displayReservations} />
             <div className="mt-5 grid gap-4">
               {displayReservations.map((reservation) => {
@@ -45,27 +45,27 @@ export default function MyPage() {
                     <div className="grid gap-5 xl:grid-cols-[1fr_auto]">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded bg-[#eef0ff] px-2 py-1 text-[13px] font-bold text-ticketground">{reservation.status}</span>
-                          <span className={`rounded-full px-3 py-1 text-[13px] font-bold ${active ? "bg-[#ff2d3f] text-white" : "bg-[#f3f3f3] text-[#29292d]"}`}>
+                          <span className="rounded bg-[#eef0ff] px-2 py-1 text-sm font-bold text-ticketground">{reservation.status}</span>
+                          <span className={`rounded-full px-3 py-1 text-sm font-bold ${active ? "bg-ticketground text-white" : "bg-surface-2 text-ink-2"}`}>
                             {active ? "입장 QR 활성화" : "잠금 · 가상 티켓"}
                           </span>
-                          {active && <span className="text-[13px] font-bold text-[#ff2d3f]">D-DAY · 앱에서 20초마다 갱신</span>}
+                          {active && <span className="text-sm font-bold text-ticketground">D-DAY · 앱에서 20초마다 갱신</span>}
                         </div>
-                        <h3 className="balanced-title mt-3 text-[22px] font-bold text-[#29292d]">{reservation.showTitle}</h3>
-                        <p className="mt-2 break-words text-[15px] text-[#666]">{reservation.venue}</p>
-                        <p className="mt-1 text-[15px] font-bold">
+                        <h3 className="balanced-title mt-3 text-[22px] font-bold text-ink-2">{reservation.showTitle}</h3>
+                        <p className="mt-2 break-words text-base text-[#666]">{reservation.venue}</p>
+                        <p className="mt-1 text-base font-bold">
                           {reservation.date} {reservation.time} · {reservation.seat}
                         </p>
-                        <p className="mt-1 text-[13px] text-[#777]">예매번호 {reservation.id}</p>
+                        <p className="mt-1 text-sm text-[#777]">예매번호 {reservation.id}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                        <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-[8px] bg-[#29292d] px-4 text-[14px] font-bold text-white whitespace-nowrap">
+                        <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-sm bg-ink-2 px-4 text-[14px] font-bold text-white whitespace-nowrap">
                           {active ? "입장 QR 열기(앱)" : "가상 티켓 보기"}
                         </Link>
-                        <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
+                        <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
                           공식 재판매
                         </Link>
-                        <Link href={`/cancel?reservation=${reservation.id}`} className="flex h-10 items-center rounded-[8px] border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
+                        <Link href={`/cancel?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-[#ddd] px-4 text-[14px] font-bold whitespace-nowrap">
                           취소
                         </Link>
                       </div>
