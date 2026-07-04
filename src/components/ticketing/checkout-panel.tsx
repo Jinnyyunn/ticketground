@@ -134,9 +134,9 @@ export function CheckoutPanel({
               ["좌석", selection.seats],
               ["매수", `${selection.count}매`],
             ].map(([label, value]) => (
-              <div key={label} className="flex justify-between gap-4">
-                <dt className="text-[#7e7e81]">{label}</dt>
-                <dd className="text-right font-bold">{value}</dd>
+              <div key={label} className="grid grid-cols-[52px_minmax(0,1fr)] gap-3">
+                <dt className="whitespace-nowrap text-[#7e7e81]">{label}</dt>
+                <dd className="min-w-0 break-words text-right font-bold">{value}</dd>
               </div>
             ))}
           </dl>
