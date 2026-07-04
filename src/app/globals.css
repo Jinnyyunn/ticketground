@@ -1,11 +1,13 @@
+/* Ticketground is intentionally light-only; do not add `.dark` token overrides without a full dark-mode design pass. */
+/* TODO(font): add `src/app/fonts/PretendardVariable.woff2` and enable next/font/local in layout.tsx to populate --font-pretendard. */
 @import "tailwindcss";
 @import "./theme-vars.css";
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Pretendard Variable", var(--font-noto), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
-  --font-display: "Pretendard Variable", var(--font-noto), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-sans: var(--font-pretendard, var(--font-noto)), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-display: var(--font-pretendard, var(--font-noto)), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font-heading: var(--font-sans);
   --text-xs: var(--fs-sm);

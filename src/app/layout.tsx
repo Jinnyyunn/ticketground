@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 
+// TODO(font): enable next/font/local here after adding src/app/fonts/PretendardVariable.woff2.
 const notoSansKr = Noto_Sans_KR({
   variable: "--font-noto",
   subsets: ["latin"],

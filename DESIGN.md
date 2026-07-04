@@ -1,5 +1,8 @@
 # Ticketground Design Notes
 
+> Light-only policy: Ticketground currently ships a light-only public UI. Do not add `.dark` token overrides or dark-only utilities without a separate full dark-mode design pass.
+> Font policy: Pretendard Variable is the preferred self-hosted face, but no font binary is present in this repository. Add `src/app/fonts/PretendardVariable.woff2`, then enable `next/font/local` in `src/app/layout.tsx` with `variable: "--font-pretendard"`.
+
 ## Intent
 Ticketground screens must feel like a dense Korean ticketing service: functional, compact, high-trust, and fast to scan.
 
