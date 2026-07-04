@@ -27,13 +27,13 @@ export const cleanTicketQrStages: readonly QrStateStage[] = [
     code: "virtual",
     label: "가상 티켓",
     timing: "구매 직후",
-    description: "소유 확인 전용이며 입장 QR로 사용할 수 없습니다.",
+    description: "입장 QR이 아닌 소유 확인용 티켓입니다.",
   },
   {
     code: "precheck",
     label: "QR 준비",
     timing: "공연 1일 전",
-    description: "앱 설치와 본인 기기 확인을 진행합니다.",
+    description: "앱 설치 및 기기 확인 단계입니다.",
   },
   {
     code: "active",

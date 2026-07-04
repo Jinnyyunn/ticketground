@@ -201,7 +201,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                       </button>
                     ))}
                   </div>
-                  <p className="mt-3 text-sm font-bold text-ink-3">최대 2매, 초과 선택 시 오래된 좌석이 자동 해제됩니다.</p>
+                  <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 2매 선택 가능. 추가 선택 시 이전 좌석이 해제됩니다.</p>
                 </div>
               </div>
               <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 h-12 rounded-sm bg-ticketground px-6 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
@@ -262,7 +262,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             <BookingSummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
             <BookingSummaryRow label="총 결제금액" value={currency(totalAmount)} total />
           </dl>
-          <p className="mt-4 rounded-sm bg-tint-yellow px-3 py-2 text-sm font-bold text-ink">정책: 3번째 좌석 선택 시 가장 오래된 좌석이 자동 해제됩니다.</p>
+          <p className="mt-4 break-keep rounded-sm bg-tint-yellow px-3 py-2 text-sm font-bold text-ink">정책: 최대 2매, 추가 선택 시 이전 좌석 해제</p>
         </aside>
       </div>
     </div>

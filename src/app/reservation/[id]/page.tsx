@@ -60,7 +60,7 @@ export default async function ReservationPage({
               <article key={stage.code} className="rounded-[10px] border border-[#eee] bg-[#f8f8f8] p-4">
                 <p className="text-sm font-bold text-ticketground">{index + 1}단계 · {stage.timing}</p>
                 <h2 className="mt-2 text-xl font-bold text-ink-2">{stage.label}</h2>
-                <p className="mt-2 text-[14px] text-[#666]">{stage.description}</p>
+                <p className="mt-2 break-keep text-[14px] leading-relaxed text-[#666]">{stage.description}</p>
               </article>
             ))}
           </div>

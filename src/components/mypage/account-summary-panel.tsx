@@ -145,8 +145,10 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
           <h1 className="text-[32px] font-bold" data-account-name>
             {displayName} 회원
           </h1>
-          <p className="mt-2 text-base text-[#d8d8d8]">
-            클린티켓 인증 기기 1대 · 예매 {reservationCount}건 · 공식 재판매 가능 {resaleSeatCount}석
+          <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-base text-[#d8d8d8]">
+            <span className="whitespace-nowrap">클린티켓 인증 기기 1대</span>
+            <span className="whitespace-nowrap">예매 {reservationCount}건</span>
+            <span className="whitespace-nowrap">공식 재판매 {resaleSeatCount}석</span>
           </p>
           <p className="mt-2 text-sm font-bold text-white/70" data-account-status>
             {status}
