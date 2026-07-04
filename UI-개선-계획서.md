@@ -2,8 +2,8 @@
 
 - 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`)
 - 스택: Next.js 16 / React 19 / Tailwind v4 / shadcn·base-ui(설치만 됨) / lucide-react
-- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04)
-- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4)
+- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04, §9 추가: 2026-07-04)
+- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4). §9(P6 다크모드)는 사용자 요청으로 신설, Sonnet 5가 작성하고 Fable advisor가 재검증(치명 1건·수정 3건 반영)한 결과 (v5)
 
 ---
 
@@ -124,7 +124,7 @@
 - 홈 콘텐츠 목데이터(`home-content.ts` 등)의 실데이터 전환 — 백엔드 과제
 - 대기열(`queue-waiting-room.tsx`) 시뮬레이션 로직의 실서버 연동
 - 관리자 페이지 UI (별도 내역서 존재)
-- 전면적인 다크모드 신규 구현 (P5는 데드코드 정리만)
+- ~~전면적인 다크모드 신규 구현 (P5는 데드코드 정리만)~~ → **2026-07-04 사용자 요청으로 철회, §9 P6(다크모드 도입)으로 정식 편입**. P5는 여전히 데드 `.dark` CSS 정리만 수행했고, 실다크모드 구현은 P3b 완료 후 P6에서 별도 진행
 - **인증 UX 전반**: mypage가 로그인 게이트 없이 데모 예매내역 노출, resale이 `sessionUserId`를 쿼리스트링으로 수용(`resale/page.tsx:34`), login 페이지 방문만으로 데모 세션 자동 연결(`login-panel.tsx:102-105`) — 프로토타입 데모 편의로 판단되나, 실서비스 전환 시 별도 과제로 다뤄야 함
 - `TicketgroundModal` 등 데드코드의 base-ui 재구현 — 삭제로 대체 (P4에 포함)
 
@@ -486,8 +486,10 @@ globals.css 팔레트: `--ink=#1a1a1d`, `--ink-2=#29292d`, `--ink-3=#6b6b70`, `-
 | **P3b** | **P2·P3a 완료 후 착수**(치환 파일이 P2에서 바뀌고, Button 채택이 P3a에서 선행) | 파일군별로만 내부 병행 | 매핑 표 결정값 준수(무손실 우선/헤딩 유지), 시각 회귀 스크린샷 대조, 테스트 검증 클래스·텍스트 계약 불변 |
 | **P4** | P2 완료 후(좌석 렌더 분기 확정 위) | P3b와 부분 병행 가능(seat-map 충돌 주의) | 터치타깃 32/36px 트레이드오프 수용, 2단 선택 설계 문서 타당성, 데드코드 삭제가 사용 중 프리미티브를 건드리지 않는지 |
 | **P5** | P3b 완료 후(`bg-white`·시맨틱 토큰 정합) | 단독 | `.dark` 삭제가 라이트값 손실 없는지, next/image 전환 후 포스터 테스트 그린, LCP `priority`, 원격 도메인 config |
+| **P6(다크모드)** | **P3b 완료 필수**(시맨틱 토큰 사용이 끝나야 다크 값 추가가 안전) | P4·P5와 무관, 단독 진행 가능 | FOUC 없는지, 시스템 감지·수동 토글 우선순위 로직, 좌석 등급색·`bg-ink`+`text-white` 조합 다크 대비, tint 토큰(`color-mix(...white)`) 처리, 시각 회귀(라이트 쪽에 영향 없어야 함) |
 
-**권장 실행 순서:** P1·P3a(병행) → P2 → P3b → P4 → P5.
+**권장 실행 순서(원래 계획):** P1·P3a(병행) → P2 → P3b → P4 → P5.
+**2026-07-04 갱신(§8 진행 현황 반영):** P1·P2·P4 완료 확인됨. 잔여 순서는 **P3b → P6(다크모드)**, P3a 마무리(Pretendard 폰트 확보 후)·P5 잔여 2건(§8-5)은 P6과 무관하므로 병행 가능. 상세 스펙은 §9 참조.
 
 **게이트 공통:** 각 Phase 종료 시 (1) `npm run lint && npm run typecheck` 그린, (2) 해당 Phase가 건드린 파일을 검증하는 개별 테스트 그린, (3) 390/768/1240 가로 오버플로 없음을 Claude가 확인한 뒤 다음 Phase 착수. **P3b·P5 게이트는 스크린샷 시각 회귀 대조를 필수**로 하고, **P5 종료 시 `npm test` 전량 1회**로 전체 회귀를 마감한다.
 
@@ -551,3 +553,73 @@ globals.css 팔레트: `--ink=#1a1a1d`, `--ink-2=#29292d`, `--ink-3=#6b6b70`, `-
 3. 데스크톱 유틸바 MY/예매내역 숨김 결정 확정 및 계획서 반영, 또는 원복(모바일 드로어 쪽은 지시 이행이므로 유지).
 4. Pretendard 폰트 파일 확보 후 P3a 마무리(배선 코드 + TODO 기록부터).
 5. Phase/성격별 커밋 분리 관행 정착(§6 커밋 분할 지시 재확인) — 인증 버그 수정은 별도 커밋·이슈로 분리.
+
+---
+
+## 9. P6 — 다크모드 도입 (P3b 완료 후 착수)
+
+> §5에서 "전면적인 다크모드 신규 구현"을 Out of Scope로 뒀던 것을 사용자 요청으로 철회하고 정식 Phase(P6)로 편입한다. **선행 조건: P3b(디자인 토큰 대량 치환)가 먼저 끝나 있어야 한다.** 지금 hex 209건이 컴포넌트에 하드코딩된 상태에서 다크 토큰을 얹으면 그 하드코딩된 값을 라이트/다크 두 번 손보게 되어 작업량이 배가된다. P3b로 시맨틱 토큰 사용이 끝난 뒤에 `.dark`에 값만 얹으면 됨.
+>
+> 전환 방식: **시스템 설정(`prefers-color-scheme`)을 기본값으로 따르되, 사용자가 수동 토글로 덮어쓸 수 있어야 한다.** 토글 선택은 `localStorage`에 저장해 재방문 시 유지한다.
+
+### 9-1. 토글 아키텍처
+
+- **저장 키**: `localStorage["ticketground:theme"]` — 값은 `"light" | "dark" | "system"`(기본값 `"system"`).
+- **FOUC 방지**: 현재 `src/app/layout.tsx`는 App Router의 metadata API를 쓰고 있어 `<head>` JSX를 직접 작성하지 않는다(App Router는 레이아웃에서 `<head>` 태그 작성을 지원하지 않음). 대신 **`<body>` 최상단(children보다 먼저)**에 일반 인라인 `<script dangerouslySetInnerHTML={...}>`를 배치한다(next-themes와 동일한 패턴 — 이 시점에 `document.documentElement`는 이미 존재하므로 첫 페인트 전에 동기적으로 `.dark` 부여 가능). 페이지 렌더 전에 `localStorage` 값(또는 `system`이면 `window.matchMedia("(prefers-color-scheme: dark)")`)을 읽어 `<html>`에 `.dark` 클래스를 동기적으로 부여한다. 서버가 모르는 클래스가 클라이언트에서 붙으므로 `<html>`에 `suppressHydrationWarning` 필수. 같은 파일의 `<body className="... bg-white">` 하드코딩도 다크모드 최상위 배경이므로 `bg-background`로 치환됐는지 P6 체크리스트에서 재확인할 것(P3b 치환 범위와 겹침).
+- **`globals.css`**: P5에서 제거한 `@custom-variant dark (&:is(.dark *));`를 다시 추가한다(클래스 기반 다크 variant — Tailwind v4 문법 유지).
+- **신규 `src/lib/use-theme.ts`**: `{ theme: "light" | "dark" | "system"; resolvedTheme: "light" | "dark"; setTheme: (t) => void }`를 반환하는 훅. `setTheme`은 `localStorage` 갱신 + `document.documentElement.classList` 토글 + `system` 선택 시 `matchMedia` 리스너 등록/해제.
+- **신규 `src/components/theme-toggle.tsx`**: 라이트/다크/시스템 3단 토글 또는 라이트↔다크 2단 토글(시스템은 최초 진입 시 자동 적용, 토글은 라이트/다크 명시적 전환용) 중 **2단 토글(라이트⇄다크, 아이콘 버튼)을 권장** — UI가 단순하고 "메이저 사이트"들의 일반적인 패턴과 일치. 최초 진입 시 `system` 값에 따라 자동으로 라이트/다크가 정해지고, 사용자가 토글을 누르면 그 순간부터 `system`이 아닌 명시적 값으로 `localStorage`에 고정된다.
+- **배치 위치**: 데스크톱 헤더 유틸바(고객센터 옆) + 모바일 드로어 상단 계정 영역 근처. `site-header.tsx`와 `mobile-nav.tsx` 양쪽에 `ThemeToggle` 삽입.
+
+### 9-2. 다크 토큰 정의 (`theme-vars.css`에 `.dark { … }` 블록 추가)
+
+현재 라이트 토큰과 대응하는 다크 값 초안(시각 검증 후 조정 가능):
+
+| 토큰 | 라이트 | 다크(안) | 비고 |
+|---|---|---|---|
+| `--ink` | `#1a1a1d` | `#f5f5f6` | 본문 텍스트 |
+| `--ink-2` | `#29292d` | `#e4e4e6` | 보조 강조 텍스트 |
+| `--ink-3` | `#6b6b70` | `#a3a3a8` | 캡션/보조 텍스트 |
+| `--ink-4` | `#999999` | `#7a7a80` | 비활성/placeholder |
+| `--line` | `rgba(0,0,0,.08)` | `rgba(255,255,255,.12)` | 약한 경계선 |
+| `--line-strong` | `rgba(0,0,0,.16)` | `rgba(255,255,255,.22)` | 진한 경계선 |
+| `--bg` | `#ffffff` | `#121214` | 페이지 배경 |
+| `--bg-2` | `#f7f7f8` | `#1c1c1f` | surface(카드/섹션 배경) |
+| `--bg-3` | `#f3f3f3` | `#232327` | surface-2 |
+| `--bg-4` | `#ebebed` | `#2b2b30` | surface-3(비활성 면) |
+| `--link` | `#1a47ff` | `#5b7dff` | 다크 배경 대비 위해 밝게 |
+| `--accent`(ticketground) | `#ff2d3f` | `#ff5a68` | 브랜드 레드, 다크에서 살짝 밝게(대비 확보) |
+| `--accent-2` | `#ffe92e` | `#ffe14a` | 강조 옐로 |
+| `--ok` | `#1f8a5b` | `#3fb37e` | |
+| `--warn` | `#c47a00` | `#e0994a` | |
+| `--tier-r/s/a/b` | 기존 값 | 채도·명도 유지, 다크 배경 위 대비만 확보(각 값에 밝기 +10~15% 조정) | 좌석 등급색은 브랜드 식별성이 중요하므로 색상 자체(hue)는 바꾸지 말 것 |
+| `--tier-vip` | `#1a1a1d`(무채색 거의 검정) | **예외 처리 필요** — 단순 밝기 조정(+10~15% → `#2e2e33`)으로는 제안된 다크 배경(`#121214`~`#232327`)과 구분 안 됨. 밝은 회백/골드 계열 배경 + `text-black` 전환, 또는 어두운 면 유지 + `--line-strong` 테두리 강조 중 택해 시각 검증 | `seat-map.tsx` 좌석 버튼(`bg-tier-vip`)과 범례 스와치가 배경에 묻히는 것을 방지 |
+| `--shadow-1/2/3` | `rgba(0,0,0,…)` | 다크에서는 그림자보다 `--line`/`--line-strong` 테두리가 더 잘 보이므로, 그림자 알파값을 낮추거나(`rgba(0,0,0,.4)` 등) 대신 테두리 강조 병행 | |
+
+`shadcn` 계열 변수(`--background`, `--card`, `--primary` 등)는 모두 위 원시 토큰을 참조하므로 `.dark` 블록에서 원시 토큰만 재정의하면 대부분 전파된다. **단, 예외가 있다: `globals.css`의 `--color-tint-blue/red/yellow`는 `color-mix(in srgb, var(--link) 8%, white)`처럼 리터럴 `white`와 혼합하므로 다크에서 그대로 밝게 남아 어두운 화면에 흰 패널이 뜬다.** `white`를 `var(--bg)`로 바꾸고 혼합 비율을 다크 기준으로 재조정할 것 — 사용처(`poster-card.tsx`, `booking-panel.tsx`, `show-tile.tsx`, `open-calendar.tsx`, `resale-sell-panel.tsx`, `reservation-history-search.tsx`, `inquiry-thread-surface.tsx` 등 10여 파일)를 시각 대조에 포함한다.
+
+### 9-3. 구현 시 주의
+
+- **포스터/공연 이미지**: 사진 콘텐츠이므로 다크모드에서 색 반전 등 처리 하지 말 것. 카드 배경(`bg-surface` 등 프레임)만 다크 대응.
+- **`bg-ink`/`bg-tier-*` + `text-white` 하드코딩 조합 전체가 위험**: 실사용 좌석 선택 경로인 `backend-seat-picker.tsx:34`가 선택 상태를 `border-ink bg-ink text-white`로 표현하는데, 다크에서 `--ink`가 밝은 값(`#f5f5f6`)으로 뒤집히면 흰 텍스트가 거의 흰 배경 위에 놓여 선택 좌석 라벨이 사라진다. 같은 패턴이 `booking-panel.tsx`(7건), `queue-waiting-room.tsx`(10건) 등 ticketing 컴포넌트 전반에 약 40건 존재 — `grep "text-white"`로 전수 점검해 `text-white`를 `text-primary-foreground`(또는 신설 `text-on-ink`) 같은 시맨틱으로 치환할 것. 좌석 등급 색(tier) 텍스트도 동일 기준(WCAG AA 대비 4.5:1 이상)으로 확인.
+- **checkout 라디오 accent(`accent-[#4154ff]`/`accent-link` 등, P3b에서 토큰화 예정)**: 다크에서도 시맨틱 토큰(`--link`)을 참조하도록 이미 P3b에서 정리됐어야 함 — 이 부분이 안 됐다면 P6 착수 전 먼저 P3b 완료를 재확인.
+- **QueueWaitingRoom/타이머 등 애니메이션 컴포넌트**: 하드코딩 배경색이 남아있지 않은지(P3b 완료 여부와 연동) 재확인.
+- **접근성**: 토글 버튼에 `aria-label`("다크 모드로 전환"/"라이트 모드로 전환" 동적 텍스트), `aria-pressed` 또는 `role="switch"` + `aria-checked` 사용.
+
+### 9-4. 완료 기준(DoD)
+
+- `npm run lint && npm run typecheck && npm test` 통과.
+- 시스템이 다크로 설정된 브라우저에서 첫 방문 시 자동으로 다크 테마 적용 확인(FOUC 없음 — 첫 페인트부터 다크).
+- 토글 클릭 시 즉시 전환되고 새로고침·재방문 후에도 선택이 유지됨.
+- 주요 페이지(홈, booking, checkout, mypage, reservation) 라이트/다크 각각 390/768/1240px 스크린샷 대조 — 텍스트 대비, 좌석 등급색 식별성, 포스터 카드 프레임 확인.
+- 데스크톱 헤더·모바일 드로어 양쪽에 토글 노출 확인.
+
+### 9-5. Phase 의존성 갱신
+
+§7 표에 아래 행을 추가한다:
+
+| Phase | 선행 의존 | 병행 가능 | 게이트에서의 Claude 리뷰 포인트 |
+|---|---|---|---|
+| **P6(다크모드)** | **P3b 완료 필수**(시맨틱 토큰 사용이 끝나야 다크 값 추가가 안전) | P4·P5와 무관, 단독 진행 가능 | FOUC 없는지, 시스템 감지·수동 토글 우선순위 로직, 좌석 등급색 다크 대비, 시각 회귀(라이트 쪽에 영향 없어야 함) |
+
+**갱신된 권장 실행 순서(§8 현황 반영, 잔여 작업 기준):** P1·P2·P4는 §8에서 완료 확인됨. 남은 순서는 **P3b → P6(다크모드)**이며, P3a 마무리(Pretendard 폰트 파일 확보 후)와 P5 잔여 2건(§8-5 참조)은 P6과 무관하므로 병행 가능.
