@@ -31,7 +31,7 @@ export function TicketgroundPlay() {
               </div>
               <div className="mt-3 flex items-center gap-3">
                 <Image src={v.poster} alt="" width={38} height={48} className="h-12 w-[38px] rounded-md object-cover" unoptimized={v.poster.endsWith(".gif")} />
-                <h3 className="text-[16px] font-bold text-[#29292d]">{v.title}</h3>
+                <h3 className="text-lg font-bold text-ink-2">{v.title}</h3>
               </div>
             </a>
           ))}

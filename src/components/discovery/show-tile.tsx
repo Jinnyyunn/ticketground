@@ -37,7 +37,7 @@ export function ShowTile({ show, compact = false }: ShowTileProps) {
         <h2
           className={cn(
             "mt-2 clamp-2 font-black leading-snug text-ink-2 group-hover:underline",
-            compact ? "break-words [overflow-wrap:anywhere] text-[11.5px]" : "balanced-title break-words text-[13px] sm:text-[14px]",
+            compact ? "break-words [overflow-wrap:anywhere] text-[11.5px]" : "balanced-title break-words text-sm sm:text-[14px]",
           )}
         >
           {show.title}

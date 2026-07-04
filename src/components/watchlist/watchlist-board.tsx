@@ -162,7 +162,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
           <div className="rounded-lg border border-line bg-surface p-5">
             <div className="flex items-center gap-2">
               <Bell className="size-5 text-ticketground" aria-hidden />
-              <h2 className="text-[20px] font-black text-ink">D-3 / 당일 타임라인</h2>
+              <h2 className="text-2xl font-black text-ink">D-3 / 당일 타임라인</h2>
             </div>
             <ol className="mt-5 grid gap-3">
               {timeline.map((item) => (
@@ -187,7 +187,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
           </div>
 
           <div className="rounded-lg border border-line bg-white p-5">
-            <h2 className="text-[20px] font-black text-ink">채널 설정</h2>
+            <h2 className="text-2xl font-black text-ink">채널 설정</h2>
             <div className="mt-4 grid gap-3">
               {channels.map((channel) => (
                 <div key={channel.id} className="grid gap-3 rounded-lg border border-line p-4">

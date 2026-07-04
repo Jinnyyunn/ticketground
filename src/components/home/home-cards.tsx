@@ -84,10 +84,10 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           <h1 className={cn("mt-4 font-black leading-tight text-white", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>
             {show.title}
           </h1>
-          <p className="mt-4 text-[15px] font-bold text-white/90">{show.venue}</p>
-          <p className="mt-1 text-[13px] text-white/75">{show.date}</p>
+          <p className="mt-4 text-base font-bold text-white/90">{show.venue}</p>
+          <p className="mt-1 text-sm text-white/75">{show.date}</p>
         </div>
-        <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-[15px] font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
+        <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
           {show.cta} →
         </span>
       </div>
@@ -105,10 +105,10 @@ export function SectionHead({ title, subtitle, moreHref }: SectionHeadProps) {
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div className="min-w-0">
-        <h2 className="text-[28px] font-black leading-tight text-ink">{title}</h2>
-        {subtitle && <p data-section-subtitle className="mt-2 text-[14px] leading-snug text-ink-3 sm:text-[15px]">{subtitle}</p>}
+        <h2 className="text-4xl font-black leading-tight text-ink">{title}</h2>
+        {subtitle && <p data-section-subtitle className="mt-2 text-[14px] leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
       </div>
-      <Link href={moreHref} className="shrink-0 text-[13px] font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
+      <Link href={moreHref} className="shrink-0 text-sm font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
         더보기
       </Link>
     </div>

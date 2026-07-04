@@ -22,18 +22,18 @@ const badgeStyle: Record<string, string> = {
 };
 
 export const posterGradientClasses: Record<PosterGradient, string> = {
-  g1: "g1 bg-[linear-gradient(135deg,#ff2d3f,#ff6a3d_50%,#ffce4a)] text-white",
-  g2: "g2 bg-[linear-gradient(160deg,#0a0a1a,#1a47ff_70%,#6ec3ff)] text-white",
+  g1: "g1 bg-[linear-gradient(135deg,var(--color-ticketground),#ff6a3d_50%,#ffce4a)] text-white",
+  g2: "g2 bg-[linear-gradient(160deg,#0a0a1a,var(--color-link)_70%,#6ec3ff)] text-white",
   g3: "g3 bg-[linear-gradient(135deg,#2b0a4a,#ff2d8e)] text-white",
-  g4: "g4 bg-[linear-gradient(135deg,#0d3b2e,#1f8a5b_60%,#f0e6c2)] text-[#0d2418]",
-  g5: "g5 bg-[linear-gradient(135deg,#1a1a1d,#29292d_60%,#ffe92e)] text-[#1a1a1d]",
+  g4: "g4 bg-[linear-gradient(135deg,#0d3b2e,var(--color-ok)_60%,#f0e6c2)] text-[#0d2418]",
+  g5: "g5 bg-[linear-gradient(135deg,var(--color-ink),var(--color-ink-2)_60%,var(--color-accent-2))] text-ink",
   g6: "g6 bg-[linear-gradient(135deg,#6a1b9a,#d81b60)] text-white",
   g7: "g7 bg-[linear-gradient(160deg,#ff6a3d,#ffce4a)] text-[#2b1100]",
   g8: "g8 bg-[linear-gradient(135deg,#0a1a3f,#4a2a7a)] text-white",
-  g9: "g9 bg-[linear-gradient(135deg,#f3f3f3,#d6d6d8_60%,#999)] text-[#1a1a1d]",
-  g10: "g10 bg-[linear-gradient(135deg,#5c1212,#1a1a1d)] text-white",
+  g9: "g9 bg-[linear-gradient(135deg,var(--color-surface-2),#d6d6d8_60%,var(--color-ink-4))] text-ink",
+  g10: "g10 bg-[linear-gradient(135deg,#5c1212,var(--color-ink))] text-white",
   g11: "g11 bg-[linear-gradient(135deg,#ffe6d6,#ffb88a)] text-[#4a1a00]",
-  g12: "g12 bg-[linear-gradient(160deg,#1f8a5b,#0d3b2e)] text-white",
+  g12: "g12 bg-[linear-gradient(160deg,var(--color-ok),#0d3b2e)] text-white",
 };
 
 const posterWidthClasses: Record<NonNullable<PosterCardProps["width"]>, string> = {
@@ -83,13 +83,13 @@ export function PosterCard({
           </div>
         )}
         {rank !== undefined && (
-          <span className="absolute left-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-md bg-ink/75 px-1.5 text-[15px] font-bold text-white">
+          <span className="absolute left-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-md bg-ink/75 px-1.5 text-base font-bold text-white">
             {rank}
           </span>
         )}
       </div>
       <div className="mt-2.5">
-        <h3 className="clamp-2 text-[15px] font-bold leading-[1.35] text-ink-2 group-hover:underline">{title}</h3>
+        <h3 className="clamp-2 text-base font-bold leading-[1.35] text-ink-2 group-hover:underline">{title}</h3>
         {venue && <p className="clamp-1 mt-1 text-sm text-ink-3">{venue}</p>}
         {date && <p className="mt-0.5 text-sm text-ink-4">{date}</p>}
         {badge && (
