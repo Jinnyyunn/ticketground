@@ -67,8 +67,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           "absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]",
           size === "large" ? "object-top" : "object-center",
         )}
-        loading={size === "large" ? "eager" : "lazy"}
-        fetchPriority={size === "large" ? "high" : "auto"}
+        priority={size === "large"}
         unoptimized={show.poster.endsWith(".gif")}
       />
       <div
