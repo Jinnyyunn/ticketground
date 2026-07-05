@@ -26,6 +26,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
   const calendarDays = Array.from({ length: 31 }, (_, index) => index + 1);
   const scheduledDays = new Set(show.schedules.map((schedule) => Number(schedule.date.split(".").at(-1))));
   const firstPrice = show.prices[0];
+  const lowestPriceLabel = show.prices.length > 0 ? currency(Math.min(...show.prices.map((price) => price.price))) : "좌석별 상이";
   const venue = getVenueForShow(show);
   const venueHref = venue ? `/place/${venue.slug}` : "/place";
   const artistHref = show.artistSlug ? `/artist/${show.artistSlug}` : undefined;
@@ -83,7 +84,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
             </section>
           </section>
 
-          <DetailBookingPanel slug={show.slug} title={show.title} venueHref={venueHref} schedules={show.schedules} />
+          <DetailBookingPanel slug={show.slug} title={show.title} venueHref={venueHref} schedules={show.schedules} lowestPriceLabel={lowestPriceLabel} />
 
           <nav className="no-scrollbar sticky top-0 z-20 overflow-x-auto border-b border-line bg-background py-3 shadow-sm lg:col-span-3" aria-label="상세 정보 바로가기">
             <div className="mx-auto flex w-max gap-3">

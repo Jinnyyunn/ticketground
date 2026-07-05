@@ -1,5 +1,6 @@
 "use client";
 
+import { Clock3 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -15,9 +16,10 @@ type DetailBookingPanelProps = {
   readonly title: string;
   readonly venueHref: string;
   readonly schedules: readonly DetailSchedule[];
+  readonly lowestPriceLabel: string;
 };
 
-export function DetailBookingPanel({ slug, title, venueHref, schedules }: DetailBookingPanelProps) {
+export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPriceLabel }: DetailBookingPanelProps) {
   const [selectedDate, setSelectedDate] = useState(schedules[0]?.date ?? "");
   const selectedSchedule = schedules.find((schedule) => schedule.date === selectedDate) ?? schedules[0];
   const [selectedTime, setSelectedTime] = useState(selectedSchedule?.times[0] ?? "");
@@ -44,7 +46,10 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules }: Detail
           <p className="text-xs font-bold text-ticketground">공식 예매</p>
           <h2 className="mt-1 text-xl font-black text-ink">상품 예매하기</h2>
         </div>
-        <span className="shrink-0 whitespace-nowrap rounded bg-tint-yellow px-2 py-1 text-xs font-black text-ink">대기열 입장</span>
+        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-tint-yellow px-2 py-1 text-xs font-black text-ink">
+          <Clock3 className="size-3" aria-hidden />
+          대기열 입장 · 순서 확인
+        </span>
       </div>
 
       <div className="mt-5">
@@ -107,10 +112,13 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules }: Detail
         </div>
       </dl>
 
+      <p className="mt-5 text-sm font-black text-ink">
+        최저 <span className="text-ticketground">{lowestPriceLabel}</span>부터
+      </p>
       <Link
         data-testid="detail-queue-link"
         href={queueHref}
-        className="mt-6 flex h-13 items-center justify-center rounded-sm bg-ink text-base font-black text-on-ink whitespace-nowrap transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
+        className="mt-2 flex h-13 items-center justify-center rounded-sm bg-ticketground text-base font-black text-white whitespace-nowrap transition-colors hover:bg-ink hover:text-on-ink focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
       >
         선택 회차 예매
       </Link>
