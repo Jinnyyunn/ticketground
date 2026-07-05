@@ -99,6 +99,31 @@ test("login page completes social callback, keeps nickname confirmation visible,
   }
 });
 
+test("unauthenticated login page waits for an explicit login action before showing profile controls", async (t) => {
+  configureSocialEnv(t, true);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  try {
+    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+    await page.getByText("로그인 또는 회원가입을 진행해 주세요").waitFor({ timeout: 5000 });
+
+    assert.equal(await page.getByLabel("닉네임").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "프로필 저장", exact: true }).count(), 0);
+    assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), null);
+
+    await page.getByPlaceholder("qa@ticketground.kr").fill("qa@ticketground.kr");
+    await page.getByPlaceholder("mock password").fill("password");
+    await page.getByRole("button", { name: "mock 로그인 확인" }).click();
+    await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+    assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
+  } finally {
+    await page.close();
+  }
+});
+
 test("successful social callback clears the one-time provider query before refresh", async (t) => {
   configureSocialEnv(t, true);
   const { baseUrl } = await startServer(t);

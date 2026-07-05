@@ -37,7 +37,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
   const [name, setName] = useState("");
   const [session, setSession] = useState<ApiSession | null>(null);
   const [profileName, setProfileName] = useState("");
-  const [status, setStatus] = useState("세션 확인 대기");
+  const [status, setStatus] = useState("로그인 또는 회원가입을 진행해 주세요");
   const [saving, setSaving] = useState(false);
   const [identityChecked, setIdentityChecked] = useState(false);
   const [termsChecked, setTermsChecked] = useState(false);
@@ -111,14 +111,8 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           }
         }
       }
-      try {
-        const nextSession = await getSession(DEMO_USER_ID);
-        if (!mounted) return;
-        applySession(nextSession, `${nextSession.name} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
-      } catch (error: unknown) {
-        if (!mounted) return;
-        setStatus(error instanceof Error ? error.message : "세션을 불러오지 못했습니다.");
-      }
+      if (!mounted) return;
+      setStatus("로그인 또는 회원가입을 진행해 주세요");
     };
     void loadInitialSession();
     return () => { mounted = false; };
@@ -184,7 +178,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
             </h2>
             <p className="mt-3 text-sm leading-loose text-ink-3">
               {mode === "login"
-                ? `데모 사용자 ${DEMO_USER_ID}의 세션 상태를 함께 확인합니다.`
+                ? "Google, 카카오, 네이버 또는 이메일 mock 입력으로 세션을 연결합니다."
                 : "가입 전용 본인인증과 약관 동의 블록을 포함한 데모 가입 화면입니다."}
             </p>
           </div>
