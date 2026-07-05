@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CalendarDays, RefreshCcw, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSessionAuth } from "@/lib/use-session-auth";
@@ -11,6 +12,10 @@ import { MobileNav } from "@/components/mobile-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const utilityLinkClassName = "hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50";
+const desktopActionIcons: Record<string, LucideIcon> = {
+  "티켓 재판매": RefreshCcw,
+  "티켓오픈 캘린더": CalendarDays,
+};
 
 function SearchBar({ className, keyboardReachable = true }: { readonly className?: string; readonly keyboardReachable?: boolean }) {
   return (
@@ -92,12 +97,12 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
     <header className="relative z-50 w-full bg-background text-ink">
       <div className="hidden border-b border-line bg-surface sm:block">
         <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-sm font-bold text-ink-3">
+          <ThemeToggle />
           {utilityLinksBeforeAuth.map((link) => (
             <Link key={link.href} href={link.href} className={utilityLinkClassName}>
               {link.label}
             </Link>
           ))}
-          <ThemeToggle />
           <HeaderAuthLinks signedIn={signedIn} signOut={signOut} />
         </div>
       </div>
@@ -161,15 +166,19 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
             </div>
           )}
           <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
-            {categoryNavHighlight.map((c) => (
-              <Link
-                key={c}
-                href={categoryHrefs[c] ?? "/open"}
-                className="whitespace-nowrap font-black text-ticketground hover:text-ticketground-strong focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {c}
-              </Link>
-            ))}
+            {categoryNavHighlight.map((c) => {
+              const ActionIcon = desktopActionIcons[c] ?? CalendarDays;
+              return (
+                <Link
+                  key={c}
+                  href={categoryHrefs[c] ?? "/open"}
+                  className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-card px-3 text-sm font-black text-ink shadow-ticket-1 transition-colors hover:border-ticketground hover:bg-ticketground hover:text-white focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <ActionIcon className="size-4 shrink-0" aria-hidden />
+                  <span>{c}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>

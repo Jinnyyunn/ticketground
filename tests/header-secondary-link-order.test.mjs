@@ -34,6 +34,24 @@ test("desktop header places ticket open calendar to the right of resale", async 
     assert.equal(resale.text, "티켓 재판매");
     assert.equal(openCalendar.text, "티켓오픈 캘린더");
     assert.ok(resale.x < openCalendar.x, `expected resale before calendar: ${JSON.stringify(visibleQuickLinks)}`);
+
+    const actionStyles = await page.locator("nav[aria-label='티켓오픈'] a[href='/resale'], nav[aria-label='티켓오픈'] a[href='/open']").evaluateAll((anchors) =>
+      anchors.map((anchor) => {
+        const style = window.getComputedStyle(anchor);
+        return {
+          href: anchor.getAttribute("href"),
+          backgroundColor: style.backgroundColor,
+          borderRadius: style.borderRadius,
+          display: style.display,
+        };
+      }),
+    );
+    assert.equal(actionStyles.length, 2);
+    for (const style of actionStyles) {
+      assert.notEqual(style.backgroundColor, "rgba(0, 0, 0, 0)", `expected badge background: ${JSON.stringify(style)}`);
+      assert.ok(Number.parseFloat(style.borderRadius) >= 8, `expected compact rounded badge: ${JSON.stringify(style)}`);
+      assert.equal(style.display, "flex");
+    }
   } finally {
     await page.close();
   }
