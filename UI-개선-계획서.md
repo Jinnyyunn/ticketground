@@ -1,9 +1,9 @@
 # Ticketground UI 개선 계획서
 
-- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`, §10 기준 커밋 `e0dfc83`, §11 기준 커밋 `71c00d2`)
+- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`, §10 기준 커밋 `e0dfc83`, §11 기준 커밋 `71c00d2`, §12 기준 커밋 `f6bf2a2`)
 - 스택: Next.js 16 / React 19 / Tailwind v4 / shadcn·base-ui(설치만 됨) / lucide-react
-- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04, §9 추가: 2026-07-04, §10 추가: 2026-07-05, §11 추가: 2026-07-05)
-- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4). §9(P6 다크모드)는 사용자 요청으로 신설, Sonnet 5가 작성하고 Fable advisor가 재검증(치명 1건·수정 3건 반영)한 결과 (v5). §10은 codex의 2차 구현(P3b 대량 치환 등, 커밋 `e0dfc83`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 1건 반영)한 결과 (v6). §11은 codex의 P3b 잔여 정리 완료(커밋 `71c00d2`)를 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 2건 반영)한 결과 — **P3b 완료, P6(다크모드) 착수 가능 판정** (v7)
+- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04, §9 추가: 2026-07-04, §10 추가: 2026-07-05, §11 추가: 2026-07-05, §12 추가: 2026-07-05)
+- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4). §9(P6 다크모드)는 사용자 요청으로 신설, Sonnet 5가 작성하고 Fable advisor가 재검증(치명 1건·수정 3건 반영)한 결과 (v5). §10은 codex의 2차 구현(P3b 대량 치환 등, 커밋 `e0dfc83`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 1건 반영)한 결과 (v6). §11은 codex의 P3b 잔여 정리 완료(커밋 `71c00d2`)를 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 2건 반영)한 결과 — **P3b 완료, P6(다크모드) 착수 가능 판정** (v7). §12는 codex의 P6 다크모드 구현 완료(커밋 `f6bf2a2`)를 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(전건 CONFIRMED, 보완 1건)한 결과 — **P1~P6 전체 Phase 구현·검증 완료** (v8)
 
 ---
 
@@ -718,3 +718,46 @@ codex가 "예외로 유지" 사유로 제시한 4가지 카테고리를 소스 �
 codex가 스스로 제안한 대로, §9에 아래 내용을 명시적으로 추가한다:
 - **포스터 그라디언트/브랜드 로그인 버튼색**: 다크모드에서도 색 반전 없이 그대로 유지(사진과 동일하게 컨텐츠/브랜드 아이덴티티 성격).
 - **`queue-waiting-room.tsx`의 기존 하드코딩 다크 서페이스**: 신규 `.dark` 토큰으로 흡수할지, 라이트/다크 무관하게 그대로 둘지 P6 착수 시 1차 결정 필요(현재는 라이트 테마에서만 노출되는 특수 배경이므로, 신규 다크 테마 배경과 시각적으로 겹치지 않는지 확인).
+
+---
+
+## 12. P6 다크모드 구현 완료 검증 (Sonnet 5, 2026-07-05)
+
+> 검증 대상: codex의 P6(다크모드) 구현, 커밋 `2a8a116`(feat: add P6 theme core)~`f6bf2a2`(fix: preserve dark theme contrast and preference) 6개 커밋(§9 지시서에 대한 구현). 기준점은 `a41c122`(§11 완료 판정 시점). 검증: Sonnet 5 1차 검증(자동 검사 + 소스 대조) → Fable advisor 재검증.
+
+### 12-1. 자동 검증 결과
+
+| 검사 | 결과 |
+|---|---|
+| `npm run lint` | 통과 (경고 0) |
+| `npm run typecheck` | 통과 |
+| `npm test` (전체 **99개** 테스트 — 기존 89 + 다크모드 신규 10, build 포함) | **99 pass / 0 fail** |
+
+### 12-2. §9 지시 이행 확인
+
+| 항목 | 상태 | 확인 내용 |
+|---|---|---|
+| 토글 저장/기본값 | **완료** | `localStorage["ticketground:theme"]`(`"light"\|"dark"\|"system"`, 기본 `system`), 라이트⇄다크 2단 아이콘 토글(`theme-toggle.tsx`, `role="switch"` + `aria-checked` + 동적 `aria-label`). |
+| FOUC 방지 | **완료, 지시서 그대로** | `layout.tsx`가 `<body>` 최상단(children 앞)에 인라인 `<script id="ticketground-theme-bootstrap">`을 배치, `localStorage`/`matchMedia`를 동기적으로 읽어 첫 페인트 전에 `<html>`에 `.dark` 클래스 부여. `<html>`에 `suppressHydrationWarning` 확인. |
+| `@custom-variant dark` 복원 | **완료** | `globals.css:5`에 `@custom-variant dark (&:is(.dark *));` 재추가 확인. |
+| `.dark` 토큰 블록 | **완료** | `theme-vars.css`에 §9-2 표와 대부분 일치하는 `.dark { … }` 블록 추가(`--ink`~`--shadow-3`). |
+| `--tier-vip` 예외 처리 | **완료, 지시서 취지 이행** | 단순 밝기 조정이 아니라 `--tier-vip: #f6df8f`(밝은 골드)로 전환하고 `--on-tier-vip: #1a1a1d`(어두운 텍스트)를 짝지어, 다크 배경(`#121214`~`#232327`)과 명확히 구분되도록 처리. §9-2가 요구한 "밝은 회백/골드 계열 배경 + 어두운 텍스트" 방향과 일치. |
+| tint 토큰(`color-mix(...white)`) 치명 이슈 수정 | **완료** | `globals.css`의 `--color-tint-blue/red/yellow`가 `color-mix(in srgb, var(--link) 8%, var(--bg))` 등으로 변경되어 리터럴 `white`가 `var(--bg)`로 교체됨 — §9-2 치명 지적 해소. |
+| `text-white`+`bg-ink`류 하드코딩 조합 치환 | **완료(확인된 범위)** | 신규 `--on-ink`/`--on-ink-2`/`--on-tier-*` 시맨틱 토큰 도입, `backend-seat-picker.tsx`의 좌석 선택 상태를 `bg-ink text-white`→`bg-ink text-on-ink`로 치환 확인(§9-3에서 지목된 실사례). `DESIGN.md`에도 "`text-on-ink`, `text-on-ink-2`, `text-on-tier-*`가 `bg-ink`/`bg-ink-2`/tier 배경의 다크모드 대응 짝"이라고 명문화. |
+| 예외 처리(포스터/브랜드색, 큐 대기실) | **완료, 지시서보다 상회** | `DESIGN.md`에 신규 "Theme Exceptions" 섹션을 추가해 포스터 그라디언트·카카오/네이버 브랜드색은 반전 금지, `queue-waiting-room.tsx`는 별도 리디자인 검증 전까지 전역 다크 토큰에 흡수하지 않는 고정 다크 화면으로 명시 — §11-5가 요청한 "1차 결정"을 코드가 아닌 문서로 명확히 기록. |
+| 배치 위치 | **완료** | `site-header.tsx`(데스크톱 유틸바) + `mobile-nav.tsx`(모바일 드로어) 양쪽에 `ThemeToggle` 삽입 확인. |
+| 접근성 | **완료** | `role="switch"`, `aria-checked`, 동적 `aria-label`/`title`("다크 모드 켜기"/"라이트 모드 켜기") 확인. |
+| 테스트 커버리지 | **완료, 상회** | 신규 `tests/theme-bootstrap-core.test.mjs`(3건: 부트스트랩 로직, CSS 토큰 노출, DESIGN.md 문서화) + `tests/theme-mode.test.mjs`(7건: 데스크톱/모바일 토글 지속성, 시스템 추종, 로그인 상태별 대비 확인) — 총 10건 신규, 기존 89건과 함께 전량 통과. |
+| 커밋 분리 | **양호** | 6개 커밋(`feat: add P6 theme core`, `refactor: replace risky contrast foregrounds`, `feat: add theme controls`, `fix: refine theme switch affordance`, `fix: sync theme toggle before hydration`, `fix: preserve dark theme contrast and preference`)으로 기능 단위 분리. |
+
+### 12-3. 발견 사항
+
+**[정보] `booking-panel.tsx` 라인 수 경계 초과 — 이번 라운드 범위 밖**
+codex 자체 보고에 따르면 `booking-panel.tsx` 순수 LOC가 253줄로 내부 가이드라인 250줄을 소폭 초과한다. 이번 다크모드 수정 범위는 아니며, 다음에 이 파일을 다시 다룰 때 분리를 권고한다는 codex의 제안에 동의한다. 즉시 조치 불필요.
+
+**[정보] `queue-waiting-room.tsx` 다크 예외가 코드 강제 없이 문서+부분 테스트로만 뒷받침됨**
+`DESIGN.md`의 "Theme Exceptions" 절이 이 파일을 전역 다크 토큰에서 제외한다고 기술하고, `tests/theme-bootstrap-core.test.mjs`가 "DESIGN.md에 queue-waiting-room.tsx가 언급되어 있는지"는 검증하지만, **코드 자체가 `bg-[#08090d]`/`text-[#ffb8bf]` 하드코딩을 유지하는지는 어떤 테스트도 검증하지 않는다**(문서 존재만 확인). 향후 이 파일이 실수로 시맨틱 토큰으로 재치환되지 않도록, 필요 시 별도 회귀 테스트(하드코딩 리터럴 존재를 검증하는 테스트)를 고려할 수 있으나 현재로선 경미 사항이다.
+
+### 12-4. 종합 판단
+
+§9(P6 다크모드)의 모든 핵심 요건과 §9-2/§9-3에서 Fable advisor가 지적했던 치명·수정 사항(tint 토큰, `--tier-vip` 예외, FOUC 스크립트 위치, `text-white` 광범위 리스크)이 이번 구현에서 전부 반영되었음을 확인했다. 자동 검증(lint/typecheck/test 99건)도 전량 통과했다. **P6은 완료로 판정하며, 이번 UI 개선 계획서(§1~§12)의 계획된 Phase(P1~P6)가 모두 구현·검증 완료된 상태다.**
