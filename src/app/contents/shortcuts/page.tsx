@@ -19,9 +19,9 @@ export default function ShortcutsPage() {
             <Link
               key={shortcut.href}
               href={shortcut.href}
-              className="rounded-lg border border-line bg-white p-5 transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="rounded-lg border border-line bg-card p-5 transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <h2 className="text-[22px] font-black text-ink">{shortcut.label}</h2>
+              <h2 className="text-2xl font-black text-ink">{shortcut.label}</h2>
               <p className="mt-3 text-sm leading-relaxed text-ink-3">{shortcut.helper}</p>
             </Link>
           ))}

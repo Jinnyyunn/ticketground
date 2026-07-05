@@ -39,7 +39,7 @@ export default function TermsPage() {
       <section className="ticketground-container py-10">
         <div className="grid gap-4">
           {terms.map((term) => (
-            <article key={term.title} className="rounded-lg border border-line bg-white p-5">
+            <article key={term.title} className="rounded-lg border border-line bg-card p-5">
               <h2 className="text-lg font-black text-ink">{term.title}</h2>
               <p className="mt-3 text-sm leading-loose text-ink-3">{term.body}</p>
             </article>

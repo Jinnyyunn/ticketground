@@ -20,7 +20,7 @@ export default function TicketgroundDayPage() {
           <div className="rounded-xl border border-white/15 bg-white/10 p-5">
             <p className="text-sm font-black text-accent-2">7월 한정</p>
             <p className="mt-2 text-3xl font-black">오픈 알림 등록 시 클린티켓 우선 안내</p>
-            <Link href="/open" className="mt-5 inline-flex h-10 items-center rounded-lg bg-white px-4 text-sm font-black text-ink">
+            <Link href="/open" className="mt-5 inline-flex h-10 items-center rounded-lg bg-card px-4 text-sm font-black text-ink">
               오픈 캘린더 보기
             </Link>
           </div>
@@ -34,7 +34,7 @@ export default function TicketgroundDayPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {lineup.map((show, index) => (
-              <article key={show.slug} className="rounded-lg border border-line bg-white p-4">
+              <article key={show.slug} className="rounded-lg border border-line bg-card p-4">
                 <p className="text-sm font-black text-ticketground">LINEUP {index + 1}</p>
                 <div className="mt-3">
                   <ShowTile show={show} compact />

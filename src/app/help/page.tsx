@@ -69,7 +69,7 @@ export default function HelpPage() {
         </div>
 
         <div id="faq" className="mt-8 grid gap-8 lg:grid-cols-[260px_1fr]">
-          <aside className="rounded-lg border border-line bg-white p-5">
+          <aside className="rounded-lg border border-line bg-card p-5">
             <h2 className="text-lg font-black text-ink">FAQ 카테고리</h2>
             <nav className="mt-4 grid gap-2 text-sm font-bold text-ink-3" aria-label="FAQ category navigation">
               {categories.map((category) => (
@@ -84,7 +84,7 @@ export default function HelpPage() {
             <h2 className="text-2xl font-black text-ink">자주 묻는 질문</h2>
             <div className="mt-5 grid gap-3">
               {faqs.map((faq) => (
-                <details key={faq.question} className="rounded-lg border border-line bg-white p-5">
+                <details key={faq.question} className="rounded-lg border border-line bg-card p-5">
                   <summary className="cursor-pointer text-sm font-black text-ink">{faq.question}</summary>
                   <p className="mt-3 text-sm leading-loose text-ink-3">{faq.answer}</p>
                 </details>
@@ -103,11 +103,11 @@ export default function HelpPage() {
               </>
             );
             return contact.href ? (
-              <Link key={contact.label} href={contact.href} className="rounded-lg border border-line bg-white p-5 hover:border-line-strong">
+              <Link key={contact.label} href={contact.href} className="rounded-lg border border-line bg-card p-5 hover:border-line-strong">
                 {body}
               </Link>
             ) : (
-              <article key={contact.label} className="rounded-lg border border-line bg-white p-5">
+              <article key={contact.label} className="rounded-lg border border-line bg-card p-5">
                 {body}
               </article>
             );

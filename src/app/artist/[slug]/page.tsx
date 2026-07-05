@@ -33,7 +33,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
             ["누적 관객", "48만"],
             ["평균 평점", "9.6"],
           ].map(([label, value]) => (
-            <article key={label} className="rounded-lg border border-line bg-white p-5">
+            <article key={label} className="rounded-lg border border-line bg-card p-5">
               <p className="text-sm font-black text-ink-3">{label}</p>
               <strong className="mt-2 block text-4xl font-black text-ink">{value}</strong>
             </article>
@@ -51,7 +51,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
           <h2 className="text-3xl font-black text-ink">주요 캐스트</h2>
           <ol className="mt-4 grid gap-3 border-l border-line pl-5">
             {show.casts.map((cast) => (
-              <li key={cast} className="relative rounded-lg bg-white p-4 shadow-ticket-1 before:absolute before:-left-[25px] before:top-5 before:size-3 before:rounded-full before:bg-ticketground">
+              <li key={cast} className="relative rounded-lg bg-card p-4 shadow-ticket-1 before:absolute before:-left-[25px] before:top-5 before:size-3 before:rounded-full before:bg-ticketground">
                 <p className="text-base font-black text-ink">{cast}</p>
                 <p className="mt-1 text-sm text-ink-3">{show.shortTitle} 주요 캐스트로 등록되어 있습니다.</p>
               </li>

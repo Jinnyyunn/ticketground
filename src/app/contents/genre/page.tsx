@@ -29,7 +29,7 @@ export default function GenreIndexPage() {
             <Link
               key={genre.href}
               href={genre.href}
-              className="group rounded-lg border border-line bg-white p-5 transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="group rounded-lg border border-line bg-card p-5 transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <p className="text-sm font-black text-ticketground">{ticketShows.filter((show) => show.category === genre.category).length}개 공연</p>
               <h2 className="mt-3 text-[24px] font-black text-ink group-hover:underline">{genre.label}</h2>
