@@ -113,3 +113,29 @@ test("home more links and editorial cards use requested brand color surfaces", a
   const yellowCardColor = await editorialCards.nth(2).evaluate((node) => window.getComputedStyle(node).backgroundColor);
   assert.match(yellowCardColor, /(rgb\(255, 233, 46\)|oklab\(0\.91[^)]*-0\.03[^)]*0\.17)/, `third editorial card should use yellow background: ${yellowCardColor}`);
 });
+
+test("ticket-open cards keep their selector and render compact poster thumbnails", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+
+  const ticketOpenCards = page.locator('[data-section="ticket-open"] [data-card="ticket-open"]');
+  await ticketOpenCards.first().waitFor({ timeout: 5000 });
+  assert.equal(await ticketOpenCards.count(), 4, "ticket-open selector should still identify all cards");
+
+  const thumbnailCount = await ticketOpenCards.locator('[data-ticket-open-thumbnail] img').count();
+  assert.equal(thumbnailCount, 4, "each ticket-open card should render one poster thumbnail");
+  const thumbnailSources = await ticketOpenCards.locator('[data-ticket-open-thumbnail] img').evaluateAll((images) =>
+    images.map((image) => image.currentSrc || image.getAttribute("src") || ""),
+  );
+  assert.ok(new Set(thumbnailSources).size >= 4, `ticket-open thumbnails should map to each card poster: ${thumbnailSources.join(", ")}`);
+
+  const thumbnailBox = await ticketOpenCards.first().locator("[data-ticket-open-thumbnail]").boundingBox();
+  assert.ok(thumbnailBox, "ticket-open thumbnail should be visible");
+  assert.ok(thumbnailBox.width >= 56 && thumbnailBox.width <= 64, `thumbnail width should be compact, got ${thumbnailBox.width}`);
+});

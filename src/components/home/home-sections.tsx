@@ -1,8 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
 import { TicketgroundTag } from "@/components/ticketground/primitives";
 import { cn } from "@/lib/utils";
 import { FeaturedCard, GradientPoster, Movement, SectionHead } from "./home-cards";
 import { events, featuredShow, genreRecommendations, miniShows, rankings, shortcuts, ticketOpens } from "./home-content";
+import { TicketOpenAlertAction } from "./ticket-open-alert-action";
 
 const editorialCardTone = {
   dark: {
@@ -77,23 +79,47 @@ export function TicketOpenSection() {
             href="/open"
             key={`${item.month}.${item.day}-${item.title}`}
             data-card="ticket-open"
-            className="rounded-lg border border-line bg-surface p-[10px] transition-colors hover:border-line-strong hover:bg-card focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5"
+            className="group grid min-w-0 grid-cols-[56px_minmax(0,1fr)] gap-3 rounded-lg border border-line bg-surface p-3 shadow-ticket-1 transition-all hover:-translate-y-0.5 hover:border-line-strong hover:bg-card hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[64px_minmax(0,1fr)]"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black text-ticketground sm:text-sm">{item.month}월</p>
-                <p className="text-[32px] font-black leading-none text-ink sm:text-6xl">{item.day}</p>
+            <TicketOpenThumbnail title={item.title} />
+            <div className="min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black text-ticketground">{item.month}월 {item.day}일</p>
+                  <p className="mt-1 text-2xl font-black leading-none text-ink">{item.time}</p>
+                </div>
+                <TicketgroundTag tone="open">{item.dday}</TicketgroundTag>
               </div>
-              <TicketgroundTag tone="open">{item.dday}</TicketgroundTag>
+              <h3 className="clamp-2 mt-2 text-sm font-black leading-snug text-ink-2">{item.title}</h3>
+              <p className="mt-1 text-xs font-bold text-ink-3">{item.round}</p>
+              <TicketOpenAlertAction />
             </div>
-            <p className="mt-2 text-base font-black text-ink sm:mt-4 sm:text-2xl">{item.time}</p>
-            <h3 className="clamp-2 mt-1 text-sm font-black leading-snug text-ink-2 sm:mt-2 sm:text-lg">{item.title}</h3>
-            <p className="mt-1 text-xs text-ink-3 sm:mt-2 sm:text-sm">{item.round}</p>
-            <span className="mt-2 inline-flex h-7 items-center rounded-lg border border-line bg-card px-3 text-xs font-black text-ink sm:mt-5 sm:h-9 sm:text-sm">알림 설정</span>
           </Link>
         ))}
       </div>
     </section>
+  );
+}
+
+function TicketOpenThumbnail({ title }: { readonly title: string }) {
+  const show = rankings.find((item) => title.includes(item.title) || item.title.includes(title));
+  const poster = show?.poster ?? featuredShow.poster;
+
+  return (
+    <span
+      className="relative block h-[75px] w-14 overflow-hidden rounded-md border border-line bg-card shadow-ticket-1 sm:h-[85px] sm:w-16"
+      data-ticket-open-thumbnail
+      aria-hidden="true"
+    >
+      <Image
+        src={poster}
+        alt=""
+        fill
+        sizes="64px"
+        className={cn("object-cover transition-transform duration-300 group-hover:scale-[1.03]", show?.posterFit === "contain" && "object-contain")}
+        unoptimized={poster.endsWith(".gif")}
+      />
+    </span>
   );
 }
 
@@ -155,12 +181,16 @@ export function EditorialEventsSection() {
               )}
             >
               {tone.accent && <span data-card-accent className={cn("absolute inset-x-0 top-0 h-1", tone.accent)} aria-hidden="true" />}
+              <span className="absolute bottom-5 right-5 h-16 w-16 rounded-lg border border-current opacity-10" aria-hidden="true" />
+              <span className="absolute right-5 top-16 text-7xl font-black leading-none opacity-10" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </span>
               <div className="relative z-10 flex h-full min-h-[178px] flex-col">
                 <div className="flex items-center justify-between gap-3">
                   <p className={cn("inline-flex h-7 items-center rounded-lg border px-3 text-xs font-black tracking-normal", tone.eyebrow)}>
                     EDITORIAL
                   </p>
-                  <span className={cn("inline-flex h-7 min-w-9 items-center justify-center rounded-lg border px-2 text-xs font-black", tone.index)}>
+                  <span className={cn("inline-flex h-8 min-w-10 items-center justify-center rounded-lg border px-2 text-sm font-black", tone.index)}>
                     {String(index + 1).padStart(2, "0")}
                   </span>
                 </div>
