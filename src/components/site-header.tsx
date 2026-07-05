@@ -8,6 +8,7 @@ import { categoryNav, categoryNavHighlight } from "@/data/content";
 import { SearchIcon } from "@/components/icons";
 import { categoryHrefs, loginLink, publicIconLinks, signedInIconLinks, signedInUtilityLinks, signupLink, utilityLinksBeforeAuth } from "@/components/header-links";
 import { MobileNav } from "@/components/mobile-nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const utilityLinkClassName = "hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -96,6 +97,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
               {link.label}
             </Link>
           ))}
+          <ThemeToggle className="size-7" />
           <HeaderAuthLinks signedIn={signedIn} signOut={signOut} />
         </div>
       </div>

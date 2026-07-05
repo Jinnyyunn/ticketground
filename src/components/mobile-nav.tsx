@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { categoryNav, categoryNavHighlight } from "@/data/content";
 import { categoryHrefs, loginLink, signedInUtilityLinks, signupLink, utilityLinksBeforeAuth } from "@/components/header-links";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useSessionAuth } from "@/lib/use-session-auth";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,10 @@ export function MobileNav({ className }: { readonly className?: string }) {
           </div>
 
           <nav aria-label="모바일 유틸리티" className="grid grid-cols-2 gap-2 border-b border-line py-4 text-sm font-black">
+            <div className="col-span-2 flex items-center justify-between gap-3 rounded-lg border border-line bg-card px-3 py-2 text-ink">
+              <span className="whitespace-nowrap">화면 모드</span>
+              <ThemeToggle className="size-9" />
+            </div>
             {utilityLinksBeforeAuth.map((link) => (
               <Link key={link.href} href={link.href} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">
                 {link.label}
