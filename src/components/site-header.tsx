@@ -97,13 +97,13 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
     <header className="relative z-50 w-full bg-background text-ink">
       <div className="hidden border-b border-line bg-surface sm:block">
         <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-sm font-bold text-ink-3">
-          <ThemeToggle />
           {utilityLinksBeforeAuth.map((link) => (
             <Link key={link.href} href={link.href} className={utilityLinkClassName}>
               {link.label}
             </Link>
           ))}
           <HeaderAuthLinks signedIn={signedIn} signOut={signOut} />
+          <ThemeToggle />
         </div>
       </div>
 
@@ -135,29 +135,29 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           scrolled && "shadow-ticket-1",
         )}
       >
-        <div className="ticketground-container flex h-11 items-center gap-4 text-sm sm:h-12 sm:gap-7 sm:text-base">
+        <div className="ticketground-container flex h-11 items-center gap-3 text-sm sm:h-12 sm:gap-5 sm:text-base">
           <div className="relative min-w-0 flex-1">
             <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-background to-transparent sm:hidden" aria-hidden />
             <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-background to-transparent sm:hidden" aria-hidden />
-            <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto sm:gap-7">
-            {categoryNav.map((c) => (
-              <Link
-                key={c}
-                href={categoryHrefs[c] ?? "/contents/search"}
-                className="whitespace-nowrap font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {c}
-              </Link>
-            ))}
-            {categoryNavHighlight.map((c) => (
-              <Link
-                key={c}
-                href={categoryHrefs[c] ?? "/open"}
-                className="whitespace-nowrap font-black text-ticketground hover:text-ticketground-strong focus-visible:ring-3 focus-visible:ring-ring/50 sm:hidden"
-              >
-                {c}
-              </Link>
-            ))}
+            <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 items-center gap-4 overflow-x-auto pr-2 sm:gap-5 sm:overflow-hidden sm:pr-0">
+              {categoryNav.map((c) => (
+                <Link
+                  key={c}
+                  href={categoryHrefs[c] ?? "/contents/search"}
+                  className="whitespace-nowrap font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {c}
+                </Link>
+              ))}
+              {categoryNavHighlight.map((c) => (
+                <Link
+                  key={c}
+                  href={categoryHrefs[c] ?? "/open"}
+                  className="whitespace-nowrap font-black text-ticketground hover:text-ticketground-strong focus-visible:ring-3 focus-visible:ring-ring/50 sm:hidden"
+                >
+                  {c}
+                </Link>
+              ))}
             </nav>
           </div>
           {showSearchBar && (
@@ -168,11 +168,17 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
             {categoryNavHighlight.map((c) => {
               const ActionIcon = desktopActionIcons[c] ?? CalendarDays;
+              const isResale = c === "티켓 재판매";
               return (
                 <Link
                   key={c}
                   href={categoryHrefs[c] ?? "/open"}
-                  className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-card px-3 text-sm font-black text-ink shadow-ticket-1 transition-colors hover:border-ticketground hover:bg-ticketground hover:text-white focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className={cn(
+                    "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-black shadow-ticket-1 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                    isResale
+                      ? "border-ticketground bg-ticketground text-white hover:bg-ink hover:text-on-ink"
+                      : "border-line bg-card text-ink hover:border-ticketground hover:bg-ticketground hover:text-white",
+                  )}
                 >
                   <ActionIcon className="size-4 shrink-0" aria-hidden />
                   <span>{c}</span>
