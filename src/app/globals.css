@@ -48,6 +48,9 @@
   --color-link: var(--link);
   --color-sale: var(--accent);
   --color-accent-2: var(--accent-2);
+  --color-on-accent-2: var(--on-accent-2);
+  --color-scrim: var(--scrim);
+  --color-on-scrim: var(--on-scrim);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-on-ink: var(--on-ink);
@@ -194,5 +197,20 @@
     text-wrap: balance;
     word-break: keep-all;
     overflow-wrap: break-word;
+  }
+  .text-on-scrim {
+    color: var(--on-scrim);
+  }
+  .text-on-scrim\/75 {
+    color: color-mix(in srgb, var(--on-scrim) 75%, transparent);
+  }
+  .text-on-scrim\/80 {
+    color: color-mix(in srgb, var(--on-scrim) 80%, transparent);
+  }
+  .text-on-scrim\/85 {
+    color: color-mix(in srgb, var(--on-scrim) 85%, transparent);
+  }
+  .text-on-scrim\/90 {
+    color: color-mix(in srgb, var(--on-scrim) 90%, transparent);
   }
 }

@@ -28,12 +28,18 @@ test("P6 theme CSS exposes class dark variant, tint, and contrast tokens", async
   assert.match(globals, /--color-tint-red: color-mix\(in srgb, var\(--accent\) 10%, var\(--bg\)\);/);
   assert.match(globals, /--color-tint-yellow: color-mix\(in srgb, var\(--accent-2\) 35%, var\(--bg\)\);/);
 
-  for (const token of ["on-ink", "on-ink-2", "on-tier-vip", "on-tier-r", "on-tier-s", "on-tier-a", "on-tier-b"]) {
+  for (const token of ["on-ink", "on-ink-2", "on-tier-vip", "on-tier-r", "on-tier-s", "on-tier-a", "on-tier-b", "on-accent-2", "on-scrim"]) {
     assert.match(themeVars, new RegExp(`--${token}:`), `theme-vars.css must define --${token}`);
     assert.match(globals, new RegExp(`--color-${token}: var\\(--${token}\\);`), `globals.css must map --color-${token}`);
   }
+  assert.match(themeVars, /--scrim: #000000;/, "image scrims must use a fixed dark token");
+  assert.match(globals, /--color-scrim: var\(--scrim\);/, "globals.css must expose the fixed scrim token");
+  assert.match(globals, /\.text-on-scrim\s*{[\s\S]*color: var\(--on-scrim\);/, "globals.css must provide an explicit text-on-scrim utility for light-mode photo overlays");
+  assert.match(globals, /\.text-on-scrim\\\/90\s*{[\s\S]*color: color-mix\(in srgb, var\(--on-scrim\) 90%, transparent\);/, "globals.css must provide alpha variants for photo overlay text");
 
-  assert.match(themeVars, /\.dark\s*{[\s\S]*--bg: #121214;/, "dark theme must define the P6 dark background");
+  assert.match(themeVars, /\.dark\s*{[\s\S]*--bg: #1b1b1e;/, "dark theme must define the tuned gray background");
+  assert.match(themeVars, /\.dark\s*{[\s\S]*--bg-2: #202024;/, "dark theme must keep a visible second surface step");
+  assert.match(themeVars, /\.dark\s*{[\s\S]*--bg-4: #27272c;/, "dark theme must keep a visible fourth surface step");
   assert.match(themeVars, /\.dark\s*{[\s\S]*--tier-vip: #f6df8f;/, "dark VIP tier must be bright gold/cream, not a dark brightness adjustment");
   assert.match(themeVars, /\.dark\s*{[\s\S]*--on-tier-vip: #1a1a1d;/, "bright VIP tier must use a dark foreground");
 });

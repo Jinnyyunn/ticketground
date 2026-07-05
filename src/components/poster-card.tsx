@@ -73,7 +73,7 @@ export function PosterCard({
               className="object-cover transition-transform duration-300 group-hover:scale-[1.03] group-active:scale-[1.01]"
               unoptimized={poster.endsWith(".gif")}
             />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-ink/60 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-scrim/60 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
           </>
         ) : (
           <div className="poster-type flex h-full flex-col justify-end gap-1 p-4">

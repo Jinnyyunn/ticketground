@@ -9,7 +9,8 @@ Ticketground screens must feel like a dense Korean ticketing service: functional
 ## Tokens
 - Use the semantic tokens from `src/app/globals.css`: `ticketground`, `ink`, `surface`, `line`, `ok`, `warn`, and tier colors.
 - Do not introduce new raw color systems for service/API states. Use `bg-surface`, `border-line`, `text-ink-3`, `text-ticketground`, `text-ok`, and `text-warn`.
-- Use semantic foreground tokens for reversed contrast states. `text-on-ink`, `text-on-ink-2`, and `text-on-tier-*` are the dark-mode-safe companions for `bg-ink`, `bg-ink-2`, and tier backgrounds.
+- Use semantic foreground tokens for reversed contrast states. `text-on-ink`, `text-on-ink-2`, `text-on-tier-*`, and `text-on-accent-2` are the dark-mode-safe companions for `bg-ink`, `bg-ink-2`, tier backgrounds, and the fixed bright `bg-accent-2` card.
+- Use `scrim` with `text-on-scrim` for image/poster overlays that need fixed dark contrast. Do not use theme-inverting `ink` gradients or `text-on-ink` foregrounds for photo scrims.
 - Keep component radii at `8px` to `12px` unless an existing primitive already uses a different token.
 
 ## Layout

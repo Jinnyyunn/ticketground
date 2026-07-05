@@ -140,7 +140,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
               key={show.slug}
               href={`/goods/${show.slug}`}
               className={cn(
-                "group relative overflow-hidden rounded-lg bg-ink text-on-ink shadow-ticket-1 focus-visible:ring-3 focus-visible:ring-ring/50",
+                "group relative overflow-hidden rounded-lg bg-ink shadow-ticket-1 focus-visible:ring-3 focus-visible:ring-ring/50",
                 index === 0 ? "lg:col-span-3 lg:row-span-2" : "lg:col-span-3",
               )}
             >
@@ -151,10 +151,10 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
                 sizes="(min-width: 1024px) 50vw, 100vw"
                 className="object-cover opacity-70 transition group-hover:scale-[1.03]"
               />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/70 to-transparent p-5">
-                <span className="text-sm font-black text-accent-2">{show.badge ?? show.category}</span>
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim via-scrim/70 to-transparent p-5 text-on-scrim">
+                <span className="text-sm font-black text-on-scrim/85">{show.badge ?? show.category}</span>
                 <h2 className="mt-2 clamp-2 text-2xl font-black leading-tight">{show.shortTitle}</h2>
-                <p className="mt-2 text-sm text-on-ink/80">{show.venue}</p>
+                <p className="mt-2 text-sm text-on-scrim/80">{show.venue}</p>
                 <p className="mt-3 text-sm font-black">최저 {currency(lowestPrice(show))}</p>
               </div>
             </a>

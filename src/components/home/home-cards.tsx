@@ -41,7 +41,7 @@ export function GradientPoster({ title, gradient, poster, fit = "cover", classNa
           unoptimized={poster.endsWith(".gif")}
         />
       ) : (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/50 to-transparent p-4">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim/50 to-transparent p-4 text-on-scrim">
           <strong className="clamp-2 block text-2xl font-black leading-tight">{title}</strong>
         </div>
       )}
@@ -54,7 +54,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
     <Link
       href={show.href}
       className={cn(
-        "group relative isolate grid overflow-hidden rounded-xl border border-line bg-ink text-on-ink shadow-ticket-1 transition-transform hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group relative isolate grid overflow-hidden rounded-xl border border-line bg-ink shadow-ticket-1 transition-transform hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50",
         size === "large" ? "min-h-[420px] md:min-h-[580px]" : "min-h-[280px]",
       )}
     >
@@ -72,8 +72,8 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
       />
       <div
         className={cn(
-          "absolute inset-0 bg-gradient-to-r from-ink/90 via-ink/55 to-ink/10",
-          size === "mini" && "via-ink/45 to-ink/20",
+          "absolute inset-0 bg-gradient-to-r from-scrim/90 via-scrim/55 to-scrim/10",
+          size === "mini" && "via-scrim/45 to-scrim/20",
         )}
       />
       <div className={cn("relative z-10 flex min-h-full flex-col justify-between p-5", size === "large" && "md:p-8")}>
@@ -81,11 +81,11 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           <TicketgroundTag className="bg-white/90 text-ink shadow-ticket-1" tone={size === "large" ? "open" : "soon"}>
             {show.eyebrow}
           </TicketgroundTag>
-          <h1 className={cn("mt-4 font-black leading-tight text-on-ink", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>
+          <h1 className={cn("mt-4 font-black leading-tight text-on-scrim", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>
             {show.title}
           </h1>
-          <p className="mt-4 text-base font-bold text-on-ink/90">{show.venue}</p>
-          <p className="mt-1 text-sm text-on-ink/75">{show.date}</p>
+          <p className="mt-4 text-base font-bold text-on-scrim/90">{show.venue}</p>
+          <p className="mt-1 text-sm text-on-scrim/75">{show.date}</p>
         </div>
         <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-card px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
           {show.cta} →

@@ -20,11 +20,11 @@ const editorialCardTone = {
     cta: "border-white/20 bg-card text-ink group-hover:border-white group-hover:bg-ink group-hover:text-on-ink",
   },
   cream: {
-    card: "border-accent-2 bg-accent-2 text-ink shadow-ticket-2 hover:border-accent-2 hover:bg-accent-2/90",
+    card: "border-accent-2 bg-accent-2 text-on-accent-2 shadow-ticket-2 hover:border-accent-2 hover:bg-accent-2/90",
     accent: null,
-    eyebrow: "border-ink/10 bg-white/35 text-ink",
-    index: "border-ink/10 bg-white/25 text-ink/65",
-    cta: "border-ink/10 bg-white/55 text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-on-ink",
+    eyebrow: "border-on-accent-2/10 bg-white/35 text-on-accent-2",
+    index: "border-on-accent-2/10 bg-white/25 text-on-accent-2/65",
+    cta: "border-on-accent-2/10 bg-white/55 text-on-accent-2 group-hover:border-on-accent-2 group-hover:bg-on-accent-2 group-hover:text-white",
   },
 } as const;
 
