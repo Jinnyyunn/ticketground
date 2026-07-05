@@ -12,7 +12,6 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const darkEnabled = resolvedTheme === "dark";
   const label = darkEnabled ? "라이트 모드 켜기" : "다크 모드 켜기";
-  const Icon = darkEnabled ? Sun : Moon;
 
   return (
     <button
@@ -22,14 +21,26 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       aria-label={label}
       title={label}
       className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-full border border-line bg-card text-ink-2 transition-colors",
-        "hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50",
+        "relative inline-grid h-7 w-14 shrink-0 grid-cols-2 items-center rounded-full border border-line bg-surface p-0.5 text-ink-3 transition-colors",
+        "hover:border-line-strong hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/50",
         className,
       )}
       onClick={() => setTheme(darkEnabled ? "light" : "dark")}
       data-theme-toggle
     >
-      <Icon className="size-4" aria-hidden />
+      <span
+        className={cn(
+          "absolute left-0.5 top-0.5 size-6 rounded-full bg-card shadow-ticket-1 transition-transform",
+          darkEnabled && "translate-x-7",
+        )}
+        aria-hidden
+      />
+      <span className={cn("relative z-10 grid place-items-center", !darkEnabled && "text-ticketground")} aria-hidden>
+        <Sun className="size-3.5" />
+      </span>
+      <span className={cn("relative z-10 grid place-items-center", darkEnabled && "text-ticketground")} aria-hidden>
+        <Moon className="size-3.5" />
+      </span>
     </button>
   );
 }

@@ -97,7 +97,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
               {link.label}
             </Link>
           ))}
-          <ThemeToggle className="size-7" />
+          <ThemeToggle />
           <HeaderAuthLinks signedIn={signedIn} signOut={signOut} />
         </div>
       </div>
