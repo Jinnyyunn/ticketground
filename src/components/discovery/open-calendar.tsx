@@ -42,10 +42,10 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
       <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
           <h2 className="text-2xl font-black text-ink">월별 캘린더</h2>
-          <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-white">
+          <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-card">
             <div data-open-calendar-grid className="grid grid-cols-7 overflow-hidden md:min-w-[720px]">
               {["월", "화", "수", "목", "금", "토", "일"].map((day) => (
-                <div key={day} className="border-b border-line bg-surface px-1.5 py-2 text-center text-[12px] font-black text-ink-3 sm:px-3 sm:text-sm">
+                <div key={day} className="border-b border-line bg-surface px-1.5 py-2 text-center text-xs font-black text-ink-3 sm:px-3 sm:text-sm">
                   {day}
                 </div>
               ))}
@@ -66,12 +66,12 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
           </div>
         </div>
 
-        <aside className="rounded-lg border border-line bg-white p-5">
+        <aside className="rounded-lg border border-line bg-card p-5">
           <h2 className="text-2xl font-black text-ink">오픈 임박</h2>
           <div className="mt-4 grid gap-2 sm:gap-3">
             {imminent.map((show, index) => (
               <div key={show.slug} data-open-imminent-card className="grid min-w-0 grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-surface p-2 sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:p-3">
-                <time className="whitespace-nowrap text-[12px] font-black text-ticketground">D-{index + 1} 14:00</time>
+                <time className="whitespace-nowrap text-xs font-black text-ticketground">D-{index + 1} 14:00</time>
                 <div className="min-w-0">
                   <h3 className="text-sm font-black text-ink">{show.shortTitle}</h3>
                   <p className="clamp-1 text-sm text-ink-3">{show.venue}</p>

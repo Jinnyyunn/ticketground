@@ -13,7 +13,7 @@ export function TimeDeal() {
             const isFinal = d.badge === "파이널콜";
             return (
               <a key={d.title} href="#" className="group block w-[206px] shrink-0">
-                <div className="relative aspect-[3/4] overflow-hidden rounded-[10px] bg-surface-2">
+                <div className="relative aspect-[3/4] overflow-hidden rounded-md bg-surface-2">
                   <Image
                     src={d.poster}
                     alt={d.title}
@@ -25,7 +25,7 @@ export function TimeDeal() {
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5">
                   <span
-                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold text-white ${
+                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-bold text-white ${
                       isFinal ? "bg-[#652cb2]" : "bg-sale"
                     }`}
                   >
@@ -37,9 +37,9 @@ export function TimeDeal() {
                   </span>
                 </div>
                 <h3 className="clamp-2 mt-2 text-base font-bold leading-[1.35] text-ink-2">{d.title}</h3>
-                <p className="clamp-1 mt-1 text-sm text-[#7e7e81]">{d.venue}</p>
-                <p className="mt-0.5 text-sm text-[#b0b0b3]">{d.date}</p>
-                <p className="mt-2 text-[14px] font-medium text-ticketground">{d.discountLabel}</p>
+                <p className="clamp-1 mt-1 text-sm text-ink-3">{d.venue}</p>
+                <p className="mt-0.5 text-sm text-ink-4">{d.date}</p>
+                <p className="mt-2 text-sm font-medium text-ticketground">{d.discountLabel}</p>
                 <p className="mt-1 flex items-baseline gap-1.5">
                   <span className="text-xl font-bold text-sale">{d.percent}</span>
                   <span className="text-xl font-bold text-ink-2">{d.price}</span>

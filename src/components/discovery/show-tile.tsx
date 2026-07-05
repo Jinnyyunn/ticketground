@@ -16,7 +16,7 @@ export function ShowTile({ show, compact = false }: ShowTileProps) {
     <Link
       href={`/goods/${show.slug}`}
       className={cn(
-        "group grid min-w-0 rounded-lg border border-line bg-white transition hover:border-line-strong hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group grid min-w-0 rounded-lg border border-line bg-card transition hover:border-line-strong hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50",
         compact ? "grid-cols-[52px_1fr] gap-2 p-2" : "gap-4 p-4 xl:grid-cols-[120px_1fr]",
       )}
     >
@@ -37,7 +37,7 @@ export function ShowTile({ show, compact = false }: ShowTileProps) {
         <h2
           className={cn(
             "mt-2 clamp-2 font-black leading-snug text-ink-2 group-hover:underline",
-            compact ? "break-words [overflow-wrap:anywhere] text-[11.5px]" : "balanced-title break-words text-sm sm:text-[14px]",
+            compact ? "break-words [overflow-wrap:anywhere] text-[11.5px]" : "balanced-title break-words text-sm",
           )}
         >
           {show.title}

@@ -68,7 +68,7 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
   return (
     <section className="ticketground-container grid min-w-0 gap-8 py-10 lg:grid-cols-[minmax(0,1fr)_300px]">
       <div className="min-w-0">
-        <form action="/contents/search" className="flex min-w-0 rounded-full border border-line bg-white p-1">
+        <form action="/contents/search" className="flex min-w-0 rounded-full border border-line bg-card p-1">
           <input name="q" defaultValue={query} placeholder="공연명, 장소, 장르를 검색하세요" className="h-11 min-w-0 flex-1 rounded-full px-4 text-base outline-none" />
           <button className="h-11 shrink-0 whitespace-nowrap rounded-full bg-ink px-5 text-base font-black text-white sm:px-6">검색</button>
         </form>
@@ -124,14 +124,14 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
         <div className="mt-8 grid gap-4" data-search-results>
           {visibleResults.length === 0 ? (
             <div className="min-w-0 rounded-lg bg-surface p-6 text-center sm:p-10" data-search-empty>
-              <h2 className="balanced-title min-w-0 break-words text-[22px] font-black leading-tight text-ink [overflow-wrap:anywhere] sm:text-2xl">
+              <h2 className="balanced-title min-w-0 break-words text-2xl font-black leading-tight text-ink [overflow-wrap:anywhere]">
                 {emptyQuery ? "검색어를 입력하면 결과가 표시됩니다." : `"${query}"에 대한 ${emptyMessageLabel(activeTab)}가 없습니다.`}
               </h2>
               <p className="mt-3 text-base text-ink-3">다른 검색어를 입력하거나 인기 공연 정보를 확인해 보세요.</p>
             </div>
           ) : (
             visibleResults.map((show) => (
-              <article key={show.slug} className="min-w-0 rounded-lg border border-line bg-white p-4">
+              <article key={show.slug} className="min-w-0 rounded-lg border border-line bg-card p-4">
                 <h2 className="balanced-title min-w-0 break-words text-2xl font-black text-ink [overflow-wrap:anywhere]">{titleWithHighlight(show, query)}</h2>
                 <div className="mt-4">
                   <ShowTile show={show} compact />
@@ -142,7 +142,7 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
         </div>
       </div>
 
-      <aside className="rounded-lg border border-line bg-white p-5">
+      <aside className="rounded-lg border border-line bg-card p-5">
         <h2 className="text-2xl font-black text-ink">하이라이트</h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-3">레미제라블 40주년은 블루스퀘어, VIP 190,000원, 클린티켓 대표 공연입니다.</p>
         <div className="mt-5 grid gap-3">

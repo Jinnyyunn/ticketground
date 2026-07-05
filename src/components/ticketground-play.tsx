@@ -15,16 +15,16 @@ export function TicketgroundPlay() {
             <a key={v.title} href="#" className="block w-[413px] shrink-0">
               <div className="relative aspect-video overflow-hidden rounded-2xl bg-black">
                 <Image src={v.thumb} alt={v.title} fill sizes="413px" className="object-cover opacity-90" unoptimized={v.thumb.endsWith(".gif")} />
-                <span className="absolute left-3 top-3 rounded-md bg-black/55 px-2 py-1 text-[12px] font-bold text-white">
+                <span className="absolute left-3 top-3 rounded-md bg-black/55 px-2 py-1 text-xs font-bold text-white">
                   Ticketground
                 </span>
                 <span className="absolute left-1/2 top-1/2 flex size-[54px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl bg-[#ff0000]">
-                  <svg viewBox="0 0 24 24" fill="#fff" className="ml-0.5 size-7">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 size-7 text-white">
                     <path d="M8 5v14l11-7L8 5Z" />
                   </svg>
                 </span>
                 {v.duration && (
-                  <span className="absolute bottom-3 right-3 rounded bg-black/70 px-1.5 py-0.5 text-[12px] font-medium text-white">
+                  <span className="absolute bottom-3 right-3 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white">
                     {v.duration}
                   </span>
                 )}

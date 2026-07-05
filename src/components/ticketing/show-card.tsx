@@ -9,7 +9,7 @@ export function ShowCard({ show, compact = false }: { show: TicketShow; compact?
   return (
     <Link
       href={`/goods/${show.slug}`}
-      className="group grid gap-4 rounded-[10px] border border-[#eee] bg-white p-4 transition hover:border-[#d9dcff] hover:shadow-[0_12px_28px_rgba(30,30,40,0.08)] sm:grid-cols-[120px_1fr]"
+      className="group grid gap-4 rounded-md border border-line bg-card p-4 transition hover:border-line-strong hover:shadow-[0_12px_28px_rgba(30,30,40,0.08)] sm:grid-cols-[120px_1fr]"
     >
       <Image
         src={show.poster}
@@ -22,14 +22,14 @@ export function ShowCard({ show, compact = false }: { show: TicketShow; compact?
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           {show.badge && (
-            <span className="rounded bg-[#eef0ff] px-2 py-1 text-[12px] font-bold text-ticketground">{show.badge}</span>
+            <span className="rounded bg-tint-blue px-2 py-1 text-xs font-bold text-ticketground">{show.badge}</span>
           )}
-          <span className="text-sm font-bold text-[#7e7e81]">{show.category}</span>
+          <span className="text-sm font-bold text-ink-3">{show.category}</span>
         </div>
         <h2 className="mt-2 clamp-2 text-xl font-bold leading-[1.35] text-ink-2">{show.title}</h2>
-        <p className="mt-2 text-[14px] text-[#666]">{show.venue}</p>
-        <p className="mt-1 text-[14px] text-[#9b9b9b]">{show.period}</p>
-        {!compact && <p className="mt-3 clamp-2 text-[14px] leading-[1.6] text-[#555]">{show.summary}</p>}
+        <p className="mt-2 text-sm text-ink-3">{show.venue}</p>
+        <p className="mt-1 text-sm text-ink-4">{show.period}</p>
+        {!compact && <p className="mt-3 clamp-2 text-sm leading-[1.6] text-ink-3">{show.summary}</p>}
         <p className="mt-3 text-base font-bold text-ink-2">최저 {currency(lowestPrice)}</p>
       </div>
     </Link>

@@ -62,7 +62,7 @@ export function PosterCard({
         className,
       )}
     >
-      <div className={cn("poster relative aspect-[3/4] overflow-hidden rounded-[10px] bg-surface-2", !poster && posterGradientClasses[gradient])}>
+      <div className={cn("poster relative aspect-[3/4] overflow-hidden rounded-md bg-surface-2", !poster && posterGradientClasses[gradient])}>
         {poster ? (
           <>
             <Image
@@ -77,7 +77,7 @@ export function PosterCard({
           </>
         ) : (
           <div className="poster-type flex h-full flex-col justify-end gap-1 p-4">
-            <strong className="ptitle clamp-2 text-[22px] font-black leading-tight">{title}</strong>
+            <strong className="ptitle clamp-2 text-2xl font-black leading-tight">{title}</strong>
             {venue && <span className="psub text-sm font-bold opacity-85">{venue}</span>}
             {date && <span className="pmeta text-sm font-medium opacity-75">{date}</span>}
           </div>

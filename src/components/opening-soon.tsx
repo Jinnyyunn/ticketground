@@ -12,7 +12,7 @@ export function OpeningSoon() {
           <a
             key={item.title}
             href="#"
-            className="flex gap-4 rounded-2xl border border-[#eee] p-3.5 transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.07)]"
+            className="flex gap-4 rounded-2xl border border-line p-3.5 transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.07)]"
           >
             <Image
               src={item.poster}
@@ -25,13 +25,13 @@ export function OpeningSoon() {
             <div className="flex flex-1 flex-col py-1">
               <p className="text-base font-bold text-ticketground">{item.time}</p>
               <h3 className="clamp-2 mt-1.5 text-lg font-bold leading-[1.35] text-ink-2">{item.title}</h3>
-              <p className="mt-1.5 text-[14px] text-[#7e7e81]">{item.type}</p>
+              <p className="mt-1.5 text-sm text-ink-3">{item.type}</p>
               <div className="mt-auto flex gap-1.5 pt-2">
                 {item.hot && (
-                  <span className="rounded bg-[#ffeaea] px-1.5 py-0.5 text-[12px] font-bold text-sale">HOT</span>
+                  <span className="rounded bg-tint-red px-1.5 py-0.5 text-xs font-bold text-sale">HOT</span>
                 )}
                 {item.tag && (
-                  <span className="rounded bg-[#eef0ff] px-1.5 py-0.5 text-[12px] font-medium text-ticketground">{item.tag}</span>
+                  <span className="rounded bg-tint-blue px-1.5 py-0.5 text-xs font-medium text-ticketground">{item.tag}</span>
                 )}
               </div>
             </div>
