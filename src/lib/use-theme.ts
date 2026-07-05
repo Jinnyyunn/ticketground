@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 
 export const THEME_STORAGE_KEY = "ticketground:theme";
 
@@ -44,12 +44,23 @@ function initialThemeState(): ThemeState {
   }
 
   const theme = storedTheme();
-  const resolvedTheme = theme === "system" ? (document.documentElement.classList.contains("dark") ? "dark" : systemTheme()) : theme;
+  const activeTheme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+  const resolvedTheme = theme === "system" ? activeTheme : theme;
   return { theme, resolvedTheme };
 }
 
 export function useTheme() {
   const [state, setState] = useState<ThemeState>(initialThemeState);
+
+  useLayoutEffect(() => {
+    const syncTheme = () => {
+      const nextState = themeState(storedTheme());
+      applyResolvedTheme(nextState.resolvedTheme);
+      setState(nextState);
+    };
+
+    syncTheme();
+  }, []);
 
   useEffect(() => {
     const syncTheme = () => {
@@ -58,7 +69,6 @@ export function useTheme() {
       setState(nextState);
     };
 
-    syncTheme();
     window.addEventListener("storage", syncTheme);
     return () => window.removeEventListener("storage", syncTheme);
   }, []);

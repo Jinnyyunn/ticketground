@@ -5,10 +5,11 @@ import "./globals.css";
 const themeBootstrapScript = `
 (function () {
   var root = document.documentElement;
+  var storageKey = "ticketground:theme";
   var theme = "system";
 
   try {
-    var storedTheme = window.localStorage.getItem("ticketground:theme");
+    var storedTheme = window.localStorage.getItem(storageKey);
     if (storedTheme === "light" || storedTheme === "dark" || storedTheme === "system") {
       theme = storedTheme;
     }
@@ -20,8 +21,50 @@ const themeBootstrapScript = `
   } catch (_) {}
 
   var resolvedTheme = theme === "system" ? (systemPrefersDark ? "dark" : "light") : theme;
+  function syncThemeControls() {
+    var isDark = root.classList.contains("dark");
+    var label = isDark ? "라이트 모드 켜기" : "다크 모드 켜기";
+    document.querySelectorAll("[data-theme-toggle]").forEach(function (button) {
+      button.setAttribute("aria-checked", isDark ? "true" : "false");
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+      var spans = button.querySelectorAll("span");
+      if (spans[0]) spans[0].classList.toggle("translate-x-7", isDark);
+      if (spans[1]) spans[1].classList.toggle("text-ticketground", !isDark);
+      if (spans[2]) spans[2].classList.toggle("text-ticketground", isDark);
+    });
+  }
+
+  function applyResolvedTheme(nextTheme) {
+    root.classList.toggle("dark", nextTheme === "dark");
+    root.dataset.theme = nextTheme;
+    syncThemeControls();
+  }
+
   root.classList.toggle("dark", resolvedTheme === "dark");
   root.dataset.theme = resolvedTheme;
+  syncThemeControls();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncThemeControls, { once: true });
+  } else {
+    syncThemeControls();
+  }
+  new MutationObserver(syncThemeControls).observe(root, { attributes: true, attributeFilter: ["class", "data-theme"] });
+  new MutationObserver(syncThemeControls).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var button = target.closest("[data-theme-toggle]");
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    var nextTheme = root.classList.contains("dark") ? "light" : "dark";
+    try {
+      window.localStorage.setItem(storageKey, nextTheme);
+    } catch (_) {}
+    applyResolvedTheme(nextTheme);
+  }, true);
 })();
 `;
 
