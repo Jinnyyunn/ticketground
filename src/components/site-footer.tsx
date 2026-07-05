@@ -3,10 +3,10 @@ import { footerColumnLinks, footerLinks } from "@/data/content";
 
 export function SiteFooter() {
   return (
-    <footer className="mt-[70px] border-t border-line bg-white text-ink">
+    <footer className="mt-[70px] border-t border-line bg-background text-ink">
       <div className="ticketground-container grid gap-8 py-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,3fr)]">
         <div>
-          <Link href="/" className="inline-flex items-center gap-1 whitespace-nowrap text-[22px] font-black text-ink">
+          <Link href="/" className="inline-flex items-center gap-1 whitespace-nowrap text-2xl font-black text-ink">
             Ticketground
             <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
           </Link>
@@ -25,7 +25,7 @@ export function SiteFooter() {
           {footerColumnLinks.map((column) => (
             <nav key={column.title} aria-label={column.title} className="min-w-0">
               <h2 className="truncate text-center text-sm font-black text-ink md:text-left md:text-sm">{column.title}</h2>
-              <ul className="mt-3 grid gap-2 text-center text-[12px] leading-snug text-ink-3 sm:text-sm md:mt-4 md:gap-3 md:text-left md:text-sm">
+              <ul className="mt-3 grid gap-2 text-center text-xs leading-snug text-ink-3 sm:text-sm md:mt-4 md:gap-3 md:text-left md:text-sm">
                 {column.links.map((link) => (
                   <li key={link.label} className="min-w-0">
                     <Link href={link.href} className="block min-w-0 break-keep hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">

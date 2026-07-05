@@ -55,15 +55,15 @@ export function BackendTicketPanel({ reservations }: BackendTicketPanelProps) {
   }
 
   return (
-    <section className="mt-5 min-w-0 rounded-[10px] border border-line bg-surface p-5" aria-live="polite">
+    <section className="mt-5 min-w-0 rounded-md border border-line bg-surface p-5" aria-live="polite">
       <ReservationHistorySearch reservations={reservations} />
-      <div className="mt-5 rounded-[10px] border border-line bg-white p-4">
+      <div className="mt-5 rounded-md border border-line bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-black text-ticketground">백엔드 소유 티켓</p>
             <h3 className="balanced-title mt-1 text-xl font-black text-ink">가상 QR 확인</h3>
           </div>
-          <button type="button" onClick={refreshTickets} className="h-10 whitespace-nowrap rounded-sm border border-line bg-white px-4 text-sm font-black text-ink">
+          <button type="button" onClick={refreshTickets} className="h-10 whitespace-nowrap rounded-sm border border-line bg-card px-4 text-sm font-black text-ink">
             새로고침
           </button>
         </div>
@@ -86,9 +86,9 @@ export function BackendTicketPanel({ reservations }: BackendTicketPanelProps) {
         </div>
       </div>
       {qr && (
-        <div className="mt-4 rounded-sm border border-ok bg-white p-4">
+        <div className="mt-4 rounded-sm border border-ok bg-card p-4">
           <p className="text-sm font-black text-ok">가상 티켓 발급됨</p>
-          <p className="mt-1 break-words text-[14px] font-bold text-ink">{qr.eventTitle} · {qr.seatLabel}</p>
+          <p className="mt-1 break-words text-sm font-bold text-ink">{qr.eventTitle} · {qr.seatLabel}</p>
           <p className="mt-1 break-words text-sm text-ink-3">현장 입장 QR은 {new Date(qr.realQrAvailableAt).toLocaleString("ko-KR")}부터 앱에서만 열립니다.</p>
         </div>
       )}

@@ -33,7 +33,7 @@ export function WatchlistShowCard({
   readonly show: WatchShow;
 }) {
   return (
-    <article className="rounded-lg border border-line bg-white p-5 shadow-ticket-1">
+    <article className="rounded-lg border border-line bg-card p-5 shadow-ticket-1">
       <div className="grid gap-4 sm:grid-cols-[112px_1fr] md:grid-cols-[128px_1fr]">
         <Link
           href={`/goods/${show.slug}`}
@@ -64,7 +64,7 @@ export function WatchlistShowCard({
               <span className="rounded-full bg-surface px-3 py-1 text-sm font-black text-ink-2">{show.category}</span>
               <span className="rounded-full bg-tint-red px-3 py-1 text-sm font-black text-ticketground">{show.dDayLabel}</span>
             </div>
-            <h2 className="mt-3 text-[22px] font-black text-ink">{show.title}</h2>
+            <h2 className="mt-3 text-2xl font-black text-ink">{show.title}</h2>
             <p className="mt-2 text-sm text-ink-3">{show.venue}</p>
             <p className="mt-1 flex items-center gap-2 text-sm font-bold text-ink-2">
               <CalendarDays className="size-4" aria-hidden />

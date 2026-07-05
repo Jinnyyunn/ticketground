@@ -83,7 +83,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
             onClick={() => setFilter(item)}
             className={cn(
               "h-9 rounded-full border px-4 text-sm font-black transition focus-visible:ring-3 focus-visible:ring-ring/50",
-              filter === item ? "border-ink bg-ink text-white" : "border-line bg-white text-ink-2 hover:border-line-strong",
+              filter === item ? "border-ink bg-ink text-white" : "border-line bg-card text-ink-2 hover:border-line-strong",
             )}
           >
             {item}
@@ -98,7 +98,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
             aria-label="정렬"
             value={sort}
             onChange={(event) => setSort(toSortMode(event.target.value))}
-            className="h-10 rounded-lg border border-line bg-white px-3 text-sm font-black text-ink"
+            className="h-10 rounded-lg border border-line bg-card px-3 text-sm font-black text-ink"
           >
             {sortOptions.map((option) => (
               <option key={option.id} value={option.id}>
@@ -106,7 +106,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
               </option>
             ))}
           </select>
-          <div className="flex rounded-lg border border-line bg-white p-1" aria-label="레이아웃">
+          <div className="flex rounded-lg border border-line bg-card p-1" aria-label="레이아웃">
             {layouts.map((item) => (
               <button
                 key={item.id}

@@ -14,8 +14,8 @@ export function PillTabs({ tabs, className }: { tabs: string[]; className?: stri
           className={cn(
             "h-[42px] rounded-full px-5 text-base font-medium transition-colors",
             i === active
-              ? "bg-[#1a1a1a] text-white"
-              : "border border-[#e5e5e5] bg-white text-[#41414a] hover:border-[#bdbdbd]",
+              ? "bg-ink text-white"
+              : "border border-line bg-card text-ink-2 hover:border-line-strong",
           )}
         >
           {t}

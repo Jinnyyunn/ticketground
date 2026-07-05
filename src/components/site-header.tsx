@@ -18,7 +18,7 @@ function SearchBar({ className, keyboardReachable = true }: { readonly className
       action="/contents/search"
       role="search"
       className={cn(
-        "flex h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-white pl-5 pr-3",
+        "flex h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-card pl-5 pr-3",
         "transition-colors hover:border-line-strong focus-within:border-line-strong focus-within:ring-3 focus-within:ring-ring/50",
         className,
       )}
@@ -88,7 +88,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
   }, []);
 
   return (
-    <header className="relative z-50 w-full bg-white text-ink">
+    <header className="relative z-50 w-full bg-background text-ink">
       <div className="hidden border-b border-line bg-surface sm:block">
         <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-sm font-bold text-ink-3">
           {utilityLinksBeforeAuth.map((link) => (
@@ -101,7 +101,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
       </div>
 
       <div className="ticketground-container flex h-auto flex-wrap items-center gap-x-3 gap-y-3 py-3 md:h-[64px] md:flex-nowrap md:gap-8 md:py-0">
-        <Link href="/" className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[22px] font-black tracking-normal text-ink md:text-[25px]">
+        <Link href="/" className="flex shrink-0 items-center gap-1 whitespace-nowrap text-2xl font-black tracking-normal text-ink md:text-[25px]">
           Ticketground
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
@@ -124,14 +124,14 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
 
       <div
         className={cn(
-          "sticky top-0 z-50 border-y border-line bg-white transition-shadow",
+          "sticky top-0 z-50 border-y border-line bg-background transition-shadow",
           scrolled && "shadow-ticket-1",
         )}
       >
-        <div className="ticketground-container flex h-11 items-center gap-4 text-[14px] sm:h-12 sm:gap-7 sm:text-base">
+        <div className="ticketground-container flex h-11 items-center gap-4 text-sm sm:h-12 sm:gap-7 sm:text-base">
           <div className="relative min-w-0 flex-1">
-            <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-white to-transparent sm:hidden" aria-hidden />
-            <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-white to-transparent sm:hidden" aria-hidden />
+            <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-background to-transparent sm:hidden" aria-hidden />
+            <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-background to-transparent sm:hidden" aria-hidden />
             <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto sm:gap-7">
             {categoryNav.map((c) => (
               <Link

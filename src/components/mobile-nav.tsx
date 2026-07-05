@@ -24,7 +24,7 @@ export function MobileNav({ className }: { readonly className?: string }) {
       <Dialog.Trigger
         aria-label="전체 메뉴 열기"
         className={cn(
-          "grid size-10 shrink-0 place-items-center rounded-full border border-line bg-white text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50",
+          "grid size-10 shrink-0 place-items-center rounded-full border border-line bg-card text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50",
           className,
         )}
       >
@@ -32,7 +32,7 @@ export function MobileNav({ className }: { readonly className?: string }) {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[80] bg-ink/45" />
-        <Dialog.Popup className="fixed inset-y-0 right-0 z-[90] flex w-[min(360px,calc(100vw-32px))] flex-col bg-white p-5 text-ink shadow-ticket-3">
+        <Dialog.Popup className="fixed inset-y-0 right-0 z-[90] flex w-[min(360px,calc(100vw-32px))] flex-col bg-background p-5 text-ink shadow-ticket-3">
           <div className="flex items-center justify-between gap-3 border-b border-line pb-4">
             <Dialog.Title className="text-2xl font-black">전체 메뉴</Dialog.Title>
             <Dialog.Close
@@ -43,7 +43,7 @@ export function MobileNav({ className }: { readonly className?: string }) {
             </Dialog.Close>
           </div>
 
-          <nav aria-label="모바일 유틸리티" className="grid grid-cols-2 gap-2 border-b border-line py-4 text-[14px] font-black">
+          <nav aria-label="모바일 유틸리티" className="grid grid-cols-2 gap-2 border-b border-line py-4 text-sm font-black">
             {utilityLinksBeforeAuth.map((link) => (
               <Link key={link.href} href={link.href} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">
                 {link.label}

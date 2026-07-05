@@ -171,8 +171,8 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
                     className={cn(
                       "mt-1 flex size-7 items-center justify-center rounded-full border text-sm font-black",
                       item.state === "done" && "border-ok bg-ok text-white",
-                      item.state === "next" && "border-ticketground bg-white text-ticketground",
-                      item.state === "waiting" && "border-line-strong bg-white text-ink-3",
+                      item.state === "next" && "border-ticketground bg-card text-ticketground",
+                      item.state === "waiting" && "border-line-strong bg-card text-ink-3",
                     )}
                   >
                     {item.state === "done" ? <CheckCircle2 className="size-4" aria-hidden /> : item.label === "D-3" ? "3" : "0"}
@@ -186,7 +186,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
             </ol>
           </div>
 
-          <div className="rounded-lg border border-line bg-white p-5">
+          <div className="rounded-lg border border-line bg-card p-5">
             <h2 className="text-2xl font-black text-ink">채널 설정</h2>
             <div className="mt-4 grid gap-3">
               {channels.map((channel) => (

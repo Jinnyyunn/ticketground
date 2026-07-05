@@ -21,13 +21,13 @@ type ChatThread = Omit<InquiryThread, "messages"> & {
 
 const statusMeta: Record<InquiryThread["status"], { readonly label: string; readonly className: string }> = {
   open: { label: "대기", className: "border-ticketground bg-tint-red text-ticketground" },
-  answered: { label: "완료", className: "border-ok bg-white text-ok" },
+  answered: { label: "완료", className: "border-ok bg-card text-ok" },
   closed: { label: "종료", className: "border-line bg-surface-2 text-ink-3" },
 };
 
 const authorMeta: Record<InquiryMessage["author"], { readonly label: string; readonly className: string }> = {
   member: { label: "me", className: "ml-auto bg-ink text-white" },
-  agent: { label: "agent", className: "bg-white text-ink" },
+  agent: { label: "agent", className: "bg-card text-ink" },
   system: { label: "system", className: "mx-auto bg-tint-yellow text-ink" },
 };
 
@@ -134,9 +134,9 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
       <aside className="min-w-0 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-black text-ink">문의 스레드</h2>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink-3">{threads.length}건</span>
+          <span className="rounded-full bg-card px-3 py-1 text-xs font-black text-ink-3">{threads.length}건</span>
         </div>
-        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-bold text-ink-3" aria-live="polite">{backendStatus}</p>
+        <p className="mt-3 rounded-lg bg-card px-3 py-2 text-xs font-bold text-ink-3" aria-live="polite">{backendStatus}</p>
         <div className="mt-4 grid gap-3">
           {threads.map((thread) => {
             const meta = statusMeta[thread.status];
@@ -146,7 +146,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
                 type="button"
                 onClick={() => setSelectedId(thread.id)}
                 className={cn(
-                  "min-w-0 rounded-lg border bg-white p-4 text-left transition hover:border-line-strong focus-visible:outline-2 focus-visible:outline-link",
+                  "min-w-0 rounded-lg border bg-card p-4 text-left transition hover:border-line-strong focus-visible:outline-2 focus-visible:outline-link",
                   selectedThread?.id === thread.id ? "border-ink shadow-ticket-1" : "border-line",
                 )}
                 data-testid={`thread-${thread.id}`}
@@ -160,7 +160,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
         </div>
       </aside>
 
-      <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-white">
+      <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-card">
         <div className="border-b border-line p-5">
           <div className="flex flex-wrap items-center gap-2">
             {selectedThread && (
@@ -204,7 +204,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
                   void sendMessage();
                 }
               }}
-              className="min-h-[108px] rounded-lg border border-line bg-white p-3 font-normal text-ink focus-visible:outline-2 focus-visible:outline-link"
+              className="min-h-[108px] rounded-lg border border-line bg-card p-3 font-normal text-ink focus-visible:outline-2 focus-visible:outline-link"
               placeholder="문의 내용을 입력하세요. Shift+Enter로 줄바꿈"
               data-testid="inquiry-compose"
             />
