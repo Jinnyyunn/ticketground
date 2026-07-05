@@ -20,7 +20,7 @@ export function VenueDetail({ venue, currentShows }: VenueDetailProps) {
 
           <section className="mt-10">
             <h2 className="text-[26px] font-black text-ink sm:text-3xl">좌석 배치도</h2>
-            <div className="mt-4 grid gap-2 rounded-lg border border-line bg-white p-5">
+            <div className="mt-4 grid gap-2 rounded-lg border border-line bg-card p-5">
               {venue.zones.map((zone, index) => (
                 <div key={zone} className="grid grid-cols-[120px_1fr] items-center gap-3">
                   <span className="text-sm font-black text-ink-3">{zone}</span>
@@ -49,7 +49,7 @@ export function VenueDetail({ venue, currentShows }: VenueDetailProps) {
           </section>
         </div>
 
-        <aside className="h-fit rounded-lg border border-line bg-white p-5 lg:sticky lg:top-[128px]">
+        <aside className="h-fit rounded-lg border border-line bg-card p-5 lg:sticky lg:top-[128px]">
           <h2 className="text-2xl font-black text-ink">공연장 정보</h2>
           <dl className="mt-4 grid gap-3 text-sm">
             <div className="flex justify-between gap-4">

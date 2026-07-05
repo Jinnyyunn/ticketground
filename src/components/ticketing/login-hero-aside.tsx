@@ -18,19 +18,19 @@ export function LoginHeroAside() {
         </p>
       </div>
 
-      <div className="grid gap-3 rounded-lg bg-white/8 p-5">
+      <div className="grid gap-3 rounded-lg bg-background/8 p-5">
         <p className="text-sm font-black text-white">회원 기능 미리보기</p>
         <dl className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <dt className="text-[12px] text-white/55">예매번호</dt>
+            <dt className="text-xs text-white/55">예매번호</dt>
             <dd className="mt-1 text-sm font-black">CTI</dd>
           </div>
           <div>
-            <dt className="text-[12px] text-white/55">QR</dt>
+            <dt className="text-xs text-white/55">QR</dt>
             <dd className="mt-1 text-sm font-black">20초</dd>
           </div>
           <div>
-            <dt className="text-[12px] text-white/55">재판매</dt>
+            <dt className="text-xs text-white/55">재판매</dt>
             <dd className="mt-1 text-sm font-black">공식</dd>
           </div>
         </dl>

@@ -70,7 +70,7 @@ export function LoginMockForm({
 
       {mode === "signup" && (
         <div className="signup-only mt-5 grid gap-3">
-          <label className="flex items-start gap-3 rounded-[10px] border border-line bg-surface p-4 text-sm leading-relaxed text-ink-2">
+          <label className="flex items-start gap-3 rounded-md border border-line bg-surface p-4 text-sm leading-relaxed text-ink-2">
             <input
               type="checkbox"
               checked={identityChecked}
@@ -82,7 +82,7 @@ export function LoginMockForm({
               휴대폰 본인확인과 기기 확인을 완료한 것으로 처리하는 mock 블록입니다.
             </span>
           </label>
-          <label className="flex items-start gap-3 rounded-[10px] border border-line bg-surface p-4 text-sm leading-relaxed text-ink-2">
+          <label className="flex items-start gap-3 rounded-md border border-line bg-surface p-4 text-sm leading-relaxed text-ink-2">
             <input
               type="checkbox"
               checked={termsChecked}

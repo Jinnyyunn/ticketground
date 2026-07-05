@@ -47,7 +47,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
   if (completed) {
     return (
       <section className="ticketground-container py-10">
-        <div className="mx-auto max-w-[720px] rounded-xl border border-line bg-white p-8 text-center shadow-ticket-2">
+        <div className="mx-auto max-w-[720px] rounded-xl border border-line bg-card p-8 text-center shadow-ticket-2">
           <p className="text-sm font-black text-ticketground">mock 취소 요청 접수</p>
           <h1 className="mt-3 break-keep text-[34px] font-black text-ink">취소·환불 요청이 기록되었습니다</h1>
           <p className="mx-auto mt-4 max-w-[520px] break-keep text-sm leading-loose text-ink-3">
@@ -71,11 +71,11 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:pr-24 2xl:pr-0">
         <div className="grid gap-5">
-          <article className="rounded-lg border border-line bg-white p-6">
+          <article className="rounded-lg border border-line bg-card p-6">
             <StepHeader index="01" title="예매 확인" />
             <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
               <div>
-                <h2 className="text-[22px] font-black text-ink">{reservation.showTitle}</h2>
+                <h2 className="text-2xl font-black text-ink">{reservation.showTitle}</h2>
                 <p className="mt-2 text-sm text-ink-3">{reservation.venue}</p>
                 <p className="mt-1 text-sm font-black text-ink">
                   {reservation.date} {reservation.time}
@@ -91,14 +91,14 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
             </div>
           </article>
 
-          <article className="rounded-lg border border-line bg-white p-6">
+          <article className="rounded-lg border border-line bg-card p-6">
             <StepHeader index="02" title="취소 사유" />
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {cancelReasons.map((cancelReason) => (
                 <label
                   key={cancelReason}
-                  className={`flex min-h-12 items-center gap-3 rounded-[10px] border px-4 text-sm font-black ${
-                    reason === cancelReason ? "border-ink bg-ink text-white" : "border-line bg-white text-ink hover:border-line-strong"
+                  className={`flex min-h-12 items-center gap-3 rounded-md border px-4 text-sm font-black ${
+                    reason === cancelReason ? "border-ink bg-ink text-white" : "border-line bg-card text-ink hover:border-line-strong"
                   }`}
                 >
                   <input
@@ -115,9 +115,9 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
             </div>
           </article>
 
-          <article className="rounded-lg border border-line bg-white p-6">
+          <article className="rounded-lg border border-line bg-card p-6">
             <StepHeader index="03" title="수수료 정책" />
-            <div className="mt-5 overflow-hidden rounded-[10px] border border-line">
+            <div className="mt-5 overflow-hidden rounded-md border border-line">
               <table className="w-full border-collapse text-left text-sm">
                 <thead className="bg-surface text-ink-3">
                   <tr>
@@ -139,14 +139,14 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
             </div>
           </article>
 
-          <article className="rounded-lg border border-line bg-white p-6">
+          <article className="rounded-lg border border-line bg-card p-6">
             <StepHeader index="04" title="환불 계산 및 동의" />
-            <div className="mt-5 rounded-[10px] bg-surface p-5 text-sm leading-loose text-ink-3">
+            <div className="mt-5 rounded-md bg-surface p-5 text-sm leading-loose text-ink-3">
               <p>선택 사유: {reason || "아직 선택하지 않음"}</p>
               <p>현재 수수료: 0원</p>
               <p>예상 환불액: {currency(refundAmount)}</p>
             </div>
-            <label className="mt-4 flex items-start gap-3 rounded-[10px] border border-line p-4 text-sm leading-relaxed text-ink-2">
+            <label className="mt-4 flex items-start gap-3 rounded-md border border-line p-4 text-sm leading-relaxed text-ink-2">
               <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1 accent-link" />
               <span>
                 취소 수수료와 환불 예정 금액을 확인했습니다. 이 항목은 실제 결제 취소가 아닌 mock 플로우 확인용입니다.
@@ -155,7 +155,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
           </article>
         </div>
 
-        <aside className="h-fit rounded-lg border border-line bg-white p-6 shadow-ticket-1 lg:sticky lg:top-[132px]">
+        <aside className="h-fit rounded-lg border border-line bg-card p-6 shadow-ticket-1 lg:sticky lg:top-[132px]">
           <h2 className="text-2xl font-black text-ink">환불 예정 금액</h2>
           <dl className="mt-5 grid gap-3 text-sm">
             <SummaryRow label="결제금액" value={currency(reservation.totalAmount)} />

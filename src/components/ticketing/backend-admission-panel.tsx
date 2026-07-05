@@ -61,8 +61,8 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
   }, [ticketId]);
 
   return (
-    <div className="mt-4 min-w-0 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
-      <p className="text-[14px] font-black text-ink">입장권 상태</p>
+    <div className="mt-4 min-w-0 rounded-md border border-line bg-surface p-4" aria-live="polite">
+      <p className="text-sm font-black text-ink">입장권 상태</p>
       <p className="mt-1 break-words text-sm font-bold text-ink-3">{status}</p>
       {qr && (
         <dl className="mt-3 grid gap-2 text-sm font-bold text-ink-2">

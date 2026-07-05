@@ -9,7 +9,7 @@ type TicketingPageShellProps = {
 
 export function TicketingPageShell({ children, showHeaderSearchBar = true }: TicketingPageShellProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-white text-ink">
+    <div className="flex min-h-screen flex-col bg-background text-ink">
       <SiteHeader showSearchBar={showHeaderSearchBar} />
       <main id="content" className="flex-1">
         {children}

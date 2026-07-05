@@ -167,7 +167,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   return (
     <section className="ticketground-container py-10">
-      <div className="grid overflow-hidden rounded-xl border border-line bg-white shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
+      <div className="grid overflow-hidden rounded-xl border border-line bg-card shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
         <LoginHeroAside />
 
         <div className="p-6 sm:p-8 lg:p-10">

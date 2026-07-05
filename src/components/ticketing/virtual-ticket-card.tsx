@@ -12,11 +12,11 @@ export function VirtualTicketCard({ date, reservationId, seatLabel, ticketIndex,
   return (
     <figure
       aria-label="소유 확인용 가상 티켓 이미지"
-      className="relative mx-auto aspect-[4/5] w-full max-w-[260px] overflow-hidden rounded-[10px] border border-line bg-white p-3 shadow-ticket-1"
+      className="relative mx-auto aspect-[4/5] w-full max-w-[260px] overflow-hidden rounded-md border border-line bg-card p-3 shadow-ticket-1"
     >
       <div className="absolute inset-x-0 top-0 h-2 bg-ticketground" />
       <div className="flex h-full flex-col rounded-sm border border-line bg-surface">
-        <div className="bg-white px-3 py-3 text-left">
+        <div className="bg-card px-3 py-3 text-left">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[11px] font-black tracking-[0.08em] text-ticketground">TICKETGROUND</p>
@@ -33,11 +33,11 @@ export function VirtualTicketCard({ date, reservationId, seatLabel, ticketIndex,
             <p className="mt-1 break-all text-sm font-black text-ink">{displayReservationId}</p>
           </div>
           <div className="grid gap-2 text-[11px]">
-            <div className="rounded-[6px] border border-line bg-white px-2 py-1">
+            <div className="rounded-[6px] border border-line bg-card px-2 py-1">
               <p className="font-black text-ink-3">DATE</p>
               <p className="mt-0.5 font-bold text-ink">{date}</p>
             </div>
-            <div className="rounded-[6px] border border-line bg-white px-2 py-1">
+            <div className="rounded-[6px] border border-line bg-card px-2 py-1">
               <p className="font-black text-ink-3">SEAT</p>
               <p className="mt-0.5 break-words font-bold text-ink">{seatLabel}</p>
             </div>

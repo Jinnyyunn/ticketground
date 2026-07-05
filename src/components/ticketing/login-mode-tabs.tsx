@@ -7,14 +7,14 @@ type LoginModeTabsProps = {
 
 export function LoginModeTabs({ mode, onChange }: LoginModeTabsProps) {
   return (
-    <div className="grid grid-cols-2 rounded-[10px] bg-surface p-1" role="tablist" aria-label="로그인 회원가입 전환">
+    <div className="grid grid-cols-2 rounded-md bg-surface p-1" role="tablist" aria-label="로그인 회원가입 전환">
       {(["login", "signup"] as const).map((nextMode) => (
         <button
           key={nextMode}
           type="button"
           role="tab"
           aria-selected={mode === nextMode}
-          className={`h-11 rounded-sm text-sm font-black transition ${mode === nextMode ? "bg-white text-ink shadow-ticket-1" : "text-ink-3"}`}
+          className={`h-11 rounded-sm text-sm font-black transition ${mode === nextMode ? "bg-card text-ink shadow-ticket-1" : "text-ink-3"}`}
           onClick={() => onChange(nextMode)}
         >
           {nextMode === "login" ? "로그인" : "회원가입"}

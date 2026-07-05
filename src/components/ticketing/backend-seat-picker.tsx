@@ -14,7 +14,7 @@ export function BackendSeatPicker({
   readonly status: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-line bg-white p-4 sm:p-5" aria-live="polite">
+    <div className="min-w-0 rounded-lg border border-line bg-card p-4 sm:p-5" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-ticketground">실시간 좌석도</p>

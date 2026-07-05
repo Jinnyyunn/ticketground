@@ -26,7 +26,7 @@ export function InformationPage({ eyebrow, title, description, sections }: Infor
       <section className="ticketground-container py-10">
         <div className="grid gap-4">
           {sections.map((section) => (
-            <article key={section.title} className="rounded-lg border border-line bg-white p-5">
+            <article key={section.title} className="rounded-lg border border-line bg-card p-5">
               <h2 className="text-lg font-black text-ink">{section.title}</h2>
               <p className="mt-3 text-sm leading-loose text-ink-3">{section.body}</p>
             </article>

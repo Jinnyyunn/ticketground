@@ -122,7 +122,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
   return (
     <div className="bg-surface">
-      <div className="border-b border-line bg-white">
+      <div className="border-b border-line bg-card">
         <div className="ticketground-container flex h-auto min-h-16 items-center justify-between gap-4 py-3">
           <div className="min-w-0">
             <p className="text-sm font-black text-ticketground">Ticketground Booking</p>
@@ -153,8 +153,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   onClick={() => setStep(item.id)}
                   disabled={item.id === "seats" && !canChooseSeats}
                   className={cn(
-                    "h-12 rounded-sm border text-[14px] font-black whitespace-nowrap",
-                    active ? "border-ink bg-ink text-white" : "border-line bg-white text-ink-3",
+                    "h-12 rounded-sm border text-sm font-black whitespace-nowrap",
+                    active ? "border-ink bg-ink text-white" : "border-line bg-card text-ink-3",
                     item.id === "seats" && !canChooseSeats && "cursor-not-allowed opacity-50",
                   )}
                 >
@@ -168,15 +168,15 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           <BookingTimerWarning visible={timerWarning} />
 
           {step === "schedule" && (
-            <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-white p-4 sm:p-6">
+            <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-card p-4 sm:p-6">
               <p className="text-sm font-black text-ticketground">STEP 1</p>
-              <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">관람일·회차·매수를 선택하세요</h2>
+              <h2 className="balanced-title mt-1 text-2xl font-black text-ink sm:text-[24px]">관람일·회차·매수를 선택하세요</h2>
               <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr_180px]">
                 <div>
                   <h3 className="text-lg font-black text-ink">관람일</h3>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {show.schedules.map((schedule) => (
-                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-[14px] font-bold", date === schedule.date ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
+                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-white" : "border-line bg-card text-ink")}>
                         {schedule.label}
                       </button>
                     ))}
@@ -186,7 +186,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">회차</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {(show.schedules.find((schedule) => schedule.date === date)?.times ?? []).map((item) => (
-                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-[14px] font-bold", time === item ? "border-ink bg-ink text-white" : "border-line bg-white text-ink")}>
+                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-white" : "border-line bg-card text-ink")}>
                         {item}
                       </button>
                     ))}
@@ -194,7 +194,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-ink">매수</h3>
-                  <div className="mt-3 flex rounded-sm border border-line bg-white p-1">
+                  <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
                     {[1, 2].map((count) => (
                       <button key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3")}>
                         {count}매
@@ -211,11 +211,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           )}
 
           {step === "seats" && (
-            <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-white p-4 sm:p-6">
+            <section className="min-w-0 overflow-hidden rounded-lg border border-line bg-card p-4 sm:p-6">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <p className="text-sm font-black text-ticketground">STEP 2</p>
-                  <h2 className="balanced-title mt-1 text-[22px] font-black text-ink sm:text-[24px]">좌석 선택</h2>
+                  <h2 className="balanced-title mt-1 text-2xl font-black text-ink sm:text-[24px]">좌석 선택</h2>
                 </div>
                 <p className="text-sm font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
               </div>
@@ -228,7 +228,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                     onSelect={selectBackendSeat}
                   />
                 ) : (
-                  <div className="rounded-lg border border-line bg-surface p-4 text-[14px] font-bold text-ink-3" role="status">
+                  <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
                     {showStaticSeatMap ? "실시간 좌석도를 불러오지 못해 기본 좌석표로 선택합니다." : seatMapStatus}
                   </div>
                 )}
@@ -251,9 +251,9 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           )}
         </main>
 
-        <aside className="h-fit min-w-0 rounded-lg border border-line bg-white p-6 shadow-ticket-1 lg:sticky lg:top-6">
+        <aside className="h-fit min-w-0 rounded-lg border border-line bg-card p-6 shadow-ticket-1 lg:sticky lg:top-6">
           <h2 className="clamp-2 text-2xl font-black text-ink">{show.title}</h2>
-          <dl className="mt-5 space-y-3 text-[14px]">
+          <dl className="mt-5 space-y-3 text-sm">
             <BookingSummaryRow label="관람일" value={date || "선택 전"} />
             <BookingSummaryRow label="회차" value={time || "선택 전"} />
             <BookingSummaryRow label="선택 좌석" value={selectedLabels || "선택 전"} />

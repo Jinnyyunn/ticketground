@@ -57,7 +57,7 @@ export function SeatMap({
 
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border border-line bg-surface p-4 sm:p-5" data-static-seat-map>
-      <div className="mx-auto mb-5 flex h-9 max-w-[520px] items-center justify-center rounded-t-[50%] border border-line-strong bg-white text-sm font-black text-ink-3">
+      <div className="mx-auto mb-5 flex h-9 max-w-[520px] items-center justify-center rounded-t-[50%] border border-line-strong bg-card text-sm font-black text-ink-3">
         STAGE
       </div>
       <div className="relative">
@@ -86,7 +86,7 @@ export function SeatMap({
                         aria-pressed={picked}
                         onClick={() => onToggleSeat(seat)}
                         className={cn(
-                          "relative flex size-8 items-center justify-center rounded-[5px] border text-sm font-black transition sm:size-9 sm:text-[14px]",
+                          "relative flex size-8 items-center justify-center rounded-[5px] border text-sm font-black transition sm:size-9 sm:text-sm",
                           tierStyles[seat.tier],
                           seat.sold && "cursor-not-allowed border-line bg-surface-3 text-ink-4 opacity-55",
                           picked && "ring-2 ring-accent-2 ring-offset-2 ring-offset-white",
