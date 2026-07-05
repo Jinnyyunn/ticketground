@@ -22,7 +22,7 @@ function titleWithHighlight(show: TicketShow, query: string) {
   }
   return (
     <>
-      <mark className="highlight rounded bg-accent-2 px-1 text-ink">레미제라블</mark>
+      <mark className="highlight rounded bg-accent-2 px-1 text-on-accent-2">레미제라블</mark>
       {show.title.replace("레미제라블", "")}
     </>
   );
@@ -79,7 +79,7 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
               "검색어를 입력하세요"
             ) : lesMiserablesMode ? (
               <>
-                <mark className="highlight rounded bg-accent-2 px-1 text-ink">레미제라블</mark> 검색 결과
+                <mark className="highlight rounded bg-accent-2 px-1 text-on-accent-2">레미제라블</mark> 검색 결과
               </>
             ) : (
               <>{query} 검색 결과</>

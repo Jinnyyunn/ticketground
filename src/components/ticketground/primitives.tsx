@@ -75,7 +75,7 @@ export function TicketgroundTag({
   const toneClass = {
     open: "bg-tint-red text-ticketground",
     soon: "bg-ink text-on-ink",
-    sale: "bg-accent-2 text-ink",
+    sale: "bg-accent-2 text-on-accent-2",
     new: "bg-ok text-white",
     error: "bg-tint-red text-destructive",
   } satisfies Record<TagTone, string>;

@@ -78,7 +78,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
       />
       <div className={cn("relative z-10 flex min-h-full flex-col justify-between p-5", size === "large" && "md:p-8")}>
         <div className={cn(size === "large" ? "max-w-[520px]" : "max-w-[250px]")}>
-          <TicketgroundTag className="bg-white/90 text-ink shadow-ticket-1" tone={size === "large" ? "open" : "soon"}>
+          <TicketgroundTag className="bg-white/90 text-on-accent-2 shadow-ticket-1" tone={size === "large" ? "open" : "soon"}>
             {show.eyebrow}
           </TicketgroundTag>
           <h1 className={cn("mt-4 font-black leading-tight text-white", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>

@@ -32,7 +32,7 @@ export function MobileNav({ className }: { readonly className?: string }) {
         <Menu className="size-5" aria-hidden />
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-[80] bg-ink/45" />
+        <Dialog.Backdrop className="fixed inset-0 z-[80] bg-scrim/45" />
         <Dialog.Popup className="fixed inset-y-0 right-0 z-[90] flex w-[min(360px,calc(100vw-32px))] flex-col bg-background p-5 text-ink shadow-ticket-3">
           <div className="flex items-center justify-between gap-3 border-b border-line pb-4">
             <Dialog.Title className="text-2xl font-black">전체 메뉴</Dialog.Title>

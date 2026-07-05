@@ -14,7 +14,7 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         dark: "bg-ink text-on-ink hover:bg-ink-2 hover:text-on-ink-2 focus-visible:ring-ink/20",
         accent: "bg-ticketground text-white hover:bg-ticketground/90 focus-visible:ring-ticketground/25",
-        clean: "bg-accent-2 text-ink hover:bg-accent-2/80 focus-visible:ring-accent-2/50",
+        clean: "bg-accent-2 text-on-accent-2 hover:bg-accent-2/80 focus-visible:ring-accent-2/50",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         secondary:
