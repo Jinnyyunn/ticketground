@@ -1,7 +1,8 @@
-/* Ticketground is intentionally light-only; do not add `.dark` token overrides without a full dark-mode design pass. */
 /* TODO(font): add `src/app/fonts/PretendardVariable.woff2` and enable next/font/local in layout.tsx to populate --font-pretendard. */
 @import "tailwindcss";
 @import "./theme-vars.css";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
@@ -49,14 +50,21 @@
   --color-accent-2: var(--accent-2);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
+  --color-on-ink: var(--on-ink);
+  --color-on-ink-2: var(--on-ink-2);
   --color-tier-vip: var(--tier-vip);
   --color-tier-r: var(--tier-r);
   --color-tier-s: var(--tier-s);
   --color-tier-a: var(--tier-a);
   --color-tier-b: var(--tier-b);
-  --color-tint-blue: color-mix(in srgb, var(--link) 8%, white);
-  --color-tint-red: color-mix(in srgb, var(--accent) 10%, white);
-  --color-tint-yellow: color-mix(in srgb, var(--accent-2) 35%, white);
+  --color-on-tier-vip: var(--on-tier-vip);
+  --color-on-tier-r: var(--on-tier-r);
+  --color-on-tier-s: var(--on-tier-s);
+  --color-on-tier-a: var(--on-tier-a);
+  --color-on-tier-b: var(--on-tier-b);
+  --color-tint-blue: color-mix(in srgb, var(--link) 8%, var(--bg));
+  --color-tint-red: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  --color-tint-yellow: color-mix(in srgb, var(--accent-2) 35%, var(--bg));
   --spacing-shell: var(--max-w);
   --spacing-header: var(--header-h);
   --spacing-catnav: var(--catnav-h);

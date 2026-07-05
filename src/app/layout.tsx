@@ -2,6 +2,29 @@ import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 
+const themeBootstrapScript = `
+(function () {
+  var root = document.documentElement;
+  var theme = "system";
+
+  try {
+    var storedTheme = window.localStorage.getItem("ticketground:theme");
+    if (storedTheme === "light" || storedTheme === "dark" || storedTheme === "system") {
+      theme = storedTheme;
+    }
+  } catch (_) {}
+
+  var systemPrefersDark = false;
+  try {
+    systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  } catch (_) {}
+
+  var resolvedTheme = theme === "system" ? (systemPrefersDark ? "dark" : "light") : theme;
+  root.classList.toggle("dark", resolvedTheme === "dark");
+  root.dataset.theme = resolvedTheme;
+})();
+`;
+
 // TODO(font): enable next/font/local here after adding src/app/fonts/PretendardVariable.woff2.
 const notoSansKr = Noto_Sans_KR({
   variable: "--font-noto",
@@ -28,8 +51,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" data-scroll-behavior="smooth" className={`${notoSansKr.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-background">{children}</body>
+    <html lang="ko" data-scroll-behavior="smooth" className={`${notoSansKr.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="min-h-full flex flex-col bg-background">
+        <script id="ticketground-theme-bootstrap" dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        {children}
+      </body>
     </html>
   );
 }
