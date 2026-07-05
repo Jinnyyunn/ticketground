@@ -78,6 +78,14 @@ export function useTheme() {
 
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const syncSystemTheme = () => {
+      const currentTheme = storedTheme();
+      if (currentTheme !== "system") {
+        const nextState = themeState(currentTheme);
+        applyResolvedTheme(nextState.resolvedTheme);
+        setState(nextState);
+        return;
+      }
+
       const nextState = themeState("system");
       applyResolvedTheme(nextState.resolvedTheme);
       setState(nextState);

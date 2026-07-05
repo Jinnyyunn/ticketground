@@ -22,7 +22,7 @@ export function NoticeBar() {
         href="#"
         className="flex items-center justify-center gap-3 rounded-2xl border border-line bg-card py-[18px] text-lg"
       >
-        <span className="rounded bg-ink-3 px-1.5 py-0.5 text-xs font-medium text-white">공지</span>
+        <span className="rounded bg-ink px-1.5 py-0.5 text-xs font-medium text-on-ink">공지</span>
         <span className="font-bold text-ink-2">
           Ticketground 공식 예매 혜택이 업데이트되었습니다
         </span>

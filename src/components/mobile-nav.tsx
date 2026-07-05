@@ -61,13 +61,13 @@ export function MobileNav({ className }: { readonly className?: string }) {
                     {link.label}
                   </Link>
                 ))}
-                <button type="button" onClick={handleSignOut} className="col-span-2 rounded-lg border border-line bg-ink px-3 py-3 text-center text-white">
+                <button type="button" onClick={handleSignOut} className="col-span-2 rounded-lg border border-line bg-ink px-3 py-3 text-center text-on-ink">
                   로그아웃
                 </button>
               </>
             ) : (
               <>
-                <Link href={loginLink.href} onClick={close} className="rounded-lg border border-line bg-ink px-3 py-3 text-center text-white">
+                <Link href={loginLink.href} onClick={close} className="rounded-lg border border-line bg-ink px-3 py-3 text-center text-on-ink">
                   {loginLink.label}
                 </Link>
                 <Link href={signupLink.href} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">

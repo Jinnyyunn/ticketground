@@ -83,7 +83,7 @@ export function PosterCard({
           </div>
         )}
         {rank !== undefined && (
-          <span className="absolute left-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-md bg-ink/75 px-1.5 text-base font-bold text-white">
+          <span className="absolute left-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-md bg-ink/85 px-1.5 text-base font-bold text-on-ink">
             {rank}
           </span>
         )}

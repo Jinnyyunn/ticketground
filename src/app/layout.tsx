@@ -51,20 +51,6 @@ const themeBootstrapScript = `
   }
   new MutationObserver(syncThemeControls).observe(root, { attributes: true, attributeFilter: ["class", "data-theme"] });
   new MutationObserver(syncThemeControls).observe(document.body, { childList: true, subtree: true });
-  document.addEventListener("click", function (event) {
-    var target = event.target;
-    if (!target || !target.closest) return;
-    var button = target.closest("[data-theme-toggle]");
-    if (!button) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-    var nextTheme = root.classList.contains("dark") ? "light" : "dark";
-    try {
-      window.localStorage.setItem(storageKey, nextTheme);
-    } catch (_) {}
-    applyResolvedTheme(nextTheme);
-  }, true);
 })();
 `;
 
