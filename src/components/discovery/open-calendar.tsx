@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BellRing } from "lucide-react";
 import type { TicketShow } from "@/types";
 import { cn } from "@/lib/utils";
 import { OpenAlertButton } from "./open-alert-button";
@@ -8,6 +9,7 @@ type OpenCalendarProps = {
 };
 
 const days = Array.from({ length: 31 }, (_, index) => index + 1);
+const eventDays = new Set([1, 2, 4, 5, 7, 8, 10, 11, 13, 15, 16, 18, 19, 21, 23, 24, 26, 27, 29, 31]);
 
 const genreTone: Record<TicketShow["category"], string> = {
   뮤지컬: "bg-link text-white",
@@ -20,7 +22,8 @@ const genreTone: Record<TicketShow["category"], string> = {
 };
 
 function showForDay(shows: readonly TicketShow[], day: number) {
-  return shows[(day + shows.length - 1) % shows.length];
+  if (!eventDays.has(day)) return undefined;
+  return shows[(day * 3 + shows.length - 1) % shows.length];
 }
 
 export function OpenCalendar({ shows }: OpenCalendarProps) {
@@ -34,7 +37,8 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
           <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">2026년 7월 월별 캘린더</h1>
           <p className="mt-3 text-sm text-ink-3">장르 색상과 오픈 임박 리스트로 공식 예매 시간을 확인합니다.</p>
         </div>
-        <Link href="/watchlist" className="inline-flex h-10 items-center justify-center rounded-lg bg-ink px-4 text-sm font-black text-on-ink whitespace-nowrap">
+        <Link href="/watchlist" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-ticketground px-4 text-sm font-black text-white whitespace-nowrap transition-colors hover:bg-ink hover:text-on-ink focus-visible:ring-3 focus-visible:ring-ring/50">
+          <BellRing className="size-4" aria-hidden />
           관심공연 알림
         </Link>
       </div>
@@ -42,6 +46,13 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
       <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
           <h2 className="text-2xl font-black text-ink">월별 캘린더</h2>
+          <div data-open-genre-legend className="mt-4 flex flex-wrap gap-2">
+            {Object.entries(genreTone).map(([genre, tone]) => (
+              <span key={genre} data-open-genre-chip className={cn("inline-flex h-7 items-center rounded-full px-3 text-xs font-black", tone)}>
+                {genre}
+              </span>
+            ))}
+          </div>
           <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-card">
             <div data-open-calendar-grid className="grid grid-cols-7 overflow-hidden md:min-w-[720px]">
               {["월", "화", "수", "목", "금", "토", "일"].map((day) => (
@@ -52,9 +63,9 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
               {days.map((day) => {
                 const show = showForDay(shows, day);
                 return (
-                  <div key={day} className="min-h-[88px] min-w-0 border-b border-r border-line p-1.5 sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3 last:border-r-0">
+                  <div key={day} data-open-day={day} className="min-h-[88px] min-w-0 border-b border-r border-line p-1.5 sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3 last:border-r-0">
                     <time className="text-sm font-black text-ink">{day}</time>
-                    {show && day % 2 === 1 && (
+                    {show && (
                       <Link href={`/goods/${show.slug}`} data-allow-wrap="true" className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}>
                         {show.shortTitle}
                       </Link>
