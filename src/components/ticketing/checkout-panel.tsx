@@ -120,14 +120,14 @@ export function CheckoutPanel({
 
   return (
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
-      <section className="rounded-[10px] border border-[#eee] p-6">
-        <p className="text-[14px] font-bold text-ticketground">STEP 3</p>
-        <h1 className="mt-1 text-4xl font-bold text-ink-2">결제 정보 확인</h1>
-        <p className="mt-2 text-base text-[#666]">좌석과 금액을 확인한 뒤 결제수단과 약관을 선택해 예매를 확정합니다.</p>
+      <section className="rounded-md border border-line p-6">
+        <p className="text-sm font-bold text-ticketground">STEP 3</p>
+        <h1 className="mt-1 text-4xl font-black text-ink-2">결제 정보 확인</h1>
+        <p className="mt-2 text-base text-ink-3">좌석과 금액을 확인한 뒤 결제수단과 약관을 선택해 예매를 확정합니다.</p>
 
-        <div className="mt-7 rounded-[10px] bg-[#f8f8f8] p-5">
-          <h2 className="text-[19px] font-bold">예매 정보</h2>
-          <dl className="mt-4 grid gap-3 text-[14px]">
+        <div className="mt-7 rounded-md bg-surface p-5">
+          <h2 className="text-[19px] font-black">예매 정보</h2>
+          <dl className="mt-4 grid gap-3 text-sm">
             {[
               ["공연", show.title],
               ["관람일", `${selection.date} ${selection.time}`],
@@ -135,78 +135,78 @@ export function CheckoutPanel({
               ["매수", `${selection.count}매`],
             ].map(([label, value]) => (
               <div key={label} className="grid grid-cols-[52px_minmax(0,1fr)] gap-3">
-                <dt className="whitespace-nowrap text-[#7e7e81]">{label}</dt>
+                <dt className="whitespace-nowrap text-ink-3">{label}</dt>
                 <dd className="min-w-0 break-words text-right font-bold">{value}</dd>
               </div>
             ))}
           </dl>
         </div>
 
-        <div className="mt-7 rounded-[10px] border border-[#eee] p-5">
-          <h2 className="text-[19px] font-bold">결제수단</h2>
+        <div className="mt-7 rounded-md border border-line p-5">
+          <h2 className="text-[19px] font-black">결제수단</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {paymentMethods.map((item) => (
-              <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-[#ddd] px-4 py-3 text-[14px] font-bold">
+              <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-line px-4 py-3 text-sm font-bold">
                 <input
                   suppressHydrationWarning
                   type="radio"
                   name="payment-method"
                   checked={method === item.id}
                   onChange={() => setMethod(item.id)}
-                  className="accent-[#4154ff]"
+                  className="accent-link"
                 />
                 <span>
                   {item.label}
-                  <small className="block pt-1 text-sm font-medium text-[#777]">{item.note}</small>
+                  <small className="block pt-1 text-sm font-medium text-ink-3">{item.note}</small>
                 </span>
               </label>
             ))}
           </div>
         </div>
 
-        <label className="mt-5 flex items-start gap-3 rounded-[10px] border border-[#eee] p-4 text-[14px] font-bold">
+        <label className="mt-5 flex items-start gap-3 rounded-md border border-line p-4 text-sm font-bold">
           <input
             suppressHydrationWarning
             type="checkbox"
             checked={agreed}
             onChange={(event) => setAgreed(event.target.checked)}
-            className="mt-1 accent-[#4154ff]"
+            className="mt-1 accent-link"
           />
           결제 조건, 클린티켓 QR 정책, 취소/환불 규정에 동의합니다
         </label>
-        <div className="mt-5 rounded-[10px] border border-line bg-surface p-4" aria-live="polite">
-          <p className="text-[14px] font-black text-ink">결제 상태</p>
-          <p className="mt-1 text-[14px] font-bold text-ink-3">{status}</p>
+        <div className="mt-5 rounded-md border border-line bg-surface p-4" aria-live="polite">
+          <p className="text-sm font-black text-ink">결제 상태</p>
+          <p className="mt-1 text-sm font-bold text-ink-3">{status}</p>
         </div>
       </section>
 
-      <aside className="h-fit rounded-[10px] border border-[#eee] p-6 lg:sticky lg:top-6">
-        <h2 className="clamp-2 text-2xl font-bold text-ink-2">{show.title}</h2>
-        <dl className="mt-5 space-y-3 text-[14px]">
+      <aside className="h-fit rounded-md border border-line p-6 lg:sticky lg:top-6">
+        <h2 className="clamp-2 text-2xl font-black text-ink-2">{show.title}</h2>
+        <dl className="mt-5 space-y-3 text-sm">
           <div className="flex justify-between gap-4">
-            <dt className="text-[#7e7e81]">관람일</dt>
+            <dt className="text-ink-3">관람일</dt>
             <dd className="font-bold">{selection.date}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-[#7e7e81]">회차</dt>
+            <dt className="text-ink-3">회차</dt>
             <dd className="font-bold">{selection.time}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-[#7e7e81]">좌석</dt>
+            <dt className="text-ink-3">좌석</dt>
             <dd className="text-right font-bold">{selection.seats}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-[#7e7e81]">결제수단</dt>
+            <dt className="text-ink-3">결제수단</dt>
             <dd className="font-bold">{selectedMethod.label}</dd>
           </div>
           {summaryRows.map(([label, value]) => (
             <div key={label} className="flex justify-between gap-4">
-              <dt className="text-[#7e7e81]">{label}</dt>
+              <dt className="text-ink-3">{label}</dt>
               <dd className="font-bold">{value}</dd>
             </div>
           ))}
-          <div className="flex justify-between gap-4 border-t border-[#eee] pt-4">
-            <dt className="text-[#7e7e81]">총 결제금액</dt>
+          <div className="flex justify-between gap-4 border-t border-line pt-4">
+            <dt className="text-ink-3">총 결제금액</dt>
             <dd className="text-2xl font-bold text-ticketground">{amountLabel(trustedTotalAmount)}</dd>
           </div>
         </dl>
@@ -214,7 +214,7 @@ export function CheckoutPanel({
           type="button"
           disabled={!agreed || submitting || amountPending}
           onClick={completePayment}
-          className="mt-5 h-12 w-full rounded-sm bg-ticketground text-lg font-bold text-white disabled:bg-[#d8d8d8]"
+          className="mt-5 h-12 w-full rounded-sm bg-ticketground text-lg font-bold text-white disabled:bg-surface-3"
         >
           {submitting ? "결제 처리 중" : "결제 완료"}
         </button>

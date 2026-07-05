@@ -81,7 +81,7 @@ export function QueueWaitingRoom({
     <main className="min-h-screen overflow-x-hidden bg-[#08090d] px-4 py-8 text-white sm:px-6">
       <section className="mx-auto grid min-h-[calc(100vh-64px)] min-w-0 max-w-[1180px] items-center gap-8 lg:grid-cols-[minmax(0,1fr)_460px]">
         <div className="min-w-0">
-          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 sm:text-sm sm:tracking-[0.18em]">Ticketground Waiting Room</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/55 sm:text-sm sm:tracking-[0.18em]">Ticketground Waiting Room</p>
           <h1 className="balanced-title mt-4 max-w-[760px] text-[32px] font-black leading-[1.12] sm:text-[44px] sm:leading-[1.08]">
             접속 순서가 되면 자동으로 좌석 선택 화면으로 이동합니다.
           </h1>
@@ -101,7 +101,7 @@ export function QueueWaitingRoom({
               <p className="balanced-title mt-2 text-[17px] font-bold sm:text-xl">{venue}</p>
             </div>
           </div>
-          <p data-queue-warning className="mt-6 max-w-[620px] rounded-sm border border-ticketground/50 bg-ticketground/12 px-4 py-3 text-[14px] font-semibold text-[#ffb8bf]">
+          <p data-queue-warning className="mt-6 max-w-[620px] rounded-sm border border-ticketground/50 bg-ticketground/12 px-4 py-3 text-sm font-semibold text-[#ffb8bf]">
             새로고침하거나 창을 닫으면 현재 대기 순서가 초기화될 수 있습니다.
           </p>
         </div>
@@ -159,7 +159,7 @@ export function QueueWaitingRoom({
                 <Link
                   data-queue-continue
                   href={bookingHref}
-                  className="mt-4 inline-flex h-10 items-center justify-center rounded-sm bg-white px-4 text-[14px] font-black text-ink"
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-sm bg-white px-4 text-sm font-black text-ink"
                 >
                   좌석 선택으로 이동
                 </Link>
