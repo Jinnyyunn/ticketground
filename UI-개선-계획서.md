@@ -1,9 +1,9 @@
 # Ticketground UI 개선 계획서
 
-- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`, §10 기준 커밋 `e0dfc83`, §11 기준 커밋 `71c00d2`, §12 기준 커밋 `f6bf2a2`, §13 기준 커밋 `cf29304`)
+- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`, §10 기준 커밋 `e0dfc83`, §11 기준 커밋 `71c00d2`, §12 기준 커밋 `f6bf2a2`, §13 기준 커밋 `cf29304`, §14 기준 커밋 `5f25c97`)
 - 스택: Next.js 16 / React 19 / Tailwind v4 / shadcn·base-ui(설치만 됨) / lucide-react
-- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04, §9 추가: 2026-07-04, §10 추가: 2026-07-05, §11 추가: 2026-07-05, §12 추가: 2026-07-05, §13 추가: 2026-07-05)
-- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4). §9(P6 다크모드)는 사용자 요청으로 신설, Sonnet 5가 작성하고 Fable advisor가 재검증(치명 1건·수정 3건 반영)한 결과 (v5). §10은 codex의 2차 구현(P3b 대량 치환 등, 커밋 `e0dfc83`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 1건 반영)한 결과 (v6). §11은 codex의 P3b 잔여 정리 완료(커밋 `71c00d2`)를 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 2건 반영)한 결과 — **P3b 완료, P6(다크모드) 착수 가능 판정** (v7). §12는 codex의 P6 다크모드 구현 완료(커밋 `f6bf2a2`)를 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(전건 CONFIRMED, 보완 1건)한 결과 — **P1~P6 전체 Phase 구현·검증 완료** (v8). §13은 사용자 실화면 QA로 발견된 다크모드 이슈 5건에 대한 codex 수정(커밋 `cf29304`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(전건 CONFIRMED)한 결과 (v9)
+- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04, §9 추가: 2026-07-04, §10 추가: 2026-07-05, §11 추가: 2026-07-05, §12 추가: 2026-07-05, §13 추가: 2026-07-05, §14 추가: 2026-07-06)
+- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4). §9(P6 다크모드)는 사용자 요청으로 신설, Sonnet 5가 작성하고 Fable advisor가 재검증(치명 1건·수정 3건 반영)한 결과 (v5). §10은 codex의 2차 구현(P3b 대량 치환 등, 커밋 `e0dfc83`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 1건 반영)한 결과 (v6). §11은 codex의 P3b 잔여 정리 완료(커밋 `71c00d2`)를 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 2건 반영)한 결과 — **P3b 완료, P6(다크모드) 착수 가능 판정** (v7). §12는 codex의 P6 다크모드 구현 완료(커밋 `f6bf2a2`)를 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(전건 CONFIRMED, 보완 1건)한 결과 — **P1~P6 전체 Phase 구현·검증 완료** (v8). §13은 사용자 실화면 QA로 발견된 다크모드 이슈 5건에 대한 codex 수정(커밋 `cf29304`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(전건 CONFIRMED)한 결과 (v9). §14는 소셜 로그인 로고·Google mock 로그인·`/resale` 구조 개편·헤더 재배치·보안 결함 수정 등 9항목 codex 구현(커밋 `5f25c97`)을 Sonnet 5가 1차 검증하고 Fable advisor가 독립 재검증(2건 표현 보완)한 결과 (v10)
 
 ---
 
@@ -795,3 +795,40 @@ codex 자체 보고에 따르면 `booking-panel.tsx` 순수 LOC가 253줄로 내
 ### 13-4. 종합 판단
 
 사용자가 지목한 5건 모두 코드 레벨에서 정확한 근본 원인 수정으로 확인되며(임시방편이 아니라 `--scrim`/`--on-scrim`/`--on-accent-2` 신규 시맨틱 토큰 도입을 통한 일반화), 자동 검증(lint/typecheck/test 100건)도 전량 통과했다. **이번 다크모드 QA 수정 라운드는 완료로 판정한다.** 잔여 항목(모바일 드로어 백드롭)은 경미하며 다음 라운드에서 다루면 된다.
+## 14. 9항목 UI 개선 라운드 검증 (Sonnet 5, 2026-07-06)
+
+> 검증 대상: 소셜 로그인 로고, Google 버튼 테스트 가능성, `/resale` 구조 개편, 헤더 ThemeToggle 재배치(2차), "스포츠" 카테고리 클리핑, "티켓 재판매" 강조, 데모세션 자동로그인 보안 결함, 기획전/티켓오픈 카드 시각 개선, `mobile-nav.tsx` 잔여 스크림 버그를 포함한 9개 항목 codex 구현. 커밋 `eb95e7d`~`5f25c97`(8개), 기준점은 `b7fca05`(§13 완료 시점). 검증: Sonnet 5 1차 검증(자동 검사 + 소스 대조) → Fable advisor 독립 재검증(별도 클론에서 재현, lint/typecheck/전체 테스트 재실행).
+
+### 14-1. 자동 검증 결과
+
+| 검사 | 결과 |
+|---|---|
+| `npm run lint` | 통과 (경고 0) |
+| `npm run typecheck` | 통과 |
+| `npm test` (전체 **111개** 테스트, build 포함) | **111 pass / 0 fail** |
+
+### 14-2. 요청 이슈별 이행 확인
+
+| 이슈 | 상태 | 확인 내용 |
+|---|---|---|
+| ① 소셜 로그인 로고 추가 | **완료** | `google-logo.tsx`(공식 4색 G 로고 SVG 신규) + `social-login-buttons.tsx`에 카카오(말풍선)/네이버(N 워드마크) 인라인 SVG 로고 추가, 텍스트 앞 `gap-2`로 배치. `google-sign-in-card.tsx`의 disabled/미지원-도메인/로딩 중 버튼 3종 모두에 로고 적용. |
+| ② Google 버튼 테스트 불가 문제 | **완료, 근본 원인 해결** | 원인은 `.env`에 `NEXT_PUBLIC_GOOGLE_CLIENT_ID` 미설정(추정 그대로 확인됨). `google-config/route.ts`에 `mockEnabled`(운영 환경이 아니거나 명시적 플래그일 때만 true) 플래그를 추가하고, `google-sign-in-card.tsx`가 `clientId` 없음+`mockEnabled`일 때 실제 클릭 가능한 QA mock 로그인 버튼(`data-google-ready="mock"`)을 렌더링하도록 분기 추가. 운영 모드에서는 `NODE_ENV === "production"`이고 플래그 미설정 시 여전히 disabled 유지 — 신규 테스트 `login page keeps empty Google config disabled in production without QA mock mode`로 운영 안전성 검증. |
+| ③ `/resale` 구조 개편 | **완료, 요청한 "진짜 개편" 수준 충족** | 단순 색상 치환이 아니라 (a) 예약 정보 카드(`ResaleReservationContext`, 포스터+예약번호/회차/좌석/결제 4분할 `dl`) 신규 추가, (b) 기존 `SegmentedControl` 원시 컴포넌트를 대체하는 전용 `ResaleTabBar`(active 인디케이터 바 포함, `role="group"`+`aria-pressed`) 신규 작성, (c) 본문/우측 감사 사이드바 사이 수직 구분선 추가로 레이아웃 밀도 자체가 변경됨. §13에서 다루지 않았던 페이지 골격 자체를 재구성해 사용자의 "그전이랑 별 다를게 없다" 지적을 코드 레벨에서 실제로 해소. |
+| ④ 헤더 ThemeToggle 재배치(회원가입 뒤) | **완료** | `site-header.tsx`에서 `ThemeToggle`이 `utilityLinksBeforeAuth.map(...)` 앞에서 `HeaderAuthLinks` 뒤로 이동 — 요청한 "회원가입 뒤(유틸바 맨 끝)" 배치와 정확히 일치. (1차 요청이었던 "고객센터 앞" 배치를 이번 2차 요청으로 명시적으로 되돌린 것도 확인.) |
+| ⑤ "스포츠" 카테고리 클리핑 | **완료, 추정 원인과 일치하는 수정** | 카테고리 nav의 `gap-5 sm:gap-7`→`gap-4 sm:gap-5`로 축소, `overflow-x-auto`에 `pr-2 sm:overflow-hidden sm:pr-0` 추가로 데스크톱에서 스크롤/클리핑 여지를 줄임. 별도 시각 회귀 테스트(`header-detail-calendar-slice.test.mjs`)가 실제 렌더링 기반으로 검증. |
+| ⑥ "티켓 재판매" 강조 | **완료** | `site-header.tsx`의 데스크톱 pill 링크에서 `isResale` 분기 추가 — 재판매 링크만 `border-ticketground bg-ticketground text-white`(브랜드 채움), 나머지("티켓오픈 캘린더")는 기존 아웃라인 스타일 유지. 신규 테스트 `header-secondary-link-order.test.mjs`가 실제 `getComputedStyle`로 두 링크의 배경색이 다름을 검증하고, 보조적으로 className 정규식(`/bg-ticketground/`, `/bg-card/`)도 함께 확인 — 순수 문자열 검증은 아니지만 computed-style 검증에 클래스 매칭이 일부 섞여 있음. |
+| ⑦ 데모세션 자동로그인 보안 결함 | **완료, 정확한 근본 수정** | `login-panel.tsx`의 `loadInitialSession()`에서 `getSession(DEMO_USER_ID)` 자동 호출 블록을 완전히 제거, 미인증 시 상태 메시지만 "로그인 또는 회원가입을 진행해 주세요"로 표시. `session`이 null인 한 `login-session-panel.tsx`의 닉네임 입력 UI 자체가 렌더링되지 않으므로(§ 이전 확인된 게이팅 조건 그대로), 실제 로그인 액션(Google/카카오/네이버/이메일 mock) 없이는 프로필 편집 진입이 불가능해짐. 신규 테스트로 미인증 상태 동작 검증. |
+| ⑧ 기획전/티켓오픈 카드 시각 개선 | **완료** | `TicketOpenSection`: 카드에 56~64px 포스터 썸네일(`TicketOpenThumbnail`, `rankings`에서 제목 매칭 포스터 조회) 신규 추가, 2단(썸네일/텍스트) 레이아웃으로 재구성, "알림 설정"을 얇은 배지에서 `buttonVariants({variant:"outline"})` 스타일을 적용한 `<span data-slot="button">`(신규 `ticket-open-alert-action.tsx`)으로 교체 — 실제 `<button>` 엘리먼트는 아니고 버튼 시각 스타일을 재사용한 것. `EditorialEventsSection`: 카드 우하단에 저투명도 장식 원+대형 인덱스 숫자 추가로 시각적 밀도 보강. 신규 테스트가 썸네일 렌더링/카드 개수/썸네일 폭을 실제 DOM에서 검증. |
+| ⑨ `mobile-nav.tsx:35` 잔여 스크림 버그 | **완료** | `Dialog.Backdrop`의 `bg-ink/45`→`bg-scrim/45`로 교체, §13에서 발견만 되고 미수정이던 항목 해소. 신규 테스트 `mobile nav backdrop uses the fixed scrim token instead of theme ink`로 검증. |
+
+### 14-3. 발견 사항 — 요청 범위를 넘어선 자발적 확장 조치 (긍정적)
+
+**[정보] 동일 반전 토큰 버그의 전수 재점검이 실제로 수행됨**
+§13에서 검증 시 발견해 이번 라운드 지시문에 포함시켰던 두 인스턴스(`home-cards.tsx:81`의 `bg-white/90 text-ink`, `primitives.tsx`의 `sale` 톤) 외에, codex가 지시문의 "같은 패턴이 더 있는지 전수 재점검" 요청에 따라 **2건을 추가로 자발 발견·수정**했다: `search-panels.tsx`의 "레미제라블" 하이라이트 `<mark>`(`bg-accent-2 text-ink`→`text-on-accent-2`, 2곳), `button.tsx`의 `clean` variant(`bg-accent-2 text-ink`→`text-on-accent-2`). 신규 테스트 `bright badges use fixed accent foreground tokens instead of theme ink`가 이 4건 전체를 한 번에 검증한다. 임시방편이 아니라 패턴 자체를 근절하려는 접근으로 판단된다.
+
+**[정보] `/goods/[slug]/page.tsx`의 최저가 라벨 계산 위치**
+`lowestPriceLabel`이 서버 컴포넌트(`GoodsPage`)에서 `Math.min(...show.prices.map(...))`로 계산되어 `DetailBookingPanel`에 문자열로 전달됨 — 클라이언트 컴포넌트 내부에서 재계산하지 않아 서버/클라이언트 중복 로직 없이 깔끔하게 처리됨.
+
+### 14-4. 종합 판단
+
+9개 요청 항목 전부가 코드 레벨에서 확인되었으며, 특히 ③(`/resale` 구조 개편)은 사용자가 지적한 "이전과 다를 게 없다"는 문제를 실제 컴포넌트 재구성(신규 `ResaleReservationContext`/`ResaleTabBar`)으로 해소했고, ⑦(보안 결함)은 자동 세션 발급 코드 자체를 제거하는 근본적 수정이다. 다크모드 반전 토큰 버그 패턴도 지시한 2건을 넘어 전수 재점검을 통해 2건을 추가로 자발 수정했다. 자동 검증(lint/typecheck/test 111건, 이전 100건 대비 신규 11건 추가) 전량 통과. **이번 9항목 라운드는 완료로 판정한다.**
