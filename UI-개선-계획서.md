@@ -1,9 +1,9 @@
 # Ticketground UI 개선 계획서
 
-- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`)
+- 대상: https://github.com/Jinnyyunn/ticketground `main` 브랜치 (v0.3.1, §1~§5 기준 커밋 `746c96b`, §6~§7 기준 커밋 `e39c10e`, §8 기준 커밋 `9bff10b`, §10 기준 커밋 `e0dfc83`)
 - 스택: Next.js 16 / React 19 / Tailwind v4 / shadcn·base-ui(설치만 됨) / lucide-react
-- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04, §9 추가: 2026-07-04)
-- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4). §9(P6 다크모드)는 사용자 요청으로 신설, Sonnet 5가 작성하고 Fable advisor가 재검증(치명 1건·수정 3건 반영)한 결과 (v5)
+- 작성일: 2026-07-03 (§6~§7 추가: 2026-07-04, §8 추가: 2026-07-04, §9 추가: 2026-07-04, §10 추가: 2026-07-05)
+- 검증: §1~§5 초안을 별도 리뷰 에이전트가 소스와 파일:라인 단위로 대조 검증, 지적사항 반영 완료 (v2). §6~§7은 Opus 4.8이 작성하고 Fable advisor가 소스·테스트 대조 검증(치명 3건·수정 5건·제안 5건) 후 반영 완료 (v3). §8은 codex의 1차 구현(커밋 `9bff10b`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 4건 반영)한 결과 (v4). §9(P6 다크모드)는 사용자 요청으로 신설, Sonnet 5가 작성하고 Fable advisor가 재검증(치명 1건·수정 3건 반영)한 결과 (v5). §10은 codex의 2차 구현(P3b 대량 치환 등, 커밋 `e0dfc83`)을 Sonnet 5가 1차 검증하고 Fable advisor가 재검증(수정 1건 반영)한 결과 (v6)
 
 ---
 
@@ -129,7 +129,7 @@
 - `TicketgroundModal` 등 데드코드의 base-ui 재구현 — 삭제로 대체 (P4에 포함)
 - **§6 P1 수용 편차(보안/인증 게이트):** `9bff10b`의 데스크톱 유틸바 `MY`/`예매내역` 미인증 숨김 처리는 유지한다. §6 P1은 데스크톱 유틸바 마크업/텍스트 변경 금지를 요구했지만, 현재 서비스 보안 요구가 “로그인 전 MY 및 예매내역 접근 차단”이므로 모바일 드로어 조건부 노출과 같은 방향으로 맞춘다.
 - **§6 P5 수용 편차(Next 16 이미지 API):** §6에는 FeaturedCard의 LCP 이미지에 `priority` prop을 추가하라고 되어 있으나, 현재 `next@16.2.1` 문서에서는 `priority`가 deprecated이고 `preload`가 대체 속성이다. 따라서 수동 `loading`/`fetchPriority`는 제거하되, 실제 구현은 `preload={size === "large"}`로 맞춘다.
-- **§8 부재:** 현재 `main` 문서에는 `## 8` 섹션이 존재하지 않아, 이번 라운드 검증 기준은 §6의 Phase별 DoD와 별도 QA 산출물로 추적한다.
+- ~~**§8 부재:** 현재 `main` 문서에는 `## 8` 섹션이 존재하지 않아, 이번 라운드 검증 기준은 §6의 Phase별 DoD와 별도 QA 산출물로 추적한다.~~ → **2026-07-05 정정: 이 문구는 codex가 §8·§9 반영 이전 시점의 로컬 사본으로 작업하며 남긴 것으로, 현재 문서에는 §8·§9가 모두 존재한다(사실과 불일치하여 삭제).**
 
 ---
 
@@ -493,6 +493,7 @@ globals.css 팔레트: `--ink=#1a1a1d`, `--ink-2=#29292d`, `--ink-3=#6b6b70`, `-
 
 **권장 실행 순서(원래 계획):** P1·P3a(병행) → P2 → P3b → P4 → P5.
 **2026-07-04 갱신(§8 진행 현황 반영):** P1·P2·P4 완료 확인됨. 잔여 순서는 **P3b → P6(다크모드)**, P3a 마무리(Pretendard 폰트 확보 후)·P5 잔여 2건(§8-5)은 P6과 무관하므로 병행 가능. 상세 스펙은 §9 참조.
+**2026-07-05 갱신(§10 진행 현황 반영):** P3b는 hex 210→146건, px 임의값 575→304건으로 크게 줄었으나 **완료 기준 미달**이며, 특히 `checkout-panel.tsx`·`reservation/[id]/page.tsx`·`mypage/page.tsx` 등 고위험 화면에 하드코딩이 다수 남아 있다. §9 P6 서문의 선행 조건("P3b가 먼저 끝나 있어야 한다")이 아직 충족되지 않았으므로 **P6(다크모드) 착수를 보류**하고, P3b 잔여분(§10-4 참조)부터 마저 정리한다. LCP `priority`/라이트 온리 주석/Pretendard 배선/커밋 분리 관행은 §10에서 완료 확인됨.
 
 **게이트 공통:** 각 Phase 종료 시 (1) `npm run lint && npm run typecheck` 그린, (2) 해당 Phase가 건드린 파일을 검증하는 개별 테스트 그린, (3) 390/768/1240 가로 오버플로 없음을 Claude가 확인한 뒤 다음 Phase 착수. **P3b·P5 게이트는 스크린샷 시각 회귀 대조를 필수**로 하고, **P5 종료 시 `npm test` 전량 1회**로 전체 회귀를 마감한다.
 
@@ -626,3 +627,46 @@ globals.css 팔레트: `--ink=#1a1a1d`, `--ink-2=#29292d`, `--ink-3=#6b6b70`, `-
 | **P6(다크모드)** | **P3b 완료 필수**(시맨틱 토큰 사용이 끝나야 다크 값 추가가 안전) | P4·P5와 무관, 단독 진행 가능 | FOUC 없는지, 시스템 감지·수동 토글 우선순위 로직, 좌석 등급색 다크 대비, 시각 회귀(라이트 쪽에 영향 없어야 함) |
 
 **갱신된 권장 실행 순서(§8 현황 반영, 잔여 작업 기준):** P1·P2·P4는 §8에서 완료 확인됨. 남은 순서는 **P3b → P6(다크모드)**이며, P3a 마무리(Pretendard 폰트 파일 확보 후)와 P5 잔여 2건(§8-5 참조)은 P6과 무관하므로 병행 가능.
+
+---
+
+## 10. 2차 구현 검증 결과 (P3b + P5 잔여 정리, Sonnet 5, 2026-07-05)
+
+> 검증 대상: main 브랜치 커밋 `e0dfc83`("test: verify social auth and image policy in rendered app") — §8-5 후속 지시(P3b 대량 치환, LCP `priority`, 라이트 온리 주석, Pretendard TODO, 커밋 분리 관행)에 대한 codex 구현 결과. 기준 커밋 `b7501f1` 이후 11개 커밋, 56개 파일 변경. 검증: Sonnet 5 1차 검증(자동 검사 + 소스 대조) → Fable advisor 재검증.
+
+### 10-1. 자동 검증 결과
+
+| 검사 | 결과 |
+|---|---|
+| `npm run lint` | 통과 (경고 0) |
+| `npm run typecheck` | 통과 |
+| `npm run build` | 통과 |
+| `npm test` (전체 89개 테스트, `--test-concurrency=1`) | **89 pass / 0 fail** |
+
+### 10-2. §8-5 후속 지시 이행 확인
+
+| 항목 | 상태 | 확인 내용 |
+|---|---|---|
+| ① P3b 대량 치환 | **부분 완료 — P6 착수 조건 미충족** | hex 하드코딩 210건(§8 측정치 209건과 근사)→**146건**, px 임의값 575건→**304건**로 유의미하게 감소했으나 소거되지 않았다. 특히 고위험 화면인 `checkout-panel.tsx`(hex 19건, px 15건)·`reservation/[id]/page.tsx`(hex 13건, px 15건)·`mypage/page.tsx`(hex 9건, px 10건)는 해당 커밋(`cd7f644`, `1868d34`)에서 손을 대고도 대부분의 하드코딩 값이 그대로 남아 있다(`checkout-panel.tsx`는 `text-[#666]`, `bg-[#f8f8f8]`, `border-[#ddd]`, `text-[#7e7e81]` 등 다수 잔존). §9 P6 서문은 "P3b가 먼저 끝나 있어야 한다"를 다크모드 착수의 선행 조건으로 명시하므로, **현재 상태로 P6(다크모드) 지시를 보내면 안 된다.** |
+| ② LCP `priority` 수정 | **완료(더 나은 방식으로 대체)** | `home-cards.tsx`의 `FeaturedCard`에 `loading`/`fetchPriority` 수동 지정을 제거하고 `preload={size === "large"}`로 교체(`9924317`). `next@16.2.1`은 `priority`가 deprecated, `preload`가 대체 API임을 타입 정의(`node_modules/next/dist/client/image-component.d.ts`)로 확인 — §8 지적보다 더 정확한 해결. 신규 테스트 `tests/next-dev-warning-sources.test.mjs`가 preload 링크 존재·수동 loading/fetchPriority 부재를 검증. |
+| ③ 라이트 온리 명시 주석 | **완료** | `globals.css` 최상단 및 `DESIGN.md`에 "Light-only policy" 주석 추가(`8830e2c`). |
+| ④ MY/예매내역 데스크톱 숨김 결정 | **완료** | §5에 "§6 P1 수용 편차" 항목으로 이미 명문화되어 있음(보안 요구상 숨김 유지 결정 확정). |
+| ⑤ Pretendard 폰트 배선 | **완료(파일 부재 시 대응 그대로)** | 폰트 파일은 여전히 없으나, `layout.tsx`에 `next/font/local` 활성화 위치를 가리키는 TODO 주석, `DESIGN.md`에 필요한 파일 경로(`src/app/fonts/PretendardVariable.woff2`)와 활성화 방법 명시, `globals.css`의 `--font-sans`가 `var(--font-pretendard, var(--font-noto))`로 즉시 대체 가능한 형태로 배선됨. |
+| ⑥ 커밋 분리 관행 | **완료, 크게 개선** | 이번 라운드는 파일군별(`shell`, `home`, `ticketing`, `mypage`)·목적별(폰트 정책 문서화, LCP 수정, 시각 QA 버그 수정, 테스트 추가)로 11개 커밋으로 분리되어 제출됨 — §8에서 지적한 "단일 커밋 번들링" 문제가 해소됨. |
+
+### 10-3. 발견 사항
+
+**[중요] P3b 미완료 상태에서 P6(다크모드) 착수 시 위험 — 착수 보류 권고**
+hex 146건·px 304건이 남아 있고, 특히 결제 관련 `checkout-panel.tsx`처럼 실제 금액이 오가는 고위험 화면이 여전히 하드코딩 색상 위주다. §9 P6 서문이 이미 경고한 대로, 하드코딩이 남은 상태에서 `.dark` 토큰을 얹으면 나머지 값들을 라이트/다크 두 번 손봐야 하는 부채가 그대로 발생한다. **다크모드(§9/P6) 지시는 지금 보내지 말고, P3b 잔여분(특히 `checkout-panel.tsx`·`reservation/[id]/page.tsx`·`mypage/page.tsx`·`home-sections.tsx`·`queue-waiting-room.tsx` — 남은 건수 상위 파일)부터 마저 정리하도록 후속 지시가 필요하다.**
+
+**[정보] §5의 "§8 부재" 기록은 현재 문서 상태와 불일치 — 정리 필요**
+`8830e2c` 커밋에서 §5에 추가된 "**§8 부재:** 현재 `main` 문서에는 `## 8` 섹션이 존재하지 않아…" 문구는 codex가 그 시점에 §8·§9가 반영되기 전의 로컬 사본으로 작업하며 남긴 것으로 보인다. 현재 `UI-개선-계획서.md`에는 §8(1차 검증)·§9(P6 다크모드)가 이미 존재하므로 이 문구는 사실과 어긋난다. 이번 갱신에서 제거한다.
+
+**[정보] 시각 회귀 스크린샷 대조 증적 없음**
+§3 Phase별 완료 기준은 "P3b/P5: 주요 페이지 스크린샷 대조로 의도치 않은 시각 회귀 없음 확인"을 요구한다. codex 보고에 따르면 `.qa`(로컬 QA 증거)는 Git에 커밋하지 않았다고 하므로 저장소 상에서 이 기준 충족 여부를 직접 확인할 수 없다. 자동 테스트(89개)와 lint/typecheck/build가 모두 통과했고 `716f1a3`("fix(ui): resolve visual qa layout blockers")가 시각 QA 발견 사항을 반영한 정황은 있으나, 스크린샷 자체는 검증 범위 밖이었다.
+
+### 10-4. 다음 착수 우선순위 (갱신)
+
+1. **P3b 잔여 정리** — 남은 건수 상위 파일(`checkout-panel.tsx`, `reservation/[id]/page.tsx`, `mypage/page.tsx`, `home-sections.tsx`, `queue-waiting-room.tsx`, `account-summary-panel.tsx` 등)부터 §6 매핑 표 기준으로 마저 치환. hex/px 임의값 잔여 건수를 재계측해 0에 가깝게 수렴시킨다.
+2. P3b 완료 확인 후에만 **P6(다크모드, §9)** 착수 지시를 전달한다.
+3. Pretendard 폰트 파일 확보는 여전히 별도 트랙(라이선스 확보 필요)으로 P3a를 마무리한다.
