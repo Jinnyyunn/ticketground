@@ -159,7 +159,7 @@ export function QueueWaitingRoom({
                 <Link
                   data-queue-continue
                   href={bookingHref}
-                  className="mt-4 inline-flex h-10 items-center justify-center rounded-sm bg-white px-4 text-sm font-black text-ink"
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-sm bg-card px-4 text-sm font-black text-ink"
                 >
                   좌석 선택으로 이동
                 </Link>

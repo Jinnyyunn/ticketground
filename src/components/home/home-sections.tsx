@@ -10,14 +10,14 @@ const editorialCardTone = {
     accent: null,
     eyebrow: "border-white/15 bg-white/10 text-white/75",
     index: "border-white/15 text-white/55",
-    cta: "border-white/15 bg-white/10 text-white group-hover:bg-white group-hover:text-ink",
+    cta: "border-white/15 bg-white/10 text-white group-hover:bg-card group-hover:text-ink",
   },
   red: {
     card: "border-ticketground bg-ticketground text-white shadow-ticket-2 hover:border-ticketground hover:bg-ticketground/95",
     accent: null,
     eyebrow: "border-white/25 bg-white/15 text-white",
     index: "border-white/20 text-white/75",
-    cta: "border-white/20 bg-white text-ink group-hover:border-white group-hover:bg-ink group-hover:text-white",
+    cta: "border-white/20 bg-card text-ink group-hover:border-white group-hover:bg-ink group-hover:text-white",
   },
   cream: {
     card: "border-accent-2 bg-accent-2 text-ink shadow-ticket-2 hover:border-accent-2 hover:bg-accent-2/90",

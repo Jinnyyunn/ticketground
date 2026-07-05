@@ -23,7 +23,7 @@ export function GradientPoster({ title, gradient, poster, fit = "cover", classNa
     <div
       className={cn(
         "poster relative aspect-[3/4] overflow-hidden rounded-lg",
-        fit === "contain" ? "bg-white" : "bg-surface-2",
+        fit === "contain" ? "bg-card" : "bg-surface-2",
         !poster && posterGradientClasses[gradient],
         className,
       )}
@@ -87,7 +87,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           <p className="mt-4 text-base font-bold text-white/90">{show.venue}</p>
           <p className="mt-1 text-sm text-white/75">{show.date}</p>
         </div>
-        <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
+        <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-card px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
           {show.cta} →
         </span>
       </div>

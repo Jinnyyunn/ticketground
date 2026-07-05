@@ -54,7 +54,7 @@ export function HelpSearch({ categories, faqs, contacts }: HelpSearchProps) {
   return (
     <div className="mt-7 max-w-[760px]">
       <form
-        className="grid gap-2 rounded-[24px] bg-white p-1 text-ink shadow-sm sm:grid-cols-[minmax(0,1fr)_120px]"
+        className="grid gap-2 rounded-[24px] bg-card p-1 text-ink shadow-sm sm:grid-cols-[minmax(0,1fr)_120px]"
         data-help-search-form
         onSubmit={(event) => {
           event.preventDefault();
@@ -76,7 +76,7 @@ export function HelpSearch({ categories, faqs, contacts }: HelpSearchProps) {
       </form>
 
       {hasQuery && (
-        <section className="mt-4 rounded-lg bg-white p-5 text-ink" data-help-search-results>
+        <section className="mt-4 rounded-lg bg-card p-5 text-ink" data-help-search-results>
           <div className="flex flex-wrap items-end justify-between gap-2">
             <h2 className="text-lg font-black">고객센터 검색 결과</h2>
             <p className="text-sm font-bold text-ink-3" data-help-search-count>

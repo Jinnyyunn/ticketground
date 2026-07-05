@@ -105,7 +105,7 @@ export function ResaleSellPanel({
         type="button"
         disabled={apiBusy}
         onClick={onEnsureTicket}
-        className="h-11 rounded-sm border border-line bg-white px-5 text-sm font-black text-ink disabled:bg-surface-3"
+        className="h-11 rounded-sm border border-line bg-card px-5 text-sm font-black text-ink disabled:bg-surface-3"
       >
         테스트 티켓 확보
       </button>
