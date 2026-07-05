@@ -98,7 +98,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
                 <label
                   key={cancelReason}
                   className={`flex min-h-12 items-center gap-3 rounded-md border px-4 text-sm font-black ${
-                    reason === cancelReason ? "border-ink bg-ink text-white" : "border-line bg-card text-ink hover:border-line-strong"
+                    reason === cancelReason ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink hover:border-line-strong"
                   }`}
                 >
                   <input
@@ -183,7 +183,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
 function StepHeader({ index, title }: { readonly index: string; readonly title: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="flex size-9 items-center justify-center rounded-full bg-ink text-sm font-black text-white">{index}</span>
+      <span className="flex size-9 items-center justify-center rounded-full bg-ink text-sm font-black text-on-ink">{index}</span>
       <h2 className="text-2xl font-black text-ink">{title}</h2>
     </div>
   );

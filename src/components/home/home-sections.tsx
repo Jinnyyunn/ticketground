@@ -6,25 +6,25 @@ import { events, featuredShow, genreRecommendations, miniShows, rankings, shortc
 
 const editorialCardTone = {
   dark: {
-    card: "border-ink bg-ink text-white shadow-ticket-2",
+    card: "border-ink bg-ink text-on-ink shadow-ticket-2",
     accent: null,
-    eyebrow: "border-white/15 bg-white/10 text-white/75",
-    index: "border-white/15 text-white/55",
-    cta: "border-white/15 bg-white/10 text-white group-hover:bg-card group-hover:text-ink",
+    eyebrow: "border-white/15 bg-white/10 text-on-ink/75",
+    index: "border-white/15 text-on-ink/55",
+    cta: "border-white/15 bg-white/10 text-on-ink group-hover:bg-card group-hover:text-ink",
   },
   red: {
     card: "border-ticketground bg-ticketground text-white shadow-ticket-2 hover:border-ticketground hover:bg-ticketground/95",
     accent: null,
     eyebrow: "border-white/25 bg-white/15 text-white",
     index: "border-white/20 text-white/75",
-    cta: "border-white/20 bg-card text-ink group-hover:border-white group-hover:bg-ink group-hover:text-white",
+    cta: "border-white/20 bg-card text-ink group-hover:border-white group-hover:bg-ink group-hover:text-on-ink",
   },
   cream: {
     card: "border-accent-2 bg-accent-2 text-ink shadow-ticket-2 hover:border-accent-2 hover:bg-accent-2/90",
     accent: null,
     eyebrow: "border-ink/10 bg-white/35 text-ink",
     index: "border-ink/10 bg-white/25 text-ink/65",
-    cta: "border-ink/10 bg-white/55 text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-white",
+    cta: "border-ink/10 bg-white/55 text-ink group-hover:border-ink group-hover:bg-ink group-hover:text-on-ink",
   },
 } as const;
 
@@ -104,12 +104,12 @@ export function OfficialResaleSection() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
         <Link
           href="/resale"
-          className="group relative isolate min-w-0 overflow-hidden rounded-lg border border-ink bg-ink p-5 text-white shadow-ticket-2 transition-transform before:absolute before:-right-24 before:-top-24 before:size-56 before:rounded-full before:bg-white/10 before:blur-2xl hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-6"
+          className="group relative isolate min-w-0 overflow-hidden rounded-lg border border-ink bg-ink p-5 text-on-ink shadow-ticket-2 transition-transform before:absolute before:-right-24 before:-top-24 before:size-56 before:rounded-full before:bg-white/10 before:blur-2xl hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-6"
         >
           <div className="relative z-10">
-          <p className="text-sm font-black text-white/60">CLEAN TICKET POOL</p>
+          <p className="text-sm font-black text-on-ink/60">CLEAN TICKET POOL</p>
           <h3 className="balanced-title mt-3 text-[24px] font-black leading-tight sm:text-[30px]">공식 재판매</h3>
-          <p className="mt-3 max-w-[560px] text-sm leading-relaxed text-white/75 sm:text-base">
+          <p className="mt-3 max-w-[560px] text-sm leading-relaxed text-on-ink/75 sm:text-base">
             정가 범위와 구매 이력 검증을 통과한 티켓만 풀에 등록됩니다. 외부 직거래 없이 예매 내역과 결제 기록이 함께 보존됩니다.
           </p>
           <span className="mt-5 inline-flex h-10 items-center rounded-lg bg-background px-4 text-sm font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">

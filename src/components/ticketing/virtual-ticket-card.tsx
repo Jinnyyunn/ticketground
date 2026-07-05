@@ -41,7 +41,7 @@ export function VirtualTicketCard({ date, reservationId, seatLabel, ticketIndex,
               <p className="font-black text-ink-3">SEAT</p>
               <p className="mt-0.5 break-words font-bold text-ink">{seatLabel}</p>
             </div>
-            <div className="flex items-center justify-between rounded-[6px] bg-ink px-2 py-2 text-[11px] font-black text-white">
+            <div className="flex items-center justify-between rounded-[6px] bg-ink px-2 py-2 text-[11px] font-black text-on-ink">
               <span>APP ONLY</span>
               <span>입장 불가</span>
             </div>

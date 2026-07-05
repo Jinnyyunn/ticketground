@@ -17,7 +17,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
     <TicketingPageShell>
       <section className="ticketground-container py-10">
         <div className="grid gap-8 rounded-xl bg-surface p-8 lg:grid-cols-[220px_1fr] lg:items-center">
-          <div className="flex size-40 items-center justify-center rounded-full bg-ink text-6xl font-black text-white">{show.shortTitle.slice(0, 1)}</div>
+          <div className="flex size-40 items-center justify-center rounded-full bg-ink text-6xl font-black text-on-ink">{show.shortTitle.slice(0, 1)}</div>
           <div>
             <p className="text-sm font-black text-ticketground">아티스트 프로필</p>
             <h1 className="mt-2 text-5xl font-black text-ink">{show.shortTitle} 캐스팅</h1>

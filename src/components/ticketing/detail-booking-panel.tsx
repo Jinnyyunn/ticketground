@@ -61,11 +61,11 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules }: Detail
                 onClick={() => chooseDate(schedule)}
                 className={cn(
                   "min-w-0 rounded-sm border px-3 py-3 text-left text-sm font-bold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
-                  active ? "border-ink bg-ink text-white" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
+                  active ? "border-ink bg-ink text-on-ink" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
                 )}
               >
                 <span className="block">{schedule.label}</span>
-                <span className={cn("mt-1 block text-xs", active ? "text-white/70" : "text-ink-4")}>{schedule.date}</span>
+                <span className={cn("mt-1 block text-xs", active ? "text-on-ink/70" : "text-ink-4")}>{schedule.date}</span>
               </button>
             );
           })}
@@ -110,7 +110,7 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules }: Detail
       <Link
         data-testid="detail-queue-link"
         href={queueHref}
-        className="mt-6 flex h-13 items-center justify-center rounded-sm bg-ink text-base font-black text-white whitespace-nowrap transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
+        className="mt-6 flex h-13 items-center justify-center rounded-sm bg-ink text-base font-black text-on-ink whitespace-nowrap transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
       >
         선택 회차 예매
       </Link>

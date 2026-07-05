@@ -51,7 +51,7 @@ const contacts: readonly Contact[] = [
 export default function HelpPage() {
   return (
     <TicketingPageShell>
-      <section className="bg-ink text-white">
+      <section className="bg-ink text-on-ink">
         <div className="ticketground-container py-12">
           <p className="text-sm font-black text-accent-2">고객센터</p>
           <h1 className="balanced-title mt-3 text-[30px] font-black leading-tight sm:text-[34px]">무엇을 도와드릴까요?</h1>

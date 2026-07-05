@@ -59,7 +59,7 @@ export default function MyPage() {
                         <p className="mt-1 text-sm text-ink-3">예매번호 {reservation.id}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                        <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-sm bg-ink-2 px-4 text-sm font-bold text-white whitespace-nowrap">
+                        <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-sm bg-ink-2 px-4 text-sm font-bold text-on-ink-2 whitespace-nowrap">
                           {active ? "입장 QR 열기(앱)" : "가상 티켓 보기"}
                         </Link>
                         <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap">

@@ -83,7 +83,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
             onClick={() => setFilter(item)}
             className={cn(
               "h-9 rounded-full border px-4 text-sm font-black transition focus-visible:ring-3 focus-visible:ring-ring/50",
-              filter === item ? "border-ink bg-ink text-white" : "border-line bg-card text-ink-2 hover:border-line-strong",
+              filter === item ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink-2 hover:border-line-strong",
             )}
           >
             {item}
@@ -115,7 +115,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
                 onClick={() => setLayout(item.id)}
                 className={cn(
                   "h-8 rounded-md px-3 text-sm font-black transition focus-visible:ring-3 focus-visible:ring-ring/50",
-                  layout === item.id ? "bg-ink text-white" : "text-ink-3 hover:text-ink",
+                  layout === item.id ? "bg-ink text-on-ink" : "text-ink-3 hover:text-ink",
                 )}
               >
                 {item.label}
@@ -140,7 +140,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
               key={show.slug}
               href={`/goods/${show.slug}`}
               className={cn(
-                "group relative overflow-hidden rounded-lg bg-ink text-white shadow-ticket-1 focus-visible:ring-3 focus-visible:ring-ring/50",
+                "group relative overflow-hidden rounded-lg bg-ink text-on-ink shadow-ticket-1 focus-visible:ring-3 focus-visible:ring-ring/50",
                 index === 0 ? "lg:col-span-3 lg:row-span-2" : "lg:col-span-3",
               )}
             >
@@ -154,7 +154,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/70 to-transparent p-5">
                 <span className="text-sm font-black text-accent-2">{show.badge ?? show.category}</span>
                 <h2 className="mt-2 clamp-2 text-2xl font-black leading-tight">{show.shortTitle}</h2>
-                <p className="mt-2 text-sm text-white/80">{show.venue}</p>
+                <p className="mt-2 text-sm text-on-ink/80">{show.venue}</p>
                 <p className="mt-3 text-sm font-black">최저 {currency(lowestPrice(show))}</p>
               </div>
             </a>

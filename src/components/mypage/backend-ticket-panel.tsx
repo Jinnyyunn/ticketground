@@ -76,7 +76,7 @@ export function BackendTicketPanel({ reservations }: BackendTicketPanelProps) {
                   <p className="text-base font-black text-ink">{ticket.seatLabel}</p>
                   <p className="mt-1 text-sm font-bold text-ink-3">{ticket.status} · {currency(ticket.faceValue)}</p>
                 </div>
-                <button type="button" onClick={() => loadQr(ticket.id)} className="h-10 whitespace-nowrap rounded-sm bg-ink px-4 text-sm font-black text-white">
+                <button type="button" onClick={() => loadQr(ticket.id)} className="h-10 whitespace-nowrap rounded-sm bg-ink px-4 text-sm font-black text-on-ink">
                   가상 QR 확인
                 </button>
               </div>

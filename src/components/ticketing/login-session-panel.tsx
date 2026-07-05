@@ -38,7 +38,7 @@ export function LoginSessionPanel({
             type="button"
             disabled={saving || !profileName.trim()}
             onClick={onSaveProfile}
-            className="h-11 self-end rounded-sm bg-ink px-4 text-sm font-black text-white disabled:bg-surface-3 disabled:text-ink-4"
+            className="h-11 self-end rounded-sm bg-ink px-4 text-sm font-black text-on-ink disabled:bg-surface-3 disabled:text-ink-4"
           >
             {saving ? "저장 중" : "프로필 저장"}
           </button>

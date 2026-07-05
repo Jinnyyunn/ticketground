@@ -26,7 +26,7 @@ const statusMeta: Record<InquiryThread["status"], { readonly label: string; read
 };
 
 const authorMeta: Record<InquiryMessage["author"], { readonly label: string; readonly className: string }> = {
-  member: { label: "me", className: "ml-auto bg-ink text-white" },
+  member: { label: "me", className: "ml-auto bg-ink text-on-ink" },
   agent: { label: "agent", className: "bg-card text-ink" },
   system: { label: "system", className: "mx-auto bg-tint-yellow text-ink" },
 };

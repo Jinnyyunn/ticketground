@@ -107,12 +107,12 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
 
   if (authState === "signed-out") {
     return (
-      <div className="rounded-lg border border-line bg-ink-2 p-6 text-white" data-account-panel data-auth-state="signed-out">
+      <div className="rounded-lg border border-line bg-ink-2 p-6 text-on-ink-2" data-account-panel data-auth-state="signed-out">
         <p className="text-sm font-bold text-accent-2">Ticketground MEMBERS</p>
         <div className="mt-4 flex flex-wrap items-end justify-between gap-5">
           <div>
             <h1 className="text-[30px] font-black">로그인이 필요합니다</h1>
-            <p className="mt-2 text-base text-white/75" data-account-status>
+            <p className="mt-2 text-base text-on-ink-2/75" data-account-status>
               {status}
             </p>
           </div>
@@ -120,7 +120,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
             <button className="h-11 rounded-sm bg-card px-4 text-sm font-bold text-ink-2" onClick={() => void loadSession()} type="button">
               데모 계정으로 다시 로그인
             </button>
-            <Link className="flex h-11 items-center rounded-sm border border-white/30 px-4 text-sm font-bold text-white" href="/login">
+            <Link className="flex h-11 items-center rounded-sm border border-white/30 px-4 text-sm font-bold text-on-ink-2" href="/login">
               로그인 화면
             </Link>
           </div>
@@ -138,19 +138,19 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
   ] as const;
 
   return (
-    <div className="rounded-lg border border-line bg-ink-2 p-6 text-white" data-account-panel data-auth-state={authState}>
+    <div className="rounded-lg border border-line bg-ink-2 p-6 text-on-ink-2" data-account-panel data-auth-state={authState}>
       <p className="text-sm font-bold text-accent-2">Ticketground MEMBERS</p>
       <div className="mt-4 flex flex-wrap items-end justify-between gap-5">
         <div>
           <h1 className="text-[32px] font-black" data-account-name>
             {displayName} 회원
           </h1>
-          <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-base text-white/75">
+          <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-base text-on-ink-2/75">
             <span className="whitespace-nowrap">클린티켓 인증 기기 1대</span>
             <span className="whitespace-nowrap">예매 {reservationCount}건</span>
             <span className="whitespace-nowrap">공식 재판매 {resaleSeatCount}석</span>
           </p>
-          <p className="mt-2 text-sm font-bold text-white/70" data-account-status>
+          <p className="mt-2 text-sm font-bold text-on-ink-2/70" data-account-status>
             {status}
           </p>
         </div>
@@ -162,7 +162,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
               className="min-w-0 whitespace-nowrap rounded-[6px] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-2"
             >
               <strong className="block text-2xl">{counter.count}</strong>
-              <span className="text-white/70">{counter.label}</span>
+              <span className="text-on-ink-2/70">{counter.label}</span>
             </Link>
           ))}
         </div>
@@ -178,7 +178,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
           회원정보 수정
         </button>
         <button
-          className="h-10 rounded-sm border border-white/30 px-4 text-sm font-bold text-white disabled:text-white/45"
+          className="h-10 rounded-sm border border-white/30 px-4 text-sm font-bold text-on-ink-2 disabled:text-on-ink-2/45"
           disabled={authState === "loading"}
           onClick={logout}
           type="button"

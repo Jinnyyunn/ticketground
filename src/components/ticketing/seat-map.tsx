@@ -17,10 +17,10 @@ export interface SeatOption {
 }
 
 const tierStyles: Record<SeatTier, string> = {
-  VIP: "bg-tier-vip text-white border-tier-vip",
-  R: "bg-tier-r text-white border-tier-r",
-  S: "bg-tier-s text-white border-tier-s",
-  A: "bg-tier-a text-white border-tier-a",
+  VIP: "bg-tier-vip text-on-tier-vip border-tier-vip",
+  R: "bg-tier-r text-on-tier-r border-tier-r",
+  S: "bg-tier-s text-on-tier-s border-tier-s",
+  A: "bg-tier-a text-on-tier-a border-tier-a",
 };
 
 export const seatRows = "ABCDEFGHIJKLMNOPQRST".split("");

@@ -50,7 +50,7 @@ export default async function ReservationPage({
               <h1 className="balanced-title mt-4 text-[26px] font-black text-ink-2 sm:text-[30px]">예매가 완료되었습니다</h1>
               <p className="mt-2 text-base font-bold text-ink-3">예매번호 {reservation.id}</p>
             </div>
-            <Link href="/mypage" className="flex h-11 items-center rounded-sm bg-ink-2 px-5 text-sm font-bold text-white">
+            <Link href="/mypage" className="flex h-11 items-center rounded-sm bg-ink-2 px-5 text-sm font-bold text-on-ink-2">
               내 예약 보기
             </Link>
           </div>
@@ -68,10 +68,10 @@ export default async function ReservationPage({
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
           <article className="min-w-0 overflow-hidden rounded-lg border border-ink-2 bg-card shadow-sm">
-            <div className="bg-ink-2 p-6 text-white">
+            <div className="bg-ink-2 p-6 text-on-ink-2">
               <p className="text-sm font-bold text-accent-2">CLEAN TICKET</p>
               <h2 className="balanced-title mt-2 text-[24px] font-black sm:text-[26px]">{reservation.showTitle}</h2>
-              <p className="mt-2 text-sm text-white/75">{reservation.venue}</p>
+              <p className="mt-2 text-sm text-on-ink-2/75">{reservation.venue}</p>
             </div>
             <div className="grid gap-6 p-6 md:grid-cols-[1fr_220px]">
               <dl className="grid gap-4 text-base">
@@ -93,7 +93,7 @@ export default async function ReservationPage({
                     <VirtualTicketCard key={`${seatLabel}-${index}`} date={date} reservationId={reservation.id} seatLabel={seatLabel} ticketIndex={index} ticketTotal={virtualTicketSeats.length} />
                   ))}
                 </div>
-                <span className="mt-3 inline-flex rounded-full bg-ink-2 px-3 py-1 text-sm font-bold text-white">잠금 · 가상 티켓</span>
+                <span className="mt-3 inline-flex rounded-full bg-ink-2 px-3 py-1 text-sm font-bold text-on-ink-2">잠금 · 가상 티켓</span>
                 <p className="mt-3 text-sm font-bold text-ink-2">입장 불가</p>
                 <p className="mt-1 break-keep text-sm leading-relaxed text-ink-3">소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다.</p>
               </div>

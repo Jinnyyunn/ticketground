@@ -217,7 +217,7 @@ export function TransferFlow({ reservation }: { readonly reservation: CleanTicke
           </dl>
           <button
             type="button"
-            className="h-12 rounded-lg bg-ink px-5 text-base font-black text-white transition hover:bg-ink-2 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
+            className="h-12 rounded-lg bg-ink px-5 text-base font-black text-on-ink transition hover:bg-ink-2 hover:text-on-ink-2 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
             onClick={() => void handleSubmit()}
             disabled={backendBusy}
           >

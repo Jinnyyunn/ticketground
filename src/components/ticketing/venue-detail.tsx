@@ -65,7 +65,7 @@ export function VenueDetail({ venue, currentShows }: VenueDetailProps) {
               <dd className="text-ink">{venue.inquiry}</dd>
             </div>
           </dl>
-          <Link href={`/contents/search?q=${encodeURIComponent(venue.searchQuery)}`} className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg bg-ink text-sm font-black text-white">
+          <Link href={`/contents/search?q=${encodeURIComponent(venue.searchQuery)}`} className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg bg-ink text-sm font-black text-on-ink">
             이 공연장 검색
           </Link>
         </aside>

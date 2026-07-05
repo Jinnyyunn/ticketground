@@ -27,7 +27,7 @@ export function BookingExpiryNotice({
           <p className="mt-2 text-sm font-bold text-ink-3">좌석 선점과 결제를 다시 진행하려면 대기열부터 재입장해 주세요.</p>
           <Link
             href={`/queue/${showSlug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`}
-            className="mt-4 inline-flex h-11 items-center justify-center rounded-sm bg-ink px-4 text-sm font-black text-white"
+            className="mt-4 inline-flex h-11 items-center justify-center rounded-sm bg-ink px-4 text-sm font-black text-on-ink"
           >
             다시 예매하기
           </Link>

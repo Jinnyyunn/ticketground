@@ -52,7 +52,7 @@ export function TicketgroundChip({ children, active = false, error = false, clas
       className={cn(
         "inline-flex h-9 items-center rounded-full border px-4 text-sm font-bold transition-colors",
         "focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-45",
-        active ? "border-ink bg-ink text-white" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
+        active ? "border-ink bg-ink text-on-ink" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
         error && "border-destructive bg-tint-red text-destructive",
         className,
       )}
@@ -74,7 +74,7 @@ export function TicketgroundTag({
 }) {
   const toneClass = {
     open: "bg-tint-red text-ticketground",
-    soon: "bg-ink text-white",
+    soon: "bg-ink text-on-ink",
     sale: "bg-accent-2 text-ink",
     new: "bg-ok text-white",
     error: "bg-tint-red text-destructive",
@@ -134,7 +134,7 @@ export function SegmentedControl({
           onClick={() => handleOptionClick(option)}
           className={cn(
             "h-9 rounded-full px-4 text-sm font-bold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-45",
-            option.value === value ? "bg-ink text-white" : "text-ink-3 hover:bg-background hover:text-ink",
+            option.value === value ? "bg-ink text-on-ink" : "text-ink-3 hover:bg-background hover:text-ink",
           )}
         >
           {option.label}

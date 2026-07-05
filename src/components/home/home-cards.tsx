@@ -54,7 +54,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
     <Link
       href={show.href}
       className={cn(
-        "group relative isolate grid overflow-hidden rounded-xl border border-line bg-ink text-white shadow-ticket-1 transition-transform hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group relative isolate grid overflow-hidden rounded-xl border border-line bg-ink text-on-ink shadow-ticket-1 transition-transform hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50",
         size === "large" ? "min-h-[420px] md:min-h-[580px]" : "min-h-[280px]",
       )}
     >
@@ -81,11 +81,11 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           <TicketgroundTag className="bg-white/90 text-ink shadow-ticket-1" tone={size === "large" ? "open" : "soon"}>
             {show.eyebrow}
           </TicketgroundTag>
-          <h1 className={cn("mt-4 font-black leading-tight text-white", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>
+          <h1 className={cn("mt-4 font-black leading-tight text-on-ink", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>
             {show.title}
           </h1>
-          <p className="mt-4 text-base font-bold text-white/90">{show.venue}</p>
-          <p className="mt-1 text-sm text-white/75">{show.date}</p>
+          <p className="mt-4 text-base font-bold text-on-ink/90">{show.venue}</p>
+          <p className="mt-1 text-sm text-on-ink/75">{show.date}</p>
         </div>
         <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-card px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
           {show.cta} →

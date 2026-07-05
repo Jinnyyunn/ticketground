@@ -70,7 +70,7 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
       <div className="min-w-0">
         <form action="/contents/search" className="flex min-w-0 rounded-full border border-line bg-card p-1">
           <input name="q" defaultValue={query} placeholder="공연명, 장소, 장르를 검색하세요" className="h-11 min-w-0 flex-1 rounded-full px-4 text-base outline-none" />
-          <button className="h-11 shrink-0 whitespace-nowrap rounded-full bg-ink px-5 text-base font-black text-white sm:px-6">검색</button>
+          <button className="h-11 shrink-0 whitespace-nowrap rounded-full bg-ink px-5 text-base font-black text-on-ink sm:px-6">검색</button>
         </form>
 
         <div className="mt-8 border-b border-line pb-4">
@@ -105,7 +105,7 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
               key={tab}
               role="tab"
               aria-selected={activeTab === tab}
-              className={activeTab === tab ? "h-11 rounded-full bg-ink px-4 text-sm font-black text-white" : "h-11 rounded-full border border-line px-4 text-sm font-black text-ink"}
+              className={activeTab === tab ? "h-11 rounded-full bg-ink px-4 text-sm font-black text-on-ink" : "h-11 rounded-full border border-line px-4 text-sm font-black text-ink"}
               data-search-tab={tab}
               onClick={() => setActiveTab(tab)}
               type="button"

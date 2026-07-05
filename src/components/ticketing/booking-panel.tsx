@@ -131,8 +131,12 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           <div
             data-booking-timer
             className={cn(
-              "shrink-0 rounded-sm px-4 py-2 text-xl font-black tabular-nums text-white",
-              timerExpired ? "bg-ticketground" : timerWarning ? "bg-warn" : "bg-ink",
+              "shrink-0 rounded-sm px-4 py-2 text-xl font-black tabular-nums",
+              timerExpired
+                ? "bg-ticketground text-white"
+                : timerWarning
+                  ? "bg-warn text-white"
+                  : "bg-ink text-on-ink",
             )}
             aria-label="남은 예매 시간"
           >
@@ -154,7 +158,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   disabled={item.id === "seats" && !canChooseSeats}
                   className={cn(
                     "h-12 rounded-sm border text-sm font-black whitespace-nowrap",
-                    active ? "border-ink bg-ink text-white" : "border-line bg-card text-ink-3",
+                    active ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink-3",
                     item.id === "seats" && !canChooseSeats && "cursor-not-allowed opacity-50",
                   )}
                 >
@@ -176,7 +180,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">관람일</h3>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {show.schedules.map((schedule) => (
-                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-white" : "border-line bg-card text-ink")}>
+                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>
                         {schedule.label}
                       </button>
                     ))}
@@ -186,7 +190,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">회차</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {(show.schedules.find((schedule) => schedule.date === date)?.times ?? []).map((item) => (
-                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-white" : "border-line bg-card text-ink")}>
+                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>
                         {item}
                       </button>
                     ))}

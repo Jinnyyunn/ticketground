@@ -97,7 +97,7 @@ export function ResaleFindPanel({
       <button type="button" onClick={onDraw} disabled={drawing || apiBusy || filteredCandidates.length === 0} className="h-12 rounded-sm bg-ticketground px-5 text-base font-black text-white disabled:bg-ink-4" data-testid="resale-draw">
         {drawing ? "후보 순환 중" : `조건부 랜덤 매칭 시작 · 후보 ${filteredCandidates.length}건`}
       </button>
-      <button type="button" onClick={onBackendPurchase} disabled={apiBusy} className="h-12 rounded-sm bg-ink px-5 text-base font-black text-white disabled:bg-ink-4" data-testid="resale-purchase">
+      <button type="button" onClick={onBackendPurchase} disabled={apiBusy} className="h-12 rounded-sm bg-ink px-5 text-base font-black text-on-ink disabled:bg-ink-4" data-testid="resale-purchase">
         즉시 구매 매칭
       </button>
       <div className={cn("rounded-lg border border-line p-4", result && "border-ok bg-tint-yellow")} data-testid="match-result">
@@ -123,7 +123,7 @@ function BackendMatchResult({ backendResult, reservationId }: { readonly backend
         <SummaryRow label="구매자 총액" value={currency(backendResult.buyerTotal)} />
         <SummaryRow label="판매자 정산" value={currency(backendResult.sellerSettlement)} strong />
       </dl>
-      <Link className="inline-flex h-11 items-center justify-center rounded-sm bg-ink px-5 text-sm font-black text-white" href={`/reservation/${reservationId}?ticketId=${backendResult.ticket.id}`} data-testid="confirm-cta">
+      <Link className="inline-flex h-11 items-center justify-center rounded-sm bg-ink px-5 text-sm font-black text-on-ink" href={`/reservation/${reservationId}?ticketId=${backendResult.ticket.id}`} data-testid="confirm-cta">
         매칭 좌석으로 확인하기
       </Link>
     </div>
@@ -140,7 +140,7 @@ function LocalMatchResult({ reservationId, result, resultFee }: { readonly reser
         <SummaryRow label="랜덤 시드" value={result.seed} />
         <SummaryRow label="원장 번호" value={result.ledger} strong />
       </dl>
-      <Link className="inline-flex h-11 items-center justify-center rounded-sm bg-ink px-5 text-sm font-black text-white" href={`/reservation/${reservationId}`} data-testid="confirm-cta">
+      <Link className="inline-flex h-11 items-center justify-center rounded-sm bg-ink px-5 text-sm font-black text-on-ink" href={`/reservation/${reservationId}`} data-testid="confirm-cta">
         매칭 좌석으로 확인하기
       </Link>
     </div>

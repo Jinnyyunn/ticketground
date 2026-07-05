@@ -113,7 +113,7 @@ export function ResaleSellPanel({
         type="button"
         disabled={!isPriceValid || apiBusy}
         onClick={onRegister}
-        className="h-12 rounded-sm bg-ink px-5 text-base font-black text-white disabled:bg-ink-4"
+        className="h-12 rounded-sm bg-ink px-5 text-base font-black text-on-ink disabled:bg-ink-4"
         data-testid="resale-register"
       >
         {apiBusy ? "처리 중" : "공식 풀에 등록"}

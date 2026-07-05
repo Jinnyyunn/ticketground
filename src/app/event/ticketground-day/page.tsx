@@ -8,12 +8,12 @@ export default function TicketgroundDayPage() {
 
   return (
     <TicketingPageShell>
-      <section className="bg-ink py-16 text-white">
+      <section className="bg-ink py-16 text-on-ink">
         <div className="ticketground-container grid gap-8 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
           <div>
             <p className="text-sm font-black text-accent-2">Ticketground Day</p>
             <h1 className="balanced-title mt-3 max-w-[760px] text-4xl font-black leading-tight sm:text-5xl md:text-6xl lg:text-7xl">클린티켓으로 여는 여름 공연 큐레이션</h1>
-            <p className="mt-5 max-w-[620px] text-base leading-relaxed text-white/75">
+            <p className="mt-5 max-w-[620px] text-base leading-relaxed text-on-ink/75">
               공식 재판매, 동적 QR, 예매 알림이 적용된 공연을 한곳에 모은 에디토리얼 기획전입니다.
             </p>
           </div>

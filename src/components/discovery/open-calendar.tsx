@@ -12,7 +12,7 @@ const days = Array.from({ length: 31 }, (_, index) => index + 1);
 const genreTone: Record<TicketShow["category"], string> = {
   뮤지컬: "bg-link text-white",
   콘서트: "bg-ticketground text-white",
-  연극: "bg-ink text-white",
+  연극: "bg-ink text-on-ink",
   클래식: "bg-tint-yellow text-ink",
   스포츠: "bg-warn text-white",
   "전시/행사": "bg-ok text-white",
@@ -34,7 +34,7 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
           <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">2026년 7월 월별 캘린더</h1>
           <p className="mt-3 text-sm text-ink-3">장르 색상과 오픈 임박 리스트로 공식 예매 시간을 확인합니다.</p>
         </div>
-        <Link href="/watchlist" className="inline-flex h-10 items-center justify-center rounded-lg bg-ink px-4 text-sm font-black text-white whitespace-nowrap">
+        <Link href="/watchlist" className="inline-flex h-10 items-center justify-center rounded-lg bg-ink px-4 text-sm font-black text-on-ink whitespace-nowrap">
           관심공연 알림
         </Link>
       </div>

@@ -77,7 +77,7 @@ export function WatchlistShowCard({
             </Link>
             <WatchlistToggleButton active={enabled} label={`${show.title} 알림`} onToggle={onToggle} />
             {enabled && (
-              <button type="button" onClick={onRecordNotification} className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-black text-white">
+              <button type="button" onClick={onRecordNotification} className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-black text-on-ink">
                 즉시 알림 기록
               </button>
             )}

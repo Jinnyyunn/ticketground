@@ -122,14 +122,14 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                 {show.casts.map((cast) =>
                   artistHref ? (
                     <Link key={cast} href={artistHref} data-allow-wrap="true" className="group rounded-lg border border-line bg-card p-4 text-center transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50">
-                      <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-white transition-colors group-hover:bg-ticketground">
+                      <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-on-ink transition-colors group-hover:bg-ticketground">
                         {cast.slice(0, 1)}
                       </span>
                       <span className="mt-3 block text-sm font-black text-ink">{cast}</span>
                     </Link>
                   ) : (
                     <article key={cast} data-allow-wrap="true" className="rounded-lg border border-line bg-card p-4 text-center">
-                      <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-white">
+                      <span className="mx-auto grid size-14 place-items-center rounded-lg bg-ink text-lg font-black text-on-ink">
                         {cast.slice(0, 1)}
                       </span>
                       <span className="mt-3 block text-sm font-black text-ink">{cast}</span>
@@ -204,10 +204,10 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                       </div>
                     </dl>
                   </div>
-                  <Link href={venueHref} className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-white transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
+                  <Link href={venueHref} className="grid min-h-[180px] place-items-center rounded-lg bg-ink p-5 text-center text-on-ink transition-colors hover:bg-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
                     <span>
                       <span className="block text-2xl font-black">{venue?.cardTitle ?? show.venue}</span>
-                      <span className="mt-2 block text-sm font-bold text-white/75">공연장 상세 보기</span>
+                      <span className="mt-2 block text-sm font-bold text-on-ink/75">공연장 상세 보기</span>
                     </span>
                   </Link>
                 </div>

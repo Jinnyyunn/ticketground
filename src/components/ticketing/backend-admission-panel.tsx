@@ -84,7 +84,7 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
         type="button"
         disabled={!activeTicketId}
         onClick={() => loadVirtualQr()}
-        className="mt-4 h-10 w-full rounded-sm bg-ink text-sm font-black text-white whitespace-nowrap disabled:bg-surface-3 disabled:text-ink-4"
+        className="mt-4 h-10 w-full rounded-sm bg-ink text-sm font-black text-on-ink whitespace-nowrap disabled:bg-surface-3 disabled:text-ink-4"
       >
         가상 티켓 QR 다시 확인
       </button>
