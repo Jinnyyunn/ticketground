@@ -49,40 +49,44 @@ export function ResaleSellPanel({
   showTitle,
 }: ResaleSellPanelProps) {
   return (
-    <TicketgroundSurface className="grid gap-5">
-      <div>
+    <TicketgroundSurface className="overflow-hidden p-0 shadow-ticket-2">
+      <div className="grid gap-1 border-b border-line bg-surface px-5 py-4">
+        <p className="text-xs font-black text-ticketground">SELLER ACTION</p>
         <h2 className="text-2xl font-black text-ink">보유 티켓 등록</h2>
-        <p className="mt-1 text-sm text-ink-3">{showTitle} · {showDate} {showTime}</p>
+        <p className="text-sm font-bold text-ink-3">{showTitle} · {showDate} {showTime}</p>
       </div>
-      <label className="grid gap-2 text-sm font-bold text-ink-2">
-        보유 좌석
-        <select
-          className="h-11 rounded-sm border border-line bg-background px-3 text-base"
-          value={seatId}
-          onChange={(event) => onSeatChange(event.currentTarget.value)}
-          data-testid="owned-ticket-select"
-        >
-          {ownedSeatOptions.map((seat) => (
-            <option key={seat.id} value={seat.id}>
-              {seat.label} · 정가 {currency(seat.faceValue)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="grid gap-3">
-        <label className="grid gap-2 text-sm font-bold text-ink-2">
-          등록 가격
-          <input
-            className={cn("h-11 rounded-sm border px-3 text-base", isPriceValid ? "border-line" : "border-destructive bg-tint-red")}
-            type="number"
-            min={0}
-            value={price}
-            onChange={(event) => onPriceChange(Number(event.currentTarget.value))}
-            data-testid="resale-price-input"
-          />
-        </label>
+      <div className="grid gap-5 p-5">
+        <div className="grid gap-4 rounded-lg border border-line bg-background p-4">
+          <label className="grid gap-2 text-sm font-bold text-ink-2">
+            보유 좌석
+            <select
+              className="h-11 rounded-sm border border-line bg-background px-3 text-base shadow-ticket-1"
+              value={seatId}
+              onChange={(event) => onSeatChange(event.currentTarget.value)}
+              data-testid="owned-ticket-select"
+            >
+              {ownedSeatOptions.map((seat) => (
+                <option key={seat.id} value={seat.id}>
+                  {seat.label} · 정가 {currency(seat.faceValue)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-bold text-ink-2">
+            등록 가격
+            <input
+              className={cn("h-12 rounded-sm border bg-background px-3 text-lg font-black shadow-ticket-1", isPriceValid ? "border-line" : "border-destructive bg-tint-red")}
+              type="number"
+              min={0}
+              value={price}
+              onChange={(event) => onPriceChange(Number(event.currentTarget.value))}
+              data-testid="resale-price-input"
+            />
+          </label>
+        </div>
         <input
           aria-label="등록 가격 슬라이더"
+          className="accent-ticketground"
           type="range"
           min={minPrice}
           max={maxAllowedPrice}
@@ -95,29 +99,31 @@ export function ResaleSellPanel({
             ? `정책 OK: ${policyMinPercent}~${policyMaxPercent}% 범위 안입니다.`
             : `오류: 정가 ${currency(faceValue)} 기준 ${currency(minPrice)}~${currency(maxAllowedPrice)}만 등록할 수 있습니다.`}
         </p>
+        <dl className="rounded-lg border border-line bg-surface px-4 shadow-ticket-1">
+          <SummaryRow label="등록가" value={currency(price)} />
+          <SummaryRow label="예상 구매자 수수료 5%" value={currency(sellFee)} />
+          <SummaryRow label="정산 예정액" value={currency(settlement)} strong />
+        </dl>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr]">
+          <button
+            type="button"
+            disabled={apiBusy}
+            onClick={onEnsureTicket}
+            className="h-11 rounded-sm border border-line bg-card px-5 text-sm font-black text-ink shadow-ticket-1 transition-colors hover:bg-surface active:translate-y-px disabled:bg-surface-3"
+          >
+            테스트 티켓 확보
+          </button>
+          <button
+            type="button"
+            disabled={!isPriceValid || apiBusy}
+            onClick={onRegister}
+            className="h-12 rounded-sm bg-ink px-5 text-base font-black text-on-ink shadow-ticket-2 transition-colors hover:bg-ink-2 active:translate-y-px disabled:bg-ink-4"
+            data-testid="resale-register"
+          >
+            {apiBusy ? "처리 중" : "공식 풀에 등록"}
+          </button>
+        </div>
       </div>
-      <dl className="rounded-lg bg-surface px-4">
-        <SummaryRow label="등록가" value={currency(price)} />
-        <SummaryRow label="예상 구매자 수수료 5%" value={currency(sellFee)} />
-        <SummaryRow label="정산 예정액" value={currency(settlement)} strong />
-      </dl>
-      <button
-        type="button"
-        disabled={apiBusy}
-        onClick={onEnsureTicket}
-        className="h-11 rounded-sm border border-line bg-card px-5 text-sm font-black text-ink disabled:bg-surface-3"
-      >
-        테스트 티켓 확보
-      </button>
-      <button
-        type="button"
-        disabled={!isPriceValid || apiBusy}
-        onClick={onRegister}
-        className="h-12 rounded-sm bg-ink px-5 text-base font-black text-on-ink disabled:bg-ink-4"
-        data-testid="resale-register"
-      >
-        {apiBusy ? "처리 중" : "공식 풀에 등록"}
-      </button>
     </TicketgroundSurface>
   );
 }
