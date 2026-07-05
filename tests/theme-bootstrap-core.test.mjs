@@ -34,8 +34,6 @@ test("P6 theme CSS exposes class dark variant, tint, and contrast tokens", async
   }
   assert.match(themeVars, /--scrim: #000000;/, "image scrims must use a fixed dark token");
   assert.match(globals, /--color-scrim: var\(--scrim\);/, "globals.css must expose the fixed scrim token");
-  assert.match(globals, /\.text-on-scrim\s*{[\s\S]*color: var\(--on-scrim\);/, "globals.css must provide an explicit text-on-scrim utility for light-mode photo overlays");
-  assert.match(globals, /\.text-on-scrim\\\/90\s*{[\s\S]*color: color-mix\(in srgb, var\(--on-scrim\) 90%, transparent\);/, "globals.css must provide alpha variants for photo overlay text");
 
   assert.match(themeVars, /\.dark\s*{[\s\S]*--bg: #1b1b1e;/, "dark theme must define the tuned gray background");
   assert.match(themeVars, /\.dark\s*{[\s\S]*--bg-2: #202024;/, "dark theme must keep a visible second surface step");

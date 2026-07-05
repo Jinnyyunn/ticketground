@@ -198,19 +198,4 @@
     word-break: keep-all;
     overflow-wrap: break-word;
   }
-  .text-on-scrim {
-    color: var(--on-scrim);
-  }
-  .text-on-scrim\/75 {
-    color: color-mix(in srgb, var(--on-scrim) 75%, transparent);
-  }
-  .text-on-scrim\/80 {
-    color: color-mix(in srgb, var(--on-scrim) 80%, transparent);
-  }
-  .text-on-scrim\/85 {
-    color: color-mix(in srgb, var(--on-scrim) 85%, transparent);
-  }
-  .text-on-scrim\/90 {
-    color: color-mix(in srgb, var(--on-scrim) 90%, transparent);
-  }
 }

@@ -209,6 +209,56 @@ test("system theme follows color scheme changes without storing a preference", a
   }
 });
 
+test("home photo scrims and bright editorial cards stay readable across explicit themes", async (t) => {
+  const baseUrl = await resolveBaseUrl(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  for (const theme of ["light", "dark"]) {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, colorScheme: theme });
+    await context.addInitScript((storageKey, themeName) => {
+      window.localStorage.setItem(storageKey, themeName);
+    }, themeStorageKey, theme);
+
+    const page = await context.newPage();
+    try {
+      await page.goto(baseUrl, { waitUntil: "networkidle" });
+
+      const contrastState = await page.evaluate(() => {
+        const heroTitle = [...document.querySelectorAll("h1")].find((element) => element.textContent?.includes("IU 2026 WORLD TOUR"));
+        const heroCard = heroTitle?.closest("a");
+        const creamCard = [...document.querySelectorAll("a")].find((element) => element.textContent?.includes("첫 관람 뮤지컬"));
+
+        if (!(heroTitle instanceof HTMLElement) || !(heroCard instanceof HTMLElement) || !(creamCard instanceof HTMLElement)) {
+          return null;
+        }
+
+        const heroTitleStyle = window.getComputedStyle(heroTitle);
+        const heroOverlay = [...heroCard.querySelectorAll("div")].find((element) => {
+          const backgroundImage = window.getComputedStyle(element).backgroundImage;
+          return backgroundImage !== "none" && backgroundImage.includes("0 0 0");
+        });
+        const creamCardStyle = window.getComputedStyle(creamCard);
+
+        return {
+          heroTitleColor: heroTitleStyle.color,
+          heroOverlayBackgroundImage: heroOverlay ? window.getComputedStyle(heroOverlay).backgroundImage : "",
+          creamCardColor: creamCardStyle.color,
+          creamCardBackground: creamCardStyle.backgroundColor,
+        };
+      });
+
+      assert.ok(contrastState, `${theme} home should render the hero and cream editorial cards`);
+      assert.equal(contrastState.heroTitleColor, "rgb(255, 255, 255)", `${theme} hero title should remain fixed white over the photo scrim`);
+      assert.match(contrastState.heroOverlayBackgroundImage, /0 0 0/, `${theme} hero photo overlay should stay a fixed dark scrim`);
+      assert.ok(getContrastRatio(contrastState.heroTitleColor, "rgb(0, 0, 0)") >= 4.5, `${theme} hero text should keep readable contrast`);
+      assert.ok(getContrastRatio(contrastState.creamCardColor, contrastState.creamCardBackground) >= 4.5, `${theme} bright editorial card should keep readable contrast`);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
 async function resolveBaseUrl(t) {
   if (process.env.TICKETGROUND_TEST_BASE_URL) return process.env.TICKETGROUND_TEST_BASE_URL;
   return (await startServer(t)).baseUrl;

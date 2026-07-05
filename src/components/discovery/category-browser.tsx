@@ -151,10 +151,10 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
                 sizes="(min-width: 1024px) 50vw, 100vw"
                 className="object-cover opacity-70 transition group-hover:scale-[1.03]"
               />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim via-scrim/70 to-transparent p-5 text-on-scrim">
-                <span className="text-sm font-black text-on-scrim/85">{show.badge ?? show.category}</span>
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim via-scrim/70 to-transparent p-5 text-white">
+                <span className="text-sm font-black text-white/85">{show.badge ?? show.category}</span>
                 <h2 className="mt-2 clamp-2 text-2xl font-black leading-tight">{show.shortTitle}</h2>
-                <p className="mt-2 text-sm text-on-scrim/80">{show.venue}</p>
+                <p className="mt-2 text-sm text-white/80">{show.venue}</p>
                 <p className="mt-3 text-sm font-black">최저 {currency(lowestPrice(show))}</p>
               </div>
             </a>

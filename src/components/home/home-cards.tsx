@@ -41,7 +41,7 @@ export function GradientPoster({ title, gradient, poster, fit = "cover", classNa
           unoptimized={poster.endsWith(".gif")}
         />
       ) : (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim/50 to-transparent p-4 text-on-scrim">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim/50 to-transparent p-4 text-white">
           <strong className="clamp-2 block text-2xl font-black leading-tight">{title}</strong>
         </div>
       )}
@@ -81,11 +81,11 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           <TicketgroundTag className="bg-white/90 text-ink shadow-ticket-1" tone={size === "large" ? "open" : "soon"}>
             {show.eyebrow}
           </TicketgroundTag>
-          <h1 className={cn("mt-4 font-black leading-tight text-on-scrim", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>
+          <h1 className={cn("mt-4 font-black leading-tight text-white", size === "large" ? "text-[clamp(37px,5vw,50px)]" : "text-[24px]")}>
             {show.title}
           </h1>
-          <p className="mt-4 text-base font-bold text-on-scrim/90">{show.venue}</p>
-          <p className="mt-1 text-sm text-on-scrim/75">{show.date}</p>
+          <p className="mt-4 text-base font-bold text-white/90">{show.venue}</p>
+          <p className="mt-1 text-sm text-white/75">{show.date}</p>
         </div>
         <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-card px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
           {show.cta} →
