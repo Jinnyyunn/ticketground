@@ -43,35 +43,35 @@ export default async function ReservationPage({
   return (
     <TicketingPageShell>
       <section className="ticketground-container py-10">
-        <div className="min-w-0 rounded-lg border border-[#eee] p-5 sm:p-7">
+        <div className="min-w-0 rounded-lg border border-line p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="flex size-14 items-center justify-center rounded-full bg-[#eef0ff] text-[26px] font-bold text-ticketground">✓</div>
-              <h1 className="balanced-title mt-4 text-[26px] font-bold text-ink-2 sm:text-[30px]">예매가 완료되었습니다</h1>
-              <p className="mt-2 text-base font-bold text-[#666]">예매번호 {reservation.id}</p>
+              <div className="flex size-14 items-center justify-center rounded-full bg-tint-blue text-[26px] font-bold text-ticketground">✓</div>
+              <h1 className="balanced-title mt-4 text-[26px] font-black text-ink-2 sm:text-[30px]">예매가 완료되었습니다</h1>
+              <p className="mt-2 text-base font-bold text-ink-3">예매번호 {reservation.id}</p>
             </div>
-            <Link href="/mypage" className="flex h-11 items-center rounded-sm bg-ink-2 px-5 text-[14px] font-bold text-white">
+            <Link href="/mypage" className="flex h-11 items-center rounded-sm bg-ink-2 px-5 text-sm font-bold text-white">
               내 예약 보기
             </Link>
           </div>
 
           <div className="mt-7 grid gap-3 md:grid-cols-3">
             {cleanTicketQrStages.map((stage, index) => (
-              <article key={stage.code} className="rounded-[10px] border border-[#eee] bg-[#f8f8f8] p-4">
+              <article key={stage.code} className="rounded-md border border-line bg-surface p-4">
                 <p className="text-sm font-bold text-ticketground">{index + 1}단계 · {stage.timing}</p>
                 <h2 className="mt-2 text-xl font-bold text-ink-2">{stage.label}</h2>
-                <p className="mt-2 break-keep text-[14px] leading-relaxed text-[#666]">{stage.description}</p>
+                <p className="mt-2 break-keep text-sm leading-relaxed text-ink-3">{stage.description}</p>
               </article>
             ))}
           </div>
         </div>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
-          <article className="min-w-0 overflow-hidden rounded-lg border border-ink-2 bg-white shadow-sm">
+          <article className="min-w-0 overflow-hidden rounded-lg border border-ink-2 bg-card shadow-sm">
             <div className="bg-ink-2 p-6 text-white">
               <p className="text-sm font-bold text-accent-2">CLEAN TICKET</p>
-              <h2 className="balanced-title mt-2 text-[24px] font-bold sm:text-[26px]">{reservation.showTitle}</h2>
-              <p className="mt-2 text-[14px] text-[#d8d8d8]">{reservation.venue}</p>
+              <h2 className="balanced-title mt-2 text-[24px] font-black sm:text-[26px]">{reservation.showTitle}</h2>
+              <p className="mt-2 text-sm text-white/75">{reservation.venue}</p>
             </div>
             <div className="grid gap-6 p-6 md:grid-cols-[1fr_220px]">
               <dl className="grid gap-4 text-base">
@@ -87,30 +87,30 @@ export default async function ReservationPage({
                   </div>
                 ))}
               </dl>
-              <div className="rounded-[10px] border border-line bg-surface p-4 text-center">
+              <div className="rounded-md border border-line bg-surface p-4 text-center">
                 <div className="grid gap-3" aria-label="좌석별 가상 티켓 목록">
                   {virtualTicketSeats.map((seatLabel, index) => (
                     <VirtualTicketCard key={`${seatLabel}-${index}`} date={date} reservationId={reservation.id} seatLabel={seatLabel} ticketIndex={index} ticketTotal={virtualTicketSeats.length} />
                   ))}
                 </div>
                 <span className="mt-3 inline-flex rounded-full bg-ink-2 px-3 py-1 text-sm font-bold text-white">잠금 · 가상 티켓</span>
-                <p className="mt-3 text-[14px] font-bold text-ink-2">입장 불가</p>
-                <p className="mt-1 break-keep text-sm leading-relaxed text-[#666]">소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다.</p>
+                <p className="mt-3 text-sm font-bold text-ink-2">입장 불가</p>
+                <p className="mt-1 break-keep text-sm leading-relaxed text-ink-3">소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다.</p>
               </div>
             </div>
           </article>
 
-          <aside className="h-fit rounded-lg border border-[#eee] p-5">
-            <h2 className="text-2xl font-bold text-ink-2">입장 QR 안내</h2>
-            <p className="mt-3 text-[14px] text-[#666]">동적 QR은 공연 2~3시간 전 전용 앱에서만 열리며 20초마다 갱신됩니다.</p>
-            <button type="button" disabled className="mt-5 h-11 w-full rounded-sm bg-[#d8d8d8] text-[14px] font-bold text-white">
+          <aside className="h-fit rounded-lg border border-line p-5">
+            <h2 className="text-2xl font-black text-ink-2">입장 QR 안내</h2>
+            <p className="mt-3 text-sm text-ink-3">동적 QR은 공연 2~3시간 전 전용 앱에서만 열리며 20초마다 갱신됩니다.</p>
+            <button type="button" disabled className="mt-5 h-11 w-full rounded-sm bg-surface-3 text-sm font-bold text-ink-4">
               앱에서 열림(비활성)
             </button>
             <BackendAdmissionPanel ticketId={ticketId} />
-            <Link href={`/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-sm border border-[#ddd] text-[14px] font-bold whitespace-nowrap">
+            <Link href={`/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line-strong text-sm font-bold whitespace-nowrap">
               공식 재판매
             </Link>
-            <p className="mt-4 text-sm text-[#777]">QR 캡처나 직접 전달은 지원하지 않습니다.</p>
+            <p className="mt-4 text-sm text-ink-3">QR 캡처나 직접 전달은 지원하지 않습니다.</p>
           </aside>
         </div>
       </section>
@@ -141,7 +141,7 @@ function AppOnlyQrGuard({ reservation }: { readonly reservation: Reservation }) 
     <TicketingPageShell>
       <section className="ticketground-container py-10">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <article className="min-w-0 rounded-xl border border-line bg-white p-5 shadow-ticket-1 sm:p-7">
+          <article className="min-w-0 rounded-xl border border-line bg-card p-5 shadow-ticket-1 sm:p-7">
             <p className="text-sm font-black text-ticketground">앱 전용 입장 QR</p>
             <h1 className="balanced-title mt-2 text-4xl font-black text-ink sm:text-[34px]">{reservation.showTitle}</h1>
             <p className="mt-3 text-sm leading-loose text-ink-3">
@@ -163,7 +163,7 @@ function AppOnlyQrGuard({ reservation }: { readonly reservation: Reservation }) 
               ))}
             </dl>
 
-            <div className="mt-6 rounded-lg border border-line bg-white p-4">
+            <div className="mt-6 rounded-lg border border-line bg-card p-4">
               <p className="text-sm font-black text-ink">딥링크 안내</p>
               <p className="mt-2 break-words rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink-3">
                 ticketground://reservation/{reservation.id}/entry
@@ -182,7 +182,7 @@ function AppOnlyQrGuard({ reservation }: { readonly reservation: Reservation }) 
             <button type="button" disabled className="mt-5 h-11 w-full rounded-lg bg-surface-3 text-sm font-black text-ink-4">
               앱에서 열기(웹 비활성)
             </button>
-            <Link href="/mypage#reservations" className="mt-3 flex h-11 items-center justify-center rounded-lg border border-line bg-white text-sm font-black text-ink">
+            <Link href="/mypage#reservations" className="mt-3 flex h-11 items-center justify-center rounded-lg border border-line bg-card text-sm font-black text-ink">
               예매내역으로 돌아가기
             </Link>
             <p className="mt-4 text-xs leading-loose text-ink-3">문제가 계속되면 Ticketground 앱 업데이트 후 다시 시도하세요.</p>
