@@ -18,7 +18,7 @@ export function ResaleAuditAside({
   toast,
 }: ResaleAuditAsideProps) {
   return (
-    <aside className="h-fit rounded-xl border border-line bg-card shadow-ticket-2 lg:sticky lg:top-24">
+    <aside className="h-fit rounded-xl border border-line-strong bg-surface shadow-ticket-1 lg:sticky lg:top-24">
       <div className="border-b border-line bg-ink px-5 py-4 text-on-ink">
         <p className="text-xs font-black text-accent-2">OFFICIAL LEDGER</p>
         <h2 className="mt-2 break-words text-2xl font-black">{reservationId}</h2>

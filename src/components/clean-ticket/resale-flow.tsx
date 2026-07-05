@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
-import { SegmentedControl } from "@/components/ticketground/primitives";
+import { cn } from "@/lib/utils";
 import {
   buyTicket,
   DEMO_EVENT_ID,
@@ -26,10 +27,12 @@ import { ResaleSellPanel } from "./resale-sell-panel";
 export function ResaleFlow({
   reservation,
   sessionUserId,
+  showPoster,
   showTitle,
 }: {
   readonly reservation: CleanTicketReservation;
   readonly sessionUserId: string;
+  readonly showPoster?: string;
   readonly showTitle: string;
 }) {
   const firstSeat = reservation.seats[0];
@@ -208,10 +211,16 @@ export function ResaleFlow({
 
   return (
     <section className="ticketground-container py-10">
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_1px_360px]">
         <div className="grid gap-6">
           <ResaleIntro apiStatus={apiStatus} />
-          <SegmentedControl label="공식 재판매 탭" options={resaleTabs} value={tab} onValueChange={(value) => setTab(value === "find" ? "find" : "sell")} />
+          <ResaleReservationContext
+            reservation={reservation}
+            selectedSeatLabel={selectedSeat?.label ?? reservation.seat}
+            showPoster={showPoster}
+            showTitle={showTitle}
+          />
+          <ResaleTabBar value={tab} onValueChange={setTab} />
 
           {tab === "sell" ? (
             <ResaleSellPanel
@@ -260,6 +269,8 @@ export function ResaleFlow({
           )}
         </div>
 
+        <div className="hidden bg-line-strong lg:block" aria-hidden="true" />
+
         <ResaleAuditAside
           policyMaxPercent={policy.maxPercent}
           policyMinPercent={policy.minPercent}
@@ -270,5 +281,95 @@ export function ResaleFlow({
         />
       </div>
     </section>
+  );
+}
+
+function ResaleReservationContext({
+  reservation,
+  selectedSeatLabel,
+  showPoster,
+  showTitle,
+}: {
+  readonly reservation: CleanTicketReservation;
+  readonly selectedSeatLabel: string;
+  readonly showPoster?: string;
+  readonly showTitle: string;
+}) {
+  return (
+    <section
+      className="grid gap-4 rounded-xl border border-line-strong bg-background p-4 shadow-ticket-3 sm:grid-cols-[72px_minmax(0,1fr)] sm:p-5"
+      aria-labelledby="resale-context-title"
+      data-testid="resale-reservation-context"
+    >
+      {showPoster ? (
+        <div className="relative h-24 w-18 overflow-hidden rounded-lg border border-line bg-surface shadow-ticket-1 sm:h-24 sm:w-18">
+          <Image
+            src={showPoster}
+            alt=""
+            fill
+            sizes="72px"
+            className="object-cover"
+            unoptimized={showPoster.endsWith(".gif")}
+          />
+        </div>
+      ) : (
+        <div className="grid h-24 w-18 place-items-center rounded-lg border border-line bg-ink text-center text-lg font-black leading-none text-on-ink shadow-ticket-1">
+          CT
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-xs font-black text-ticketground">예약 기준 거래</p>
+        <h2 id="resale-context-title" className="mt-1 balanced-title text-3xl font-black leading-tight text-ink">
+          이 예약을 재판매/양도합니다
+        </h2>
+        <p className="mt-2 text-sm font-bold leading-relaxed text-ink-3">{showTitle}</p>
+        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["예약번호", reservation.id],
+            ["회차", `${reservation.date} ${reservation.time}`],
+            ["좌석", selectedSeatLabel],
+            ["결제", currency(reservation.totalAmount)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border border-line bg-surface px-3 py-2">
+              <dt className="text-xs font-black text-ink-4">{label}</dt>
+              <dd className="mt-0.5 truncate font-black text-ink-2">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
+  );
+}
+
+function ResaleTabBar({
+  onValueChange,
+  value,
+}: {
+  readonly onValueChange: (value: ResaleTab) => void;
+  readonly value: ResaleTab;
+}) {
+  return (
+    <div role="group" aria-label="공식 재판매 탭" className="grid gap-2 rounded-xl border border-line bg-surface p-1 shadow-ticket-1 sm:inline-grid sm:grid-cols-2">
+      {resaleTabs.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            data-resale-tab-state={selected ? "selected" : "idle"}
+            onClick={() => onValueChange(option.value)}
+            className={cn(
+              "relative h-11 rounded-lg px-5 text-sm font-black transition-all duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
+              selected
+                ? "bg-ink text-on-ink shadow-ticket-2 after:absolute after:inset-x-4 after:bottom-1 after:h-0.5 after:rounded-full after:bg-accent-2"
+                : "bg-background text-ink-3 hover:bg-card hover:text-ink",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

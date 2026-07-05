@@ -49,7 +49,7 @@ export function ResaleSellPanel({
   showTitle,
 }: ResaleSellPanelProps) {
   return (
-    <TicketgroundSurface className="overflow-hidden p-0 shadow-ticket-2">
+    <TicketgroundSurface className="overflow-hidden p-0 shadow-ticket-3">
       <div className="grid gap-1 border-b border-line bg-surface px-5 py-4">
         <p className="text-xs font-black text-ticketground">SELLER ACTION</p>
         <h2 className="text-2xl font-black text-ink">보유 티켓 등록</h2>

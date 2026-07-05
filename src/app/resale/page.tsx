@@ -28,7 +28,7 @@ export default async function ResalePage({
 
   return (
     <TicketingPageShell>
-      <ResaleFlow reservation={reservation} sessionUserId={sessionUserId} showTitle={show?.title ?? reservation.showTitle} />
+      <ResaleFlow reservation={reservation} sessionUserId={sessionUserId} showPoster={show?.poster} showTitle={show?.title ?? reservation.showTitle} />
     </TicketingPageShell>
   );
 }

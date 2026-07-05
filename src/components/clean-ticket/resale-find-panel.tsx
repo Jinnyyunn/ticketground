@@ -50,8 +50,11 @@ export function ResaleFindPanel({
   resultFee,
   zone,
 }: ResaleFindPanelProps) {
+  const hasMatch = Boolean(backendResult || result);
+  const matchState = drawing ? "matching" : hasMatch ? "matched" : "idle";
+
   return (
-    <TicketgroundSurface className="overflow-hidden p-0 shadow-ticket-2">
+    <TicketgroundSurface className="overflow-hidden p-0 shadow-ticket-3">
       <div className="grid gap-1 border-b border-line bg-surface px-5 py-4">
         <p className="text-xs font-black text-ticketground">BUYER ACTION</p>
         <h2 className="text-2xl font-black text-ink">조건으로 구하기</h2>
@@ -108,7 +111,16 @@ export function ResaleFindPanel({
             즉시 구매 매칭
           </button>
         </div>
-        <div className={cn("rounded-lg border border-line bg-background p-4 shadow-ticket-1", result && "border-ok bg-tint-yellow")} data-testid="match-result">
+        <div
+          className={cn(
+            "rounded-lg border border-line bg-background p-4 shadow-ticket-1 transition-all duration-300",
+            drawing && "border-ticketground bg-tint-red shadow-ticket-2 motion-safe:animate-pulse",
+            hasMatch && "border-ok bg-tint-yellow shadow-ticket-3",
+          )}
+          aria-live="polite"
+          data-match-state={matchState}
+          data-testid="match-result"
+        >
           {backendResult ? (
             <BackendMatchResult backendResult={backendResult} reservationId={reservationId} />
           ) : result ? (

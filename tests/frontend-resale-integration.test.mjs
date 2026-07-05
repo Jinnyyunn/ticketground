@@ -13,6 +13,14 @@ test("resale page registers and purchases through backend APIs", async (t) => {
 
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.goto(`${baseUrl}/resale?sessionUserId=user_fan_b`);
+  const contextCard = page.getByTestId("resale-reservation-context");
+  await contextCard.waitFor({ timeout: 5000 });
+  assert.match(await contextCard.innerText(), /이 예약을 재판매\/양도합니다/);
+  assert.match(await contextCard.innerText(), /CTI-260513-A4F2K9/);
+  assert.equal(await contextCard.locator("img").count(), 1, "reservation context should render a poster thumbnail");
+
+  const sellTab = page.getByRole("button", { name: "팔기", exact: true });
+  assert.equal(await sellTab.getAttribute("data-resale-tab-state"), "selected");
   const buyerOwnedTicketIds = await page.getByTestId("owned-ticket-select").locator("option").evaluateAll((options) =>
     options.map((option) => option.value)
   );
@@ -35,7 +43,9 @@ test("resale page registers and purchases through backend APIs", async (t) => {
   assert.equal(listed.data.ticketId, ticket.id);
 
   await page.goto(`${baseUrl}/resale?sessionUserId=user_fan_b`);
-  await page.getByRole("button", { name: "구하기" }).click();
+  const findTab = page.getByRole("button", { name: "구하기", exact: true });
+  await findTab.click();
+  assert.equal(await findTab.getAttribute("data-resale-tab-state"), "selected");
 
   const purchaseResponse = page.waitForResponse((response) =>
     response.url().includes("/api/resale/purchase") && response.request().method() === "POST"
@@ -52,5 +62,6 @@ test("resale page registers and purchases through backend APIs", async (t) => {
 
   const buyerTickets = await api(baseUrl, "/api/users/user_fan_b/tickets");
   assert.deepEqual(buyerTickets.data.map((item) => item.id), [ticket.id]);
+  assert.equal(await page.getByTestId("match-result").getAttribute("data-match-state"), "matched");
   await assert.match(await page.getByTestId("match-result").innerText(), /매칭 완료|결제 완료/);
 });
