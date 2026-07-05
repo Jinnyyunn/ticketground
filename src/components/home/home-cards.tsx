@@ -42,7 +42,7 @@ export function GradientPoster({ title, gradient, poster, fit = "cover", classNa
         />
       ) : (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/50 to-transparent p-4">
-          <strong className="clamp-2 block text-[22px] font-black leading-tight">{title}</strong>
+          <strong className="clamp-2 block text-2xl font-black leading-tight">{title}</strong>
         </div>
       )}
     </div>
@@ -106,7 +106,7 @@ export function SectionHead({ title, subtitle, moreHref }: SectionHeadProps) {
     <div className="mb-6 flex items-end justify-between gap-4">
       <div className="min-w-0">
         <h2 className="text-4xl font-black leading-tight text-ink">{title}</h2>
-        {subtitle && <p data-section-subtitle className="mt-2 text-[14px] leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
+        {subtitle && <p data-section-subtitle className="mt-2 text-sm leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
       </div>
       <Link href={moreHref} className="shrink-0 text-sm font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
         더보기
