@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loginWithGoogle, type ApiSession } from "@/lib/ticketground-api";
+import { DEMO_USER_ID, getSession, loginWithGoogle, type ApiSession } from "@/lib/ticketground-api";
+import { GoogleLogo } from "@/components/ticketing/google-logo";
 
 type GoogleCredentialResponse = {
   readonly credential?: string;
@@ -45,6 +46,7 @@ const GOOGLE_CONFIG_URL = "/auth/google-config";
 type GoogleConfig = {
   readonly clientId: string;
   readonly allowedOrigins: readonly string[];
+  readonly mockEnabled: boolean;
 };
 
 type GoogleSignInCardProps = {
@@ -99,10 +101,11 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         setGoogleConfig({
           clientId: typeof payload.clientId === "string" ? payload.clientId : "",
           allowedOrigins: Array.isArray(payload.allowedOrigins) ? payload.allowedOrigins.filter((origin): origin is string => typeof origin === "string") : [],
+          mockEnabled: payload.mockEnabled === true,
         });
       } catch {
         if (!cancelled) {
-          setGoogleConfig({ clientId: "", allowedOrigins: [] });
+          setGoogleConfig({ clientId: "", allowedOrigins: [], mockEnabled: false });
           onStatusChange("Google 로그인 설정을 불러오지 못했습니다.");
         }
       }
@@ -116,7 +119,6 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
   useEffect(() => {
     if (googleConfig === null) return;
     if (!googleClientId) {
-      onStatusChange("Google 로그인 클라이언트 ID가 설정되지 않았습니다.");
       return;
     }
     const timer = window.setTimeout(() => {
@@ -187,15 +189,41 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
     };
   }, [googleClientId, handleGoogleCredential, onStatusChange, originSupport]);
 
+  async function handleMockGoogleLogin() {
+    onStatusChange("Google QA mock 세션 확인 중");
+    try {
+      onAuthenticated(await getSession(DEMO_USER_ID));
+    } catch (error) {
+      onStatusChange(error instanceof Error ? error.message : "Google QA mock 로그인에 실패했습니다.");
+    }
+  }
+
   if (!googleClientId) {
+    if (googleConfig?.mockEnabled) {
+      return (
+        <button
+          type="button"
+          onClick={handleMockGoogleLogin}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+          data-google-client-id=""
+          data-google-scope={GOOGLE_AUTH_SCOPE}
+          data-google-ready="mock"
+        >
+          <GoogleLogo />
+          Google 계정으로 로그인하기
+        </button>
+      );
+    }
+
     return (
       <button
         type="button"
         disabled
-        className="h-12 w-full rounded-sm border border-line bg-card text-base font-black text-ink-4"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink-4"
         data-google-client-id=""
         data-google-scope={GOOGLE_AUTH_SCOPE}
       >
+        <GoogleLogo />
         Google 계정으로 로그인하기
       </button>
     );
@@ -206,12 +234,13 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         onClick={() => onStatusChange("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.")}
-        className="flex h-12 w-full items-center justify-center rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
         data-google-client-id={googleClientId}
         data-google-scope={GOOGLE_AUTH_SCOPE}
         data-google-ready="false"
         data-google-origin-supported="false"
       >
+        <GoogleLogo />
         Google 계정으로 로그인하기
       </button>
     );
@@ -234,8 +263,9 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         <button
           type="button"
           onClick={() => onStatusChange("Google 로그인 버튼을 불러오는 중입니다.")}
-          className="absolute inset-0 flex h-12 w-full items-center justify-center rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+          className="absolute inset-0 flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
         >
+          <GoogleLogo />
           Google 계정으로 로그인하기
         </button>
       ) : null}

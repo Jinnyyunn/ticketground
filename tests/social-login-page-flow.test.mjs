@@ -85,6 +85,9 @@ test("login page completes social callback, keeps nickname confirmation visible,
     const naverLink = page.getByRole("link", { name: "네이버 계정으로 로그인하기", exact: true });
     assert.equal(await kakaoLink.getAttribute("href"), "/api/auth/kakao/start");
     assert.equal(await naverLink.getAttribute("href"), "/api/auth/naver/start");
+    assert.equal(await kakaoLink.locator("svg path").count(), 1);
+    assert.equal(await naverLink.locator("svg rect").getAttribute("fill"), "#03C75A");
+    assert.equal(await naverLink.locator("svg path").getAttribute("fill"), "#fff");
     const googleBox = await googleArea.boundingBox();
     const kakaoBox = await kakaoLink.boundingBox();
     assert.ok(googleBox, "Google login control has a rendered box");

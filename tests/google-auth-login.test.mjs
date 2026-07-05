@@ -75,6 +75,7 @@ test("login page renders Google Identity Services wiring as a social button surf
     await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
     assert.equal(await googleArea.getAttribute("data-google-scope"), "openid email profile");
     assert.ok(await googleArea.getByText("Google 계정으로 로그인하기").first().isVisible());
+    assert.equal(await googleArea.locator("svg").count(), 0);
     assert.equal(await page.getByText("이메일과 프로필 확인 범위만 요청합니다.").count(), 0);
     assert.equal(await page.getByText("Google 버튼 로드 중").count(), 0);
     const kakaoButton = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
@@ -152,6 +153,7 @@ test("login page does not request Google Identity Services from unsupported prev
     const googleArea = page.locator("[data-google-client-id]").first();
     await googleArea.waitFor({ timeout: 5000 });
     await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
+    assert.equal(await googleArea.locator("svg path[fill='#4285F4']").count(), 1);
     await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
     await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
 
@@ -187,6 +189,7 @@ test("login page does not assume localhost is Google-authorized without an expli
 
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
+    assert.equal(await page.locator("[data-google-origin-supported='false'] svg path[fill='#4285F4']").count(), 1);
     await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
     await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
 
