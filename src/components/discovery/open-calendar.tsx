@@ -81,10 +81,10 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
           <h2 className="text-2xl font-black text-ink">오픈 임박</h2>
           <div className="mt-4 grid gap-2 sm:gap-3">
             {imminent.map((show, index) => (
-              <div key={show.slug} data-open-imminent-card className="grid min-w-0 grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-surface p-2 sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:p-3">
-                <time className="whitespace-nowrap text-xs font-black text-ticketground">D-{index + 1} 14:00</time>
+              <div key={show.slug} data-open-imminent-card className="grid min-w-0 grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-surface p-2 sm:grid-cols-[84px_minmax(0,1fr)_auto] sm:gap-3 sm:p-3">
+                <time className="whitespace-nowrap text-[11px] font-black text-ticketground sm:text-xs">D-{index + 1} 14:00</time>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-black text-ink">{show.shortTitle}</h3>
+                  <h3 className="truncate text-sm font-black text-ink">{show.shortTitle}</h3>
                   <p className="clamp-1 text-sm text-ink-3">{show.venue}</p>
                 </div>
                 <OpenAlertButton />

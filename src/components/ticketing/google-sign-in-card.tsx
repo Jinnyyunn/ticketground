@@ -45,6 +45,11 @@ const GOOGLE_CONFIG_URL = "/auth/google-config";
 const GOOGLE_FALLBACK_BUTTON_CLASS =
   "flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-neutral-300 bg-white px-4 text-base font-black text-neutral-900 shadow-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-white disabled:text-neutral-500 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:border-neutral-400 dark:disabled:bg-white dark:disabled:text-neutral-500";
 const GOOGLE_LOADING_BUTTON_CLASS = `absolute inset-0 ${GOOGLE_FALLBACK_BUTTON_CLASS}`;
+const GOOGLE_READY_BUTTON_CLASS =
+  "relative flex h-12 w-full overflow-hidden items-center justify-center gap-2 rounded-sm border border-neutral-300 bg-white px-4 text-base font-black text-neutral-900 shadow-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:border-neutral-400";
+const GOOGLE_RENDERED_HOST_CLASS =
+  "absolute inset-0 z-0 h-full w-full opacity-0 [&>*]:!h-full [&>*]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full";
+const GOOGLE_VISIBLE_BUTTON_CLASS = `pointer-events-none absolute inset-0 z-10 ${GOOGLE_FALLBACK_BUTTON_CLASS}`;
 
 type GoogleConfig = {
   readonly clientId: string;
@@ -251,8 +256,9 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
 
   return (
     <div
+      role="button"
       aria-label="Google 계정으로 로그인하기"
-      className="relative h-12 w-full overflow-hidden rounded-sm bg-card"
+      className={GOOGLE_READY_BUTTON_CLASS}
       data-google-client-id={googleClientId}
       data-google-scope={GOOGLE_AUTH_SCOPE}
       data-google-ready={googleReady ? "true" : "false"}
@@ -260,7 +266,8 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
     >
       <div
         ref={googleButtonRef}
-        className={googleReady ? "h-full w-full" : "pointer-events-none h-full w-full opacity-0"}
+        aria-hidden="true"
+        className={GOOGLE_RENDERED_HOST_CLASS}
       />
       {!googleReady ? (
         <button
@@ -271,7 +278,12 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
           <GoogleLogo />
           Google 계정으로 로그인하기
         </button>
-      ) : null}
+      ) : (
+        <div aria-hidden="true" className={GOOGLE_VISIBLE_BUTTON_CLASS}>
+          <GoogleLogo />
+          Google 계정으로 로그인하기
+        </div>
+      )}
     </div>
   );
 }

@@ -77,6 +77,25 @@ function HeaderAuthLinks({ signedIn, signOut }: { readonly signedIn: boolean; re
   );
 }
 
+function MobileHeaderAuthControl({ signedIn, signOut }: { readonly signedIn: boolean; readonly signOut: () => void }) {
+  const className =
+    "inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-line bg-card px-3 text-xs font-black text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50 sm:hidden";
+
+  if (signedIn) {
+    return (
+      <button type="button" className={className} onClick={signOut}>
+        로그아웃
+      </button>
+    );
+  }
+
+  return (
+    <Link href={loginLink.href} className={className}>
+      {loginLink.label}
+    </Link>
+  );
+}
+
 type SiteHeaderProps = {
   readonly showSearchBar?: boolean;
 };
@@ -84,7 +103,8 @@ type SiteHeaderProps = {
 export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const { signedIn, signOut } = useSessionAuth();
-  const visibleIconLinks = signedIn ? [...publicIconLinks, ...signedInIconLinks] : publicIconLinks;
+  const visibleIconLinks = signedIn ? [...publicIconLinks, ...signedInIconLinks] : [];
+  const desktopOnlyIconHrefs = new Set<string>(signedInIconLinks.map((link) => link.href));
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 110);
@@ -113,20 +133,24 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
         {showSearchBar && <SearchBar className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />}
-        <MobileNav className="ml-auto sm:hidden" />
         <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-2 md:gap-5">
           {visibleIconLinks.map(({ label, href, Icon }) => (
             <Link
               key={label}
               href={href}
               aria-label={label}
-              className="grid min-w-[42px] justify-items-center gap-0.5 whitespace-nowrap text-[11px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:gap-1 md:text-sm"
+              className={cn(
+                "grid min-w-[42px] justify-items-center gap-0.5 whitespace-nowrap text-[11px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:gap-1 md:text-sm",
+                desktopOnlyIconHrefs.has(href) && "hidden sm:grid",
+              )}
             >
               <Icon className="size-[22px]" />
               <span>{label}</span>
             </Link>
           ))}
         </nav>
+        <MobileHeaderAuthControl signedIn={signedIn} signOut={signOut} />
+        <MobileNav className="sm:hidden" />
       </div>
 
       <div

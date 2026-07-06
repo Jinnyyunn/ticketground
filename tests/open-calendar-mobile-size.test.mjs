@@ -95,3 +95,48 @@ test("open calendar show badges navigate to details", async (t) => {
   await page.waitForURL((url) => url.pathname.startsWith("/goods/"));
   assert.ok(new URL(page.url()).pathname.startsWith("/goods/"));
 });
+
+test("open imminent mobile rows keep time, title, and action separated", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  t.after(() => page.close());
+
+  await page.goto(`${baseUrl}/open`, { waitUntil: "networkidle" });
+  const rows = page.locator("[data-open-imminent-card]");
+  await rows.first().waitFor({ timeout: 5000 });
+
+  const rowMetrics = await rows.evaluateAll((items) =>
+    items.map((item) => {
+      const time = item.querySelector("time");
+      const title = item.querySelector("h3");
+      const button = item.querySelector("button");
+      if (!time || !title || !button) {
+        throw new Error("open imminent row is missing time/title/action");
+      }
+
+      const timeRange = document.createRange();
+      timeRange.selectNodeContents(time);
+      const timeTextBox = timeRange.getBoundingClientRect();
+      const titleBox = title.getBoundingClientRect();
+      const buttonBox = button.getBoundingClientRect();
+      const rowBox = item.getBoundingClientRect();
+
+      return {
+        rowText: item.textContent,
+        timeRight: timeTextBox.right,
+        titleLeft: titleBox.left,
+        titleRight: titleBox.right,
+        buttonLeft: buttonBox.left,
+        rowRight: rowBox.right,
+      };
+    }),
+  );
+
+  for (const row of rowMetrics) {
+    assert.ok(row.timeRight + 6 <= row.titleLeft, `time overlaps title in ${row.rowText}`);
+    assert.ok(row.titleRight + 6 <= row.buttonLeft, `title overlaps alert button in ${row.rowText}`);
+    assert.ok(row.buttonLeft < row.rowRight, `alert button is outside row in ${row.rowText}`);
+  }
+});

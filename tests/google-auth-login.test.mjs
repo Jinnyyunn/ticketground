@@ -56,12 +56,11 @@ test("login page renders Google Identity Services wiring as a social-only button
               element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
-              button.textContent = "Google 계정으로 로그인하기";
+              button.textContent = "Sign in with Google";
               button.style.height = "48px";
               button.style.width = "100%";
               button.style.border = "1px solid rgb(218, 220, 224)";
-              button.style.borderRadius = "8px";
-              button.style.background = "white";
+              button.style.background = "rgb(232, 240, 254)";
               element.appendChild(button);
             }
           }
@@ -74,22 +73,28 @@ test("login page renders Google Identity Services wiring as a social-only button
     await googleArea.waitFor({ timeout: 5000 });
     await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
     assert.equal(await googleArea.getAttribute("data-google-scope"), "openid email profile");
-    assert.ok(await googleArea.getByText("Google 계정으로 로그인하기").first().isVisible());
-    assert.equal(await googleArea.locator("svg").count(), 0);
+    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
+    assert.ok(await googleButton.isVisible(), "Ticketground custom Google button should stay visible after GIS is ready");
+    assert.equal(await page.getByRole("button", { name: "Sign in with Google", exact: true }).count(), 0);
+    assert.ok(await googleArea.locator("svg").first().isVisible());
     assert.equal(await page.getByText("이메일과 프로필 확인 범위만 요청합니다.").count(), 0);
     assert.equal(await page.getByText("Google 버튼 로드 중").count(), 0);
     const kakaoButton = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
-    const googleBox = await googleArea.boundingBox();
+    const googleBox = await googleButton.boundingBox();
     const kakaoBox = await kakaoButton.boundingBox();
     assert.ok(googleBox, "Google login control has a rendered box");
     assert.ok(kakaoBox, "Kakao login button has a rendered box");
-    const googleElement = await googleArea.evaluate((element) => ({
+    const googleElement = await googleButton.evaluate((element) => ({
       tagName: element.tagName,
+      role: element.getAttribute("role"),
+      backgroundColor: window.getComputedStyle(element).backgroundColor,
       borderTopWidth: window.getComputedStyle(element).borderTopWidth,
     }));
     assert.deepEqual(googleElement, {
       tagName: "DIV",
-      borderTopWidth: "0px",
+      role: "button",
+      backgroundColor: "rgb(255, 255, 255)",
+      borderTopWidth: "1px",
     });
     assert.ok(
       Math.abs(googleBox.height - kakaoBox.height) <= 8,
