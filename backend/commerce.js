@@ -2,6 +2,7 @@ export function createCommerceBackend({
   appendLedger,
   currentTimeMs,
   ensureAdmissionCredential,
+  ensureIdentityVerified,
   eventDate,
   eventZone,
   findUser,
@@ -19,6 +20,7 @@ export function createCommerceBackend({
 
   function buyPrimary(db, { userId, ticketId, paymentMethod }) {
     const user = findUser(db, userId);
+    ensureIdentityVerified(db, user.id);
     const ticket = db.tickets.find((item) => item.id === ticketId);
     const payment = resolvePaymentMethod(paymentMethod);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
@@ -129,6 +131,7 @@ export function createCommerceBackend({
   }
 
   function completeResaleMatch(db, { pool, buyer, paymentMethod, seed, ledgerAction, policy }) {
+    ensureIdentityVerified(db, buyer.id);
     const seller = findUser(db, pool.sellerId);
     const ticket = db.tickets.find((item) => item.id === pool.ticketId);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");

@@ -115,6 +115,9 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPr
       <p className="mt-5 text-sm font-black text-ink">
         최저 <span className="text-ticketground">{lowestPriceLabel}</span>부터
       </p>
+      <p className="mt-2 rounded-sm border border-line bg-surface px-3 py-2 text-xs font-bold leading-relaxed text-ink-3">
+        티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다.
+      </p>
       <Link
         data-testid="detail-queue-link"
         href={queueHref}

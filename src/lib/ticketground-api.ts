@@ -1,5 +1,7 @@
 import {
   apiDirectTransferResultSchema,
+  apiIdentityStartSchema,
+  apiIdentityStatusSchema,
   apiPurchaseResultSchema,
   apiResalePoolSchema,
   apiResaleResultSchema,
@@ -13,7 +15,7 @@ import {
   notifyWatchlistResultSchema,
   upsertWatchlistResultSchema,
 } from "./ticketground-api-schemas";
-import type { ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
+import type { ApiIdentityStart, ApiIdentityStatus, ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
 import { currentSessionUserId, DEMO_USER_ID } from "./ticketground-session-storage";
 import { z, type ZodType } from "zod";
 
@@ -36,6 +38,8 @@ export {
 export type {
   ApiDirectTransferResult,
   ApiEvent,
+  ApiIdentityStart,
+  ApiIdentityStatus,
   ApiPurchaseResult,
   ApiResalePool,
   ApiResaleResult,
@@ -141,6 +145,39 @@ export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
     userId,
     ticketId,
     paymentMethod: "CREDIT_CARD",
+  });
+}
+
+export function getIdentityStatus(userId = currentSessionUserId()) {
+  return readApi(`/api/users/${encodeURIComponent(userId)}/identity`, apiIdentityStatusSchema);
+}
+
+export function startDanalIdentityVerification({
+  phone,
+  userId = currentSessionUserId(),
+}: {
+  readonly phone: string;
+  readonly userId?: string;
+}): Promise<ApiIdentityStart> {
+  return post("/api/identity/portone-danal/start", apiIdentityStartSchema, {
+    userId,
+    phone,
+  });
+}
+
+export function confirmDanalIdentityVerification({
+  phone,
+  userId = currentSessionUserId(),
+  identityVerificationId,
+}: {
+  readonly phone: string;
+  readonly userId?: string;
+  readonly identityVerificationId: string;
+}): Promise<ApiIdentityStatus> {
+  return post("/api/identity/portone-danal/confirm", apiIdentityStatusSchema, {
+    userId,
+    phone,
+    identityVerificationId,
   });
 }
 

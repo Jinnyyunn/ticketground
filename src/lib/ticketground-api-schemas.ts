@@ -2,6 +2,8 @@ import { z, type ZodType } from "zod";
 import type {
   ApiDirectTransferResult,
   ApiEvent,
+  ApiIdentityStart,
+  ApiIdentityStatus,
   ApiPurchaseResult,
   ApiResalePool,
   ApiResaleResult,
@@ -127,6 +129,29 @@ export const apiPurchaseResultSchema = z.object({
     activationChannel: z.string(),
   }),
 }) satisfies ZodType<ApiPurchaseResult>;
+
+export const apiIdentityStatusSchema = z.object({
+  userId: z.string(),
+  verified: z.boolean(),
+  provider: z.string(),
+  phoneMasked: z.string().nullable(),
+  verifiedAt: z.string().nullable(),
+  portOneConfigured: z.boolean(),
+  storeId: z.string(),
+  channelKey: z.string(),
+  mockAvailable: z.boolean(),
+}) satisfies ZodType<ApiIdentityStatus>;
+
+export const apiIdentityStartSchema = z.object({
+  identityVerificationId: z.string(),
+  provider: z.string(),
+  status: z.string(),
+  phoneMasked: z.string(),
+  storeId: z.string(),
+  channelKey: z.string(),
+  portOneConfigured: z.boolean(),
+  mockAvailable: z.boolean(),
+}) satisfies ZodType<ApiIdentityStart>;
 
 export const apiResaleResultSchema = z.object({
   pool: apiResalePoolSchema,

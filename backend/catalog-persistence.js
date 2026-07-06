@@ -19,6 +19,7 @@ function normalizeDb(db) {
   db.supportThreads ||= [];
   db.watchlist ||= [];
   db.notificationJobs ||= [];
+  db.identityVerifications ||= [];
   db.admissionCredentials ||= [];
   db.trustedDevices ||= [];
   db.qrIssueLogs ||= [];
@@ -108,6 +109,12 @@ function normalizeDb(db) {
     if (JSON.stringify(ticket) !== before) changed = true;
   }
 
+  for (const user of db.users) {
+    const before = JSON.stringify(user.identityVerification || null);
+    user.identityVerification ||= null;
+    if (JSON.stringify(user.identityVerification) !== before) changed = true;
+  }
+
   for (const pool of db.resalePools) {
     const ticket = db.tickets.find((item) => item.id === pool.ticketId);
     if (ticket && !pool.performanceDateId) {
@@ -142,6 +149,7 @@ function seedDb() {
     supportThreads: [],
     watchlist: [],
     notificationJobs: [],
+    identityVerifications: [],
     admissionCredentials: [],
     trustedDevices: [],
     qrIssueLogs: [],

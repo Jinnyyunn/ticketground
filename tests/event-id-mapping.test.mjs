@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { startServer } from "./backend-test-utils.mjs";
+import { startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 test("booking pages fetch each show's mapped backend event", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -57,6 +57,10 @@ async function assertBookingEventSource(page, baseUrl, { slug, eventId, sourceTi
 }
 
 async function checkoutWithoutSelectedTicket(page, baseUrl, slug) {
+  await verifyIdentity(baseUrl, "user_fan_a", "010-9000-0001");
+  await page.addInitScript(() => {
+    window.localStorage.setItem("ticketground:session-user-id", "user_fan_a");
+  });
   const stateResponse = await fetch(`${baseUrl}/api/state`);
   const statePayload = await stateResponse.json();
   await page.goto(`${baseUrl}/checkout/${slug}?date=2026.07.04&time=12%3A00&seats=&base=121000&fee=2000&total=123000&count=1`, {

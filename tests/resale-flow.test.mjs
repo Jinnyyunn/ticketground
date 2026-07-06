@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
+import { adminApi, api, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 test("backend rejects out-of-policy resale prices", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -29,6 +29,7 @@ test("backend resale purchase joins and immediately matches clicked buyer", asyn
   const server = await startServer(t);
   const { baseUrl } = server;
   const { ticket } = await buyFirstTicket(baseUrl);
+  await verifyIdentity(baseUrl, "user_fan_b", "010-9000-0002");
   const price = ticket.faceValue;
   const expectedFee = Math.ceil(price * 0.05);
 
@@ -69,6 +70,7 @@ test("backend resale draw applies official fee policy and settlement fields", as
   const server = await startServer(t);
   const { baseUrl } = server;
   const { ticket } = await buyFirstTicket(baseUrl);
+  await verifyIdentity(baseUrl, "user_fan_b", "010-9000-0002");
   const price = ticket.faceValue;
   const expectedFee = Math.ceil(price * 0.05);
 

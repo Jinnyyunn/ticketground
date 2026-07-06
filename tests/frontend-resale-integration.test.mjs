@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { api, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
+import { api, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 test("resale page registers and purchases through backend APIs", async (t) => {
   const { baseUrl } = await startServer(t);
   const { ticket } = await buyFirstTicket(baseUrl);
+  await verifyIdentity(baseUrl, "user_fan_b", "010-9000-0002");
   const browser = await chromium.launch();
   t.after(async () => {
     await browser.close();

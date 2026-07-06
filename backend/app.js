@@ -6,6 +6,7 @@ import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
 import { createEngagementBackend } from "./engagement.js";
 import { createHttpHandler } from "./http-handler.js";
+import { createIdentityBackend } from "./identity.js";
 import { createPersistence } from "./persistence.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
@@ -77,10 +78,19 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     stableId: runtime.stableId
   });
+  const identity = createIdentityBackend({
+    appendLedger: persistence.appendLedger,
+    findUser: runtime.findUser,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
   const commerce = createCommerceBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
     ensureAdmissionCredential,
+    ensureIdentityVerified: identity.ensureIdentityVerified,
     eventDate: catalog.eventDate,
     eventZone: catalog.eventZone,
     findUser: runtime.findUser,
@@ -98,6 +108,7 @@ export async function createTicketgroundApp(options) {
     ...admin,
     ...commerce,
     ...engagement,
+    ...identity,
     ...session,
     buyPrimary: commerce.buyPrimary,
     httpError: runtime.httpError,

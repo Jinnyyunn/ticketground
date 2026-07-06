@@ -44,6 +44,7 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00" } = {})
       TIG_DB_PATH: path.join(tempDir, "db.json"),
       TIG_NOW: now,
       TIG_APP_ATTESTATION_SECRET: appAttestationSecret,
+      TIG_PORTONE_IDENTITY_TEST_MODE: "1",
       TIG_SECRET: "backend-test-runtime-secret"
     },
     stdio: ["ignore", "pipe", "pipe"]
@@ -99,7 +100,18 @@ export async function adminApi(server, pathName, body, expectedStatus = 200) {
   return api(server.adminUrl, pathName, body, expectedStatus, { "x-tig-admin-token": server.adminToken });
 }
 
+export async function verifyIdentity(baseUrl, userId = "user_fan_a", phone = "010-9000-0001") {
+  const started = await api(baseUrl, "/api/identity/portone-danal/start", { userId, phone });
+  const verified = await api(baseUrl, "/api/identity/portone-danal/confirm", {
+    userId,
+    phone,
+    identityVerificationId: started.data.identityVerificationId
+  });
+  return verified.data;
+}
+
 export async function buyFirstTicket(baseUrl) {
+  await verifyIdentity(baseUrl, "user_fan_a", "010-9000-0001");
   const state = await api(baseUrl, "/api/state");
   const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
   assert.ok(ticket, "seeded kpop ticket exists");

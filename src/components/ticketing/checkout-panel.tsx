@@ -1,10 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import { useEffect, useState } from "react";
 import { getTicketShowBackendEventId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
-import { buyTicket, getState } from "@/lib/ticketground-api";
+import {
+  buyTicket,
+  confirmDanalIdentityVerification,
+  getIdentityStatus,
+  getState,
+  startDanalIdentityVerification,
+  storedSessionUserId,
+  TicketgroundApiError,
+  type ApiIdentityStatus,
+} from "@/lib/ticketground-api";
 import type { Reservation, TicketShow } from "@/types";
 
 const paymentMethods = [
@@ -31,6 +42,30 @@ type CheckoutSelection = {
   readonly ticketId: string;
 };
 
+type PortOneIdentityVerificationRequest = {
+  readonly storeId: string;
+  readonly channelKey: string;
+  readonly identityVerificationId: string;
+};
+
+type PortOneIdentityVerificationResponse = {
+  readonly code?: string;
+  readonly message?: string;
+  readonly identityVerificationId?: string;
+};
+
+type PortOneBrowserSdk = {
+  readonly requestIdentityVerification: (
+    request: PortOneIdentityVerificationRequest,
+  ) => Promise<PortOneIdentityVerificationResponse>;
+};
+
+declare global {
+  interface Window {
+    readonly PortOne?: PortOneBrowserSdk;
+  }
+}
+
 export function CheckoutPanel({
   show,
   reservation,
@@ -46,6 +81,12 @@ export function CheckoutPanel({
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState(selection.ticketId ? "좌석 금액 확인 중" : "좌석 자동 선택 대기");
   const [trustedTicketAmount, setTrustedTicketAmount] = useState<number | null>(null);
+  const [sessionUserId, setSessionUserId] = useState("");
+  const [identityStatus, setIdentityStatus] = useState<ApiIdentityStatus | null>(null);
+  const [identityPhone, setIdentityPhone] = useState("");
+  const [identityVerificationId, setIdentityVerificationId] = useState("");
+  const [identityBusy, setIdentityBusy] = useState(false);
+  const [identityMessage, setIdentityMessage] = useState("간편 로그인 후 본인인증 상태를 확인합니다.");
   const backendEventId = getTicketShowBackendEventId(show);
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
   const hasSelectedTicket = Boolean(selection.ticketId);
@@ -59,6 +100,7 @@ export function CheckoutPanel({
     ["할인", amountPending ? "확인 중" : `-${currency(selection.discountAmount)}`],
     ["예매 수수료", amountLabel(trustedFeeAmount)],
   ] as const;
+  const identityVerified = identityStatus?.verified === true;
 
   useEffect(() => {
     let mounted = true;
@@ -87,8 +129,120 @@ export function CheckoutPanel({
     };
   }, [backendEventId, selection.ticketId]);
 
+  useEffect(() => {
+    let mounted = true;
+    const userId = storedSessionUserId();
+    setSessionUserId(userId ?? "");
+    setIdentityStatus(null);
+    setIdentityVerificationId("");
+    if (!userId) {
+      setIdentityMessage("간편 로그인 후 티켓 예매 전 본인인증을 진행해 주세요.");
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setIdentityMessage("본인인증 상태 확인 중");
+    getIdentityStatus(userId)
+      .then((nextStatus) => {
+        if (!mounted) return;
+        setIdentityStatus(nextStatus);
+        setIdentityMessage(nextStatus.verified ? "본인인증 완료 · 결제를 진행할 수 있습니다." : "결제 전 포트원 다날 휴대폰 본인인증이 필요합니다.");
+      })
+      .catch((error: unknown) => {
+        if (!mounted) return;
+        setIdentityStatus(null);
+        setIdentityMessage(error instanceof Error ? error.message : "본인인증 상태를 확인하지 못했습니다.");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function requestIdentityVerification() {
+    const phone = identityPhone.trim();
+    if (!sessionUserId || !phone || identityBusy) return;
+    setIdentityBusy(true);
+    setIdentityMessage("다날 휴대폰 본인인증 요청 중");
+    try {
+      const started = await startDanalIdentityVerification({ userId: sessionUserId, phone });
+      setIdentityVerificationId(started.identityVerificationId);
+      if (started.portOneConfigured) {
+        const portOne = window.PortOne;
+        if (!portOne) {
+          setIdentityMessage("포트원 본인인증 SDK를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+          return;
+        }
+        setIdentityMessage("포트원 다날 본인인증 창을 여는 중입니다.");
+        const result = await portOne.requestIdentityVerification({
+          storeId: started.storeId,
+          channelKey: started.channelKey,
+          identityVerificationId: started.identityVerificationId,
+        });
+        if (result.code) {
+          setIdentityMessage(result.message || "다날 휴대폰 본인인증이 취소되었거나 실패했습니다.");
+          return;
+        }
+        const confirmed = await confirmDanalIdentityVerification({
+          userId: sessionUserId,
+          phone,
+          identityVerificationId: result.identityVerificationId || started.identityVerificationId,
+        });
+        setIdentityStatus(confirmed);
+        setIdentityVerificationId("");
+        setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
+        return;
+      }
+      setIdentityMessage(`${started.phoneMasked} 다날 본인인증 요청 완료 · 로컬 QA 모드에서 인증 완료 확인을 진행합니다.`);
+      if (started.mockAvailable) {
+        const confirmed = await confirmDanalIdentityVerification({
+          userId: sessionUserId,
+          phone,
+          identityVerificationId: started.identityVerificationId,
+        });
+        setIdentityStatus(confirmed);
+        setIdentityVerificationId("");
+        setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof TicketgroundApiError && error.code === "PHONE_ALREADY_VERIFIED"
+        ? "이미 다른 계정에서 인증된 휴대폰 번호입니다."
+        : error instanceof Error
+          ? error.message
+          : "다날 휴대폰 본인인증 요청에 실패했습니다.";
+      setIdentityMessage(message);
+    } finally {
+      setIdentityBusy(false);
+    }
+  }
+
+  async function confirmIdentityVerification() {
+    const phone = identityPhone.trim();
+    if (!sessionUserId || !phone || !identityVerificationId || identityBusy) return;
+    setIdentityBusy(true);
+    setIdentityMessage("다날 휴대폰 본인인증 완료 확인 중");
+    try {
+      const confirmed = await confirmDanalIdentityVerification({
+        userId: sessionUserId,
+        phone,
+        identityVerificationId,
+      });
+      setIdentityStatus(confirmed);
+      setIdentityVerificationId("");
+      setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
+    } catch (error: unknown) {
+      setIdentityMessage(error instanceof Error ? error.message : "본인인증 완료 확인에 실패했습니다.");
+    } finally {
+      setIdentityBusy(false);
+    }
+  }
+
   async function completePayment() {
-    if (!agreed || submitting) return;
+    if (!agreed || submitting || !identityVerified || !sessionUserId) {
+      setStatus("결제 전 간편 로그인과 본인인증이 필요합니다.");
+      return;
+    }
     setSubmitting(true);
     setStatus("결제 처리 중");
     try {
@@ -101,7 +255,7 @@ export function CheckoutPanel({
         setStatus("구매 가능한 티켓이 없습니다.");
         return;
       }
-      const purchase = await buyTicket(ticketId);
+      const purchase = await buyTicket(ticketId, sessionUserId);
       const params = new URLSearchParams({
         date: selection.date,
         time: selection.time,
@@ -120,6 +274,7 @@ export function CheckoutPanel({
 
   return (
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
+      <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="afterInteractive" />
       <section className="rounded-md border border-line p-6">
         <p className="text-sm font-bold text-ticketground">STEP 3</p>
         <h1 className="mt-1 text-4xl font-black text-ink-2">결제 정보 확인</h1>
@@ -162,6 +317,57 @@ export function CheckoutPanel({
               </label>
             ))}
           </div>
+        </div>
+
+        <div data-testid="identity-gate" className="mt-7 rounded-md border border-line bg-surface p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[19px] font-black text-ink">본인인증</h2>
+              <p className="mt-2 break-keep text-sm font-bold text-ink-3">
+                티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다. 한 번 인증된 휴대폰 번호는 다른 계정에서 다시 인증할 수 없습니다.
+              </p>
+            </div>
+            <span className={identityVerified ? "rounded-sm bg-ok px-3 py-1 text-xs font-black text-white" : "rounded-sm bg-tint-yellow px-3 py-1 text-xs font-black text-ink"}>
+              {identityVerified ? "인증 완료" : "결제 전 필수"}
+            </span>
+          </div>
+
+          {!sessionUserId ? (
+            <Link href="/login" className="mt-4 flex h-11 w-full items-center justify-center rounded-sm bg-ticketground text-sm font-black text-white">
+              간편 로그인으로 이동
+            </Link>
+          ) : identityVerified ? (
+            <div className="mt-4 rounded-sm border border-line bg-card p-4 text-sm font-bold text-ink-2">
+              인증 계정: {sessionUserId} · {identityStatus.phoneMasked ?? "휴대폰 인증 완료"}
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <input
+                value={identityPhone}
+                onChange={(event) => setIdentityPhone(event.target.value)}
+                inputMode="tel"
+                placeholder="휴대폰 번호 입력"
+                className="h-11 rounded-sm border border-line-strong bg-card px-3 text-sm font-bold text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+              />
+              <button
+                type="button"
+                disabled={!identityPhone.trim() || identityBusy}
+                onClick={requestIdentityVerification}
+                className="h-11 rounded-sm bg-ink px-4 text-sm font-black text-on-ink disabled:bg-surface-3 disabled:text-ink-4"
+              >
+                {identityBusy ? "요청 중" : "다날 본인인증 시작"}
+              </button>
+              <button
+                type="button"
+                disabled={!identityVerificationId || identityBusy}
+                onClick={confirmIdentityVerification}
+                className="h-11 rounded-sm border border-line bg-card px-4 text-sm font-black text-ink disabled:bg-surface-3 disabled:text-ink-4"
+              >
+                인증 완료 확인
+              </button>
+            </div>
+          )}
+          <p className="mt-3 text-sm font-bold text-ink-3" aria-live="polite">{identityMessage}</p>
         </div>
 
         <label className="mt-5 flex items-start gap-3 rounded-md border border-line p-4 text-sm font-bold">
@@ -212,7 +418,7 @@ export function CheckoutPanel({
         </dl>
         <button
           type="button"
-          disabled={!agreed || submitting || amountPending}
+          disabled={!agreed || submitting || amountPending || !identityVerified || !sessionUserId}
           onClick={completePayment}
           className="mt-5 h-12 w-full rounded-sm bg-ticketground text-lg font-bold text-white disabled:bg-surface-3"
         >

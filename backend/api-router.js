@@ -8,6 +8,7 @@ export function createApiRouter({
   drawPool,
   googleSession,
   httpError,
+  confirmPortOneDanalVerification,
   issueQr,
   joinPool,
   listForResale,
@@ -19,11 +20,13 @@ export function createApiRouter({
   publicResalePool,
   publicState,
   publicTicketsForUser,
+  publicIdentityStatus,
   socialAuthCallback,
   socialAuthSession,
   socialAuthStart,
   buyPrimary,
   seatMap,
+  startPortOneDanalVerification,
   supportThreadForUser,
   trustDevice,
   updateEventSale,
@@ -66,6 +69,7 @@ async function handleApi(req, res, db, surface) {
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
   const userProfileMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/profile$/);
+  const userIdentityMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/identity$/);
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
@@ -86,6 +90,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
   if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
+  if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
   if (req.method === "GET" && userTicketsMatch) return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
   if (req.method === "GET" && userWatchlistMatch) return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
   if (req.method === "GET" && url.pathname === "/api/support/threads") {
@@ -113,6 +118,14 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/auth/google") {
     requireBody(body, ["credential"]);
     return googleSession(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/start") {
+    requireBody(body, ["userId", "phone"]);
+    return startPortOneDanalVerification(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/confirm") {
+    requireBody(body, ["userId", "phone", "identityVerificationId"]);
+    return confirmPortOneDanalVerification(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist") {
     requireBody(body, ["userId", "eventId"]);
