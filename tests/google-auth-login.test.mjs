@@ -4,6 +4,18 @@ import { chromium } from "playwright";
 import { api, startServer } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
+function useProviderMode(t) {
+  const previousForceProvider = process.env.TIG_AUTH_FORCE_PROVIDER;
+  process.env.TIG_AUTH_FORCE_PROVIDER = "1";
+  t.after(() => {
+    if (previousForceProvider === undefined) {
+      delete process.env.TIG_AUTH_FORCE_PROVIDER;
+    } else {
+      process.env.TIG_AUTH_FORCE_PROVIDER = previousForceProvider;
+    }
+  });
+}
+
 test("Google auth endpoint rejects the deterministic test credential when test mode is disabled", async (t) => {
   configureGoogleEnv(t, false);
   const productionLikeServer = await startServer(t);
@@ -39,8 +51,33 @@ test("Google auth endpoint accepts deterministic test credential only in test mo
   assert.equal(malformed.error.code, "GOOGLE_AUTH_INVALID");
 });
 
+test("local preview Google button completes a QA mock session even when a client id is configured", async (t) => {
+  configureGoogleEnv(t, false);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  try {
+    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+
+    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
+    await googleButton.waitFor({ timeout: 5000 });
+    assert.equal(await googleButton.getAttribute("data-google-ready"), "mock");
+    assert.equal(await googleButton.getAttribute("data-google-origin-supported"), "mock");
+    await googleButton.click();
+
+    await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+    assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
+    assert.equal(await page.getByLabel("닉네임").inputValue(), "민서");
+  } finally {
+    await page.close();
+  }
+});
+
 test("login page renders Google Identity Services wiring as a social-only button surface", async (t) => {
   configureGoogleEnv(t, false);
+  useProviderMode(t);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -115,6 +152,7 @@ test("login page renders Google Identity Services wiring as a social-only button
 
 test("login page does not request Google Identity Services from unsupported preview origins", async (t) => {
   configureGoogleEnv(t, false);
+  useProviderMode(t);
   const previousAllowedOrigins = process.env.TIG_ALLOWED_DEV_ORIGINS;
   process.env.TIG_ALLOWED_DEV_ORIGINS = "unsupported.ticketground.test";
   t.after(() => {
@@ -158,6 +196,7 @@ test("login page does not request Google Identity Services from unsupported prev
 
 test("login page does not assume localhost is Google-authorized without an explicit origin allowlist", async (t) => {
   configureGoogleEnv(t, false);
+  useProviderMode(t);
   const previousPublicAllowedOrigins = process.env.NEXT_PUBLIC_GOOGLE_ALLOWED_ORIGINS;
   delete process.env.NEXT_PUBLIC_GOOGLE_ALLOWED_ORIGINS;
   t.after(() => {
@@ -194,6 +233,7 @@ test("login page does not assume localhost is Google-authorized without an expli
 
 test("login page initializes Google Identity Services only once in a browser session", async (t) => {
   configureGoogleEnv(t, false);
+  useProviderMode(t);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());

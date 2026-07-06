@@ -55,6 +55,7 @@ type GoogleConfig = {
   readonly clientId: string;
   readonly allowedOrigins: readonly string[];
   readonly mockEnabled: boolean;
+  readonly preferMock: boolean;
 };
 
 type GoogleSignInCardProps = {
@@ -110,10 +111,11 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
           clientId: typeof payload.clientId === "string" ? payload.clientId : "",
           allowedOrigins: Array.isArray(payload.allowedOrigins) ? payload.allowedOrigins.filter((origin): origin is string => typeof origin === "string") : [],
           mockEnabled: payload.mockEnabled === true,
+          preferMock: payload.preferMock === true,
         });
       } catch {
         if (!cancelled) {
-          setGoogleConfig({ clientId: "", allowedOrigins: [], mockEnabled: false });
+          setGoogleConfig({ clientId: "", allowedOrigins: [], mockEnabled: false, preferMock: false });
           onStatusChange("Google 로그인 설정을 불러오지 못했습니다.");
         }
       }
@@ -230,6 +232,23 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         className={GOOGLE_FALLBACK_BUTTON_CLASS}
         data-google-client-id=""
         data-google-scope={GOOGLE_AUTH_SCOPE}
+      >
+        <GoogleLogo />
+        Google 계정으로 로그인하기
+      </button>
+    );
+  }
+
+  if (googleConfig?.preferMock) {
+    return (
+      <button
+        type="button"
+        onClick={handleMockGoogleLogin}
+        className={GOOGLE_FALLBACK_BUTTON_CLASS}
+        data-google-client-id={googleClientId}
+        data-google-scope={GOOGLE_AUTH_SCOPE}
+        data-google-ready="mock"
+        data-google-origin-supported="mock"
       >
         <GoogleLogo />
         Google 계정으로 로그인하기

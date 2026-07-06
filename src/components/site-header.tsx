@@ -200,12 +200,12 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
                   className={cn(
                     "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-black shadow-ticket-1 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
                     isResale
-                      ? "border-ticketground bg-ticketground text-white hover:bg-ink hover:text-on-ink"
+                      ? "border-accent-2 bg-accent-2 text-[#3A2929] hover:bg-accent-2/85"
                       : "border-line bg-card text-ink hover:border-ticketground hover:bg-ticketground hover:text-white",
                   )}
                 >
                   <ActionIcon className="size-4 shrink-0" aria-hidden />
-                  <span>{c}</span>
+                  <span>{isResale ? "CLEAN TICKET 재판매" : c}</span>
                 </Link>
               );
             })}

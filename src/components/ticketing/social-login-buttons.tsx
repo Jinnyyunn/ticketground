@@ -47,6 +47,7 @@ type SocialConfig = {
   readonly kakaoConfigured: boolean;
   readonly naverConfigured: boolean;
   readonly mockEnabled: boolean;
+  readonly preferMock: boolean;
 };
 
 const SOCIAL_CONFIG_URL = "/auth/social-config";
@@ -70,9 +71,10 @@ export function SocialLoginButtons({ onAuthenticated, onStatusChange }: SocialLo
           kakaoConfigured: payload.kakaoConfigured === true,
           naverConfigured: payload.naverConfigured === true,
           mockEnabled: payload.mockEnabled === true,
+          preferMock: payload.preferMock === true,
         });
       } catch {
-        if (!cancelled) setConfig({ kakaoConfigured: false, naverConfigured: false, mockEnabled: false });
+        if (!cancelled) setConfig({ kakaoConfigured: false, naverConfigured: false, mockEnabled: false, preferMock: false });
       }
     })();
     return () => {
@@ -95,7 +97,7 @@ export function SocialLoginButtons({ onAuthenticated, onStatusChange }: SocialLo
         const Icon = provider.id === "kakao" ? KakaoLogo : NaverLogo;
         const className = `flex h-12 items-center justify-center gap-2 rounded-sm border px-4 text-base font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 ${provider.tone}`;
         const configured = config !== null && (provider.id === "kakao" ? config.kakaoConfigured : config.naverConfigured);
-        const useMock = config !== null && !configured && config.mockEnabled;
+        const useMock = config !== null && (config.preferMock || (!configured && config.mockEnabled));
 
         if (useMock) {
           return (

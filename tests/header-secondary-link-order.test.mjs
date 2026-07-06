@@ -31,7 +31,7 @@ test("desktop header places ticket open calendar to the right of resale", async 
 
     assert.ok(resale, `visible resale link missing: ${JSON.stringify(visibleQuickLinks)}`);
     assert.ok(openCalendar, `visible ticket open calendar link missing: ${JSON.stringify(visibleQuickLinks)}`);
-    assert.equal(resale.text, "티켓 재판매");
+    assert.equal(resale.text, "CLEAN TICKET 재판매");
     assert.equal(openCalendar.text, "티켓오픈 캘린더");
     assert.ok(resale.x < openCalendar.x, `expected resale before calendar: ${JSON.stringify(visibleQuickLinks)}`);
 
@@ -41,6 +41,7 @@ test("desktop header places ticket open calendar to the right of resale", async 
         return {
           href: anchor.getAttribute("href"),
           backgroundColor: style.backgroundColor,
+          color: style.color,
           borderRadius: style.borderRadius,
           display: style.display,
         };
@@ -52,6 +53,11 @@ test("desktop header places ticket open calendar to the right of resale", async 
       assert.ok(Number.parseFloat(style.borderRadius) >= 8, `expected compact rounded badge: ${JSON.stringify(style)}`);
       assert.equal(style.display, "flex");
     }
+
+    const resaleStyle = actionStyles.find((style) => style.href === "/resale");
+    assert.ok(resaleStyle, `resale action style missing: ${JSON.stringify(actionStyles)}`);
+    assert.equal(resaleStyle.backgroundColor, "rgb(255, 233, 46)");
+    assert.equal(resaleStyle.color, "rgb(58, 41, 41)");
   } finally {
     await page.close();
   }
@@ -143,7 +149,9 @@ test("desktop resale action is visually stronger than ticket open calendar", asy
       };
     });
 
-    assert.match(actionState.resaleClass, /bg-ticketground/);
+    assert.equal(actionState.resaleText, "CLEAN TICKET 재판매");
+    assert.match(actionState.resaleClass, /bg-accent-2/);
+    assert.match(actionState.resaleClass, /text-\[#3A2929\]/);
     assert.notEqual(actionState.resaleBackground, actionState.openBackground);
     assert.notEqual(actionState.resaleColor, actionState.openColor);
     assert.match(actionState.openClass, /bg-card/);

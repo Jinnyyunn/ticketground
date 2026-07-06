@@ -10,6 +10,18 @@ import {
 import { configureGoogleEnv } from "./google-auth-test-helpers.mjs";
 import { startServer } from "./backend-test-utils.mjs";
 
+function useProviderMode(t) {
+  const previousForceProvider = process.env.TIG_AUTH_FORCE_PROVIDER;
+  process.env.TIG_AUTH_FORCE_PROVIDER = "1";
+  t.after(() => {
+    if (previousForceProvider === undefined) {
+      delete process.env.TIG_AUTH_FORCE_PROVIDER;
+    } else {
+      process.env.TIG_AUTH_FORCE_PROVIDER = previousForceProvider;
+    }
+  });
+}
+
 function cookieObjectsFromSetCookie(setCookie, domain, path) {
   return String(setCookie || "")
     .split(/,\s*(?=[^;,]+=)/)
@@ -48,6 +60,7 @@ async function issueSocialBridgeCookies(baseUrl, provider, code) {
 
 test("login page completes social callback, keeps nickname confirmation visible, and aligns provider buttons with Google", async (t) => {
   configureSocialEnv(t, true);
+  useProviderMode(t);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -102,9 +115,36 @@ test("login page completes social callback, keeps nickname confirmation visible,
   }
 });
 
+test("local preview Kakao and Naver buttons complete QA mock sessions without external OAuth redirects", async (t) => {
+  configureSocialEnv(t, true);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  try {
+    for (const providerName of ["카카오톡", "네이버"]) {
+      await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => window.localStorage.clear());
+      await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+
+      const button = page.getByRole("button", { name: `${providerName} 계정으로 로그인하기`, exact: true });
+      await button.waitFor({ timeout: 5000 });
+      assert.equal(await button.getAttribute("data-social-ready"), "mock");
+      await button.click();
+
+      await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+      assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
+    }
+  } finally {
+    await page.close();
+  }
+});
+
 test("unauthenticated login page waits for an explicit login action before showing profile controls", async (t) => {
   configureSocialEnv(t, true);
   configureGoogleEnv(t, true);
+  useProviderMode(t);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());

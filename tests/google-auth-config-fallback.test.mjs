@@ -5,6 +5,7 @@ import { startServer } from "./backend-test-utils.mjs";
 
 const GOOGLE_ENV_KEYS = [
   "NODE_ENV",
+  "TIG_AUTH_FORCE_PROVIDER",
   "TIG_GOOGLE_AUTH_TEST_MODE",
   "TIG_GOOGLE_QA_MOCK_ENABLED",
   "TIG_GOOGLE_CLIENT_ID",
@@ -46,15 +47,20 @@ async function buttonBackgroundColor(locator) {
 }
 
 test("login page keeps empty Google config disabled in production without QA mock mode", async (t) => {
-  replaceGoogleEnv(t, { NODE_ENV: "production" });
+  replaceGoogleEnv(t, { NODE_ENV: "production", NEXT_PUBLIC_GOOGLE_CLIENT_ID: " ", TIG_GOOGLE_CLIENT_ID: " " });
   const { baseUrl } = await startServer(t);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const port = new URL(baseUrl).port;
+  const browser = await chromium.launch({
+    channel: "chrome",
+    headless: true,
+    args: ["--host-resolver-rules=MAP public.ticketground.test 127.0.0.1"],
+  });
   t.after(() => browser.close());
 
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   try {
     await forceDarkTheme(page);
-    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+    await page.goto(`http://public.ticketground.test:${port}/login`, { waitUntil: "domcontentloaded" });
     const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
     await googleButton.waitFor({ timeout: 5000 });
 
@@ -69,7 +75,7 @@ test("login page keeps empty Google config disabled in production without QA moc
 });
 
 test("login page uses a clickable Google QA mock fallback when public Google config is empty", async (t) => {
-  replaceGoogleEnv(t, { TIG_GOOGLE_QA_MOCK_ENABLED: "1" });
+  replaceGoogleEnv(t, { TIG_GOOGLE_QA_MOCK_ENABLED: "1", NEXT_PUBLIC_GOOGLE_CLIENT_ID: " ", TIG_GOOGLE_CLIENT_ID: " " });
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());

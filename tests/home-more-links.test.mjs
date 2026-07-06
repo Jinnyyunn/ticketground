@@ -70,7 +70,7 @@ test("home section more links route to their matching pages instead of search", 
   }
 });
 
-test("floating inquiry shortcut sits on the right side on desktop", async (t) => {
+test("floating inquiry shortcut sits at the desktop bottom right", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -84,6 +84,7 @@ test("floating inquiry shortcut sits on the right side on desktop", async (t) =>
   const shortcutBox = await inquiryShortcut.boundingBox();
   assert.ok(shortcutBox, "floating inquiry shortcut is visible on desktop");
   assert.ok(shortcutBox.x > 1000, `floating inquiry shortcut should sit on the right side, got x=${shortcutBox.x}`);
+  assert.ok(shortcutBox.y > 760, `floating inquiry shortcut should sit near the bottom, got y=${shortcutBox.y}`);
 });
 
 test("home more links and editorial cards use requested brand color surfaces", async (t) => {
@@ -106,6 +107,16 @@ test("home more links and editorial cards use requested brand color surfaces", a
   await editorialCards.first().waitFor({ timeout: 5000 });
 
   assert.equal(await editorialCards.first().locator("[data-card-accent]").count(), 0, "dark editorial card should not render a top accent border");
+  assert.equal(await editorialCards.locator("span.absolute.bottom-5.right-5").count(), 0, "editorial cards should not render inner decorative squares");
+  const smallIndexBadges = await editorialCards.evaluateAll((cards) =>
+    cards.flatMap((card) =>
+      Array.from(card.querySelectorAll("span")).filter((node) => {
+        const text = node.textContent?.trim();
+        return /^0[1-3]$/.test(text ?? "") && node.classList.contains("h-8") && node.classList.contains("min-w-10");
+      }),
+    ).length,
+  );
+  assert.equal(smallIndexBadges, 0, "editorial cards should not render small boxed index badges");
 
   const redCardColor = await editorialCards.nth(1).evaluate((node) => window.getComputedStyle(node).backgroundColor);
   assert.match(redCardColor, /(rgb\(255, 45, 63\)|oklab\(0\.67[^)]*0\.2[^)]*0\.12)/, `second editorial card should use red background: ${redCardColor}`);

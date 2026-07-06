@@ -12,21 +12,18 @@ const editorialCardTone = {
     card: "border-ink bg-ink text-on-ink shadow-ticket-2",
     accent: null,
     eyebrow: "border-white/15 bg-white/10 text-on-ink/75",
-    index: "border-white/15 text-on-ink/55",
     cta: "border-white/15 bg-white/10 text-on-ink group-hover:bg-card group-hover:text-ink",
   },
   red: {
     card: "border-ticketground bg-ticketground text-white shadow-ticket-2 hover:border-ticketground hover:bg-ticketground/95",
     accent: null,
     eyebrow: "border-white/25 bg-white/15 text-white",
-    index: "border-white/20 text-white/75",
     cta: "border-white/20 bg-card text-ink group-hover:border-white group-hover:bg-ink group-hover:text-on-ink",
   },
   cream: {
     card: "border-accent-2 bg-accent-2 text-on-accent-2 shadow-ticket-2 hover:border-accent-2 hover:bg-accent-2/90",
     accent: null,
     eyebrow: "border-on-accent-2/10 bg-white/35 text-on-accent-2",
-    index: "border-on-accent-2/10 bg-white/25 text-on-accent-2/65",
     cta: "border-on-accent-2/10 bg-white/55 text-on-accent-2 group-hover:border-on-accent-2 group-hover:bg-on-accent-2 group-hover:text-white",
   },
 } as const;
@@ -138,7 +135,7 @@ export function OfficialResaleSection() {
         title="공식 재판매·양도"
         subtitle="보유 티켓은 플랫폼 안에서만 안전하게 이동합니다."
         moreHref="/resale"
-        badge="업계 유일 기능"
+        badge="CLEAN TICKET"
       />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
         <Link
@@ -197,7 +194,6 @@ export function EditorialEventsSection() {
               )}
             >
               {tone.accent && <span data-card-accent className={cn("absolute inset-x-0 top-0 h-1", tone.accent)} aria-hidden="true" />}
-              <span className="absolute bottom-5 right-5 h-16 w-16 rounded-lg border border-current opacity-10" aria-hidden="true" />
               <span className="absolute right-5 top-16 text-7xl font-black leading-none opacity-10" aria-hidden="true">
                 {String(index + 1).padStart(2, "0")}
               </span>
@@ -206,9 +202,6 @@ export function EditorialEventsSection() {
                   <p className={cn("inline-flex h-7 items-center rounded-lg border px-3 text-xs font-black tracking-normal", tone.eyebrow)}>
                     EDITORIAL
                   </p>
-                  <span className={cn("inline-flex h-8 min-w-10 items-center justify-center rounded-lg border px-2 text-sm font-black", tone.index)}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
                 </div>
                 <h3 className="balanced-title mt-7 text-3xl font-black leading-tight sm:text-4xl">{event.title}</h3>
                 <p className="mt-4 text-base leading-loose opacity-85">{event.description}</p>
