@@ -22,6 +22,9 @@ import { SocialLoginButtons } from "@/components/ticketing/social-login-buttons"
 
 type LoginMode = "login" | "signup";
 
+const LOGIN_TITLE = "간편 로그인으로 계정을 시작해 주세요";
+const LOGIN_DESCRIPTION = "별도 이메일 회원가입 없이 간편 로그인 완료 시 티켓그라운드 계정이 생성됩니다.";
+
 function isSocialLoginProvider(value: string | null): value is SocialLoginProvider {
   return value === "kakao" || value === "naver";
 }
@@ -138,25 +141,23 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   return (
     <section className="ticketground-container py-10">
+      <div className="mb-3 flex justify-end">
+        <LoginHomeLink />
+      </div>
+
       <div className="grid overflow-hidden rounded-xl border border-line bg-card shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
         <LoginHeroAside />
 
         <div className="p-6 sm:p-8 lg:p-10">
-          <div className="mb-5 flex justify-end">
-            <LoginHomeLink />
-          </div>
-
           <LoginModeTabs mode={mode} onChange={setMode} />
 
           <div className="mt-8">
             <p className="text-sm font-black text-ticketground">{mode === "login" ? "로그인" : "회원가입"}</p>
             <h2 className="balanced-title mt-2 text-[24px] font-black leading-tight text-ink sm:text-4xl">
-              {mode === "login" ? "예매 내역을 확인해 주세요" : "간편 로그인으로 계정을 시작해 주세요"}
+              {LOGIN_TITLE}
             </h2>
             <p className="mt-3 text-sm leading-loose text-ink-3">
-              {mode === "login"
-                ? "Google, 카카오, 네이버 간편 로그인으로 세션을 연결합니다."
-                : "별도 이메일 회원가입 없이 간편 로그인 완료 시 티켓그라운드 계정이 생성됩니다."}
+              {LOGIN_DESCRIPTION}
             </p>
           </div>
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
 
-test("login and signup pages expose a home shortcut", async (t) => {
+test("login and signup pages expose the home shortcut above the login card", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -16,10 +16,12 @@ test("login and signup pages expose a home shortcut", async (t) => {
       const homeShortcut = page.getByRole("link", { name: "메인 홈으로 이동", exact: true });
       await homeShortcut.waitFor({ timeout: 5000 });
       assert.equal(await homeShortcut.getAttribute("href"), "/");
-
-      await homeShortcut.click();
-      await page.waitForURL(`${baseUrl}/`);
-      await page.getByRole("heading", { name: "IU 2026 WORLD TOUR", level: 1 }).waitFor({ timeout: 5000 });
+      const shortcutBox = await homeShortcut.boundingBox();
+      const heroHeadingBox = await page.getByRole("heading", { name: /클린 티켓 예매와/ }).boundingBox();
+      assert.ok(shortcutBox, "home shortcut has a rendered box");
+      assert.ok(heroHeadingBox, "login hero heading has a rendered box");
+      assert.ok(shortcutBox.y < heroHeadingBox.y, "home shortcut is placed above the login hero");
+      await page.getByRole("tab", { name: pathName === "/login" ? "로그인" : "회원가입", exact: true }).waitFor({ timeout: 5000 });
     } finally {
       await page.close();
     }

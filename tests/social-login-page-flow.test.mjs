@@ -70,7 +70,8 @@ test("login page completes social callback, keeps nickname confirmation visible,
     assert.equal(new URL(page.url()).pathname, "/login");
     assert.equal(new URL(page.url()).search, "");
     assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), callbackUserId);
-    await page.getByText("카카오 테스트 사용자 kakao 세션 연결됨").waitFor({ timeout: 5000 });
+    assert.equal(await page.getByLabel("닉네임").inputValue(), "카카오 테스트 사용자");
+    assert.equal(await page.getByText("세션 상태", { exact: true }).count(), 0);
 
     await page.goto(`${baseUrl}/login?socialError=kakao_state_invalid`, { waitUntil: "domcontentloaded" });
     await page.getByText("kakao_state_invalid 소셜 로그인 요청을 처리하지 못했습니다.").waitFor({ timeout: 5000 });
@@ -132,7 +133,14 @@ test("unauthenticated login page waits for an explicit login action before showi
       };
     });
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
-    await page.getByText("로그인 또는 회원가입을 진행해 주세요").waitFor({ timeout: 5000 });
+    await page.getByRole("heading", { name: "간편 로그인으로 계정을 시작해 주세요" }).waitFor({ timeout: 5000 });
+    await page.getByText("별도 이메일 회원가입 없이 간편 로그인 완료 시 티켓그라운드 계정이 생성됩니다.").waitFor({ timeout: 5000 });
+
+    assert.equal(await page.getByText("Google 인증 또는 데모 계정").count(), 0);
+    assert.equal(await page.getByText("회원 기능 미리보기", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("공식 재판매 풀", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("세션 상태", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("로그인 또는 회원가입을 진행해 주세요", { exact: true }).count(), 0);
 
     assert.equal(await page.getByLabel("닉네임").count(), 0);
     assert.equal(await page.getByRole("button", { name: "프로필 저장", exact: true }).count(), 0);
@@ -161,9 +169,11 @@ test("successful social callback clears the one-time provider query before refre
   const page = await context.newPage();
 
   await page.goto(`${baseUrl}/login?socialProvider=kakao`, { waitUntil: "domcontentloaded" });
-  await page.getByText("카카오 테스트 사용자 kakao 세션 연결됨").waitFor({ timeout: 5000 });
+  await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
   assert.equal(new URL(page.url()).pathname, "/login");
   assert.equal(new URL(page.url()).search, "");
+  assert.equal(await page.getByLabel("닉네임").inputValue(), "카카오 테스트 사용자");
+  assert.equal(await page.getByText("세션 상태", { exact: true }).count(), 0);
   const storedUserId = await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id"));
   assert.match(String(storedUserId), /^provider_user_/);
 
