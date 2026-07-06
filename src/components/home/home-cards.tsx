@@ -103,13 +103,21 @@ type SectionHeadProps = {
   readonly title: string;
   readonly subtitle?: string;
   readonly moreHref: string;
+  readonly badge?: string;
 };
 
-export function SectionHead({ title, subtitle, moreHref }: SectionHeadProps) {
+export function SectionHead({ title, subtitle, moreHref, badge }: SectionHeadProps) {
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div className="min-w-0">
-        <h2 className="text-4xl font-black leading-tight text-ink">{title}</h2>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h2 className="text-4xl font-black leading-tight text-ink">{title}</h2>
+          {badge && (
+            <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-accent-2 px-2.5 text-[11px] font-black tracking-tight text-on-accent-2">
+              {badge}
+            </span>
+          )}
+        </div>
         {subtitle && <p data-section-subtitle className="mt-2 text-sm leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
       </div>
       <Link href={moreHref} className="shrink-0 text-sm font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
