@@ -139,6 +139,16 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
     setStatus(message);
   }, []);
 
+  const handleSocialMockSession = useCallback((nextSession: ApiSession, provider: "kakao" | "naver") => {
+    rememberSessionUser(nextSession);
+    applySession(nextSession, `${nextSession.name} ${provider} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
+  }, [applySession]);
+
+  const handleSocialStatusChange = useCallback((message: string) => {
+    if (socialStatusLockRef.current) return;
+    setStatus(message);
+  }, []);
+
   return (
     <section className="ticketground-container py-10">
       <div className="mb-3 flex justify-end">
@@ -172,7 +182,7 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
           <div className="mx-auto mt-7 grid w-full max-w-[400px] gap-3">
             <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={handleGoogleStatusChange} />
-            <SocialLoginButtons />
+            <SocialLoginButtons onAuthenticated={handleSocialMockSession} onStatusChange={handleSocialStatusChange} />
           </div>
         </div>
       </div>
