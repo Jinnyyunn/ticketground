@@ -17,6 +17,12 @@ test("home and watchlist pages render smooth-scroll and above-fold image policie
   const homeImagePolicy = await page.evaluate(() => {
     const preloadLinks = [...document.querySelectorAll('link[rel="preload"][as="image"]')];
     const featuredImage = [...document.images].find((image) => image.currentSrc.includes("iu-world-tour"));
+    const featuredPosterCopies = [...document.images]
+      .filter((image) => image.currentSrc.includes("iu-world-tour"))
+      .map((image) => ({
+        fetchPriority: image.getAttribute("fetchpriority"),
+        loading: image.getAttribute("loading"),
+      }));
     const featuredPreload = preloadLinks.find((link) => {
       const sourceSet = link.getAttribute("imagesrcset") ?? "";
       const href = link.getAttribute("href") ?? "";
@@ -27,15 +33,21 @@ test("home and watchlist pages render smooth-scroll and above-fold image policie
       featuredHasManualFetchPriority: featuredImage?.getAttribute("fetchpriority") ?? null,
       featuredHasManualLoading: featuredImage?.getAttribute("loading") ?? null,
       featuredImageExists: Boolean(featuredImage),
+      featuredPosterCopies,
       featuredPreloadExists: Boolean(featuredPreload),
       scrollBehavior: document.documentElement.dataset.scrollBehavior ?? null,
     };
   });
 
   assert.deepEqual(homeImagePolicy, {
-    featuredHasManualFetchPriority: null,
-    featuredHasManualLoading: null,
+    featuredHasManualFetchPriority: "high",
+    featuredHasManualLoading: "eager",
     featuredImageExists: true,
+    featuredPosterCopies: [
+      { fetchPriority: "high", loading: "eager" },
+      { fetchPriority: "high", loading: "eager" },
+      { fetchPriority: "high", loading: "eager" },
+    ],
     featuredPreloadExists: true,
     scrollBehavior: "smooth",
   });

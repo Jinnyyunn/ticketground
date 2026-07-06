@@ -148,7 +148,7 @@ export const footerColumnLinks = [
     ],
   },
   {
-    title: "마이",
+    title: "MY",
     links: [
       { label: "예매내역", href: "/mypage#reservations" },
       { label: "공식 재판매", href: "/resale" },

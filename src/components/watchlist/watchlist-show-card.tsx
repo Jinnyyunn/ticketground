@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { WatchlistToggleButton } from "./watchlist-toggle-button";
 
 export type WatchShow = {
@@ -51,10 +50,7 @@ export function WatchlistShowCard({
             fetchPriority={priority ? "high" : "auto"}
             placeholder={priority ? "blur" : "empty"}
             blurDataURL="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-            className={cn(
-              "transition-transform duration-300 group-hover/poster:scale-[1.03]",
-              show.posterFit === "contain" ? "bg-surface object-contain" : "object-cover",
-            )}
+            className="object-cover transition-transform duration-300 group-hover/poster:scale-[1.03]"
           />
         </Link>
 

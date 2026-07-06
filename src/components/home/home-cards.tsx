@@ -11,6 +11,7 @@ type GradientPosterProps = {
   readonly poster?: string;
   readonly fit?: PosterFit;
   readonly className?: string;
+  readonly priority?: boolean;
 };
 
 type FeaturedCardProps = {
@@ -18,7 +19,7 @@ type FeaturedCardProps = {
   readonly size: "large" | "mini";
 };
 
-export function GradientPoster({ title, gradient, poster, fit = "cover", className }: GradientPosterProps) {
+export function GradientPoster({ title, gradient, poster, fit = "cover", className, priority = false }: GradientPosterProps) {
   return (
     <div
       className={cn(
@@ -38,6 +39,8 @@ export function GradientPoster({ title, gradient, poster, fit = "cover", classNa
             "size-full transition-transform duration-300",
             fit === "contain" ? "object-contain" : "object-cover group-hover:scale-[1.03]",
           )}
+          loading={priority ? "eager" : undefined}
+          fetchPriority={priority ? "high" : undefined}
           unoptimized={poster.endsWith(".gif")}
         />
       ) : (
@@ -67,7 +70,8 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           "absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]",
           size === "large" ? "object-top" : "object-center",
         )}
-        preload={size === "large"}
+        loading={size === "large" ? "eager" : undefined}
+        fetchPriority={size === "large" ? "high" : undefined}
         unoptimized={show.poster.endsWith(".gif")}
       />
       <div

@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
 
 const mobileRoutes = ["/", "/contents/search", "/mypage"];
-const footerSections = ["예매", "마이", "고객센터"];
+const footerSections = ["예매", "MY", "고객센터"];
 
 test("mobile footer keeps booking, my, and help sections in one row", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -49,7 +49,7 @@ test("mobile footer representative links keep their destinations", async (t) => 
 
   const cases = [
     { section: "예매", link: "티켓오픈 캘린더", pathname: "/open", hash: "" },
-    { section: "마이", link: "예매내역", pathname: "/mypage", hash: "#reservations" },
+    { section: "MY", link: "예매내역", pathname: "/mypage", hash: "#reservations" },
     { section: "고객센터", link: "고객센터 홈", pathname: "/help", hash: "" },
   ];
 

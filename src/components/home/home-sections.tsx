@@ -55,7 +55,14 @@ export function RealtimeTop10Section() {
             className="group grid min-w-0 grid-cols-[48px_72px_minmax(0,1fr)] gap-3 rounded-lg border border-line bg-card p-3 transition-shadow hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-1"
           >
             <span className="rnum text-5xl font-black leading-none text-ink group-hover:text-ticketground">{item.rank}</span>
-            <GradientPoster title={item.title} gradient={item.gradient} poster={item.poster} fit={item.posterFit} className="w-[72px] lg:w-full" />
+            <GradientPoster
+              title={item.title}
+              gradient={item.gradient}
+              poster={item.poster}
+              fit={item.posterFit}
+              className="w-[72px] lg:w-full"
+              priority={item.poster === featuredShow.poster}
+            />
             <div className="min-w-0 lg:mt-2">
               <h3 className="balanced-title clamp-2 text-xs font-black leading-snug text-ink-2 group-hover:underline">{item.title}</h3>
               <p className="clamp-1 mt-1 text-sm text-ink-3">{item.venue}</p>
@@ -224,7 +231,13 @@ export function GenreRecommendationsSection() {
                   data-card="genre-recommendation"
                   className="group block min-w-0 focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  <GradientPoster title={item.title} gradient={item.gradient} poster={item.poster} fit={item.posterFit} />
+                  <GradientPoster
+                    title={item.title}
+                    gradient={item.gradient}
+                    poster={item.poster}
+                    fit={item.posterFit}
+                    priority={item.poster === featuredShow.poster}
+                  />
                   <h4 className="clamp-2 mt-3 text-sm font-black leading-snug text-ink-2 group-hover:underline sm:text-base">{item.title}</h4>
                   <p className="clamp-1 mt-1 text-sm text-ink-3">{item.venue}</p>
                   <p className="mt-1 text-sm text-ink-4">{item.date}</p>
