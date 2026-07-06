@@ -42,6 +42,9 @@ declare global {
 const GOOGLE_AUTH_SCOPE = "openid email profile";
 const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 const GOOGLE_CONFIG_URL = "/auth/google-config";
+const GOOGLE_FALLBACK_BUTTON_CLASS =
+  "flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-neutral-300 bg-white px-4 text-base font-black text-neutral-900 shadow-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-white disabled:text-neutral-500 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:border-neutral-400 dark:disabled:bg-white dark:disabled:text-neutral-500";
+const GOOGLE_LOADING_BUTTON_CLASS = `absolute inset-0 ${GOOGLE_FALLBACK_BUTTON_CLASS}`;
 
 type GoogleConfig = {
   readonly clientId: string;
@@ -204,7 +207,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         <button
           type="button"
           onClick={handleMockGoogleLogin}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+          className={GOOGLE_FALLBACK_BUTTON_CLASS}
           data-google-client-id=""
           data-google-scope={GOOGLE_AUTH_SCOPE}
           data-google-ready="mock"
@@ -219,7 +222,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         disabled
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink-4"
+        className={GOOGLE_FALLBACK_BUTTON_CLASS}
         data-google-client-id=""
         data-google-scope={GOOGLE_AUTH_SCOPE}
       >
@@ -234,7 +237,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         onClick={() => onStatusChange("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.")}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+        className={GOOGLE_FALLBACK_BUTTON_CLASS}
         data-google-client-id={googleClientId}
         data-google-scope={GOOGLE_AUTH_SCOPE}
         data-google-ready="false"
@@ -263,7 +266,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         <button
           type="button"
           onClick={() => onStatusChange("Google 로그인 버튼을 불러오는 중입니다.")}
-          className="absolute inset-0 flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-line bg-card px-4 text-base font-black text-ink transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+          className={GOOGLE_LOADING_BUTTON_CLASS}
         >
           <GoogleLogo />
           Google 계정으로 로그인하기

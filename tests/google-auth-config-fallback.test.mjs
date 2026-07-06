@@ -33,6 +33,18 @@ async function googleLogoFills(locator) {
   return locator.locator("svg path").evaluateAll((paths) => paths.map((path) => path.getAttribute("fill")));
 }
 
+async function forceDarkTheme(page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("ticketground:theme", "dark");
+    document.documentElement.classList.add("dark");
+    document.documentElement.dataset.theme = "dark";
+  });
+}
+
+async function buttonBackgroundColor(locator) {
+  return locator.evaluate((button) => window.getComputedStyle(button).backgroundColor);
+}
+
 test("login page keeps empty Google config disabled in production without QA mock mode", async (t) => {
   replaceGoogleEnv(t, { NODE_ENV: "production" });
   const { baseUrl } = await startServer(t);
@@ -41,11 +53,13 @@ test("login page keeps empty Google config disabled in production without QA moc
 
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   try {
+    await forceDarkTheme(page);
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
     await googleButton.waitFor({ timeout: 5000 });
 
     assert.equal(await googleButton.isEnabled(), false);
+    assert.equal(await buttonBackgroundColor(googleButton), "rgb(255, 255, 255)");
     assert.equal(await page.locator("[data-google-client-id='']").count(), 1);
     assert.deepEqual(await googleLogoFills(googleButton), ["#4285F4", "#34A853", "#FBBC05", "#EA4335"]);
     assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), null);
@@ -62,11 +76,13 @@ test("login page uses a clickable Google QA mock fallback when public Google con
 
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   try {
+    await forceDarkTheme(page);
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
     await googleButton.waitFor({ timeout: 5000 });
 
     assert.equal(await googleButton.isEnabled(), true);
+    assert.equal(await buttonBackgroundColor(googleButton), "rgb(255, 255, 255)");
     assert.deepEqual(await googleLogoFills(googleButton), ["#4285F4", "#34A853", "#FBBC05", "#EA4335"]);
     await googleButton.click();
     await page.getByText("민서 Google 세션 연결됨").waitFor({ timeout: 5000 });

@@ -5,20 +5,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearSessionUser,
   completeSocialLogin,
-  DEMO_USER_ID,
   getSession,
+  rememberSessionUser,
   storedSessionUserId,
   TicketgroundApiError,
   type ApiSession,
   type SocialLoginProvider,
-  rememberSessionUser,
   updateProfile,
 } from "@/lib/ticketground-api";
 import { GoogleSignInCard } from "@/components/ticketing/google-sign-in-card";
 import { LoginHomeLink } from "@/components/ticketing/login-home-link";
 import { LoginHeroAside } from "@/components/ticketing/login-hero-aside";
 import { LoginModeTabs } from "@/components/ticketing/login-mode-tabs";
-import { LoginMockForm } from "@/components/ticketing/login-mock-form";
 import { LoginSessionPanel } from "@/components/ticketing/login-session-panel";
 import { SocialLoginButtons } from "@/components/ticketing/social-login-buttons";
 
@@ -32,17 +30,10 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
   const router = useRouter();
   const socialStatusLockRef = useRef(false);
   const [mode, setMode] = useState<LoginMode>(initialMode);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [session, setSession] = useState<ApiSession | null>(null);
   const [profileName, setProfileName] = useState("");
   const [status, setStatus] = useState("로그인 또는 회원가입을 진행해 주세요");
   const [saving, setSaving] = useState(false);
-  const [identityChecked, setIdentityChecked] = useState(false);
-  const [termsChecked, setTermsChecked] = useState(false);
-  const canLogin = email.trim().length > 3 && password.length > 3;
-  const canSignup = canLogin && name.trim().length > 1 && identityChecked && termsChecked;
 
   const applySession = useCallback((nextSession: ApiSession, message: string) => {
     setSession(nextSession);
@@ -145,20 +136,6 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
     setStatus(message);
   }, []);
 
-  async function confirmMockAccount() {
-    if (mode === "login" && !canLogin) return;
-    if (mode === "signup" && !canSignup) return;
-
-    setStatus(mode === "login" ? "데모 로그인 확인 중" : "데모 회원가입 확인 중");
-    try {
-      const nextSession = await getSession(DEMO_USER_ID);
-      rememberSessionUser(nextSession);
-      applySession(nextSession, mode === "login" ? `${nextSession.name} 데모 세션 연결됨` : `${nextSession.name} 데모 회원가입 완료`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "데모 계정 확인에 실패했습니다.");
-    }
-  }
-
   return (
     <section className="ticketground-container py-10">
       <div className="grid overflow-hidden rounded-xl border border-line bg-card shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
@@ -174,12 +151,12 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           <div className="mt-8">
             <p className="text-sm font-black text-ticketground">{mode === "login" ? "로그인" : "회원가입"}</p>
             <h2 className="balanced-title mt-2 text-[24px] font-black leading-tight text-ink sm:text-4xl">
-              {mode === "login" ? "예매 내역을 확인해 주세요" : "본인 확인 후 가입을 진행해 주세요"}
+              {mode === "login" ? "예매 내역을 확인해 주세요" : "간편 로그인으로 계정을 시작해 주세요"}
             </h2>
             <p className="mt-3 text-sm leading-loose text-ink-3">
               {mode === "login"
-                ? "Google, 카카오, 네이버 또는 이메일 mock 입력으로 세션을 연결합니다."
-                : "가입 전용 본인인증과 약관 동의 블록을 포함한 데모 가입 화면입니다."}
+                ? "Google, 카카오, 네이버 간편 로그인으로 세션을 연결합니다."
+                : "별도 이메일 회원가입 없이 간편 로그인 완료 시 티켓그라운드 계정이 생성됩니다."}
             </p>
           </div>
 
@@ -196,29 +173,6 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
             <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={handleGoogleStatusChange} />
             <SocialLoginButtons />
           </div>
-
-          <div className="my-7 flex items-center gap-3 text-xs font-bold text-ink-4">
-            <span className="h-px flex-1 bg-line" aria-hidden />
-            이메일 mock 입력
-            <span className="h-px flex-1 bg-line" aria-hidden />
-          </div>
-
-          <LoginMockForm
-            canLogin={canLogin}
-            canSignup={canSignup}
-            email={email}
-            identityChecked={identityChecked}
-            mode={mode}
-            name={name}
-            onConfirm={confirmMockAccount}
-            onEmailChange={setEmail}
-            onIdentityCheckedChange={setIdentityChecked}
-            onNameChange={setName}
-            onPasswordChange={setPassword}
-            onTermsCheckedChange={setTermsChecked}
-            password={password}
-            termsChecked={termsChecked}
-          />
         </div>
       </div>
     </section>

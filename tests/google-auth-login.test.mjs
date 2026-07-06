@@ -39,7 +39,7 @@ test("Google auth endpoint accepts deterministic test credential only in test mo
   assert.equal(malformed.error.code, "GOOGLE_AUTH_INVALID");
 });
 
-test("login page renders Google Identity Services wiring as a social button surface without removing mock login", async (t) => {
+test("login page renders Google Identity Services wiring as a social-only button surface", async (t) => {
   configureGoogleEnv(t, false);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -100,21 +100,9 @@ test("login page renders Google Identity Services wiring as a social button surf
       `Google control width ${googleBox.width} should match Kakao button width ${kakaoBox.width}`,
     );
 
-    const mockLoginButton = page.getByRole("button", { name: "mock 로그인 확인" });
-    await mockLoginButton.waitFor({ timeout: 5000 });
-    await page.getByPlaceholder("qa@ticketground.kr").fill("qa@ticketground.kr");
-    await page.getByPlaceholder("mock password").fill("password");
-    await mockLoginButton.click();
-    await page.getByText("민서 데모 세션 연결됨").waitFor({ timeout: 5000 });
-    const storedUserId = await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id"));
-    assert.equal(storedUserId, "user_fan_a");
-
-    await page.getByLabel("닉네임").fill("서연");
-    await page.getByRole("button", { name: "프로필 저장", exact: true }).click();
-    await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
-    await page.setViewportSize({ width: 1280, height: 900 });
-    const utilityBar = page.locator("header > div").first();
-    await utilityBar.getByRole("button", { name: "로그아웃", exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await page.getByPlaceholder("qa@ticketground.kr").count(), 0);
+    assert.equal(await page.getByPlaceholder("mock password").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "mock 로그인 확인" }).count(), 0);
   } finally {
     await page.close();
   }

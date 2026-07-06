@@ -2,7 +2,7 @@ const socialProviders = [
   {
     label: "카카오톡 계정으로 로그인하기",
     href: "/api/auth/kakao/start",
-    tone: "border-[#F6D900] bg-[#FEE500] text-ink hover:bg-[#F9DC00]",
+    tone: "border-[#FFDE32] bg-[#FFDE32] text-[#2D1B1B] hover:bg-[#F7D51F]",
     icon: "kakao",
   },
   {
@@ -15,10 +15,11 @@ const socialProviders = [
 
 function KakaoLogo() {
   return (
-    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" className="size-5 shrink-0">
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 32 32" className="size-6 shrink-0">
+      <circle cx="16" cy="16" r="15" fill="#FFDE32" />
       <path
-        fill="currentColor"
-        d="M12 4C7.03 4 3 7.15 3 11.03c0 2.5 1.68 4.68 4.2 5.93l-.76 2.78a.43.43 0 0 0 .66.47l3.34-2.22c.51.05 1.03.08 1.56.08 4.97 0 9-3.15 9-7.04S16.97 4 12 4Z"
+        fill="#3A2929"
+        d="M16 8.2c-5.38 0-9.75 3.42-9.75 7.64 0 2.64 1.73 4.97 4.35 6.34l-.86 3.04a.46.46 0 0 0 .7.5l3.42-2.25c.7.13 1.42.2 2.14.2 5.38 0 9.75-3.42 9.75-7.64S21.38 8.2 16 8.2Z"
       />
     </svg>
   );
