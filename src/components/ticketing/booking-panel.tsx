@@ -269,7 +269,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             <BookingSummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
             <BookingSummaryRow label="총 결제금액" value={currency(totalAmount)} total />
           </dl>
-          <p className="mt-4 break-keep rounded-sm bg-tint-yellow px-3 py-2 text-sm font-bold text-ink">정책: 최대 2매, 추가 선택 시 이전 좌석 해제</p>
+          <p className="mt-4 break-keep rounded-sm border border-warn bg-card px-3 py-2 text-sm font-bold text-ink">정책: 최대 2매, 추가 선택 시 이전 좌석 해제</p>
         </aside>
       </div>
     </div>

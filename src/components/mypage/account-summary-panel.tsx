@@ -133,7 +133,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
   const counters = [
     { label: "예매", count: reservationCount, href: "/mypage#reservations" },
     { label: "취소", count: cancelHistoryCount, href: "/mypage#cancel-history" },
-    { label: "공식 재판매", count: resaleSeatCount, href: "/resale" },
+    { label: "양도", count: resaleSeatCount, href: "/resale" },
     { label: "문의", count: inquiryCount, href: "/inquiry" },
   ] as const;
 
@@ -148,7 +148,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
           <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-base text-on-ink-2/75">
             <span className="whitespace-nowrap">클린티켓 인증 기기 1대</span>
             <span className="whitespace-nowrap">예매 {reservationCount}건</span>
-            <span className="whitespace-nowrap">공식 재판매 {resaleSeatCount}석</span>
+            <span className="whitespace-nowrap">Tig 공식 양도 티켓 {resaleSeatCount}석</span>
           </p>
           <p className="mt-2 text-sm font-bold text-on-ink-2/70" data-account-status>
             {status}

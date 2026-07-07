@@ -12,7 +12,7 @@ export const categoryNav = [
   "아동",
   "스포츠",
 ];
-export const categoryNavHighlight = ["티켓 재판매", "티켓오픈 캘린더"];
+export const categoryNavHighlight = ["티켓 양도", "티켓오픈 캘린더"];
 
 // Top promo row — baked mini banners (rotating)
 export const promoBanners = [
@@ -151,7 +151,7 @@ export const footerColumnLinks = [
     title: "MY",
     links: [
       { label: "예매내역", href: "/mypage#reservations" },
-      { label: "공식 재판매", href: "/resale" },
+      { label: "Tig 공식 양도 티켓", href: "/resale" },
       { label: "관심공연", href: "/watchlist" },
       { label: "취소/환불", href: "/cancel" },
     ],

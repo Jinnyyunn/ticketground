@@ -58,7 +58,7 @@ export function WatchlistShowCard({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-surface px-3 py-1 text-sm font-black text-ink-2">{show.category}</span>
-              <span className="rounded-full bg-tint-red px-3 py-1 text-sm font-black text-ticketground">{show.dDayLabel}</span>
+              <span className="rounded-full bg-ticketground px-3 py-1 text-sm font-black text-white">{show.dDayLabel}</span>
             </div>
             <h2 className="mt-3 text-2xl font-black text-ink">{show.title}</h2>
             <p className="mt-2 text-sm text-ink-3">{show.venue}</p>

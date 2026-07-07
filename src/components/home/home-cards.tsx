@@ -118,7 +118,7 @@ export function SectionHead({ title, subtitle, moreHref, badge }: SectionHeadPro
             </span>
           )}
         </div>
-        {subtitle && <p data-section-subtitle className="mt-2 text-sm leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
+        {subtitle && <p data-section-subtitle className="mt-2 break-keep text-sm leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
       </div>
       <Link href={moreHref} className="shrink-0 text-sm font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
         더보기

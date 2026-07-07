@@ -9,14 +9,14 @@ const socialProviders = [
   {
     id: "kakao" as const,
     name: "카카오톡",
-    label: "카카오톡 계정으로 로그인하기",
+    label: "카카오톡으로 계속하기",
     href: "/api/auth/kakao/start",
     tone: "border-[#FFDE32] bg-[#FFDE32] text-[#2D1B1B] hover:bg-[#F7D51F]",
   },
   {
     id: "naver" as const,
     name: "네이버",
-    label: "네이버 계정으로 로그인하기",
+    label: "네이버로 계속하기",
     href: "/api/auth/naver/start",
     tone: "border-[#03C75A] bg-[#03C75A] text-white hover:bg-[#02B351]",
   },

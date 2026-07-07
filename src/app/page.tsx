@@ -20,8 +20,8 @@ export default function Home() {
         <RealtimeTop10Section />
         <TicketOpenSection />
         <OfficialResaleSection />
-        <EditorialEventsSection />
         <GenreRecommendationsSection />
+        <EditorialEventsSection />
         <ShortcutsSection />
       </main>
       <SiteFooter />

@@ -84,7 +84,7 @@ function poolCandidate(pool: PublicResalePool): ResalePoolCandidate {
   return {
     poolId: pool.id,
     ticketId: pool.ticketId,
-    seat: `${meta.grade} 공식 재판매 풀`,
+    seat: `${meta.grade} Tig 공식 양도 티켓 풀`,
     grade: meta.grade,
     zone: meta.zone,
     amount: pool.price,
@@ -145,7 +145,7 @@ export function useResaleBackend({ sessionUserId }: { readonly sessionUserId: st
     setError("");
     try {
       const pool = await listTicketForResale({ sellerId: sessionUserId, ticketId, price });
-      setToast("공식 재판매 풀에 등록되었습니다.");
+      setToast("Tig 공식 양도 티켓 풀에 등록되었습니다.");
       await refresh();
       return poolCandidate(pool);
     } catch (caught) {
@@ -175,7 +175,7 @@ export function useResaleBackend({ sessionUserId }: { readonly sessionUserId: st
         paymentLabel: purchased.payment.label,
       } satisfies ResaleMatchResult;
       setResult(nextResult);
-      setToast("재판매 티켓 구매가 완료되었습니다.");
+      setToast("Tig 공식 양도 티켓 구매가 완료되었습니다.");
       await refresh();
       return nextResult;
     } catch (caught) {

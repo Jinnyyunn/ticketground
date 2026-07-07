@@ -45,7 +45,7 @@ export default function MyPage() {
                     <div className="grid gap-5 xl:grid-cols-[1fr_auto]">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded bg-tint-blue px-2 py-1 text-sm font-bold text-ticketground">{reservation.status}</span>
+                          <span className="rounded bg-ink-2 px-2 py-1 text-sm font-bold text-on-ink-2">{reservation.status}</span>
                           <span className={`rounded-full px-3 py-1 text-sm font-bold ${active ? "bg-ticketground text-white" : "bg-surface-2 text-ink-2"}`}>
                             {active ? "입장 QR 활성화" : "잠금 · 가상 티켓"}
                           </span>
@@ -59,13 +59,13 @@ export default function MyPage() {
                         <p className="mt-1 text-sm text-ink-3">예매번호 {reservation.id}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                        <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-sm bg-ink-2 px-4 text-sm font-bold text-on-ink-2 whitespace-nowrap">
+                        <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-sm bg-ink-2 px-4 text-sm font-bold text-on-ink-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                           {active ? "입장 QR 열기(앱)" : "가상 티켓 보기"}
                         </Link>
-                        <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap">
-                          공식 재판매
+                        <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+                          Tig 공식 양도 티켓
                         </Link>
-                        <Link href={`/cancel?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap">
+                        <Link href={`/cancel?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                           취소
                         </Link>
                       </div>

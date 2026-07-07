@@ -1,10 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import { CalendarClock, Crown, MapPin, QrCode, RefreshCcw, ShieldCheck, Theater, TicketCheck, Workflow, Zap } from "lucide-react";
+import { CarouselRow } from "@/components/carousel-row";
 import { TicketgroundTag } from "@/components/ticketground/primitives";
 import { cn } from "@/lib/utils";
 import { FeaturedCard, GradientPoster, Movement, SectionHead } from "./home-cards";
 import { events, featuredShow, genreRecommendations, miniShows, rankings, shortcuts, ticketOpens } from "./home-content";
+import { GenreRecommendationsTabs } from "./genre-recommendations-tabs";
+import { MiniShowCarousel } from "./mini-show-carousel";
 import { TicketOpenAlertAction } from "./ticket-open-alert-action";
 
 const editorialCardTone = {
@@ -31,11 +34,16 @@ const editorialCardTone = {
 export function HomeHeroSection() {
   return (
     <section data-section="spec-hero" className="ticketground-container grid gap-5 pt-8 lg:grid-cols-[1.55fr_1fr]">
-      <FeaturedCard show={featuredShow} size="large" />
-      <div className="grid gap-5">
-        {miniShows.map((show) => (
-          <FeaturedCard key={show.title} show={show} size="mini" />
-        ))}
+      <div className="hidden lg:contents">
+        <FeaturedCard show={featuredShow} size="large" />
+        <div className="grid gap-5">
+          {miniShows.map((show) => (
+            <FeaturedCard key={show.title} show={show} size="mini" />
+          ))}
+        </div>
+      </div>
+      <div className="min-w-0 lg:hidden">
+        <MiniShowCarousel shows={[featuredShow, ...miniShows]} />
       </div>
     </section>
   );
@@ -45,23 +53,23 @@ export function RealtimeTop10Section() {
   return (
     <section data-section="realtime-top10" className="ticketground-container mt-16">
       <SectionHead title="실시간 예매 랭킹 TOP10" subtitle="지금 가장 빠르게 움직이는 공연입니다." moreHref="/contents/ranking" />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <CarouselRow className="mt-1 pb-1">
         {rankings.map((item) => (
           <Link
             href={item.href}
             key={item.rank}
-            className="group grid min-w-0 grid-cols-[48px_72px_minmax(0,1fr)] gap-3 rounded-lg border border-line bg-card p-3 transition-shadow hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-1"
+            className="group block w-[112px] shrink-0 focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-[136px]"
           >
-            <span className="rnum text-5xl font-black leading-none text-ink group-hover:text-ticketground">{item.rank}</span>
+            <span className="rnum block text-4xl font-black leading-none text-ink group-hover:text-ticketground sm:text-5xl">{item.rank}</span>
             <GradientPoster
               title={item.title}
               gradient={item.gradient}
               poster={item.poster}
               fit={item.posterFit}
-              className="w-[72px] lg:w-full"
+              className="mt-2 w-full"
               priority={item.poster === featuredShow.poster}
             />
-            <div className="min-w-0 lg:mt-2">
+            <div className="mt-2 min-w-0">
               <h3 className="balanced-title clamp-2 text-xs font-black leading-snug text-ink-2 group-hover:underline">{item.title}</h3>
               <p className="clamp-1 mt-1 text-sm text-ink-3">{item.venue}</p>
               <p className="mt-1 text-sm text-ink-4">{item.date}</p>
@@ -69,7 +77,7 @@ export function RealtimeTop10Section() {
             </div>
           </Link>
         ))}
-      </div>
+      </CarouselRow>
     </section>
   );
 }
@@ -78,13 +86,13 @@ export function TicketOpenSection() {
   return (
     <section data-section="ticket-open" className="ticketground-container mt-16">
       <SectionHead title="티켓오픈 예정" subtitle="오픈 시간과 회차를 확인하고 알림을 준비하세요." moreHref="/open" />
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+      <CarouselRow className="mt-1 pb-1">
         {ticketOpens.map((item) => (
           <Link
             href="/open"
             key={`${item.month}.${item.day}-${item.title}`}
             data-card="ticket-open"
-            className="group grid min-w-0 grid-cols-[56px_minmax(0,1fr)] gap-3 rounded-lg border border-line bg-surface p-3 shadow-ticket-1 transition-all hover:-translate-y-0.5 hover:border-line-strong hover:bg-card hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[64px_minmax(0,1fr)]"
+            className="group grid w-[264px] shrink-0 grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-lg border border-line bg-surface p-3 shadow-ticket-1 transition-all hover:-translate-y-0.5 hover:border-line-strong hover:bg-card hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <TicketOpenThumbnail title={item.title} />
             <div className="min-w-0">
@@ -101,7 +109,7 @@ export function TicketOpenSection() {
             </div>
           </Link>
         ))}
-      </div>
+      </CarouselRow>
     </section>
   );
 }
@@ -132,8 +140,8 @@ export function OfficialResaleSection() {
   return (
     <section data-section="official-resale" className="ticketground-container mt-16">
       <SectionHead
-        title="공식 재판매·양도"
-        subtitle="보유 티켓은 플랫폼 안에서만 안전하게 이동합니다."
+        title="Tig 공식 양도 티켓"
+        subtitle="직거래 사기 걱정 없이, 내 티켓을 안전하게 양도하세요."
         moreHref="/resale"
         badge="CLEAN TICKET"
       />
@@ -147,8 +155,8 @@ export function OfficialResaleSection() {
             <ShieldCheck className="size-3.5 shrink-0 text-accent-2" aria-hidden />
             CLEAN TICKET POOL
           </p>
-          <h3 className="balanced-title mt-3 text-[24px] font-black leading-tight sm:text-[30px]">공식 재판매</h3>
-          <p className="mt-3 max-w-[560px] text-sm leading-relaxed text-on-ink/75 sm:text-base">
+          <h3 className="balanced-title mt-3 text-[24px] font-black leading-tight sm:text-[30px]">Tig 공식 양도 티켓</h3>
+          <p className="mt-3 max-w-[560px] break-keep text-sm leading-relaxed text-on-ink/75 sm:text-base">
             정가 범위와 구매 이력 검증을 통과한 티켓만 풀에 등록됩니다. 외부 직거래 없이 예매 내역과 결제 기록이 함께 보존됩니다.
           </p>
           <span className="mt-5 inline-flex h-10 items-center rounded-lg bg-background px-4 text-sm font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
@@ -156,17 +164,17 @@ export function OfficialResaleSection() {
           </span>
           </div>
         </Link>
-        <div className="grid gap-3">
+        <div className="grid grid-cols-3 gap-2 rounded-lg border border-line bg-card p-4 shadow-ticket-1 sm:gap-4">
           {[
-            ["보유 티켓 확인", "마이페이지 예매 내역에서 양도 가능한 좌석을 확인합니다."],
-            ["정책 자동 판별", "공식 재판매 또는 동반자 양도 흐름으로 안전하게 연결합니다."],
-            ["QR 보호", "현장 입장 QR은 앱 본인 기기에서만 활성화됩니다."],
-          ].map(([title, description], index) => (
-            <div key={title} className="group relative overflow-hidden rounded-lg border border-line bg-card p-4 pl-5 shadow-ticket-1 transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ticket-2">
-              <span className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-ink" aria-hidden="true" />
-              <span className="absolute right-4 top-4 text-xs font-black text-ink-4" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-              <h3 className="pr-10 text-base font-black text-ink">{title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-3">{description}</p>
+            { icon: TicketCheck, title: "보유 티켓 확인" },
+            { icon: Workflow, title: "정책 자동 판별" },
+            { icon: QrCode, title: "QR 보호" },
+          ].map(({ icon: Icon, title }) => (
+            <div key={title} className="grid justify-items-center gap-2 text-center">
+              <span className="grid size-10 place-items-center rounded-full bg-ink text-accent-2">
+                <Icon className="size-5" aria-hidden />
+              </span>
+              <p className="clamp-2 text-xs font-black leading-snug text-ink">{title}</p>
             </div>
           ))}
         </div>
@@ -178,8 +186,8 @@ export function OfficialResaleSection() {
 export function EditorialEventsSection() {
   return (
     <section data-section="editorial-events" className="ticketground-container mt-16">
-      <SectionHead title="기획전" subtitle="공연을 고르는 기준이 분명한 큐레이션입니다." moreHref="/event/ticketground-day" />
-      <div className="grid gap-4 md:grid-cols-3">
+      <SectionHead title="기획전" subtitle="지금 봐야 할 공연을 에디터가 엄선해 소개합니다." moreHref="/event/ticketground-day" />
+      <CarouselRow className="pb-1">
         {events.map((event, index) => {
           const tone = editorialCardTone[event.tone];
 
@@ -189,7 +197,7 @@ export function EditorialEventsSection() {
               key={event.title}
               data-card="editorial-event"
               className={cn(
-                "group relative min-h-[220px] overflow-hidden rounded-lg border p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-6",
+                "group relative min-h-[168px] w-[240px] shrink-0 overflow-hidden rounded-lg border p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-[260px] sm:p-6",
                 tone.card,
               )}
             >
@@ -197,14 +205,13 @@ export function EditorialEventsSection() {
               <span className="absolute right-5 top-16 text-7xl font-black leading-none opacity-10" aria-hidden="true">
                 {String(index + 1).padStart(2, "0")}
               </span>
-              <div className="relative z-10 flex h-full min-h-[178px] flex-col">
+              <div className="relative z-10 flex h-full min-h-[126px] flex-col">
                 <div className="flex items-center justify-between gap-3">
                   <p className={cn("inline-flex h-7 items-center rounded-lg border px-3 text-xs font-black tracking-normal", tone.eyebrow)}>
                     EDITORIAL
                   </p>
                 </div>
                 <h3 className="balanced-title mt-7 text-3xl font-black leading-tight sm:text-4xl">{event.title}</h3>
-                <p className="mt-4 text-base leading-loose opacity-85">{event.description}</p>
                 <span className={cn("mt-auto inline-flex h-9 w-fit items-center rounded-lg border px-3 text-sm font-black transition-colors", tone.cta)}>
                   기획전 보기 <span className="ml-1" aria-hidden="true">→</span>
                 </span>
@@ -212,7 +219,7 @@ export function EditorialEventsSection() {
             </Link>
           );
         })}
-      </div>
+      </CarouselRow>
     </section>
   );
 }
@@ -221,55 +228,45 @@ export function GenreRecommendationsSection() {
   return (
     <section data-section="genre-recommendations" className="ticketground-container mt-16">
       <SectionHead title="장르별 추천" subtitle="콘서트·뮤지컬·연극·클래식을 비교하세요." moreHref="/contents/genre" />
-      <div className="grid gap-10">
-        {genreRecommendations.map((group) => (
-          <div key={group.title}>
-            <h3 className="mb-4 text-2xl font-black text-ink">{group.title}</h3>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-              {group.items.map((item) => (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  data-card="genre-recommendation"
-                  className="group block min-w-0 focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <GradientPoster
-                    title={item.title}
-                    gradient={item.gradient}
-                    poster={item.poster}
-                    fit={item.posterFit}
-                    priority={item.poster === featuredShow.poster}
-                  />
-                  <h4 className="clamp-2 mt-3 text-sm font-black leading-snug text-ink-2 group-hover:underline sm:text-base">{item.title}</h4>
-                  <p className="clamp-1 mt-1 text-sm text-ink-3">{item.venue}</p>
-                  <p className="mt-1 text-sm text-ink-4">{item.date}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      <GenreRecommendationsTabs groups={genreRecommendations} />
     </section>
   );
 }
+
+const shortcutIcons: Record<string, typeof MapPin> = {
+  "지방 공연": MapPin,
+  대학로: Theater,
+  양도: RefreshCcw,
+  VIP석: Crown,
+  오픈캘린더: CalendarClock,
+  "당일 공연": Zap,
+};
 
 export function ShortcutsSection() {
   return (
     <section data-section="shortcuts" className="ticketground-container my-16">
       <SectionHead title="바로가기" moreHref="/contents/shortcuts" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        {shortcuts.map((shortcut) => (
-          <Link
-            href={shortcut.href}
-            key={shortcut.label}
-            data-card="shortcut"
-            className="min-w-0 rounded-lg border border-line bg-card p-4 text-center transition-colors hover:border-ink hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <strong className="block text-lg font-black text-ink">{shortcut.label}</strong>
-            <span className="mt-1 block text-sm text-ink-3">{shortcut.helper}</span>
-          </Link>
-        ))}
-      </div>
+      <CarouselRow className="pb-1">
+        {shortcuts.map((shortcut) => {
+          const Icon = shortcutIcons[shortcut.label] ?? MapPin;
+          return (
+            <Link
+              href={shortcut.href}
+              key={shortcut.label}
+              data-card="shortcut"
+              className="group grid w-[100px] shrink-0 justify-items-center gap-2 rounded-lg border border-line bg-card p-3 text-center transition-colors hover:border-ink hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="grid size-10 place-items-center rounded-full bg-ink text-accent-2 transition-colors group-hover:bg-ticketground">
+                <Icon className="size-5" aria-hidden />
+              </span>
+              <span className="min-w-0">
+                <strong className="clamp-1 block text-sm font-black text-ink">{shortcut.label}</strong>
+                <span className="clamp-1 mt-0.5 block text-xs text-ink-3">{shortcut.helper}</span>
+              </span>
+            </Link>
+          );
+        })}
+      </CarouselRow>
     </section>
   );
 }

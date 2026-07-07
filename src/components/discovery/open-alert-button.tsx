@@ -12,7 +12,7 @@ export function OpenAlertButton() {
       <button
         aria-describedby={alertEnabled ? statusId : undefined}
         aria-pressed={alertEnabled}
-        className="h-8 w-full whitespace-nowrap rounded-lg border border-line bg-card px-2 text-sm font-black text-ink sm:px-3 sm:text-sm"
+        className="h-10 w-full whitespace-nowrap rounded-lg border border-line bg-card px-2 text-sm font-black text-ink transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-3 sm:text-sm"
         onClick={() => setAlertEnabled(true)}
         type="button"
       >

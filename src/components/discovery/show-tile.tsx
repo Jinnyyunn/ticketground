@@ -31,7 +31,7 @@ export function ShowTile({ show, compact = false }: ShowTileProps) {
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          {show.badge && <span className="rounded bg-tint-red px-2 py-1 text-xs font-black text-ticketground">{show.badge}</span>}
+          {show.badge && <span className="rounded bg-ticketground px-2 py-1 text-xs font-black text-white">{show.badge}</span>}
           <span className="text-sm font-black text-ink-3">{show.category}</span>
         </div>
         <h2

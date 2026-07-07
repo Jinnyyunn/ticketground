@@ -22,7 +22,7 @@ export function ShowCard({ show, compact = false }: { show: TicketShow; compact?
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           {show.badge && (
-            <span className="rounded bg-tint-blue px-2 py-1 text-xs font-bold text-ticketground">{show.badge}</span>
+            <span className="rounded bg-ticketground px-2 py-1 text-xs font-bold text-white">{show.badge}</span>
           )}
           <span className="text-sm font-bold text-ink-3">{show.category}</span>
         </div>

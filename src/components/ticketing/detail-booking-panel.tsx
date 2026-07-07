@@ -46,8 +46,8 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPr
           <p className="text-xs font-bold text-ticketground">공식 예매</p>
           <h2 className="mt-1 text-xl font-black text-ink">상품 예매하기</h2>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-tint-yellow px-2 py-1 text-xs font-black text-ink">
-          <Clock3 className="size-3" aria-hidden />
+        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-ink px-2 py-1 text-xs font-black text-on-ink">
+          <Clock3 className="size-3 text-accent-2" aria-hidden />
           대기열 입장 · 순서 확인
         </span>
       </div>
@@ -90,7 +90,7 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPr
                 onClick={() => setSelectedTime(time)}
                 className={cn(
                   "flex min-w-0 items-center justify-between gap-3 rounded-sm border px-3 py-3 text-sm font-bold transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px",
-                  active ? "border-ticketground bg-tint-red text-ticketground" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
+                  active ? "border-ink bg-ink text-on-ink" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
                 )}
               >
                 <span>{index + 1}회</span>

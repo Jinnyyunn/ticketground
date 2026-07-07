@@ -72,13 +72,13 @@ export function ResaleFindPanel({
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="grid gap-2 text-sm font-bold text-ink-2">
               구역
-              <select className="h-11 rounded-sm border border-line bg-background px-3 shadow-ticket-1" value={zone} onChange={(event) => onZoneChange(event.currentTarget.value)}>
+              <select className="h-11 rounded-sm border border-line bg-background px-3 shadow-ticket-1 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50" value={zone} onChange={(event) => onZoneChange(event.currentTarget.value)}>
                 {zoneOptions.map((item) => <option key={item}>{item}</option>)}
               </select>
             </label>
             <label className="grid gap-2 text-sm font-bold text-ink-2">
               최대 가격
-              <input className="h-11 rounded-sm border border-line bg-background px-3 shadow-ticket-1" type="number" value={maxPrice} onChange={(event) => onMaxPriceChange(Number(event.currentTarget.value))} />
+              <input className="h-11 rounded-sm border border-line bg-background px-3 shadow-ticket-1 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50" type="number" value={maxPrice} onChange={(event) => onMaxPriceChange(Number(event.currentTarget.value))} />
             </label>
             <label className="flex items-center gap-3 rounded-sm border border-line bg-surface px-3 text-sm font-bold text-ink-2">
               <input type="checkbox" checked={pairOnly} onChange={(event) => onPairOnlyChange(event.currentTarget.checked)} />
@@ -87,7 +87,7 @@ export function ResaleFindPanel({
           </div>
         </div>
         <div className="rounded-lg border border-line bg-surface p-3 shadow-ticket-1">
-          <div className="grid grid-cols-10 gap-1" aria-label="현재 열린 공식 재판매 풀 60칸" data-testid="pool-grid">
+          <div className="grid grid-cols-10 gap-1" aria-label="현재 열린 Tig 공식 양도 티켓 풀 60칸" data-testid="pool-grid">
             {poolCells.map((cell, index) => (
               <span
                 key={cell.id}
@@ -95,7 +95,7 @@ export function ResaleFindPanel({
                 data-seat-pickable="false"
                 className={cn(
                   "aspect-square rounded-xs border border-line bg-background shadow-ticket-1 transition-colors",
-                  cell.highlighted && "bg-tint-yellow",
+                  cell.highlighted && "bg-accent-2",
                   activeCell === index && "border-ticketground bg-ticketground shadow-ticket-2",
                 )}
               />
@@ -114,8 +114,8 @@ export function ResaleFindPanel({
         <div
           className={cn(
             "rounded-lg border border-line bg-background p-4 shadow-ticket-1 transition-all duration-300",
-            drawing && "border-ticketground bg-tint-red shadow-ticket-2 motion-safe:animate-pulse",
-            hasMatch && "border-ok bg-tint-yellow shadow-ticket-3",
+            drawing && "border-ticketground shadow-ticket-2 motion-safe:animate-pulse",
+            hasMatch && "border-ok shadow-ticket-3",
           )}
           aria-live="polite"
           data-match-state={matchState}

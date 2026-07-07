@@ -31,7 +31,7 @@ export const categoryHrefs: Record<string, string> = {
   스포츠: "/contents/genre/sports",
   랭킹: "/contents/ranking",
   "티켓오픈 캘린더": "/open",
-  "티켓 재판매": "/resale",
+  "티켓 양도": "/resale",
   지역별: "/contents/region",
   공연장: "/place",
 };

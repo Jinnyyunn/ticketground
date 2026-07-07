@@ -10,7 +10,7 @@ export function SiteFooter() {
             Ticketground
             <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
           </Link>
-          <p className="mt-4 text-sm leading-loose text-ink-3">
+          <p className="mt-4 break-keep text-sm leading-loose text-ink-3">
             공식 예매, 클린티켓, 고객 문의를 한 곳에서 다루는 공연 티켓 서비스입니다.
           </p>
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm font-bold text-ink-3">

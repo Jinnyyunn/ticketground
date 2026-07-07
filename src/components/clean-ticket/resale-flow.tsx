@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Armchair, CalendarClock, Check, Copy, Hash, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CleanTicketReservation } from "@/types";
 import { currency } from "@/data/ticketing";
@@ -107,18 +108,18 @@ export function ResaleFlow({
   async function registerBackendPool() {
     if (!isPriceValid || apiBusy) return null;
     setApiBusy(true);
-    setApiStatus("공식 재판매 풀 등록 중");
+    setApiStatus("Tig 공식 양도 티켓 풀 등록 중");
     try {
       const ticket = await ensureBackendTicket();
       const pool = await listResale(ticket.id, price, sessionUserId);
       const joined = await joinResale(pool.id);
       setBackendPool(joined);
       setBackendResult(null);
-      setToast(`${ticket.seatLabel} 공식 재판매 풀 등록 완료`);
+      setToast(`${ticket.seatLabel} Tig 공식 양도 티켓 풀 등록 완료`);
       setApiStatus(`풀 ${joined.id} 등록 · 대기자 ${joined.buyerCount}명`);
       return joined;
     } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : "공식 재판매 등록에 실패했습니다.");
+      setApiStatus(error instanceof Error ? error.message : "Tig 공식 양도 티켓 등록에 실패했습니다.");
       return null;
     } finally {
       setApiBusy(false);
@@ -135,7 +136,7 @@ export function ResaleFlow({
         ? backendPool
         : state?.resalePools.find((item) => item.status === "OPEN" && item.price <= maxPrice);
       if (!pool) {
-        setApiStatus("구매 가능한 공식 재판매 풀이 없습니다.");
+        setApiStatus("구매 가능한 Tig 공식 양도 티켓 풀이 없습니다.");
         return;
       }
       const nextResult = await purchaseResale(pool.id, sessionUserId);
@@ -143,7 +144,7 @@ export function ResaleFlow({
       setBackendPool(nextResult.pool);
       setApiStatus(`매칭 완료 · 구매자 총액 ${currency(nextResult.buyerTotal)}`);
     } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : "재판매 구매에 실패했습니다.");
+      setApiStatus(error instanceof Error ? error.message : "Tig 공식 양도 티켓 구매에 실패했습니다.");
     } finally {
       setApiBusy(false);
     }
@@ -295,6 +296,31 @@ function ResaleReservationContext({
   readonly showPoster?: string;
   readonly showTitle: string;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyReservationId = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(reservation.id);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable (unsupported browser/context) — no-op
+    }
+  }, [reservation.id]);
+
+  const stats: readonly {
+    readonly icon: typeof Hash;
+    readonly label: string;
+    readonly value: string;
+    readonly copyable?: boolean;
+    readonly accent?: boolean;
+  }[] = [
+    { icon: Hash, label: "예약번호", value: reservation.id, copyable: true },
+    { icon: CalendarClock, label: "회차", value: `${reservation.date} ${reservation.time}` },
+    { icon: Armchair, label: "좌석", value: selectedSeatLabel },
+    { icon: Wallet, label: "결제", value: currency(reservation.totalAmount), accent: true },
+  ];
+
   return (
     <section
       className="grid gap-4 rounded-xl border border-line-strong bg-background p-4 shadow-ticket-3 sm:grid-cols-[72px_minmax(0,1fr)] sm:p-5"
@@ -320,19 +346,35 @@ function ResaleReservationContext({
       <div className="min-w-0">
         <p className="text-xs font-black text-ticketground">예약 기준 거래</p>
         <h2 id="resale-context-title" className="mt-1 balanced-title text-3xl font-black leading-tight text-ink">
-          이 예약을 재판매/양도합니다
+          이 예약을 Tig 공식 양도 티켓으로 양도합니다
         </h2>
         <p className="mt-2 text-sm font-bold leading-relaxed text-ink-3">{showTitle}</p>
         <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["예약번호", reservation.id],
-            ["회차", `${reservation.date} ${reservation.time}`],
-            ["좌석", selectedSeatLabel],
-            ["결제", currency(reservation.totalAmount)],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-md border border-line bg-surface px-3 py-2">
-              <dt className="text-xs font-black text-ink-4">{label}</dt>
-              <dd className="mt-0.5 truncate font-black text-ink-2">{value}</dd>
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className={cn(
+                "relative rounded-md border border-line bg-surface px-3 py-2",
+                stat.accent && "border-ink bg-ink",
+              )}
+            >
+              <dt className={cn("flex items-center gap-1.5 text-xs font-black", stat.accent ? "text-on-ink/60" : "text-ink-4")}>
+                <stat.icon className="size-3.5 shrink-0" aria-hidden />
+                {stat.label}
+              </dt>
+              <dd className={cn("mt-0.5 truncate pr-6 font-black", stat.accent ? "text-accent-2" : "text-ink-2")}>
+                {stat.value}
+              </dd>
+              {stat.copyable && (
+                <button
+                  type="button"
+                  onClick={() => void copyReservationId()}
+                  className="absolute right-2 top-2 rounded p-1 text-ink-4 transition-colors hover:bg-card hover:text-ink focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  aria-label="예약번호 복사"
+                >
+                  {copied ? <Check className="size-3.5 shrink-0 text-ok" aria-hidden /> : <Copy className="size-3.5 shrink-0" aria-hidden />}
+                </button>
+              )}
             </div>
           ))}
         </dl>
@@ -349,7 +391,7 @@ function ResaleTabBar({
   readonly value: ResaleTab;
 }) {
   return (
-    <div role="group" aria-label="공식 재판매 탭" className="grid gap-2 rounded-xl border border-line bg-surface p-1 shadow-ticket-1 sm:inline-grid sm:grid-cols-2">
+    <div role="group" aria-label="Tig 공식 양도 티켓 탭" className="grid gap-2 rounded-xl border border-line bg-surface p-1 shadow-ticket-1 sm:inline-grid sm:grid-cols-2">
       {resaleTabs.map((option) => {
         const selected = option.value === value;
         return (

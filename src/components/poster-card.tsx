@@ -17,7 +17,7 @@ interface PosterCardProps {
 }
 
 const badgeStyle: Record<string, string> = {
-  단독판매: "bg-tint-blue text-ticketground",
+  단독판매: "bg-ticketground text-white",
   좌석우위: "bg-surface-2 text-ink-3",
 };
 

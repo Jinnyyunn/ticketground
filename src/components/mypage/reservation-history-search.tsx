@@ -87,7 +87,7 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="공연명, 장소, 예매번호 검색"
-            className="h-11 min-w-0 rounded-sm border border-line bg-surface px-3 text-base font-bold text-ink outline-none transition focus:border-line-strong focus:bg-card"
+            className="h-11 min-w-0 rounded-sm border border-line bg-surface px-3 text-base font-bold text-ink outline-none transition focus:border-line-strong focus:bg-card focus-visible:ring-3 focus-visible:ring-ring/50"
           />
         </label>
         <label className="grid gap-2 text-sm font-black text-ink">
@@ -96,7 +96,7 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
             aria-label="조회 기간"
             value={range}
             onChange={(event) => setRange(toHistoryRange(event.target.value))}
-            className="h-11 rounded-sm border border-line bg-surface px-3 text-sm font-black text-ink outline-none transition focus:border-line-strong focus:bg-card"
+            className="h-11 rounded-sm border border-line bg-surface px-3 text-sm font-black text-ink outline-none transition focus:border-line-strong focus:bg-card focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {rangeOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -115,7 +115,7 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
                 value={visibleStart}
                 max={visibleEnd}
                 onChange={(event) => setCustomStart(event.target.value)}
-                className="h-11 rounded-sm border border-line bg-surface px-3 text-sm font-bold text-ink outline-none transition focus:border-line-strong focus:bg-card"
+                className="h-11 rounded-sm border border-line bg-surface px-3 text-sm font-bold text-ink outline-none transition focus:border-line-strong focus:bg-card focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </label>
             <label className="grid gap-2 text-sm font-black text-ink">
@@ -126,7 +126,7 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
                 value={visibleEnd}
                 min={visibleStart}
                 onChange={(event) => setCustomEnd(event.target.value)}
-                className="h-11 rounded-sm border border-line bg-surface px-3 text-sm font-bold text-ink outline-none transition focus:border-line-strong focus:bg-card"
+                className="h-11 rounded-sm border border-line bg-surface px-3 text-sm font-bold text-ink outline-none transition focus:border-line-strong focus:bg-card focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </label>
           </div>
@@ -158,7 +158,7 @@ function HistoryResultCard({ item }: { readonly item: HistoryItem }) {
   return (
     <div role="article" data-history-search-row className="rounded-sm border border-line bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className={cn("rounded-full px-3 py-1 text-sm font-black", canceled ? "bg-tint-yellow text-warn" : "bg-tint-blue text-link")}>
+        <span className={cn("rounded-full px-3 py-1 text-sm font-black", canceled ? "bg-ticketground text-white" : "bg-ink-2 text-on-ink-2")}>
           {item.statusLabel}
         </span>
         <span className="text-sm font-bold text-ink-3">{item.detail}</span>

@@ -70,7 +70,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
         <p className="text-sm font-black text-ticketground">Ticketground</p>
         <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">{label} 예매</h1>
         <p className="mt-3 max-w-[760px] text-base leading-relaxed text-ink-3">
-          공식 재판매와 동적 QR 정책이 연결된 대표 공연을 필터와 레이아웃으로 빠르게 비교합니다.
+          Tig 공식 양도 티켓과 동적 QR 정책이 연결된 대표 공연을 필터와 레이아웃으로 빠르게 비교합니다.
         </p>
       </div>
 
@@ -98,7 +98,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
             aria-label="정렬"
             value={sort}
             onChange={(event) => setSort(toSortMode(event.target.value))}
-            className="h-10 rounded-lg border border-line bg-card px-3 text-sm font-black text-ink"
+            className="h-10 rounded-lg border border-line bg-card px-3 text-sm font-black text-ink focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {sortOptions.map((option) => (
               <option key={option.id} value={option.id}>

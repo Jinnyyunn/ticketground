@@ -5,8 +5,8 @@ import { getCleanTicketReservation, ticketShows } from "@/data/ticketing";
 import { queryParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
-  title: "공식 재판매 | Ticketground",
-  description: "Ticketground 클린 티켓 공식 재판매 풀",
+  title: "Tig 공식 양도 티켓 | Ticketground",
+  description: "Ticketground 클린 티켓 Tig 공식 양도 티켓 풀",
 };
 
 const defaultDemoUserId = "user_fan_a";

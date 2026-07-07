@@ -22,7 +22,7 @@ export function CancelHistoryPanel() {
           {history.map((entry) => (
             <article key={entry.reservationId} className="rounded-md border border-line p-5" data-cancel-history-row>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-tint-yellow px-2 py-1 text-sm font-bold text-ticketground">취소요청</span>
+                <span className="rounded bg-ticketground px-2 py-1 text-sm font-bold text-white">취소요청</span>
                 <span className="text-sm font-bold text-ink-3">사유 · {entry.reason}</span>
               </div>
               <h3 className="balanced-title mt-3 text-2xl font-black text-ink-2">{entry.showTitle}</h3>

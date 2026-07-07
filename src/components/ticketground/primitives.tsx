@@ -29,7 +29,7 @@ export function TicketgroundSurface({
         "rounded-lg border p-5 transition-colors",
         tone === "default" && "border-line bg-card text-card-foreground",
         tone === "muted" && "border-line bg-surface text-ink-2",
-        tone === "error" && "border-destructive/30 bg-tint-red text-destructive",
+        tone === "error" && "border-destructive bg-card text-destructive",
         className,
       )}
     >
@@ -53,7 +53,7 @@ export function TicketgroundChip({ children, active = false, error = false, clas
         "inline-flex h-9 items-center rounded-full border px-4 text-sm font-bold transition-colors",
         "focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-45",
         active ? "border-ink bg-ink text-on-ink" : "border-line bg-background text-ink-2 hover:border-line-strong hover:bg-surface",
-        error && "border-destructive bg-tint-red text-destructive",
+        error && "border-destructive bg-destructive text-white",
         className,
       )}
       {...props}
@@ -73,11 +73,11 @@ export function TicketgroundTag({
   readonly className?: string;
 }) {
   const toneClass = {
-    open: "bg-tint-red text-ticketground",
+    open: "bg-ticketground text-white",
     soon: "bg-ink text-on-ink",
     sale: "bg-accent-2 text-on-accent-2",
     new: "bg-ok text-white",
-    error: "bg-tint-red text-destructive",
+    error: "bg-destructive text-white",
   } satisfies Record<TagTone, string>;
 
   return <span className={cn("inline-flex rounded px-1.5 py-0.5 text-xs font-bold", toneClass[tone], className)}>{children}</span>;
@@ -97,7 +97,7 @@ export function MetricCard({
   readonly className?: string;
 }) {
   return (
-    <TicketgroundSurface className={cn("grid gap-2", tone === "accent" && "bg-tint-yellow", className)} tone={tone === "error" ? "error" : "default"}>
+    <TicketgroundSurface className={cn("grid gap-2", tone === "accent" && "bg-accent-2", className)} tone={tone === "error" ? "error" : "default"}>
       <p className="text-sm font-bold text-ink-3">{label}</p>
       <p className="text-3xl font-black text-ink">{value}</p>
       {helper && <p className="text-sm text-ink-3">{helper}</p>}
@@ -167,8 +167,8 @@ export function TicketgroundToast({
       role={tone === "error" ? "alert" : "status"}
       className={cn(
         "rounded-lg border bg-card p-4 text-sm shadow-ticket-2",
-        tone === "success" && "border-ok/30 bg-tint-yellow",
-        tone === "error" && "border-destructive/30 bg-tint-red text-destructive",
+        tone === "success" && "border-ok",
+        tone === "error" && "border-destructive text-destructive",
       )}
     >
       <p className="font-black">{title}</p>
@@ -195,7 +195,7 @@ export function QrStateChip({
 
 export function CleanTicketPolicyBanner({ children, className }: { readonly children: ReactNode; readonly className?: string }) {
   return (
-    <aside className={cn("rounded-xl border border-accent-2 bg-tint-yellow p-5 text-sm leading-loose text-ink", className)}>
+    <aside className={cn("rounded-xl border border-accent-2 bg-card p-5 text-sm leading-loose text-ink", className)}>
       <p className="font-black text-ticketground-strong">클린티켓 정책</p>
       <div className="mt-2">{children}</div>
     </aside>

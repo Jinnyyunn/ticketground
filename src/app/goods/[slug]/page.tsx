@@ -51,7 +51,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
           <section className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              {show.badge && <span className="rounded bg-tint-yellow px-2 py-1 text-xs font-black text-ink">{show.badge}</span>}
+              {show.badge && <span className="rounded bg-ticketground px-2 py-1 text-xs font-black text-white">{show.badge}</span>}
               {show.ranking && <span className="text-sm font-bold text-ticketground">{show.ranking}</span>}
             </div>
             <h2 className="balanced-title mt-4 text-[30px] font-black leading-tight text-ink sm:text-4xl">{show.title}</h2>
@@ -101,7 +101,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               <p className="text-sm font-black text-ticketground">공연소개</p>
               <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">클린티켓으로 만나는 대표 회차</h2>
               <p className="mt-4 text-base leading-loose text-ink-3">
-                {show.summary} 공식 재판매와 공식 양도 정책이 함께 적용되어 좌석 소유, 입장 QR, 거래 기록이 분리 관리됩니다.
+                {show.summary} Tig 공식 양도 티켓과 공식 양도 정책이 함께 적용되어 좌석 소유, 입장 QR, 거래 기록이 분리 관리됩니다.
               </p>
             </section>
 

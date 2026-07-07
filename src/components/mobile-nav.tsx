@@ -49,11 +49,6 @@ export function MobileNav({ className }: { readonly className?: string }) {
               <span className="whitespace-nowrap">화면 모드</span>
               <ThemeToggle className="h-9 w-16" />
             </div>
-            {utilityLinksBeforeAuth.map((link) => (
-              <Link key={link.href} href={link.href} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">
-                {link.label}
-              </Link>
-            ))}
             {signedIn ? (
               <>
                 {signedInUtilityLinks.map((link) => (
@@ -92,6 +87,19 @@ export function MobileNav({ className }: { readonly className?: string }) {
               </Link>
             ))}
           </nav>
+
+          <div className="border-t border-line pt-4 text-center">
+            {utilityLinksBeforeAuth.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={close}
+                className="text-sm font-normal text-ink-3 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

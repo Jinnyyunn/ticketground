@@ -135,7 +135,7 @@ export const ticketOpens: readonly TicketOpen[] = [
 export const events: readonly EventCard[] = [
   {
     title: "클린티켓 추천관",
-    description: "공식 재판매와 동적 QR 입장이 적용된 공연만 모았습니다.",
+    description: "Tig 공식 양도 티켓과 동적 QR 입장이 적용된 공연만 모았습니다.",
     href: "/event/ticketground-day",
     tone: "dark",
   },
@@ -155,7 +155,7 @@ export const events: readonly EventCard[] = [
 
 export const genreRecommendations: readonly RecommendationGroup[] = [
   {
-    title: "콘서트 추천",
+    title: "콘서트",
     items: [
       { title: "IU 2026 WORLD TOUR", venue: "잠실종합운동장", date: "2026.09.12", href: "/goods/iu-world-tour", gradient: "g1", poster: posterImages.iu },
       { title: "SEVENTEEN TOUR", venue: "고척스카이돔", date: "2026.08.08", href: "/goods/seventeen-tour", gradient: "g6", poster: posterImages.seventeen },
@@ -165,7 +165,7 @@ export const genreRecommendations: readonly RecommendationGroup[] = [
     ],
   },
   {
-    title: "뮤지컬 추천",
+    title: "뮤지컬",
     items: [
       { title: "레미제라블 40주년", venue: "블루스퀘어", date: "2026.05.13", href: "/goods/les-miserables", gradient: "g2", poster: posterImages.lesMiserables },
       { title: "하데스타운", venue: "샤롯데씨어터", date: "2026.07.04", href: "/goods/hadestown", gradient: "g10", poster: posterImages.hadestown },
@@ -175,21 +175,38 @@ export const genreRecommendations: readonly RecommendationGroup[] = [
     ],
   },
   {
-    title: "연극·클래식 추천",
+    title: "연극",
+    items: [
+      { title: "국립극단 리어왕", venue: "명동예술극장", date: "2026.07.18", href: "/goods/king-lear", gradient: "g12", poster: posterImages.kingLear, posterFit: "contain" },
+      { title: "연극 벚꽃동산", venue: "대학로예술극장", date: "2026.08.06", href: "/goods/cherry-orchard", gradient: "g11", poster: posterImages.cherryOrchard },
+    ],
+  },
+  {
+    title: "클래식",
     items: [
       { title: "베를린필 내한공연", venue: "예술의전당", date: "2026.10.21", href: "/goods/berlin-phil", gradient: "g4", poster: posterImages.berlinPhil },
       { title: "조성진 피아노 리사이틀", venue: "롯데콘서트홀", date: "2026.11.02", href: "/goods/cho-seong-jin", gradient: "g9", poster: posterImages.choSeongJin },
-      { title: "국립극단 리어왕", venue: "명동예술극장", date: "2026.07.18", href: "/goods/king-lear", gradient: "g12", poster: posterImages.kingLear, posterFit: "contain" },
       { title: "백건우와 라벨", venue: "통영국제음악당", date: "2026.09.04", href: "/goods/kun-woo-paik-ravel", gradient: "g8", poster: posterImages.kunWooPaik },
-      { title: "연극 벚꽃동산", venue: "대학로예술극장", date: "2026.08.06", href: "/goods/cherry-orchard", gradient: "g11", poster: posterImages.cherryOrchard },
     ],
+  },
+  {
+    title: "전시",
+    items: [],
+  },
+  {
+    title: "아동",
+    items: [],
+  },
+  {
+    title: "스포츠",
+    items: [],
   },
 ];
 
 export const shortcuts = [
   { label: "지방 공연", href: "/contents/region", helper: "부산·대구·광주" },
   { label: "대학로", href: "/contents/genre/musical", helper: "소극장 신작" },
-  { label: "재판매", href: "/resale", helper: "공식 풀 거래" },
+  { label: "양도", href: "/resale", helper: "공식 풀 거래" },
   { label: "VIP석", href: "/contents/ranking", helper: "등급별 보기" },
   { label: "오픈캘린더", href: "/open", helper: "D-3 알림" },
   { label: "당일 공연", href: "/contents/search", helper: "오늘 입장 가능" },

@@ -46,7 +46,7 @@ export default async function ReservationPage({
         <div className="min-w-0 rounded-lg border border-line p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="flex size-14 items-center justify-center rounded-full bg-tint-blue text-[26px] font-bold text-ticketground">✓</div>
+              <div className="flex size-14 items-center justify-center rounded-full bg-ok text-[26px] font-bold text-white">✓</div>
               <h1 className="balanced-title mt-4 text-[26px] font-black text-ink-2 sm:text-[30px]">예매가 완료되었습니다</h1>
               <p className="mt-2 text-base font-bold text-ink-3">예매번호 {reservation.id}</p>
             </div>
@@ -108,7 +108,7 @@ export default async function ReservationPage({
             </button>
             <BackendAdmissionPanel ticketId={ticketId} />
             <Link href={`/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line-strong text-sm font-bold whitespace-nowrap">
-              공식 재판매
+              Tig 공식 양도 티켓
             </Link>
             <p className="mt-4 text-sm text-ink-3">QR 캡처나 직접 전달은 지원하지 않습니다.</p>
           </aside>

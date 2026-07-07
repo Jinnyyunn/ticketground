@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, RefreshCcw, type LucideIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Baby, CalendarDays, Drama, Home, Image as ImageIcon, Mic2, Music2, RefreshCcw, Theater, Trophy, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSessionAuth } from "@/lib/use-session-auth";
@@ -13,8 +14,23 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 const utilityLinkClassName = "hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50";
 const desktopActionIcons: Record<string, LucideIcon> = {
-  "티켓 재판매": RefreshCcw,
+  "티켓 양도": RefreshCcw,
   "티켓오픈 캘린더": CalendarDays,
+};
+const categoryNavIcons: Record<string, LucideIcon> = {
+  홈: Home,
+  콘서트: Mic2,
+  뮤지컬: Theater,
+  연극: Drama,
+  클래식: Music2,
+  전시: ImageIcon,
+  아동: Baby,
+  스포츠: Trophy,
+  "티켓 양도": RefreshCcw,
+  "티켓오픈 캘린더": CalendarDays,
+};
+const categoryNavMobileLabels: Record<string, string> = {
+  "티켓오픈 캘린더": "캘린더",
 };
 
 function SearchBar({ className, keyboardReachable = true }: { readonly className?: string; readonly keyboardReachable?: boolean }) {
@@ -105,6 +121,12 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
   const { signedIn, signOut } = useSessionAuth();
   const visibleIconLinks = signedIn ? [...publicIconLinks, ...signedInIconLinks] : [];
   const desktopOnlyIconHrefs = new Set<string>(signedInIconLinks.map((link) => link.href));
+  const pathname = usePathname();
+  const isActiveCategory = (label: string) => {
+    const href = categoryHrefs[label];
+    if (!href) return false;
+    return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 110);
@@ -159,25 +181,39 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           scrolled && "shadow-ticket-1",
         )}
       >
-        <div className="ticketground-container flex h-11 items-center gap-3 text-sm sm:h-12 sm:gap-5 sm:text-base">
-          <div className="relative min-w-0 flex-1">
-            <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-background to-transparent sm:hidden" aria-hidden />
-            <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-background to-transparent sm:hidden" aria-hidden />
-            <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 items-center gap-4 overflow-x-auto pr-2 sm:gap-5 sm:overflow-hidden sm:pr-0">
+        <div className="ticketground-container flex items-center gap-3 py-1.5 text-sm sm:h-12 sm:gap-5 sm:py-0 sm:text-base">
+          <nav aria-label="카테고리" className="grid grow grid-cols-5 gap-x-1 gap-y-1.5 sm:hidden">
+            {[...categoryNav, ...categoryNavHighlight].map((c) => {
+              const Icon = categoryNavIcons[c] ?? Home;
+              const highlighted = categoryNavHighlight.includes(c);
+              const active = isActiveCategory(c);
+              return (
+                <Link
+                  key={c}
+                  href={categoryHrefs[c] ?? (highlighted ? "/open" : "/contents/search")}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    active ? "text-ticketground" : "text-ink-2 hover:text-ticketground",
+                  )}
+                >
+                  <Icon className="size-5 shrink-0" aria-hidden />
+                  <span className={cn("clamp-1 text-[11px] font-bold leading-none", active && "underline underline-offset-4")}>
+                    {categoryNavMobileLabels[c] ?? c}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="relative hidden min-w-0 flex-1 sm:block">
+            <nav aria-label="카테고리" className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto">
               {categoryNav.map((c) => (
                 <Link
                   key={c}
                   href={categoryHrefs[c] ?? "/contents/search"}
-                  className="whitespace-nowrap font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  {c}
-                </Link>
-              ))}
-              {categoryNavHighlight.map((c) => (
-                <Link
-                  key={c}
-                  href={categoryHrefs[c] ?? "/open"}
-                  className="whitespace-nowrap font-black text-ticketground hover:text-ticketground-strong focus-visible:ring-3 focus-visible:ring-ring/50 sm:hidden"
+                  className={cn(
+                    "whitespace-nowrap font-bold hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    isActiveCategory(c) ? "text-ticketground underline underline-offset-4" : "text-ink-2",
+                  )}
                 >
                   {c}
                 </Link>
@@ -192,7 +228,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
             {categoryNavHighlight.map((c) => {
               const ActionIcon = desktopActionIcons[c] ?? CalendarDays;
-              const isResale = c === "티켓 재판매";
+              const isResale = c === "티켓 양도";
               return (
                 <Link
                   key={c}
@@ -205,7 +241,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
                   )}
                 >
                   <ActionIcon className="size-4 shrink-0" aria-hidden />
-                  <span>{isResale ? "CLEAN TICKET 재판매" : c}</span>
+                  <span>{c}</span>
                 </Link>
               );
             })}

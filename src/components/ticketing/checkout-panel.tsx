@@ -327,7 +327,7 @@ export function CheckoutPanel({
                 티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다. 한 번 인증된 휴대폰 번호는 다른 계정에서 다시 인증할 수 없습니다.
               </p>
             </div>
-            <span className={identityVerified ? "rounded-sm bg-ok px-3 py-1 text-xs font-black text-white" : "rounded-sm bg-tint-yellow px-3 py-1 text-xs font-black text-ink"}>
+            <span className={identityVerified ? "rounded-sm bg-ok px-3 py-1 text-xs font-black text-white" : "rounded-sm bg-ticketground px-3 py-1 text-xs font-black text-white"}>
               {identityVerified ? "인증 완료" : "결제 전 필수"}
             </span>
           </div>

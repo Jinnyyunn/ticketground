@@ -220,7 +220,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
           data-google-ready="mock"
         >
           <GoogleLogo />
-          Google 계정으로 로그인하기
+          Google로 계속하기
         </button>
       );
     }
@@ -234,7 +234,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         data-google-scope={GOOGLE_AUTH_SCOPE}
       >
         <GoogleLogo />
-        Google 계정으로 로그인하기
+        Google로 계속하기
       </button>
     );
   }
@@ -251,7 +251,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         data-google-origin-supported="mock"
       >
         <GoogleLogo />
-        Google 계정으로 로그인하기
+        Google로 계속하기
       </button>
     );
   }
@@ -268,7 +268,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         data-google-origin-supported="false"
       >
         <GoogleLogo />
-        Google 계정으로 로그인하기
+        Google로 계속하기
       </button>
     );
   }
@@ -276,7 +276,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
   return (
     <div
       role="button"
-      aria-label="Google 계정으로 로그인하기"
+      aria-label="Google로 계속하기"
       className={GOOGLE_READY_BUTTON_CLASS}
       data-google-client-id={googleClientId}
       data-google-scope={GOOGLE_AUTH_SCOPE}
@@ -295,12 +295,12 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
           className={GOOGLE_LOADING_BUTTON_CLASS}
         >
           <GoogleLogo />
-          Google 계정으로 로그인하기
+          Google로 계속하기
         </button>
       ) : (
         <div aria-hidden="true" className={GOOGLE_VISIBLE_BUTTON_CLASS}>
           <GoogleLogo />
-          Google 계정으로 로그인하기
+          Google로 계속하기
         </div>
       )}
     </div>

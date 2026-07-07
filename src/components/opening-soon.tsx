@@ -12,7 +12,7 @@ export function OpeningSoon() {
           <a
             key={item.title}
             href="#"
-            className="flex gap-4 rounded-2xl border border-line p-3.5 transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.07)]"
+            className="flex gap-4 rounded-2xl border border-line p-3.5 transition-shadow hover:shadow-[0_6px_20px_rgba(0,0,0,0.07)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Image
               src={item.poster}
@@ -28,10 +28,10 @@ export function OpeningSoon() {
               <p className="mt-1.5 text-sm text-ink-3">{item.type}</p>
               <div className="mt-auto flex gap-1.5 pt-2">
                 {item.hot && (
-                  <span className="rounded bg-tint-red px-1.5 py-0.5 text-xs font-bold text-sale">HOT</span>
+                  <span className="rounded bg-ticketground px-1.5 py-0.5 text-xs font-bold text-white">HOT</span>
                 )}
                 {item.tag && (
-                  <span className="rounded bg-tint-blue px-1.5 py-0.5 text-xs font-medium text-ticketground">{item.tag}</span>
+                  <span className="rounded bg-ink px-1.5 py-0.5 text-xs font-medium text-on-ink">{item.tag}</span>
                 )}
               </div>
             </div>

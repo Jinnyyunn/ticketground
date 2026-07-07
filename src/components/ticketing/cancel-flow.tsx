@@ -128,7 +128,7 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
                 </thead>
                 <tbody>
                   {feePolicies.map((policy) => (
-                    <tr key={policy.timing} className={policy.note === "현재 적용" ? "bg-tint-yellow font-black text-ink" : "border-t border-line text-ink-3"}>
+                    <tr key={policy.timing} className={policy.note === "현재 적용" ? "bg-ink font-black text-on-ink" : "border-t border-line text-ink-3"}>
                       <td className="px-4 py-3">{policy.timing}</td>
                       <td className="px-4 py-3">{policy.fee}</td>
                       <td className="px-4 py-3 whitespace-nowrap break-keep">{policy.note}</td>
