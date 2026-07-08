@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Percent, ShieldCheck, Shuffle, Tag } from "lucide-react";
 import { TicketgroundTag } from "@/components/ticketground/primitives";
 
@@ -5,7 +6,7 @@ const resalePolicyItems = [
   {
     icon: Tag,
     label: "등록가",
-    value: "정가의 90~100%",
+    value: "정가의 90~110%",
     note: "정가 범위 안에서만 공식 풀에 등록",
   },
   {
@@ -38,8 +39,14 @@ export function ResaleIntro({ apiStatus }: { readonly apiStatus: string }) {
           <TicketgroundTag tone="sale">CLEAN TICKET</TicketgroundTag>
           <h1 className="mt-3 balanced-title text-3xl font-black text-ink sm:text-4xl">Tig 공식 양도 티켓</h1>
           <p className="mt-3 max-w-3xl text-base leading-loose text-ink-3">
-            좌석 지정 거래를 막고 공식 풀에서 조건부 랜덤 매칭으로 배정합니다. Tig 공식 양도 티켓 등록은 정가의 90~100%만 허용됩니다.
+            좌석 지정 거래를 막고 공식 풀에서 조건부 랜덤 매칭으로 배정합니다. Tig 공식 양도 티켓 등록은 정가의 90~110%만 허용됩니다.
           </p>
+          <Link
+            href="/resale"
+            className="mt-3 inline-flex h-9 items-center rounded-full border border-line bg-card px-4 text-sm font-black text-ink transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            양도 허용 공연 전체 보기 →
+          </Link>
         </header>
         <div className="rounded-lg border border-line bg-background p-4 shadow-ticket-1" aria-live="polite">
           <p className="flex items-center gap-1.5 text-xs font-black text-ticketground">

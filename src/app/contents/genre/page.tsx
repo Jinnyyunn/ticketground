@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { ticketShows } from "@/data/ticketing";
+import { generalSaleShows } from "@/data/ticketing";
 
 const genreLinks = [
   { label: "콘서트", href: "/contents/genre/concert", category: "콘서트", description: "대형 투어와 라이브 공연을 빠르게 비교합니다." },
@@ -31,7 +31,7 @@ export default function GenreIndexPage() {
               href={genre.href}
               className="group rounded-lg border border-line bg-card p-5 transition-colors hover:border-line-strong hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <p className="text-sm font-black text-ticketground">{ticketShows.filter((show) => show.category === genre.category).length}개 공연</p>
+              <p className="text-sm font-black text-ticketground">{generalSaleShows.filter((show) => show.category === genre.category).length}개 공연</p>
               <h2 className="mt-3 text-[24px] font-black text-ink group-hover:underline">{genre.label}</h2>
               <p className="mt-3 text-sm leading-relaxed text-ink-3">{genre.description}</p>
             </Link>

@@ -32,6 +32,9 @@ const categoryNavIcons: Record<string, LucideIcon> = {
 const categoryNavMobileLabels: Record<string, string> = {
   "티켓오픈 캘린더": "캘린더",
 };
+const categoryNavDesktopHighlightLabels: Record<string, string> = {
+  "티켓 양도": "Tig 공식 양도 티켓",
+};
 
 function SearchBar({ className, keyboardReachable = true }: { readonly className?: string; readonly keyboardReachable?: boolean }) {
   return (
@@ -39,6 +42,7 @@ function SearchBar({ className, keyboardReachable = true }: { readonly className
       aria-hidden={keyboardReachable ? undefined : true}
       action="/contents/search"
       role="search"
+      suppressHydrationWarning
       className={cn(
         "flex h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-card pl-5 pr-3",
         "transition-colors hover:border-line-strong focus-within:border-line-strong focus-within:ring-3 focus-within:ring-ring/50",
@@ -52,12 +56,14 @@ function SearchBar({ className, keyboardReachable = true }: { readonly className
         placeholder="공연명, 아티스트, 공연장 검색"
         tabIndex={keyboardReachable ? undefined : -1}
         type="search"
+        suppressHydrationWarning
       />
       <button
         aria-label="검색"
         className="grid size-8 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
         tabIndex={keyboardReachable ? undefined : -1}
         type="submit"
+        suppressHydrationWarning
       >
         <SearchIcon className="size-5" />
       </button>
@@ -212,7 +218,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
                   href={categoryHrefs[c] ?? "/contents/search"}
                   className={cn(
                     "whitespace-nowrap font-bold hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50",
-                    isActiveCategory(c) ? "text-ticketground underline underline-offset-4" : "text-ink-2",
+                    c !== "홈" && isActiveCategory(c) ? "text-ticketground underline underline-offset-4" : "text-ink-2",
                   )}
                 >
                   {c}
@@ -241,7 +247,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
                   )}
                 >
                   <ActionIcon className="size-4 shrink-0" aria-hidden />
-                  <span>{c}</span>
+                  <span>{categoryNavDesktopHighlightLabels[c] ?? c}</span>
                 </Link>
               );
             })}

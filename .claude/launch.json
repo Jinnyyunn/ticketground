@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ticketground-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "port": 5501
+    }
+  ]
+}

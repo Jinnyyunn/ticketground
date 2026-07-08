@@ -144,7 +144,11 @@ export function SearchPanels({ query, results, fallbackShows }: SearchPanelsProp
 
       <aside className="rounded-lg border border-line bg-card p-5">
         <h2 className="text-2xl font-black text-ink">하이라이트</h2>
-        <p className="mt-2 text-sm leading-relaxed text-ink-3">레미제라블 40주년은 블루스퀘어, VIP 190,000원, 클린티켓 대표 공연입니다.</p>
+        {fallbackShows[0] && (
+          <p className="mt-2 text-sm leading-relaxed text-ink-3">
+            {fallbackShows[0].title}은(는) {fallbackShows[0].venue}에서 만나는 인기 공연입니다.
+          </p>
+        )}
         <div className="mt-5 grid gap-3">
           {fallbackShows.slice(0, 3).map((show) => (
             <ShowTile key={show.slug} show={show} compact />

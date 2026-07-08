@@ -66,7 +66,7 @@ export function createCommerceBackend({
     return { user, ticket, event, performanceDate, payment, admissionCredential: credential };
   }
 
-  function listForResale(db, { sellerId, ticketId, price }) {
+  function listForResale(db, { sellerId, ticketId, price, showSlug }) {
     const seller = findUser(db, sellerId);
     const ticket = db.tickets.find((item) => item.id === ticketId);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
@@ -92,6 +92,7 @@ export function createCommerceBackend({
       ticketId: ticket.id,
       sellerId: seller.id,
       price: resalePrice,
+      showSlug: showSlug || null,
       buyers: [],
       status: "OPEN",
       createdAt: now()

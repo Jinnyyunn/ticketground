@@ -16,7 +16,7 @@ const P = "/images/posters";
 
 export const cleanTicketResalePolicy: ResalePolicy = {
   minPercent: 90,
-  maxPercent: 100,
+  maxPercent: 110,
   feeMinPercent: 3,
   feeMaxPercent: 5,
   defaultFeePercent: 4,
@@ -99,7 +99,7 @@ const catalogTicketShows: TicketShow[] = [
     ],
     casts: ["민우혁", "최재림", "김소현", "조정은", "박강현", "카이"],
     notices: [
-      "Tig 공식 양도 티켓은 정가의 90~100% 범위에서만 등록할 수 있습니다.",
+      "Tig 공식 양도 티켓은 정가의 90~110% 범위에서만 등록할 수 있습니다.",
       "구매 직후 QR은 소유 확인용 가상 티켓이며 입장에 사용할 수 없습니다.",
       "동반자 입장은 공식 양도 흐름을 통해 받는 사람 정보를 등록해야 합니다.",
     ],
@@ -112,6 +112,10 @@ export const ticketShows: TicketShow[] = [
   ...catalogTicketShows,
   ...homeTicketShows.filter((homeShow) => !catalogTicketShows.some((catalogShow) => catalogShow.slug === homeShow.slug)),
 ];
+
+// Shows registered for Tig 공식 양도 티켓 are sold out on the primary market —
+// they must only surface in the resale section, never in general sale listings.
+export const generalSaleShows: TicketShow[] = ticketShows.filter((show) => show.badge !== "클린티켓");
 
 export const cleanTicketReservation: CleanTicketReservation = {
   id: "CTI-260513-A4F2K9",
@@ -208,7 +212,7 @@ export function getCleanTicketReservation(reservationId: string | undefined): Cl
 export function searchShows(query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
-  return ticketShows.filter((show) =>
+  return generalSaleShows.filter((show) =>
     [show.title, show.shortTitle, show.venue, show.category].some((value) => value.toLowerCase().includes(normalized)),
   );
 }

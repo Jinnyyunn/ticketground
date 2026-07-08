@@ -5,7 +5,30 @@ import Link from "next/link";
 import { CarouselRow } from "@/components/carousel-row";
 import { cn } from "@/lib/utils";
 import { GradientPoster } from "./home-cards";
-import type { RecommendationGroup } from "./home-content";
+import type { Recommendation, RecommendationGroup } from "./home-content";
+
+function GenreItemCard({ item, index }: { readonly item: Recommendation; readonly index: number }) {
+  return (
+    <Link
+      href={item.href}
+      data-card="genre-recommendation"
+      className="group block min-w-0 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <div className="relative">
+        <GradientPoster title={item.title} gradient={item.gradient} poster={item.poster} fit={item.posterFit} priority={index === 0} />
+        <span
+          className="pointer-events-none absolute bottom-1 left-1.5 text-4xl font-black italic leading-none text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.55)] sm:text-5xl"
+          aria-hidden="true"
+        >
+          {index + 1}
+        </span>
+      </div>
+      <h4 className="clamp-2 mt-3 text-sm font-black leading-snug text-ink-2 group-hover:underline sm:text-base">{item.title}</h4>
+      <p className="clamp-1 mt-1 text-sm text-ink-3">{item.venue}</p>
+      <p className="mt-1 text-sm text-ink-4">{item.date}</p>
+    </Link>
+  );
+}
 
 export function GenreRecommendationsTabs({ groups }: { readonly groups: readonly RecommendationGroup[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -38,35 +61,20 @@ export function GenreRecommendationsTabs({ groups }: { readonly groups: readonly
         </p>
       ) : (
         <div role="tabpanel" className="mt-6">
-        <CarouselRow className="min-w-0 pb-1">
-          {activeGroup.items.map((item, index) => (
-            <Link
-              key={item.title}
-              href={item.href}
-              data-card="genre-recommendation"
-              className="group block w-[136px] shrink-0 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-[160px]"
-            >
-              <div className="relative">
-                <GradientPoster
-                  title={item.title}
-                  gradient={item.gradient}
-                  poster={item.poster}
-                  fit={item.posterFit}
-                  priority={index === 0}
-                />
-                <span
-                  className="pointer-events-none absolute bottom-1 left-1.5 text-4xl font-black italic leading-none text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.55)] sm:text-5xl"
-                  aria-hidden="true"
-                >
-                  {index + 1}
-                </span>
-              </div>
-              <h4 className="clamp-2 mt-3 text-sm font-black leading-snug text-ink-2 group-hover:underline sm:text-base">{item.title}</h4>
-              <p className="clamp-1 mt-1 text-sm text-ink-3">{item.venue}</p>
-              <p className="mt-1 text-sm text-ink-4">{item.date}</p>
-            </Link>
-          ))}
-        </CarouselRow>
+          <div className="lg:hidden">
+            <CarouselRow className="min-w-0 pb-1">
+              {activeGroup.items.map((item, index) => (
+                <div key={item.title} className="w-[136px] shrink-0 sm:w-[160px]">
+                  <GenreItemCard item={item} index={index} />
+                </div>
+              ))}
+            </CarouselRow>
+          </div>
+          <div className="hidden lg:grid lg:grid-cols-5 lg:gap-4">
+            {activeGroup.items.map((item, index) => (
+              <GenreItemCard key={item.title} item={item} index={index} />
+            ))}
+          </div>
         </div>
       )}
     </div>

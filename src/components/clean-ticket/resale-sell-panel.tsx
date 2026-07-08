@@ -68,6 +68,7 @@ export function ResaleSellPanel({
               value={seatId}
               onChange={(event) => onSeatChange(event.currentTarget.value)}
               data-testid="owned-ticket-select"
+              suppressHydrationWarning
             >
               {ownedSeatOptions.map((seat) => (
                 <option key={seat.id} value={seat.id}>
@@ -90,6 +91,7 @@ export function ResaleSellPanel({
                 value={price}
                 onChange={(event) => onPriceChange(Number(event.currentTarget.value))}
                 data-testid="resale-price-input"
+                suppressHydrationWarning
               />
             </div>
           </label>

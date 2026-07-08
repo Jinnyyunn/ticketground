@@ -34,6 +34,7 @@ export type ApiResalePool = {
   readonly performanceDateId: string;
   readonly zoneId: string;
   readonly ticketId: string;
+  readonly showSlug: string | null;
   readonly price: number;
   readonly buyerFee: number | null;
   readonly buyerTotal: number | null;

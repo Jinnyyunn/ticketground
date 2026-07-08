@@ -107,7 +107,7 @@ export default async function ReservationPage({
               앱에서 열림(비활성)
             </button>
             <BackendAdmissionPanel ticketId={ticketId} />
-            <Link href={`/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line-strong text-sm font-bold whitespace-nowrap">
+            <Link href={`/mypage/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line-strong text-sm font-bold whitespace-nowrap">
               Tig 공식 양도 티켓
             </Link>
             <p className="mt-4 text-sm text-ink-3">QR 캡처나 직접 전달은 지원하지 않습니다.</p>

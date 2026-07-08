@@ -41,7 +41,7 @@ export function ResaleFlow({
   const [seatId, setSeatId] = useState(firstSeat?.id ?? "");
   const selectedSeat = reservation.seats.find((seat) => seat.id === seatId) ?? firstSeat;
   const faceValue = selectedSeat?.faceValue ?? 0;
-  const [price, setPrice] = useState(Math.round(faceValue * 0.95));
+  const [price, setPrice] = useState(faceValue);
   const [toast, setToast] = useState("");
   const [grade, setGrade] = useState("VIP");
   const [zone, setZone] = useState("1층 중앙");
@@ -111,7 +111,7 @@ export function ResaleFlow({
     setApiStatus("Tig 공식 양도 티켓 풀 등록 중");
     try {
       const ticket = await ensureBackendTicket();
-      const pool = await listResale(ticket.id, price, sessionUserId);
+      const pool = await listResale(ticket.id, price, sessionUserId, reservation.showSlug);
       const joined = await joinResale(pool.id);
       setBackendPool(joined);
       setBackendResult(null);
@@ -156,7 +156,7 @@ export function ResaleFlow({
     const nextSeat = reservation.seats.find((seat) => seat.id === nextSeatId);
     const nextBackendTicket = backendTickets.find((ticket) => ticket.id === nextSeatId);
     setSeatId(nextSeatId);
-    if (nextSeat) setPrice(Math.round(nextSeat.faceValue * 0.95));
+    if (nextSeat) setPrice(nextSeat.faceValue);
     if (nextBackendTicket) setPrice(nextBackendTicket.faceValue);
   };
 

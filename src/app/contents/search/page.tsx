@@ -1,6 +1,6 @@
 import { SearchPanels } from "@/components/discovery/search-panels";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { searchShows, ticketShows } from "@/data/ticketing";
+import { generalSaleShows, searchShows } from "@/data/ticketing";
 
 export default async function SearchPage({
   searchParams,
@@ -13,7 +13,7 @@ export default async function SearchPage({
 
   return (
     <TicketingPageShell showHeaderSearchBar={false}>
-      <SearchPanels query={query} results={results} fallbackShows={ticketShows} />
+      <SearchPanels query={query} results={results} fallbackShows={generalSaleShows} />
     </TicketingPageShell>
   );
 }

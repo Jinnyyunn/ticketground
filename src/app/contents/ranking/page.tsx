@@ -1,11 +1,11 @@
 import { RankingList } from "@/components/discovery/ranking-list";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { ticketShows } from "@/data/ticketing";
+import { generalSaleShows } from "@/data/ticketing";
 
 export default function RankingPage() {
   return (
     <TicketingPageShell>
-      <RankingList shows={ticketShows} />
+      <RankingList shows={generalSaleShows} />
     </TicketingPageShell>
   );
 }

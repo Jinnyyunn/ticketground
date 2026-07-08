@@ -151,7 +151,7 @@ export const footerColumnLinks = [
     title: "MY",
     links: [
       { label: "예매내역", href: "/mypage#reservations" },
-      { label: "Tig 공식 양도 티켓", href: "/resale" },
+      { label: "Tig 공식 양도 티켓", href: "/mypage/resale" },
       { label: "관심공연", href: "/watchlist" },
       { label: "취소/환불", href: "/cancel" },
     ],

@@ -202,11 +202,12 @@ export function purchaseResaleTicket({ buyerId, poolId }: { readonly buyerId: st
   return purchaseResale(poolId, buyerId);
 }
 
-export function listResale(ticketId: string, price: number, sellerId = DEMO_USER_ID) {
+export function listResale(ticketId: string, price: number, sellerId = DEMO_USER_ID, showSlug?: string) {
   return post("/api/resale/list", apiResalePoolSchema, {
     sellerId,
     ticketId,
     price,
+    showSlug,
   });
 }
 

@@ -9,7 +9,7 @@ import { ShowTile } from "./show-tile";
 
 type LayoutMode = "grid" | "list" | "magazine";
 type SortMode = "popular" | "date" | "price";
-type FilterMode = "전체" | "클린티켓" | "좌석우위";
+type FilterMode = "전체" | "좌석우위";
 
 type CategoryBrowserProps = {
   readonly label: string;
@@ -22,7 +22,7 @@ const layouts: readonly { readonly id: LayoutMode; readonly label: string }[] = 
   { id: "magazine", label: "매거진" },
 ];
 
-const filters: readonly FilterMode[] = ["전체", "클린티켓", "좌석우위"];
+const filters: readonly FilterMode[] = ["전체", "좌석우위"];
 
 const sortOptions: readonly { readonly id: SortMode; readonly label: string }[] = [
   { id: "popular", label: "인기순" },

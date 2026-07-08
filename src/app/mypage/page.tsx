@@ -62,7 +62,7 @@ export default function MyPage() {
                         <Link href={`/reservation/${reservation.id}`} className="flex h-10 items-center rounded-sm bg-ink-2 px-4 text-sm font-bold text-on-ink-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                           {active ? "입장 QR 열기(앱)" : "가상 티켓 보기"}
                         </Link>
-                        <Link href={`/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+                        <Link href={`/mypage/resale?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                           Tig 공식 양도 티켓
                         </Link>
                         <Link href={`/cancel?reservation=${reservation.id}`} className="flex h-10 items-center rounded-sm border border-line-strong px-4 text-sm font-bold whitespace-nowrap focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
