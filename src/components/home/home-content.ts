@@ -109,6 +109,10 @@ export const rankings: readonly RankingShow[] = [
   { rank: 4, title: "NCT WISH FANMEETING", venue: "KSPO DOME", date: "2026.07.25", href: "/goods/nct-wish-fanmeeting", movement: "same", delta: "-", gradient: "g8", poster: posterImages.nctWish, posterFit: "contain" },
   { rank: 5, title: "오페라의 유령", venue: "세종문화회관", date: "2026.06.30", href: "/goods/phantom-of-the-opera", movement: "down", delta: "2", gradient: "g5", poster: posterImages.phantom },
   { rank: 6, title: "DAY6 Special Live", venue: "인스파이어 아레나", date: "2026.08.29", href: "/goods/day6-special-live", movement: "same", delta: "-", gradient: "g7", poster: posterImages.day6 },
+  { rank: 7, title: "드라큘라", venue: "LG아트센터", date: "2026.07.10", href: "/goods/dracula", movement: "up", delta: "3", gradient: "g3", poster: posterImages.dracula, posterFit: "contain" },
+  { rank: 8, title: "뮤지컬 베토벤", venue: "세종문화회관", date: "2026.06.18", href: "/goods/beethoven", movement: "same", delta: "-", gradient: "g9", poster: posterImages.beethoven, posterFit: "contain" },
+  { rank: 9, title: "연극 벚꽃동산", venue: "대학로예술극장", date: "2026.08.06", href: "/goods/cherry-orchard", movement: "down", delta: "1", gradient: "g11", poster: posterImages.cherryOrchard },
+  { rank: 10, title: "백건우와 라벨", venue: "통영국제음악당", date: "2026.09.04", href: "/goods/kun-woo-paik-ravel", movement: "up", delta: "2", gradient: "g8", poster: posterImages.kunWooPaik },
 ];
 
 export const ticketOpens: readonly TicketOpen[] = [

@@ -167,7 +167,7 @@ function ResaleListingTile({ listing, isLowest }: { readonly listing: ResaleList
 
   return (
     <Link
-      href="/mypage/resale"
+      href={`/resale/${pool.id}`}
       className="group grid min-w-0 gap-4 rounded-lg border border-line bg-card p-4 transition hover:border-line-strong hover:shadow-ticket-2 focus-visible:ring-3 focus-visible:ring-ring/50 xl:grid-cols-[120px_1fr]"
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-surface-2 xl:w-[120px]">
