@@ -84,18 +84,26 @@ test("auth config QA mock mode trusts Host rather than spoofable forwarded host 
   };
   const googlePublicSpoof = await configJson(baseUrl, "/auth/google-config", publicHostWithPrivateForward);
   const socialPublicSpoof = await configJson(baseUrl, "/auth/social-config", publicHostWithPrivateForward);
+  assert.equal(googlePublicSpoof.mockEnabled, false);
+  assert.equal(socialPublicSpoof.mockEnabled, false);
   assert.equal(googlePublicSpoof.preferMock, false);
   assert.equal(socialPublicSpoof.preferMock, false);
 
   const privateHost = { host: `127.0.0.1:${port}` };
   const googlePrivate = await configJson(baseUrl, "/auth/google-config", privateHost);
   const socialPrivate = await configJson(baseUrl, "/auth/social-config", privateHost);
-  assert.equal(googlePrivate.preferMock, true);
-  assert.equal(socialPrivate.preferMock, true);
+  assert.equal(googlePrivate.mockEnabled, true);
+  assert.equal(socialPrivate.mockEnabled, true);
+  // Configured credentials must win over host-based mock detection even on a
+  // private preview host — mock is only a fallback for unconfigured providers.
+  assert.equal(googlePrivate.preferMock, false);
+  assert.equal(socialPrivate.preferMock, false);
 
   const ipv6LocalHost = { host: `[::1]:${port}` };
   const googleIpv6Local = await configJson(baseUrl, "/auth/google-config", ipv6LocalHost);
   const socialIpv6Local = await configJson(baseUrl, "/auth/social-config", ipv6LocalHost);
-  assert.equal(googleIpv6Local.preferMock, true);
-  assert.equal(socialIpv6Local.preferMock, true);
+  assert.equal(googleIpv6Local.mockEnabled, true);
+  assert.equal(socialIpv6Local.mockEnabled, true);
+  assert.equal(googleIpv6Local.preferMock, false);
+  assert.equal(socialIpv6Local.preferMock, false);
 });

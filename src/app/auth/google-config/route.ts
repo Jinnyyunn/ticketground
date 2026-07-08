@@ -28,14 +28,24 @@ function googleQaMockEnabled(request: Request) {
   );
 }
 
+// Real credentials must win over host/env-based mock detection, regardless of
+// how the request looks (localhost, private IP, NODE_ENV). Mock only exists as
+// a fallback for a missing client id, or when explicitly requested via a QA
+// flag. See 간편로그인-수정금지-지침.md.
+function googleQaExplicitOverride() {
+  return (
+    !forceProviderMode() &&
+    (runtimeEnv("TIG_GOOGLE_QA_MOCK_ENABLED") === "1" || runtimeEnv("NEXT_PUBLIC_GOOGLE_QA_MOCK_ENABLED") === "1")
+  );
+}
+
 export function GET(request: Request) {
   const clientId = runtimeEnv("TIG_GOOGLE_CLIENT_ID") || runtimeEnv("NEXT_PUBLIC_GOOGLE_CLIENT_ID");
-  const mockEnabled = googleQaMockEnabled(request);
 
   return NextResponse.json({
     clientId,
     allowedOrigins: csv(runtimeEnv("NEXT_PUBLIC_GOOGLE_ALLOWED_ORIGINS")),
-    mockEnabled,
-    preferMock: mockEnabled,
+    mockEnabled: googleQaMockEnabled(request),
+    preferMock: googleQaExplicitOverride(),
   });
 }

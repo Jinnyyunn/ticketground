@@ -51,7 +51,7 @@ test("Google auth endpoint accepts deterministic test credential only in test mo
   assert.equal(malformed.error.code, "GOOGLE_AUTH_INVALID");
 });
 
-test("local preview Google button completes a QA mock session even when a client id is configured", async (t) => {
+test("Google button prefers the real Identity Services flow over QA mock when a client id is configured, even on a private preview host", async (t) => {
   configureGoogleEnv(t, false);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -59,17 +59,29 @@ test("local preview Google button completes a QA mock session even when a client
 
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   try {
+    await page.addInitScript(() => {
+      window.google = {
+        accounts: {
+          id: {
+            initialize: () => {},
+            renderButton: (element) => {
+              element.replaceChildren();
+              const button = document.createElement("button");
+              button.type = "button";
+              button.textContent = "Sign in with Google";
+              element.appendChild(button);
+            }
+          }
+        }
+      };
+    });
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
 
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
-    await googleButton.waitFor({ timeout: 5000 });
-    assert.equal(await googleButton.getAttribute("data-google-ready"), "mock");
-    assert.equal(await googleButton.getAttribute("data-google-origin-supported"), "mock");
-    await googleButton.click();
-
-    await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
-    assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
-    assert.equal(await page.getByLabel("닉네임").inputValue(), "민서");
+    const googleArea = page.locator("[data-google-client-id]").first();
+    await googleArea.waitFor({ timeout: 5000 });
+    await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
+    assert.equal(await page.locator("[data-google-ready='mock']").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).isVisible(), true);
   } finally {
     await page.close();
   }

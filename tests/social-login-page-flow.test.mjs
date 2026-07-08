@@ -116,7 +116,7 @@ test("login page completes social callback, keeps nickname confirmation visible,
 });
 
 test("local preview Kakao and Naver buttons complete QA mock sessions without external OAuth redirects", async (t) => {
-  configureSocialEnv(t, true);
+  configureSocialEnv(t, false);
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -136,6 +136,30 @@ test("local preview Kakao and Naver buttons complete QA mock sessions without ex
       await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
       assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
     }
+  } finally {
+    await page.close();
+  }
+});
+
+test("configured Kakao and Naver credentials render real OAuth links instead of QA mock, even on a private preview host", async (t) => {
+  configureSocialEnv(t, true);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  try {
+    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+
+    const kakaoLink = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
+    const naverLink = page.getByRole("link", { name: "네이버 계정으로 로그인하기", exact: true });
+    await kakaoLink.waitFor({ timeout: 5000 });
+    assert.equal(await kakaoLink.getAttribute("href"), "/api/auth/kakao/start");
+    assert.equal(await kakaoLink.getAttribute("data-social-ready"), "true");
+    assert.equal(await naverLink.getAttribute("href"), "/api/auth/naver/start");
+    assert.equal(await naverLink.getAttribute("data-social-ready"), "true");
+    assert.equal(await page.getByRole("button", { name: "카카오톡 계정으로 로그인하기", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "네이버 계정으로 로그인하기", exact: true }).count(), 0);
   } finally {
     await page.close();
   }
