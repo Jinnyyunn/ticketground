@@ -10,7 +10,9 @@ build/
 dist/
 
 # Environment
-.env
+# .env holds ONLY public/non-secret values (OAuth client ids, etc.) and is
+# intentionally committed — see .env.example and 간편로그인-수정금지-지침.md.
+# Real secrets belong in .env.local, which stays gitignored.
 .env.local
 .env.development.local
 .env.test.local
