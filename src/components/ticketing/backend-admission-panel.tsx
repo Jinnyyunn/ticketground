@@ -68,7 +68,7 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
         <dl className="mt-3 grid gap-2 text-sm font-bold text-ink-2">
           <div className="flex min-w-0 justify-between gap-3">
             <dt>티켓</dt>
-        <dd className="min-w-0 break-words text-right">소유 확인 완료</dd>
+            <dd className="min-w-0 break-words text-right">소유 확인 완료</dd>
           </div>
           <div className="flex min-w-0 justify-between gap-3">
             <dt>좌석</dt>
@@ -88,6 +88,9 @@ export function BackendAdmissionPanel({ ticketId }: { readonly ticketId: string 
       >
         가상 티켓 QR 다시 확인
       </button>
+      <p className="mt-2 break-keep text-xs leading-relaxed text-ink-3">
+        실제 입장 QR을 표시하지 않고, 보유 티켓의 가상 소유 확인 상태만 다시 조회합니다.
+      </p>
     </div>
   );
 }

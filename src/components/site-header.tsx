@@ -7,9 +7,9 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSessionAuth } from "@/lib/use-session-auth";
 import { categoryNav, categoryNavHighlight } from "@/data/content";
-import { SearchIcon } from "@/components/icons";
 import { categoryHrefs, loginLink, publicIconLinks, signedInIconLinks, signedInUtilityLinks, signupLink, utilityLinksBeforeAuth } from "@/components/header-links";
 import { MobileNav } from "@/components/mobile-nav";
+import { SiteSearchBar } from "@/components/site-search-bar";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const utilityLinkClassName = "hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -33,43 +33,8 @@ const categoryNavMobileLabels: Record<string, string> = {
   "티켓오픈 캘린더": "캘린더",
 };
 const categoryNavDesktopHighlightLabels: Record<string, string> = {
-  "티켓 양도": "Tig 공식 양도 티켓",
+  "티켓 양도": "CLEAN 티켓 공식 양도",
 };
-
-function SearchBar({ className, keyboardReachable = true }: { readonly className?: string; readonly keyboardReachable?: boolean }) {
-  return (
-    <form
-      aria-hidden={keyboardReachable ? undefined : true}
-      action="/contents/search"
-      role="search"
-      suppressHydrationWarning
-      className={cn(
-        "flex h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-card pl-5 pr-3",
-        "transition-colors hover:border-line-strong focus-within:border-line-strong focus-within:ring-3 focus-within:ring-ring/50",
-        className,
-      )}
-    >
-      <input
-        aria-label="공연명, 아티스트, 공연장 검색"
-        className="h-full min-w-0 flex-1 bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink-3"
-        name="q"
-        placeholder="공연명, 아티스트, 공연장 검색"
-        tabIndex={keyboardReachable ? undefined : -1}
-        type="search"
-        suppressHydrationWarning
-      />
-      <button
-        aria-label="검색"
-        className="grid size-8 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
-        tabIndex={keyboardReachable ? undefined : -1}
-        type="submit"
-        suppressHydrationWarning
-      >
-        <SearchIcon className="size-5" />
-      </button>
-    </form>
-  );
-}
 
 function HeaderAuthLinks({ signedIn, signOut }: { readonly signedIn: boolean; readonly signOut: () => void }) {
   if (!signedIn) {
@@ -160,7 +125,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           Ticketground
           <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
         </Link>
-        {showSearchBar && <SearchBar className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />}
+        {showSearchBar && <SiteSearchBar key={`primary-${pathname}`} className="order-3 w-full max-w-none shrink-0 md:order-none md:max-w-[460px] md:shrink" />}
         <nav aria-label="빠른 메뉴" className="ml-auto flex shrink-0 items-center gap-2 md:gap-5">
           {visibleIconLinks.map(({ label, href, Icon }) => (
             <Link
@@ -228,7 +193,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
           </div>
           {showSearchBar && (
             <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
-              <SearchBar className="mx-auto max-w-[420px]" keyboardReachable={scrolled} />
+              <SiteSearchBar key={`sticky-${pathname}`} className="mx-auto max-w-[420px]" keyboardReachable={scrolled} />
             </div>
           )}
           <nav aria-label="티켓오픈" className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">

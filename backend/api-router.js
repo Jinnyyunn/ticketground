@@ -2,6 +2,7 @@ export function createApiRouter({
   addSupportMessage,
   adminSummary,
   adminVenues,
+  cancelResaleListing,
   createSupportThread,
   demoSession,
   directTransferAttempt,
@@ -153,6 +154,10 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/resale/join") {
     requireBody(body, ["buyerId", "poolId"]);
     return publicResalePool(joinPool(db, body));
+  }
+  if (req.method === "POST" && url.pathname === "/api/resale/cancel") {
+    requireBody(body, ["sellerId", "poolId"]);
+    return publicResalePool(cancelResaleListing(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/resale/draw") {
     requireBody(body, ["poolId"]);

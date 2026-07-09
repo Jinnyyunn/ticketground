@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Armchair, CalendarClock, Check, Copy, Hash, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CleanTicketReservation } from "@/types";
@@ -8,6 +9,7 @@ import { currency } from "@/data/ticketing";
 import { cn } from "@/lib/utils";
 import {
   buyTicket,
+  cancelResaleListing,
   DEMO_EVENT_ID,
   drawResale,
   getState,
@@ -25,6 +27,21 @@ import { createPoolCells, feeFor, matchCandidates, resaleTabs, type OwnedSeatOpt
 import { ResaleIntro } from "./resale-intro";
 import { ResaleSellPanel } from "./resale-sell-panel";
 
+const resaleRegistrationNotice = "양도 티켓 등록 후 MY 페이지에서 양도 티켓을 취소할 수 있습니다.";
+
+function resaleStatusLabel(status: string) {
+  switch (status) {
+    case "OPEN":
+      return "양도 등록중";
+    case "CANCELED":
+      return "취소됨";
+    case "MATCHED":
+      return "양도 완료";
+    default:
+      return status;
+  }
+}
+
 export function ResaleFlow({
   reservation,
   sessionUserId,
@@ -36,6 +53,7 @@ export function ResaleFlow({
   readonly showPoster?: string;
   readonly showTitle: string;
 }) {
+  const router = useRouter();
   const firstSeat = reservation.seats[0];
   const [tab, setTab] = useState<ResaleTab>("sell");
   const [seatId, setSeatId] = useState(firstSeat?.id ?? "");
@@ -55,6 +73,7 @@ export function ResaleFlow({
   const [apiStatus, setApiStatus] = useState("보유 티켓 확인 중");
   const [apiBusy, setApiBusy] = useState(false);
   const [drawing, setDrawing] = useState(false);
+  const [registeredPools, setRegisteredPools] = useState<readonly ApiResalePool[]>([]);
 
   const selectedBackendTicket = backendTickets.find((ticket) => ticket.id === seatId);
   const policy = reservation.resale.policy;
@@ -85,6 +104,33 @@ export function ResaleFlow({
     void refreshBackendTickets();
   }, [refreshBackendTickets]);
 
+  const refreshRegisteredPools = useCallback(async () => {
+    try {
+      const state = await getState();
+      setRegisteredPools(state.resalePools.filter((pool) => pool.sellerId === sessionUserId));
+    } catch {
+      // best-effort; keep the previously loaded list on failure
+    }
+  }, [sessionUserId]);
+
+  useEffect(() => {
+    void refreshRegisteredPools();
+  }, [refreshRegisteredPools]);
+
+  async function cancelRegistration(poolId: string) {
+    if (apiBusy) return;
+    setApiBusy(true);
+    try {
+      await cancelResaleListing({ poolId, sellerId: sessionUserId });
+      setToast("양도가 취소되었습니다.");
+      await refreshRegisteredPools();
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "양도 취소에 실패했습니다.");
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
   async function ensureBackendTicket() {
     if (selectedBackendTicket) return selectedBackendTicket;
     setApiBusy(true);
@@ -106,24 +152,34 @@ export function ResaleFlow({
   }
 
   async function registerBackendPool() {
-    if (!isPriceValid || apiBusy) return null;
+    if ((selectedBackendTicket && !isPriceValid) || apiBusy) return null;
     setApiBusy(true);
-    setApiStatus("Tig 공식 양도 티켓 풀 등록 중");
+    setApiStatus("CLEAN 티켓 공식 풀 등록 중");
     try {
       const ticket = await ensureBackendTicket();
-      const pool = await listResale(ticket.id, price, sessionUserId, reservation.showSlug);
+      const listingPrice = selectedBackendTicket ? price : ticket.faceValue;
+      if (listingPrice !== price) setPrice(listingPrice);
+      const pool = await listResale(ticket.id, listingPrice, sessionUserId, reservation.showSlug);
       const joined = await joinResale(pool.id);
       setBackendPool(joined);
       setBackendResult(null);
-      setToast(`${ticket.seatLabel} Tig 공식 양도 티켓 풀 등록 완료`);
+      setToast(`${ticket.seatLabel} CLEAN 티켓 공식 풀 등록 완료`);
       setApiStatus(`풀 ${joined.id} 등록 · 대기자 ${joined.buyerCount}명`);
+      await refreshRegisteredPools();
       return joined;
     } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : "Tig 공식 양도 티켓 등록에 실패했습니다.");
+      setApiStatus(error instanceof Error ? error.message : "CLEAN 티켓 공식 풀 등록에 실패했습니다.");
       return null;
     } finally {
       setApiBusy(false);
     }
+  }
+
+  async function registerAndRedirectToEligibleList() {
+    const pool = await registerBackendPool();
+    if (!pool) return;
+    window.alert(resaleRegistrationNotice);
+    router.push("/resale");
   }
 
   async function runBackendPurchase() {
@@ -136,7 +192,7 @@ export function ResaleFlow({
         ? backendPool
         : state?.resalePools.find((item) => item.status === "OPEN" && item.price <= maxPrice);
       if (!pool) {
-        setApiStatus("구매 가능한 Tig 공식 양도 티켓 풀이 없습니다.");
+        setApiStatus("구매 가능한 CLEAN 티켓 공식 풀이 없습니다.");
         return;
       }
       const nextResult = await purchaseResale(pool.id, sessionUserId);
@@ -144,7 +200,7 @@ export function ResaleFlow({
       setBackendPool(nextResult.pool);
       setApiStatus(`매칭 완료 · 구매자 총액 ${currency(nextResult.buyerTotal)}`);
     } catch (error) {
-      setApiStatus(error instanceof Error ? error.message : "Tig 공식 양도 티켓 구매에 실패했습니다.");
+      setApiStatus(error instanceof Error ? error.message : "CLEAN 티켓 구매에 실패했습니다.");
     } finally {
       setApiBusy(false);
     }
@@ -211,6 +267,7 @@ export function ResaleFlow({
   }
 
   return (
+    <>
     <section className="ticketground-container py-10">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_1px_360px]">
         <div className="grid gap-6">
@@ -226,13 +283,13 @@ export function ResaleFlow({
           {tab === "sell" ? (
             <ResaleSellPanel
               apiBusy={apiBusy}
-              faceValue={faceValue}
+              faceValue={effectiveFaceValue}
               isPriceValid={isPriceValid}
               maxAllowedPrice={maxAllowedPrice}
               minPrice={minPrice}
               onEnsureTicket={() => void ensureBackendTicket()}
               onPriceChange={setPrice}
-              onRegister={() => void registerBackendPool()}
+              onRegister={() => void registerAndRedirectToEligibleList()}
               onSeatChange={updateSeat}
               ownedSeatOptions={ownedSeatOptions}
               policyMaxPercent={policy.maxPercent}
@@ -282,6 +339,53 @@ export function ResaleFlow({
         />
       </div>
     </section>
+    <section id="resale-history" className="ticketground-container scroll-mt-[176px] py-10">
+      <div className="rounded-xl border border-line bg-surface p-5" aria-live="polite">
+        <p className="text-xs font-black text-ticketground">마이페이지</p>
+        <h2 className="mt-1 text-2xl font-black text-ink">양도내역</h2>
+        {registeredPools.length > 0 ? (
+          <div className="mt-4 grid gap-3">
+            {registeredPools.map((pool) => {
+              const cancelable = pool.status === "OPEN";
+              return (
+                <article
+                  key={pool.id}
+                  className="rounded-lg border border-line bg-card p-4"
+                  data-resale-history-row
+                  data-resale-pool-status={pool.status}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className={cn("rounded-full px-3 py-1 text-xs font-black", cancelable ? "bg-ticketground text-white" : "bg-surface-2 text-ink-3")}>
+                        {resaleStatusLabel(pool.status)}
+                      </span>
+                      <p className="mt-2 text-sm font-bold text-ink-3">
+                        {currency(pool.price)} · 대기자 {pool.buyerCount}명
+                      </p>
+                    </div>
+                    {cancelable && (
+                      <button
+                        type="button"
+                        disabled={apiBusy}
+                        onClick={() => void cancelRegistration(pool.id)}
+                        className="h-10 rounded-sm border border-line-strong bg-card px-4 text-sm font-black text-ink transition-colors hover:bg-surface disabled:bg-surface-3 disabled:text-ink-4 focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        취소
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-4 rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3">
+            아직 등록한 양도 티켓이 없습니다.
+          </p>
+        )}
+      </div>
+    </section>
+    </>
   );
 }
 
@@ -346,7 +450,7 @@ function ResaleReservationContext({
       <div className="min-w-0">
         <p className="text-xs font-black text-ticketground">예약 기준 거래</p>
         <h2 id="resale-context-title" className="mt-1 balanced-title text-3xl font-black leading-tight text-ink">
-          이 예약을 Tig 공식 양도 티켓으로 양도합니다
+          이 예약을 CLEAN 티켓으로 양도합니다
         </h2>
         <p className="mt-2 text-sm font-bold leading-relaxed text-ink-3">{showTitle}</p>
         <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -391,7 +495,7 @@ function ResaleTabBar({
   readonly value: ResaleTab;
 }) {
   return (
-    <div role="group" aria-label="Tig 공식 양도 티켓 탭" className="grid gap-2 rounded-xl border border-line bg-surface p-1 shadow-ticket-1 sm:inline-grid sm:grid-cols-2">
+    <div role="group" aria-label="CLEAN 티켓 양도 탭" className="grid gap-2 rounded-xl border border-line bg-surface p-1 shadow-ticket-1 sm:inline-grid sm:grid-cols-2">
       {resaleTabs.map((option) => {
         const selected = option.value === value;
         return (

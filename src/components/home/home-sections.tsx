@@ -155,7 +155,7 @@ export function OfficialResaleSection() {
   return (
     <section data-section="official-resale" className="ticketground-container mt-16">
       <SectionHead
-        title="Tig 공식 양도 티켓"
+        title="CLEAN 티켓 공식 양도"
         subtitle="직거래 사기 걱정 없이, 내 티켓을 안전하게 양도하세요."
         moreHref="/resale"
         badge="CLEAN TICKET"
@@ -170,7 +170,7 @@ export function OfficialResaleSection() {
             <ShieldCheck className="size-3.5 shrink-0 text-accent-2" aria-hidden />
             CLEAN TICKET POOL
           </p>
-          <h3 className="balanced-title mt-3 text-[24px] font-black leading-tight sm:text-[30px]">Tig 공식 양도 티켓</h3>
+          <h3 className="balanced-title mt-3 text-[24px] font-black leading-tight sm:text-[30px]">CLEAN 티켓 공식 양도</h3>
           <p className="mt-3 max-w-[560px] break-keep text-sm leading-relaxed text-on-ink/75 sm:text-base">
             정가 범위와 구매 이력 검증을 통과한 티켓만 풀에 등록됩니다. 외부 직거래 없이 예매 내역과 결제 기록이 함께 보존됩니다.
           </p>

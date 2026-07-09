@@ -12,7 +12,7 @@ export function VirtualTicketCard({ date, reservationId, seatLabel, ticketIndex,
   return (
     <figure
       aria-label="소유 확인용 가상 티켓 이미지"
-      className="relative mx-auto aspect-[4/5] w-full max-w-[260px] overflow-hidden rounded-md border border-line bg-card p-3 shadow-ticket-1"
+      className="relative mx-auto flex min-h-80 w-full max-w-[260px] overflow-hidden rounded-md border border-line bg-card p-3 shadow-ticket-1"
     >
       <div className="absolute inset-x-0 top-0 h-2 bg-ticketground" />
       <div className="flex h-full flex-col rounded-sm border border-line bg-surface">

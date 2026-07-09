@@ -5,8 +5,8 @@ import { getCleanTicketReservation, ticketShows } from "@/data/ticketing";
 import { queryParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
-  title: "Tig 공식 양도 티켓 | Ticketground",
-  description: "내 예약을 Tig 공식 양도 티켓 풀에 등록하고 거래 현황을 확인합니다.",
+  title: "CLEAN 티켓 공식 양도 | Ticketground",
+  description: "내 예약을 CLEAN 티켓 공식 풀에 등록하고 거래 현황을 확인합니다.",
 };
 
 const defaultDemoUserId = "user_fan_a";

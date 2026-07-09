@@ -94,7 +94,6 @@ export default async function ReservationPage({
                   ))}
                 </div>
                 <span className="mt-3 inline-flex rounded-full bg-ink-2 px-3 py-1 text-sm font-bold text-on-ink-2">잠금 · 가상 티켓</span>
-                <p className="mt-3 text-sm font-bold text-ink-2">입장 불가</p>
                 <p className="mt-1 break-keep text-sm leading-relaxed text-ink-3">소유 확인용 가상 티켓이며 현장 입장 QR이 아닙니다.</p>
               </div>
             </div>
@@ -108,7 +107,7 @@ export default async function ReservationPage({
             </button>
             <BackendAdmissionPanel ticketId={ticketId} />
             <Link href={`/mypage/resale?reservation=${reservation.id}&seat=${encodeURIComponent(seats)}`} className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line-strong text-sm font-bold whitespace-nowrap">
-              Tig 공식 양도 티켓
+              CLEAN 티켓으로 양도하기
             </Link>
             <p className="mt-4 text-sm text-ink-3">QR 캡처나 직접 전달은 지원하지 않습니다.</p>
           </aside>

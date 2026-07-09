@@ -103,6 +103,7 @@ function publicResalePool(pool) {
     performanceDateId: pool.performanceDateId,
     zoneId: pool.zoneId,
     ticketId: pool.ticketId,
+    sellerId: pool.sellerId,
     showSlug: pool.showSlug || null,
     price: pool.price,
     buyerFee: pool.buyerFee || null,

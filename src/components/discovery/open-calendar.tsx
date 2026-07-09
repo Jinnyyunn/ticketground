@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { BellRing } from "lucide-react";
+import { useState } from "react";
 import type { TicketShow } from "@/types";
 import { cn } from "@/lib/utils";
 import { OpenAlertButton } from "./open-alert-button";
@@ -10,6 +13,7 @@ type OpenCalendarProps = {
 
 const days = Array.from({ length: 31 }, (_, index) => index + 1);
 const eventDays = new Set([1, 2, 4, 5, 7, 8, 10, 11, 13, 15, 16, 18, 19, 21, 23, 24, 26, 27, 29, 31]);
+const calendarGenres: readonly TicketShow["category"][] = ["뮤지컬", "콘서트", "연극", "클래식", "스포츠", "전시/행사", "아동/가족"];
 
 const genreTone: Record<TicketShow["category"], string> = {
   뮤지컬: "bg-link text-white",
@@ -21,13 +25,28 @@ const genreTone: Record<TicketShow["category"], string> = {
   "아동/가족": "bg-accent-2 text-on-accent-2",
 };
 
-function showForDay(shows: readonly TicketShow[], day: number) {
+function showForDay(shows: readonly TicketShow[], day: number, hiddenGenres: ReadonlySet<TicketShow["category"]>) {
   if (!eventDays.has(day)) return undefined;
-  return shows[(day * 3 + shows.length - 1) % shows.length];
+  const show = shows[(day * 3 + shows.length - 1) % shows.length];
+  if (!show || hiddenGenres.has(show.category)) return undefined;
+  return show;
 }
 
 export function OpenCalendar({ shows }: OpenCalendarProps) {
   const imminent = shows.slice(0, 5);
+  const [hiddenGenres, setHiddenGenres] = useState<ReadonlySet<TicketShow["category"]>>(() => new Set());
+
+  const toggleGenre = (genre: TicketShow["category"]) => {
+    setHiddenGenres((current) => {
+      const next = new Set(current);
+      if (next.has(genre)) {
+        next.delete(genre);
+      } else {
+        next.add(genre);
+      }
+      return next;
+    });
+  };
 
   return (
     <section className="ticketground-container py-10">
@@ -47,11 +66,26 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
         <div className="min-w-0">
           <h2 className="text-2xl font-black text-ink">월별 캘린더</h2>
           <div data-open-genre-legend className="mt-4 flex flex-wrap gap-2">
-            {Object.entries(genreTone).map(([genre, tone]) => (
-              <span key={genre} data-open-genre-chip className={cn("inline-flex h-7 items-center rounded-full px-3 text-xs font-black", tone)}>
-                {genre}
-              </span>
-            ))}
+            {calendarGenres.map((genre) => {
+              const hidden = hiddenGenres.has(genre);
+              return (
+                <button
+                  key={genre}
+                  type="button"
+                  aria-pressed={hidden}
+                  data-open-genre-chip={genre}
+                  data-open-genre-hidden={hidden ? "true" : "false"}
+                  className={cn(
+                    "inline-flex h-8 items-center rounded-full border px-3 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    hidden ? "border-line text-on-accent-2" : cn("border-transparent", genreTone[genre]),
+                  )}
+                  style={hidden ? { backgroundColor: "rgb(255, 255, 255)" } : undefined}
+                  onClick={() => toggleGenre(genre)}
+                >
+                  {genre}
+                </button>
+              );
+            })}
           </div>
           <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-card">
             <div data-open-calendar-grid className="grid grid-cols-7 overflow-hidden md:min-w-[720px]">
@@ -61,12 +95,17 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
                 </div>
               ))}
               {days.map((day) => {
-                const show = showForDay(shows, day);
+                const show = showForDay(shows, day, hiddenGenres);
                 return (
                   <div key={day} data-open-day={day} className="min-h-[88px] min-w-0 border-b border-r border-line p-1.5 sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3 last:border-r-0">
                     <time className="text-sm font-black text-ink">{day}</time>
                     {show && (
-                      <Link href={`/goods/${show.slug}`} data-allow-wrap="true" className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}>
+                      <Link
+                        href={`/goods/${show.slug}`}
+                        data-allow-wrap="true"
+                        data-open-show-category={show.category}
+                        className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}
+                      >
                         {show.shortTitle}
                       </Link>
                     )}

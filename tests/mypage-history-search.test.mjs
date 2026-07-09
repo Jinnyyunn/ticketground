@@ -23,6 +23,7 @@ test("mypage searches reservation and canceled performance history by range", as
     assert.equal(await page.getByText("결제 완료 후 이 영역에 백엔드 티켓이 표시됩니다.").count(), 0);
 
     await searchPanel.getByLabel("내역 검색어").fill("베를린필");
+    await searchPanel.getByRole("button", { name: "검색" }).click();
     await searchPanel.getByRole("heading", { name: "베를린필 내한공연" }).first().waitFor();
     await searchPanel.getByText("취소요청 완료").waitFor();
     assert.equal(await searchPanel.getByRole("heading", { name: "베를린필 내한공연" }).count(), 2);

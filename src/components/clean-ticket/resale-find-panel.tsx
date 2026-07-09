@@ -87,7 +87,7 @@ export function ResaleFindPanel({
           </div>
         </div>
         <div className="rounded-lg border border-line bg-surface p-3 shadow-ticket-1">
-          <div className="grid grid-cols-10 gap-1" aria-label="현재 열린 Tig 공식 양도 티켓 풀 60칸" data-testid="pool-grid">
+          <div className="grid grid-cols-10 gap-1" aria-label="현재 열린 CLEAN 티켓 공식 풀 60칸" data-testid="pool-grid">
             {poolCells.map((cell, index) => (
               <span
                 key={cell.id}

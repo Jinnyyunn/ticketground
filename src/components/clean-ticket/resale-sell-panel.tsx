@@ -145,7 +145,7 @@ export function ResaleSellPanel({
             data-testid="resale-register"
           >
             <ShieldCheck className="size-4 shrink-0" aria-hidden />
-            {apiBusy ? "처리 중" : "공식 풀에 등록"}
+            {apiBusy ? "처리 중" : "CLEAN 티켓 공식 풀에 양도 등록"}
           </button>
         </div>
       </div>

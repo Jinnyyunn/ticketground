@@ -88,7 +88,7 @@ export function ResaleEligibleBrowser({ shows }: ResaleEligibleBrowserProps) {
           </p>
           <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">양도 허용 티켓</h1>
           <p className="mt-3 max-w-[760px] text-base leading-relaxed text-ink-3">
-            판매자가 Tig 공식 풀에 실제로 등록한 양도 티켓만 모았습니다. {status}
+            판매자가 CLEAN 티켓 공식 풀에 실제로 등록한 양도 티켓만 모았습니다. {status}
           </p>
         </div>
         <Link
@@ -196,10 +196,16 @@ function ResaleListingTile({ listing, isLowest }: { readonly listing: ResaleList
           {show.venue} · {ticket.seatLabel}
         </p>
         <p className="mt-1 text-sm text-ink-4">{show.period}</p>
-        <p className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="text-sm font-bold text-ink-4">정가 {currency(ticket.faceValue)}</span>
-          <span className="text-base font-black text-ink">양도가격 {currency(pool.price)}</span>
-        </p>
+        <dl className="mt-3 grid gap-1 text-sm">
+          <div className="grid gap-0.5">
+            <dt className="font-bold text-ink-4">정가</dt>
+            <dd className="font-bold text-ink-2">{currency(ticket.faceValue)}</dd>
+          </div>
+          <div className="grid gap-0.5">
+            <dt className="font-bold text-ink-4">양도가격</dt>
+            <dd className="text-base font-black text-ink">{currency(pool.price)}</dd>
+          </div>
+        </dl>
       </div>
     </Link>
   );

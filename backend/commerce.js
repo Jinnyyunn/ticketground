@@ -124,6 +124,27 @@ export function createCommerceBackend({
     return pool;
   }
 
+  function cancelResaleListing(db, { sellerId, poolId }) {
+    const seller = findUser(db, sellerId);
+    const pool = db.resalePools.find((item) => item.id === poolId);
+    if (!pool) throw httpError(404, "POOL_NOT_FOUND", "재판매 풀을 찾을 수 없습니다.");
+    if (pool.sellerId !== seller.id) throw httpError(403, "NOT_OWNER", "등록자만 양도 등록을 취소할 수 있습니다.");
+    if (pool.status !== "OPEN") throw httpError(409, "POOL_CLOSED", "이미 종료된 풀입니다.");
+    const ticket = db.tickets.find((item) => item.id === pool.ticketId);
+    if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
+    if (ticket.ownerId !== seller.id) throw httpError(403, "NOT_OWNER", "소유자만 양도 등록을 취소할 수 있습니다.");
+
+    ticket.status = "OWNED";
+    pool.status = "CANCELED";
+    pool.canceledAt = now();
+    appendLedger(db, seller.id, "RESALE_LISTING_CANCELED", {
+      poolId: pool.id,
+      ticketId: ticket.id,
+      policy: "seller-cancel-open-resale-pool"
+    });
+    return pool;
+  }
+
   function openResalePool(db, poolId) {
     const pool = db.resalePools.find((item) => item.id === poolId);
     if (!pool) throw httpError(404, "POOL_NOT_FOUND", "재판매 풀을 찾을 수 없습니다.");
@@ -252,5 +273,5 @@ export function createCommerceBackend({
     return { blocked: true, user: actor, ticket };
   }
 
-  return { buyPrimary, directTransferAttempt, drawPool, joinPool, listForResale, purchaseResale };
+  return { buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, joinPool, listForResale, purchaseResale };
 }

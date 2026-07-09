@@ -15,7 +15,7 @@ export function RankingList({ shows }: RankingListProps) {
       </div>
       <ol className="mt-8 grid gap-4">
         {shows.slice(0, 10).map((show, index) => (
-          <li key={show.slug} className="grid gap-4 rounded-lg border border-line bg-card p-4 md:grid-cols-[88px_1fr] md:items-center">
+          <li key={show.slug} className="grid max-w-[640px] gap-4 md:grid-cols-[88px_1fr] md:items-center">
             <div className="flex items-baseline gap-1 text-ticketground">
               <span className="text-sm font-black">TOP</span>
               <span className="text-5xl font-black leading-none">{index + 1}</span>

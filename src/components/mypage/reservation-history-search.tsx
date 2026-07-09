@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
 import { currency } from "@/data/ticketing";
 import { readDemoCancelHistory, subscribeDemoCancelHistory, type DemoCancelHistoryEntry } from "@/lib/demo-cancel-history";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,7 @@ const rangeMonthMap: Record<Exclude<HistoryRange, "custom">, number> = {
 };
 
 export function ReservationHistorySearch({ reservations }: { readonly reservations: readonly Reservation[] }) {
+  const [draftQuery, setDraftQuery] = useState("");
   const [query, setQuery] = useState("");
   const [range, setRange] = useState<HistoryRange>("3y");
   const [customStart, setCustomStart] = useState("");
@@ -68,6 +69,11 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
     return matchesQuery && matchesDate;
   });
 
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setQuery(draftQuery);
+  }
+
   return (
     <div data-history-search-panel>
       <div className="min-w-0">
@@ -78,14 +84,14 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
         </p>
       </div>
 
-      <div className="mt-4 grid gap-3 rounded-md border border-line bg-card p-4 lg:grid-cols-[minmax(0,1fr)_160px]">
+      <form onSubmit={submitSearch} className="mt-4 grid gap-3 rounded-md border border-line bg-card p-4 lg:grid-cols-[minmax(0,1fr)_160px_auto]">
         <label className="grid gap-2 text-sm font-black text-ink">
           내역 검색어
           <input
             type="search"
             aria-label="내역 검색어"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={draftQuery}
+            onChange={(event) => setDraftQuery(event.target.value)}
             placeholder="공연명, 장소, 예매번호 검색"
             className="h-11 min-w-0 rounded-sm border border-line bg-surface px-3 text-base font-bold text-ink outline-none transition focus:border-line-strong focus:bg-card focus-visible:ring-3 focus-visible:ring-ring/50"
           />
@@ -105,8 +111,14 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
             ))}
           </select>
         </label>
+        <button
+          type="submit"
+          className="h-11 self-end rounded-sm bg-ink px-5 text-sm font-black text-on-ink shadow-ticket-1 transition-colors hover:bg-ink-2 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
+        >
+          검색
+        </button>
         {range === "custom" && (
-          <div className="grid gap-3 lg:col-span-2 sm:grid-cols-2">
+          <div className="grid gap-3 lg:col-span-3 sm:grid-cols-2">
             <label className="grid gap-2 text-sm font-black text-ink">
               시작일
               <input
@@ -131,7 +143,7 @@ export function ReservationHistorySearch({ reservations }: { readonly reservatio
             </label>
           </div>
         )}
-      </div>
+      </form>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-bold text-ink-3">
         <span className="rounded-full bg-card px-3 py-1">{filteredItems.length}건 조회</span>

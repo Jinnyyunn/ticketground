@@ -37,9 +37,9 @@ export function ResaleIntro({ apiStatus }: { readonly apiStatus: string }) {
       <div className="relative grid gap-5 bg-surface p-5 lg:grid-cols-[1fr_280px] lg:items-end">
         <header className="min-w-0">
           <TicketgroundTag tone="sale">CLEAN TICKET</TicketgroundTag>
-          <h1 className="mt-3 balanced-title text-3xl font-black text-ink sm:text-4xl">Tig 공식 양도 티켓</h1>
+          <h1 className="mt-3 balanced-title text-3xl font-black text-ink sm:text-4xl">CLEAN 티켓 공식 양도</h1>
           <p className="mt-3 max-w-3xl text-base leading-loose text-ink-3">
-            좌석 지정 거래를 막고 공식 풀에서 조건부 랜덤 매칭으로 배정합니다. Tig 공식 양도 티켓 등록은 정가의 90~110%만 허용됩니다.
+            좌석 지정 거래를 막고 공식 풀에서 조건부 랜덤 매칭으로 배정합니다. CLEAN 티켓 공식 양도 등록은 정가의 90~110%만 허용됩니다.
           </p>
           <Link
             href="/resale"
@@ -54,7 +54,7 @@ export function ResaleIntro({ apiStatus }: { readonly apiStatus: string }) {
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-ticketground/60" />
               <span className="relative inline-flex size-1.5 rounded-full bg-ticketground" />
             </span>
-            Tig 공식 양도 티켓 상태
+            CLEAN 티켓 양도 상태
           </p>
           <p className="mt-1 text-sm font-bold leading-relaxed text-ink">{apiStatus}</p>
         </div>

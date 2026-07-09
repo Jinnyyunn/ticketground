@@ -55,6 +55,7 @@ export const apiResalePoolSchema = z.object({
   performanceDateId: z.string(),
   zoneId: z.string(),
   ticketId: z.string(),
+  sellerId: z.string(),
   showSlug: z.string().nullable(),
   price: z.number(),
   buyerFee: z.number().nullable(),

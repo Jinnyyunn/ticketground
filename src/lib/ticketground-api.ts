@@ -202,6 +202,13 @@ export function purchaseResaleTicket({ buyerId, poolId }: { readonly buyerId: st
   return purchaseResale(poolId, buyerId);
 }
 
+export function cancelResaleListing({ poolId, sellerId = currentSessionUserId() }: { readonly poolId: string; readonly sellerId?: string }) {
+  return post("/api/resale/cancel", apiResalePoolSchema, {
+    sellerId,
+    poolId,
+  });
+}
+
 export function listResale(ticketId: string, price: number, sellerId = DEMO_USER_ID, showSlug?: string) {
   return post("/api/resale/list", apiResalePoolSchema, {
     sellerId,

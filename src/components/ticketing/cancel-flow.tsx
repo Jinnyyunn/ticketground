@@ -81,11 +81,11 @@ export function CancelFlow({ reservation }: CancelFlowProps) {
                   {reservation.date} {reservation.time}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2 lg:justify-end">
+              <div className="grid gap-1 text-sm font-black text-ink lg:text-right">
                 {reservation.seats.map((seat) => (
-                  <span key={seat.id} className="rounded-full border border-line-strong bg-surface px-3 py-2 text-sm font-black text-ink">
+                  <p key={seat.id} className="break-words">
                     {seat.label}
-                  </span>
+                  </p>
                 ))}
               </div>
             </div>
