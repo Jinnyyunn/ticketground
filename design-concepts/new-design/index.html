@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TICKETGROUND — Concept 1: Kinetic Pop (Full Page)</title>
+<style>
+  @font-face { font-family: "Unbounded"; font-weight: 700; src: url("./fonts/unbounded-700.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Unbounded"; font-weight: 900; src: url("./fonts/unbounded-900.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Do Hyeon"; font-weight: 400; src: url("./fonts/dohyeon-400.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans KR"; font-weight: 400; src: url("./fonts/notosanskr-400.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: url("./fonts/notosanskr-700.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: url("./fonts/notosanskr-900.woff2") format("woff2"); font-display: swap; }
+
+  :root {
+    --paper: #fff2e4;
+    --paper-2: #ffe6cf;
+    --ink: #1a1030;
+    --ink-2: #4a3f63;
+    --cobalt: #3654ff;
+    --coral: #ff4b6e;
+    --lime: #c6ff3d;
+    --line: rgba(26,16,48,0.14);
+    --radius-tag: 999px;
+    --shadow-pop: 6px 6px 0 var(--ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #171126; --paper-2: #201936; --ink: #fbeee0; --ink-2: #cabfe0; --line: rgba(251,238,224,0.16); --shadow-pop: 6px 6px 0 var(--lime); }
+  }
+  :root[data-theme="dark"] { --paper: #171126; --paper-2: #201936; --ink: #fbeee0; --ink-2: #cabfe0; --line: rgba(251,238,224,0.16); --shadow-pop: 6px 6px 0 var(--lime); }
+  :root[data-theme="light"] { --paper: #fff2e4; --paper-2: #ffe6cf; --ink: #1a1030; --ink-2: #4a3f63; --line: rgba(26,16,48,0.14); --shadow-pop: 6px 6px 0 var(--ink); }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: "Noto Sans KR", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+  img { max-width: 100%; display: block; }
+  :focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; }
+
+  /* nav */
+  .nav { position: sticky; top: 0; z-index: 40; background: var(--paper); border-bottom: 3px solid var(--ink); }
+  .nav-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 24px; }
+  .logo { font-family: "Unbounded", sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+  .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--coral); display: inline-block; }
+  .nav-links { display: flex; gap: 28px; font-weight: 700; font-size: 14.5px; }
+  .nav-links a { padding: 6px 2px; border-bottom: 2px solid transparent; transition: border-color .15s ease; }
+  .nav-links a:hover { border-color: var(--cobalt); }
+  .nav-actions { display: flex; align-items: center; gap: 14px; font-size: 14px; font-weight: 700; }
+  .btn-ghost { padding: 8px 14px; border-radius: var(--radius-tag); border: 2px solid var(--ink); }
+  .btn-pop { padding: 9px 18px; border-radius: var(--radius-tag); background: var(--cobalt); color: #fff2e4; border: 2px solid var(--ink); box-shadow: var(--shadow-pop); font-weight: 900; }
+  .search-bar { flex: 1; max-width: 340px; display: flex; align-items: center; gap: 8px; border: 2px solid var(--ink); border-radius: var(--radius-tag); padding: 8px 16px; }
+  .search-bar input { border: none; background: none; outline: none; font-family: inherit; font-size: 14px; color: var(--ink); width: 100%; }
+  @media (max-width: 980px) { .nav-links, .search-bar { display: none; } }
+
+  /* hero */
+  .hero { position: relative; padding: 64px 0 40px; overflow: hidden; }
+  .hero-slab { position: absolute; inset: 0 0 auto 0; height: 78%; background: var(--cobalt); clip-path: polygon(0 0, 100% 0, 100% 82%, 0 100%); z-index: 0; }
+  .hero-inner { position: relative; z-index: 1; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center; }
+  @media (max-width: 900px) { .hero-inner { grid-template-columns: 1fr; } }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--lime); color: var(--ink); font-weight: 900; font-size: 12.5px; padding: 6px 14px; border-radius: var(--radius-tag); border: 2px solid var(--ink); }
+  .hero h1 { font-family: "Do Hyeon", "Noto Sans KR", sans-serif; font-size: clamp(40px, 6.2vw, 76px); line-height: 1.04; color: #fff2e4; margin-top: 18px; }
+  .hero h1 em { font-style: normal; color: var(--lime); }
+  .hero-sub { color: #fff2e4; opacity: .92; font-size: 16px; margin-top: 16px; max-width: 46ch; font-weight: 700; }
+  .hero-cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+  .btn-lg { font-family: "Unbounded", sans-serif; font-weight: 700; font-size: 14.5px; padding: 15px 26px; border-radius: var(--radius-tag); display: inline-flex; align-items: center; gap: 10px; }
+  .btn-lg.primary { background: var(--coral); color: #1a1030; box-shadow: 6px 6px 0 #1a1030; border: 2px solid #1a1030; }
+  .btn-lg.secondary { background: transparent; color: #fff2e4; border: 2px solid #fff2e4; }
+
+  .ticket-card { position: relative; z-index: 1; background: var(--paper); border: 3px solid var(--ink); border-radius: 20px; padding: 22px; box-shadow: var(--shadow-pop); transform: rotate(2.2deg); }
+  .ticket-card .tag { display: inline-block; background: var(--coral); color: #1a1030; font-weight: 900; font-size: 12px; padding: 4px 12px; border-radius: var(--radius-tag); }
+  .ticket-card h3 { font-family: "Unbounded", sans-serif; font-size: 22px; margin-top: 12px; line-height: 1.2; }
+  .ticket-card .meta { margin-top: 10px; font-size: 13.5px; color: var(--ink-2); font-weight: 700; display: flex; flex-direction: column; gap: 4px; }
+  .ticket-card .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 16px; border-top: 2px dashed var(--line); }
+  .ticket-card .price { font-family: "Unbounded", sans-serif; font-weight: 900; font-size: 18px; }
+  .ticket-card .price span { font-size: 12px; color: var(--ink-2); font-weight: 700; display: block; font-family: "Noto Sans KR"; }
+
+  /* section shared */
+  .section { padding: 60px 0; }
+  .section-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 26px; gap: 16px; flex-wrap: wrap; }
+  .section-head h2 { font-family: "Unbounded", sans-serif; font-size: clamp(22px, 3vw, 32px); }
+  .section-head .kicker { font-weight: 900; color: var(--cobalt); font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .section-head .sub { font-size: 13.5px; color: var(--ink-2); font-weight: 700; margin-top: 6px; }
+  .see-all { font-weight: 900; font-size: 14px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  .perf { display: flex; align-items: center; }
+  .perf::before { content: ""; flex: 1; height: 3px; background: repeating-linear-gradient(90deg, var(--ink) 0 10px, transparent 10px 20px); }
+
+  /* ranking rail */
+  .rail { display: flex; gap: 20px; overflow-x: auto; padding: 8px 4px 20px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .rail::-webkit-scrollbar { height: 8px; }
+  .rail::-webkit-scrollbar-thumb { background: var(--ink); border-radius: 8px; }
+  .rank-card { position: relative; scroll-snap-align: start; flex: 0 0 220px; }
+  .rank-num { position: absolute; top: -22px; left: -14px; z-index: 2; font-family: "Unbounded", sans-serif; font-weight: 900; font-size: 56px; color: var(--paper); -webkit-text-stroke: 2.5px var(--ink); line-height: 1; }
+  .rank-poster { height: 280px; border-radius: 16px; border: 3px solid var(--ink); display: flex; flex-direction: column; justify-content: flex-end; padding: 16px; position: relative; overflow: hidden; }
+  .rank-poster::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 100%); }
+  .rank-poster .cat { position: relative; z-index: 1; align-self: flex-start; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: var(--radius-tag); background: rgba(255,255,255,.92); color: var(--ink); margin-bottom: auto; }
+  .rank-poster .rt { position: relative; z-index: 1; color: #fff; font-family: "Unbounded", sans-serif; font-weight: 700; font-size: 15px; line-height: 1.3; }
+  .rank-meta { margin-top: 10px; font-size: 12.5px; color: var(--ink-2); font-weight: 700; }
+  .rank-price { font-weight: 900; font-size: 14px; margin-top: 2px; }
+
+  /* ticket-open cards */
+  .open-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .open-grid { grid-template-columns: repeat(2, 1fr); } }
+  .open-card { border: 2.5px solid var(--ink); border-radius: 14px; padding: 14px; display: flex; gap: 12px; background: var(--paper); }
+  .open-thumb { width: 56px; height: 72px; border-radius: 8px; border: 2px solid var(--ink); flex-shrink: 0; }
+  .open-body { min-width: 0; }
+  .open-dday { display: inline-block; background: var(--coral); color: var(--ink); font-weight: 900; font-size: 11px; padding: 2px 8px; border-radius: var(--radius-tag); }
+  .open-title { font-weight: 900; font-size: 14px; margin-top: 6px; line-height: 1.3; }
+  .open-meta { font-size: 12px; color: var(--ink-2); font-weight: 700; margin-top: 4px; }
+
+  /* resale cta */
+  .resale-grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; }
+  @media (max-width: 900px) { .resale-grid { grid-template-columns: 1fr; } }
+  .resale-cta { background: var(--ink); color: var(--paper); border-radius: 20px; padding: 32px; position: relative; overflow: hidden; border: 3px solid var(--ink); }
+  .resale-cta::before { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: var(--cobalt); opacity: .5; filter: blur(6px); }
+  .resale-badge { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; font-weight: 900; font-size: 12px; background: var(--lime); color: var(--ink); padding: 5px 12px; border-radius: var(--radius-tag); }
+  .resale-cta h3 { position: relative; z-index: 1; font-family: "Unbounded", sans-serif; font-size: 26px; margin-top: 16px; }
+  .resale-cta p { position: relative; z-index: 1; font-size: 14px; margin-top: 12px; opacity: .85; max-width: 46ch; line-height: 1.6; font-weight: 700; }
+  .resale-cta .btn-lg { position: relative; z-index: 1; margin-top: 20px; }
+  .trust-card { border: 2.5px solid var(--ink); border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 18px; }
+  .trust-card .label { font-weight: 900; font-size: 13px; color: var(--ink-2); }
+  .trust-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .trust-step { text-align: center; }
+  .trust-icon { width: 42px; height: 42px; border-radius: 50%; background: var(--ink); color: var(--lime); display: flex; align-items: center; justify-content: center; font-family: "Unbounded", sans-serif; font-weight: 900; font-size: 16px; margin: 0 auto 8px; }
+  .trust-step .t { font-weight: 900; font-size: 12.5px; }
+  .trust-step .d { font-size: 11px; color: var(--ink-2); margin-top: 3px; }
+
+  /* editorial */
+  .editorial-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 900px) { .editorial-grid { grid-template-columns: 1fr; } }
+  .editorial-card { position: relative; border-radius: 20px; border: 3px solid var(--ink); padding: 26px; min-height: 200px; display: flex; flex-direction: column; overflow: hidden; }
+  .editorial-card .num { position: absolute; right: 16px; top: 10px; font-family: "Unbounded", sans-serif; font-weight: 900; font-size: 76px; opacity: .16; line-height: 1; }
+  .editorial-card .eyebrow2 { font-weight: 900; font-size: 11.5px; padding: 4px 10px; border-radius: var(--radius-tag); border: 2px solid currentColor; width: fit-content; }
+  .editorial-card h3 { font-family: "Unbounded", sans-serif; font-size: 22px; margin-top: 20px; line-height: 1.25; }
+  .editorial-card .go { margin-top: auto; padding-top: 16px; font-weight: 900; font-size: 13.5px; }
+  .editorial-card.tone-dark { background: var(--ink); color: var(--paper); }
+  .editorial-card.tone-red { background: var(--coral); color: var(--ink); }
+  .editorial-card.tone-cream { background: var(--paper-2); color: var(--ink); }
+
+  /* genre tabs */
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+  .tab-btn { font-weight: 900; font-size: 13.5px; padding: 10px 18px; border-radius: var(--radius-tag); border: 2.5px solid var(--ink); background: var(--paper); cursor: pointer; }
+  .tab-btn.on { background: var(--ink); color: var(--paper); }
+  .tab-panel { display: none; }
+  .tab-panel.on { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .tab-panel.on { grid-template-columns: repeat(2, 1fr); } }
+  .genre-item { border: 2.5px solid var(--ink); border-radius: 14px; overflow: hidden; }
+  .genre-item .art { height: 140px; display: flex; align-items: flex-end; padding: 10px; }
+  .genre-item .art span { font-weight: 900; font-size: 13px; color: #fff; line-height: 1.3; }
+  .genre-item .body { padding: 10px 12px 14px; }
+  .genre-item .t { font-weight: 900; font-size: 13px; }
+  .genre-item .m { font-size: 11.5px; color: var(--ink-2); font-weight: 700; margin-top: 4px; }
+  .empty-genre { padding: 30px; border: 2.5px dashed var(--line); border-radius: 14px; text-align: center; font-weight: 700; color: var(--ink-2); grid-column: 1 / -1; }
+
+  /* shortcuts */
+  .shortcut-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .shortcut-grid { grid-template-columns: repeat(3, 1fr); } }
+  .shortcut-card { border: 2.5px solid var(--ink); border-radius: 16px; padding: 18px 10px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .shortcut-icon { width: 42px; height: 42px; border-radius: 50%; background: var(--ink); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .shortcut-card .t { font-weight: 900; font-size: 13px; }
+  .shortcut-card .h { font-size: 11px; color: var(--ink-2); font-weight: 700; }
+
+  /* genre browse strip (kept from original) */
+  .genre-strip { display: flex; flex-wrap: wrap; gap: 10px; }
+  .genre-chip { font-weight: 900; font-size: 13.5px; padding: 10px 18px; border-radius: var(--radius-tag); border: 2.5px solid var(--ink); background: var(--paper); cursor: pointer; }
+  .genre-chip.on { background: var(--ink); color: var(--paper); }
+
+  footer { border-top: 3px solid var(--ink); padding: 40px 0 60px; }
+  .foot-row { display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between; align-items: center; }
+  .foot-links { display: flex; gap: 18px; font-weight: 700; font-size: 13.5px; flex-wrap: wrap; }
+  .foot-note { font-size: 12.5px; color: var(--ink-2); margin-top: 16px; }
+
+  .concept-badge { position: fixed; bottom: 18px; right: 18px; z-index: 50; background: var(--ink); color: var(--paper); font-weight: 900; font-size: 12px; padding: 10px 16px; border-radius: var(--radius-tag); box-shadow: 0 6px 18px rgba(0,0,0,.25); font-family: "Unbounded", sans-serif; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-row wrap">
+    <div class="logo"><span class="dot"></span>TICKETGROUND</div>
+    <div class="nav-links">
+      <a href="#">콘서트</a><a href="#">뮤지컬</a><a href="#">연극</a><a href="#">클래식</a><a href="#">스포츠</a><a href="#">전시/행사</a>
+    </div>
+    <div class="search-bar">🔍 <input placeholder="공연, 아티스트 검색" /></div>
+    <div class="nav-actions">
+      <a class="btn-ghost" href="#">마이페이지</a>
+      <a class="btn-pop" href="#">로그인</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-slab" aria-hidden="true"></div>
+  <div class="wrap hero-inner">
+    <div>
+      <span class="eyebrow">⚡ 지금 이 순간, 가장 뜨거운 무대</span>
+      <h1>오늘 뜨는 무대,<br /><em>놓치지 마세요</em></h1>
+      <p class="hero-sub">실시간 예매 랭킹으로 지금 가장 화제인 콘서트·뮤지컬·전시를 한눈에. 티켓그라운드가 고른 오늘의 라인업.</p>
+      <div class="hero-cta">
+        <a class="btn-lg primary" href="#">TOP 10 랭킹 보기 →</a>
+        <a class="btn-lg secondary" href="#">전체 공연 둘러보기</a>
+      </div>
+    </div>
+    <div class="ticket-card">
+      <span class="tag">단독 선예매</span>
+      <h3>IU 2026 WORLD TOUR</h3>
+      <div class="meta"><span>잠실종합운동장 주경기장</span><span>2026.09.12 (토) 19:00</span></div>
+      <div class="price-row">
+        <div class="price">VIP<span>198,000원</span></div>
+        <a class="btn-lg primary" style="padding:10px 18px; box-shadow:4px 4px 0 #1a1030;" href="#">예매하기</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" data-section="realtime-top10">
+    <div class="section-head">
+      <div><span class="kicker">Live Now</span><h2>실시간 예매 랭킹 TOP10</h2><p class="sub">지금 가장 빠르게 움직이는 공연입니다.</p></div>
+      <a class="see-all" href="#">더보기 →</a>
+    </div>
+    <div class="rail">
+      <article class="rank-card"><span class="rank-num">1</span>
+        <div class="rank-poster" style="background:linear-gradient(160deg,#3654ff,#7a5cff);"><span class="cat">콘서트</span><span class="rt">IU 2026<br/>WORLD TOUR</span></div>
+        <div class="rank-meta">잠실종합운동장 · 09.12</div><div class="rank-price">198,000원~</div>
+      </article>
+      <article class="rank-card"><span class="rank-num">2</span>
+        <div class="rank-poster" style="background:linear-gradient(160deg,#ff4b6e,#ff8a3d);"><span class="cat">뮤지컬</span><span class="rt">뮤지컬<br/>드라큘라</span></div>
+        <div class="rank-meta">LG아트센터 서울 · 07.10</div><div class="rank-price">180,000원~</div>
+      </article>
+      <article class="rank-card"><span class="rank-num">3</span>
+        <div class="rank-poster" style="background:linear-gradient(160deg,#c6ff3d,#3ee88a);"><span class="cat">콘서트</span><span class="rt" style="color:#1a1030;">2026<br/>Palette Festival</span></div>
+        <div class="rank-meta">KINTEX HALL 9 · 07.04</div><div class="rank-price">121,000원~</div>
+      </article>
+      <article class="rank-card"><span class="rank-num">4</span>
+        <div class="rank-poster" style="background:linear-gradient(160deg,#7a5cff,#ff4b6e);"><span class="cat">연극</span><span class="rt">국립극단<br/>리어왕</span></div>
+        <div class="rank-meta">명동예술극장 · 07.18</div><div class="rank-price">70,000원~</div>
+      </article>
+      <article class="rank-card"><span class="rank-num">5</span>
+        <div class="rank-poster" style="background:linear-gradient(160deg,#1a1030,#3654ff);"><span class="cat">클래식</span><span class="rt">베를린필<br/>내한공연</span></div>
+        <div class="rank-meta">예술의전당 · 10.21</div><div class="rank-price">280,000원~</div>
+      </article>
+      <article class="rank-card"><span class="rank-num">6</span>
+        <div class="rank-poster" style="background:linear-gradient(160deg,#ff8a3d,#c6ff3d);"><span class="cat">전시/행사</span><span class="rt" style="color:#1a1030;">뱅크시:<br/>Still Here</span></div>
+        <div class="rank-meta">더현대서울 · 07.22</div><div class="rank-price">13,800원~</div>
+      </article>
+    </div>
+  </section>
+
+  <div class="perf" aria-hidden="true"></div>
+
+  <section class="section" data-section="ticket-open">
+    <div class="section-head">
+      <div><span class="kicker">Coming Soon</span><h2>티켓오픈 예정</h2><p class="sub">오픈 시간과 회차를 확인하고 알림을 준비하세요.</p></div>
+      <a class="see-all" href="#">더보기 →</a>
+    </div>
+    <div class="open-grid">
+      <div class="open-card">
+        <div class="open-thumb" style="background:linear-gradient(160deg,#3654ff,#c6ff3d);"></div>
+        <div class="open-body"><span class="open-dday">D-3</span><div class="open-title">SEVENTEEN TOUR 고척</div><div class="open-meta">팬클럽 선예매 · 07.01 20:00</div></div>
+      </div>
+      <div class="open-card">
+        <div class="open-thumb" style="background:linear-gradient(160deg,#1a1030,#3654ff);"></div>
+        <div class="open-body"><span class="open-dday">D-7</span><div class="open-title">베를린필 내한공연</div><div class="open-meta">일반예매 · 07.05 12:00</div></div>
+      </div>
+      <div class="open-card">
+        <div class="open-thumb" style="background:linear-gradient(160deg,#ff4b6e,#ff8a3d);"></div>
+        <div class="open-body"><span class="open-dday">D-3</span><div class="open-title">뮤지컬 드라큘라</div><div class="open-meta">일반예매 · 07.10 19:30</div></div>
+      </div>
+      <div class="open-card">
+        <div class="open-thumb" style="background:linear-gradient(160deg,#c6ff3d,#3ee88a);"></div>
+        <div class="open-body"><span class="open-dday">D-9</span><div class="open-title">2026 Palette Festival</div><div class="open-meta">얼리버드 · 07.04 12:00</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" data-section="official-resale">
+    <div class="section-head">
+      <div><span class="kicker">Clean Ticket</span><h2>CLEAN 티켓 공식 양도</h2><p class="sub">직거래 사기 걱정 없이, 내 티켓을 안전하게 양도하세요.</p></div>
+      <a class="see-all" href="#">더보기 →</a>
+    </div>
+    <div class="resale-grid">
+      <div class="resale-cta">
+        <span class="resale-badge">CLEAN TICKET POOL</span>
+        <h3>CLEAN 티켓 공식 양도</h3>
+        <p>정가 범위와 구매 이력 검증을 통과한 티켓만 풀에 등록됩니다. 외부 직거래 없이 예매 내역과 결제 기록이 함께 보존됩니다.</p>
+        <a class="btn-lg primary" href="#">공식 풀 보기 →</a>
+      </div>
+      <div class="trust-card">
+        <span class="label">3단계 안전 장치</span>
+        <div class="trust-steps">
+          <div class="trust-step"><div class="trust-icon">1</div><div class="t">보유 티켓 확인</div><div class="d">예매 내역에서 바로 등록</div></div>
+          <div class="trust-step"><div class="trust-icon">2</div><div class="t">정책 자동 판별</div><div class="d">정가 90~110% 검증</div></div>
+          <div class="trust-step"><div class="trust-icon">3</div><div class="t">QR 보호</div><div class="d">입장 직전 동적 QR</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" data-section="editorial-events">
+    <div class="section-head">
+      <div><span class="kicker">Editorial</span><h2>기획전</h2><p class="sub">지금 봐야 할 공연을 에디터가 엄선해 소개합니다.</p></div>
+      <a class="see-all" href="#">더보기 →</a>
+    </div>
+    <div class="editorial-grid">
+      <div class="editorial-card tone-dark"><span class="num">01</span><span class="eyebrow2">EDITORIAL</span><h3>클린티켓 추천관</h3><span class="go">기획전 보기 →</span></div>
+      <div class="editorial-card tone-red"><span class="num">02</span><span class="eyebrow2">EDITORIAL</span><h3>여름 대형 콘서트</h3><span class="go">기획전 보기 →</span></div>
+      <div class="editorial-card tone-cream"><span class="num">03</span><span class="eyebrow2">EDITORIAL</span><h3>첫 관람 뮤지컬</h3><span class="go">기획전 보기 →</span></div>
+    </div>
+  </section>
+
+  <section class="section" data-section="genre-recommendations">
+    <div class="section-head">
+      <div><span class="kicker">Compare</span><h2>장르별 추천</h2><p class="sub">콘서트·뮤지컬·연극·클래식을 비교하세요.</p></div>
+      <a class="see-all" href="#">더보기 →</a>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab-btn on" data-tab="concert">콘서트</button>
+      <button class="tab-btn" data-tab="musical">뮤지컬</button>
+      <button class="tab-btn" data-tab="play">연극</button>
+      <button class="tab-btn" data-tab="classic">클래식</button>
+      <button class="tab-btn" data-tab="exhibit">전시</button>
+      <button class="tab-btn" data-tab="kids">아동</button>
+      <button class="tab-btn" data-tab="sports">스포츠</button>
+    </div>
+    <div class="tab-panel on" id="panel-concert">
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#3654ff,#7a5cff);"><span>IU 2026 WORLD TOUR</span></div><div class="body"><div class="t">IU 2026 WORLD TOUR</div><div class="m">잠실종합운동장 · 09.12</div></div></div>
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#ff4b6e,#ff8a3d);"><span>SEVENTEEN TOUR</span></div><div class="body"><div class="t">SEVENTEEN TOUR</div><div class="m">고척스카이돔 · 08.08</div></div></div>
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#c6ff3d,#3ee88a);"><span style="color:#1a1030;">DAY6 Special Live</span></div><div class="body"><div class="t">DAY6 Special Live</div><div class="m">인스파이어 아레나 · 08.29</div></div></div>
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#7a5cff,#3654ff);"><span>NCT WISH<br/>FANMEETING</span></div><div class="body"><div class="t">NCT WISH FANMEETING</div><div class="m">KSPO DOME · 07.25</div></div></div>
+    </div>
+    <div class="tab-panel" id="panel-musical">
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#1a1030,#7a5cff);"><span>오페라의 유령</span></div><div class="body"><div class="t">오페라의 유령</div><div class="m">세종문화회관 · 06.30</div></div></div>
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#ff4b6e,#c6ff3d);"><span style="color:#1a1030;">뮤지컬 베토벤</span></div><div class="body"><div class="t">뮤지컬 베토벤</div><div class="m">세종문화회관 · 06.18</div></div></div>
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#3654ff,#ff4b6e);"><span>드라큘라</span></div><div class="body"><div class="t">뮤지컬 드라큘라</div><div class="m">LG아트센터 · 07.10</div></div></div>
+    </div>
+    <div class="tab-panel" id="panel-play">
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#c6ff3d,#7a5cff);"><span style="color:#1a1030;">연극 벚꽃동산</span></div><div class="body"><div class="t">연극 벚꽃동산</div><div class="m">대학로예술극장 · 08.06</div></div></div>
+    </div>
+    <div class="tab-panel" id="panel-classic">
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#1a1030,#3654ff);"><span>베를린필<br/>내한공연</span></div><div class="body"><div class="t">베를린필 내한공연</div><div class="m">예술의전당 · 10.21</div></div></div>
+      <div class="genre-item"><div class="art" style="background:linear-gradient(160deg,#ff8a3d,#3654ff);"><span>백건우와 라벨</span></div><div class="body"><div class="t">백건우와 라벨</div><div class="m">통영국제음악당 · 09.04</div></div></div>
+    </div>
+    <div class="tab-panel" id="panel-exhibit"><div class="empty-genre">준비 중인 전시 큐레이션입니다.</div></div>
+    <div class="tab-panel" id="panel-kids"><div class="empty-genre">준비 중인 아동/가족 큐레이션입니다.</div></div>
+    <div class="tab-panel" id="panel-sports"><div class="empty-genre">준비 중인 스포츠 큐레이션입니다.</div></div>
+  </section>
+
+  <section class="section" data-section="shortcuts">
+    <div class="section-head"><div><span class="kicker">Quick Access</span><h2>바로가기</h2></div></div>
+    <div class="shortcut-grid">
+      <a class="shortcut-card" href="#"><span class="shortcut-icon">📍</span><span class="t">지방 공연</span><span class="h">부산·대구·광주</span></a>
+      <a class="shortcut-card" href="#"><span class="shortcut-icon">🎭</span><span class="t">대학로</span><span class="h">소극장 신작</span></a>
+      <a class="shortcut-card" href="#"><span class="shortcut-icon">🔁</span><span class="t">양도</span><span class="h">공식 풀 거래</span></a>
+      <a class="shortcut-card" href="#"><span class="shortcut-icon">👑</span><span class="t">VIP석</span><span class="h">등급별 보기</span></a>
+      <a class="shortcut-card" href="#"><span class="shortcut-icon">📅</span><span class="t">오픈캘린더</span><span class="h">D-3 알림</span></a>
+      <a class="shortcut-card" href="#"><span class="shortcut-icon">⚡</span><span class="t">당일 공연</span><span class="h">오늘 입장 가능</span></a>
+    </div>
+  </section>
+
+  <div class="perf" aria-hidden="true"></div>
+
+  <section class="section">
+    <div class="section-head"><div><span class="kicker">Browse</span><h2>장르별로 골라보기</h2></div></div>
+    <div class="genre-strip">
+      <button class="genre-chip on">전체</button>
+      <button class="genre-chip">콘서트</button>
+      <button class="genre-chip">뮤지컬</button>
+      <button class="genre-chip">연극</button>
+      <button class="genre-chip">클래식</button>
+      <button class="genre-chip">스포츠</button>
+      <button class="genre-chip">전시/행사</button>
+      <button class="genre-chip">아동/가족</button>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div class="foot-row">
+    <div class="logo" style="font-size:17px;"><span class="dot"></span>TICKETGROUND</div>
+    <div class="foot-links"><a href="#">회사소개</a><a href="#">이용약관</a><a href="#">개인정보처리방침</a><a href="#">티켓판매안내</a></div>
+  </div>
+  <p class="foot-note">© 2026 Ticketground. Concept 1 — Kinetic Pop 풀페이지 시안입니다.</p>
+</footer>
+
+<div class="concept-badge">Concept 1 · Kinetic Pop · Full Page</div>
+
+<script>
+  document.querySelectorAll(".genre-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      document.querySelectorAll(".genre-chip").forEach((c) => c.classList.remove("on"));
+      chip.classList.add("on");
+    });
+  });
+  const tabMap = { concert: "panel-concert", musical: "panel-musical", play: "panel-play", classic: "panel-classic", exhibit: "panel-exhibit", kids: "panel-kids", sports: "panel-sports" };
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("on"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("on"));
+      btn.classList.add("on");
+      document.getElementById(tabMap[btn.dataset.tab]).classList.add("on");
+    });
+  });
+</script>
+</body>
+</html>
