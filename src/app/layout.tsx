@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR } from "next/font/google";
+import { Do_Hyeon, Noto_Sans_KR, Unbounded } from "next/font/google";
 import "./globals.css";
 
 const themeBootstrapScript = `
@@ -62,6 +62,20 @@ const notoSansKr = Noto_Sans_KR({
   display: "swap",
 });
 
+const unbounded = Unbounded({
+  variable: "--font-unbounded",
+  subsets: ["latin"],
+  weight: ["700", "900"],
+  display: "swap",
+});
+
+const doHyeon = Do_Hyeon({
+  variable: "--font-dohyeon",
+  subsets: ["latin"],
+  weight: ["400"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Ticketground",
   description: "공연, 콘서트, 뮤지컬, 스포츠 티켓 예매는 Ticketground",
@@ -80,7 +94,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" data-scroll-behavior="smooth" className={`${notoSansKr.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="ko" data-scroll-behavior="smooth" className={`${notoSansKr.variable} ${unbounded.variable} ${doHyeon.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-background">
         <script id="ticketground-theme-bootstrap" dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         {children}

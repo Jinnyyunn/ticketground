@@ -10,7 +10,7 @@
   --font-sans: var(--font-pretendard, var(--font-noto)), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
   --font-display: var(--font-pretendard, var(--font-noto)), -apple-system, "system-ui", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-unbounded), var(--font-dohyeon), var(--font-sans);
   --text-xs: var(--fs-sm);
   --text-xs--line-height: var(--lh-base);
   --text-sm: var(--fs-sm);
@@ -144,6 +144,10 @@
   :where(small, figcaption) {
     font-size: var(--fs-sm);
     line-height: var(--lh-base);
+  }
+  :where(h1, h2, h3) {
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
   }
   :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
     outline: 2px solid var(--focus-ring);
