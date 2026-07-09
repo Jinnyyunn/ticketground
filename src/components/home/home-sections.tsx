@@ -33,8 +33,23 @@ const editorialCardTone = {
 
 export function HomeHeroSection() {
   return (
-    <section data-section="spec-hero" className="ticketground-container min-w-0 pt-8">
-      <MiniShowCarousel shows={[featuredShow, ...miniShows]} />
+    <section data-section="spec-hero" className="relative min-w-0 overflow-hidden pt-8">
+      <div
+        className="absolute inset-x-0 top-0 -z-10 h-[58%] bg-link"
+        style={{ clipPath: "polygon(0 0, 100% 0, 100% 78%, 0 100%)" }}
+        aria-hidden="true"
+      />
+      <div className="ticketground-container min-w-0">
+        <span className="inline-flex items-center gap-2 rounded-full border-2 border-ink bg-accent-2 px-3.5 py-1.5 text-xs font-black text-ink">
+          ⚡ 지금 이 순간, 가장 뜨거운 무대
+        </span>
+        <h1 className="mt-4 text-[clamp(30px,5.5vw,52px)] font-black leading-[1.08] text-[#fff2e4]">
+          오늘 뜨는 무대, <span className="text-accent-2">놓치지 마세요</span>
+        </h1>
+        <div className="mt-6">
+          <MiniShowCarousel shows={[featuredShow, ...miniShows]} />
+        </div>
+      </div>
     </section>
   );
 }
