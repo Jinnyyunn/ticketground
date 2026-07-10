@@ -50,7 +50,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
   const [seatMapStatus, setSeatMapStatus] = useState("좌석도 로딩 중");
   const [seatMapFailed, setSeatMapFailed] = useState(false);
-  const [selectedBackendTicketId, setSelectedBackendTicketId] = useState("");
+  const [selectedBackendTicketIds, setSelectedBackendTicketIds] = useState<readonly string[]>([]);
   const [timerSeconds, setTimerSeconds] = useState(initialTimerSeconds);
   const timerExpired = timerSeconds === 0;
   const timerWarning = !timerExpired && timerSeconds <= 60;
@@ -66,7 +66,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   useEffect(() => {
     let mounted = true;
     setSeatMapFailed(false);
-    setSelectedBackendTicketId("");
+    setSelectedBackendTicketIds([]);
     getSeatMap(backendEventId)
       .then((nextSeatMap) => {
         if (!mounted) return;
@@ -84,29 +84,31 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     };
   }, [backendEventId]);
 
-  const selectedSeats = selectedSeatIds
-    .map((id) => seats.find((seat) => seat.id === id))
-    .filter((seat): seat is SeatOption => Boolean(seat));
+  const selectedSeats = selectedSeatIds.map((id) => seats.find((seat) => seat.id === id)).filter((seat): seat is SeatOption => Boolean(seat));
   const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
-  const selectedBackendSeat = seatMap?.seats.find((seat) => seat.id === selectedBackendTicketId);
+  const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
   const showStaticSeatMap = !useBackendSeatMap && Boolean(seatMapFailed || (seatMap && backendSeats.length === 0));
-  const selectedLabels = selectedBackendSeat ? selectedBackendSeat.displayCode : selectedSeatIds.join(", ");
-  const selectedCount = selectedBackendSeat ? 1 : selectedSeats.length;
-  const baseAmount = selectedBackendSeat?.price ?? selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  const selectedLabels = useBackendSeatMap ? selectedBackendSeats.map((seat) => seat.displayCode).join(", ") : selectedSeatIds.join(", ");
+  const selectedCount = useBackendSeatMap ? selectedBackendSeats.length : selectedSeats.length;
+  const baseAmount = useBackendSeatMap ? selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0) : selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
   const feeAmount = selectedCount * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
   const canChooseSeats = !timerExpired && Boolean(date && time && quantity);
-  const canPay = !timerExpired && (selectedBackendSeat ? true : selectedSeats.length > 0 && selectedSeats.length <= quantity);
-  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketId)}`;
+  const canPay = !timerExpired && (useBackendSeatMap ? selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity : selectedSeats.length > 0 && selectedSeats.length <= quantity);
+  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}`;
 
   function selectBackendSeat(ticketId: string) {
     setSelectedSeatIds([]);
-    setSelectedBackendTicketId(ticketId);
+    setSelectedBackendTicketIds((current) => {
+      if (current.includes(ticketId)) return current.filter((id) => id !== ticketId);
+      const allowedCount = Math.min(quantity, maxSelectableSeats);
+      return [...current, ticketId].slice(-allowedCount);
+    });
   }
 
   function toggleSeat(seat: SeatOption) {
-    setSelectedBackendTicketId("");
+    setSelectedBackendTicketIds([]);
     setSelectedSeatIds((current) => {
       if (current.includes(seat.id)) return current.filter((id) => id !== seat.id);
       const allowedCount = Math.min(quantity, maxSelectableSeats);
@@ -183,9 +185,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">관람일</h3>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {show.schedules.map((schedule) => (
-                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>
-                        {schedule.label}
-                      </button>
+                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>{schedule.label}</button>
                     ))}
                   </div>
                 </div>
@@ -193,9 +193,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">회차</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {(show.schedules.find((schedule) => schedule.date === date)?.times ?? []).map((item) => (
-                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>
-                        {item}
-                      </button>
+                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>{item}</button>
                     ))}
                   </div>
                 </div>
@@ -203,12 +201,10 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">매수</h3>
                   <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
                     {[1, 2].map((count) => (
-                      <button key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3")}>
-                        {count}매
-                      </button>
+                      <button key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3")}>{count}매</button>
                     ))}
                   </div>
-                  <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 2매 선택 가능. 추가 선택 시 이전 좌석이 해제됩니다.</p>
+                  <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 2매까지 선택할 수 있습니다.</p>
                 </div>
               </div>
               <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 h-12 rounded-sm bg-ticketground px-6 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
@@ -228,12 +224,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               </div>
               <div className="mt-5 min-w-0">
                 {useBackendSeatMap ? (
-                  <BackendSeatPicker
-                    seats={backendSeats}
-                    selectedTicketId={selectedBackendTicketId}
-                    status={seatMapStatus}
-                    onSelect={selectBackendSeat}
-                  />
+                  <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
                     {showStaticSeatMap ? "실시간 좌석도를 불러오지 못해 기본 좌석표로 선택합니다." : seatMapStatus}
@@ -269,7 +260,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             <BookingSummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
             <BookingSummaryRow label="총 결제금액" value={currency(totalAmount)} total />
           </dl>
-          <p className="mt-4 break-keep rounded-sm border border-warn bg-card px-3 py-2 text-sm font-bold text-ink">정책: 최대 2매, 추가 선택 시 이전 좌석 해제</p>
+          <p className="mt-4 break-keep rounded-sm border border-warn bg-card px-3 py-2 text-sm font-bold text-ink">정책: 최대 2매까지 선택할 수 있습니다.</p>
         </aside>
       </div>
     </div>

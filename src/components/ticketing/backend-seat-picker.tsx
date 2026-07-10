@@ -5,12 +5,12 @@ import { cn } from "@/lib/utils";
 export function BackendSeatPicker({
   onSelect,
   seats,
-  selectedTicketId,
+  selectedTicketIds,
   status,
 }: {
   readonly onSelect: (ticketId: string) => void;
   readonly seats: readonly ApiSeat[];
-  readonly selectedTicketId: string;
+  readonly selectedTicketIds: readonly string[];
   readonly status: string;
 }) {
   return (
@@ -31,7 +31,7 @@ export function BackendSeatPicker({
             onClick={() => onSelect(seat.id)}
             className={cn(
               "flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-sm border px-4 py-3 text-left text-sm font-bold transition focus-visible:ring-3 focus-visible:ring-ring/40 sm:min-h-12",
-              selectedTicketId === seat.id ? "border-ink bg-ink text-on-ink" : "border-line bg-surface text-ink hover:border-line-strong",
+              selectedTicketIds.includes(seat.id) ? "border-ink bg-ink text-on-ink" : "border-line bg-surface text-ink hover:border-line-strong",
             )}
           >
             <span className="shrink-0 text-base font-black">{seat.displayCode}</span>

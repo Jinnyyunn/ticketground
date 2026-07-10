@@ -29,6 +29,49 @@ test("booking seat selection goes to the single checkout page without an interme
   assert.equal(await page.getByRole("heading", { name: "결제수단", level: 2 }).count(), 1);
 });
 
+test("backend seat picker keeps two selected seats and replaces the oldest seat when quantity is two", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+
+  const isSelected = async (seatButton) => {
+    const className = (await seatButton.getAttribute("class")) ?? "";
+    return className.split(/\s+/).includes("bg-ink");
+  };
+
+  // Given: the booking page is on the realtime backend seat picker with quantity set to two.
+  await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "2매" }).click();
+  await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
+  await page.locator("[data-backend-seat]").first().waitFor({ timeout: 5000 });
+  await page.waitForFunction(() => document.querySelectorAll("[data-backend-seat]").length >= 3);
+
+  const firstSeat = page.locator("[data-backend-seat]").nth(0);
+  const secondSeat = page.locator("[data-backend-seat]").nth(1);
+  const thirdSeat = page.locator("[data-backend-seat]").nth(2);
+
+  // When: two different backend seats are selected.
+  await firstSeat.click();
+  await secondSeat.click();
+
+  // Then: both seats remain selected and the summary reflects two of two seats.
+  assert.equal(await isSelected(firstSeat), true);
+  assert.equal(await isSelected(secondSeat), true);
+  await page.getByText("2/2매", { exact: true }).waitFor({ timeout: 5000 });
+
+  // When: a third backend seat is selected while already at the two-seat limit.
+  await thirdSeat.click();
+
+  // Then: the oldest selected seat is released and the second plus third seats stay selected.
+  assert.equal(await isSelected(firstSeat), false);
+  assert.equal(await isSelected(secondSeat), true);
+  assert.equal(await isSelected(thirdSeat), true);
+  await page.getByText("2/2매", { exact: true }).waitFor({ timeout: 5000 });
+});
+
 test("checkout ignores tampered URL amount parameters for a selected backend ticket", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
