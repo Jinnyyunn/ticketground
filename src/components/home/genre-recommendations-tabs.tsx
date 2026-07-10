@@ -14,10 +14,17 @@ function GenreItemCard({ item, index }: { readonly item: Recommendation; readonl
       data-card="genre-recommendation"
       className="group block min-w-0 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <div className="relative">
-        <GradientPoster title={item.title} gradient={item.gradient} poster={item.poster} fit={item.posterFit} priority={index === 0} />
+      <div className="relative overflow-hidden rounded-2xl border-[3px] border-ink">
+        <GradientPoster
+          title={item.title}
+          gradient={item.gradient}
+          poster={item.poster}
+          fit={item.posterFit}
+          priority={index === 0}
+          className="!rounded-none"
+        />
         <span
-          className="pointer-events-none absolute bottom-1 left-1.5 text-4xl font-black italic leading-none text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.55)] sm:text-5xl"
+          className="pointer-events-none absolute bottom-1 left-1.5 text-4xl leading-none font-black italic text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.55)] sm:text-5xl"
           aria-hidden="true"
         >
           {index + 1}
@@ -45,10 +52,10 @@ export function GenreRecommendationsTabs({ groups }: { readonly groups: readonly
             aria-selected={index === activeIndex}
             onClick={() => setActiveIndex(index)}
             className={cn(
-              "h-10 shrink-0 rounded-full px-4 text-sm font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              "h-10 shrink-0 rounded-full border-2 border-ink px-4 text-sm font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
               index === activeIndex
                 ? "bg-ink text-on-ink"
-                : "border border-line bg-card text-ink-2 hover:border-line-strong",
+                : "bg-card text-ink-2 hover:bg-surface",
             )}
           >
             {group.title}

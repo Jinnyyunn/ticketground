@@ -40,11 +40,14 @@ function HeaderAuthLinks({ signedIn, signOut }: { readonly signedIn: boolean; re
   if (!signedIn) {
     return (
       <>
-        <Link href={loginLink.href} className={utilityLinkClassName}>
-          {loginLink.label}
-        </Link>
         <Link href={signupLink.href} className={utilityLinkClassName}>
           {signupLink.label}
+        </Link>
+        <Link
+          href={loginLink.href}
+          className="inline-flex h-7 items-center rounded-full border-2 border-ink bg-ticketground px-3.5 text-xs font-black text-ink shadow-[2px_2px_0_0_var(--color-ink)] transition-transform hover:-translate-y-0.5"
+        >
+          {loginLink.label}
         </Link>
       </>
     );
@@ -148,7 +151,7 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
 
       <div
         className={cn(
-          "sticky top-0 z-50 border-y border-line bg-background transition-shadow",
+          "sticky top-0 z-50 border-y-[3px] border-ink bg-background transition-shadow",
           scrolled && "shadow-ticket-1",
         )}
       >
@@ -205,10 +208,10 @@ export function SiteHeader({ showSearchBar = true }: SiteHeaderProps) {
                   key={c}
                   href={categoryHrefs[c] ?? "/open"}
                   className={cn(
-                    "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-black shadow-ticket-1 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-ink px-3 text-sm font-black transition-transform focus-visible:ring-3 focus-visible:ring-ring/50",
                     isResale
-                      ? "border-accent-2 bg-accent-2 text-[#3A2929] hover:bg-accent-2/85"
-                      : "border-line bg-card text-ink hover:border-ticketground hover:bg-ticketground hover:text-white",
+                      ? "bg-accent-2 text-on-accent-2 shadow-ticket-pop hover:-translate-y-0.5"
+                      : "bg-card text-ink hover:bg-surface",
                   )}
                 >
                   <ActionIcon className="size-4 shrink-0" aria-hidden />

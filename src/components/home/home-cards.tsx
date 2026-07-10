@@ -57,7 +57,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
     <Link
       href={show.href}
       className={cn(
-        "group relative isolate grid overflow-hidden rounded-xl border border-line bg-ink shadow-ticket-1 transition-transform hover:-translate-y-0.5 hover:shadow-ticket-3 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group relative isolate grid overflow-hidden rounded-2xl border-[3px] border-ink bg-ink shadow-ticket-1 transition-transform hover:-translate-y-0.5 hover:shadow-ticket-pop focus-visible:ring-3 focus-visible:ring-ring/50",
         size === "large" ? "min-h-[420px] md:min-h-[580px]" : "min-h-[280px]",
       )}
     >
@@ -91,7 +91,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           <p className="mt-4 text-base font-bold text-white/90">{show.venue}</p>
           <p className="mt-1 text-sm text-white/75">{show.date}</p>
         </div>
-        <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-card px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
+        <span className="mt-6 inline-flex h-11 min-w-[112px] w-fit items-center justify-center gap-1 whitespace-nowrap rounded-full border-2 border-ink bg-ticketground px-5 text-base font-black text-ink shadow-[3px_3px_0_0_#fff2e4] transition-transform group-hover:-translate-y-0.5">
           {show.cta} →
         </span>
       </div>
@@ -104,12 +104,16 @@ type SectionHeadProps = {
   readonly subtitle?: string;
   readonly moreHref: string;
   readonly badge?: string;
+  readonly kicker?: string;
 };
 
-export function SectionHead({ title, subtitle, moreHref, badge }: SectionHeadProps) {
+export function SectionHead({ title, subtitle, moreHref, badge, kicker }: SectionHeadProps) {
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div className="min-w-0">
+        {kicker && (
+          <span className="mb-1.5 block text-xs font-black tracking-[0.04em] text-link uppercase">{kicker}</span>
+        )}
         <div className="flex flex-wrap items-center gap-2.5">
           <h2 className="text-4xl font-black leading-tight text-ink">{title}</h2>
           {badge && (
@@ -120,8 +124,8 @@ export function SectionHead({ title, subtitle, moreHref, badge }: SectionHeadPro
         </div>
         {subtitle && <p data-section-subtitle className="mt-2 break-keep text-sm leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
       </div>
-      <Link href={moreHref} className="shrink-0 text-sm font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
-        더보기
+      <Link href={moreHref} className="shrink-0 border-b-2 border-ink text-sm font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
+        더보기 →
       </Link>
     </div>
   );

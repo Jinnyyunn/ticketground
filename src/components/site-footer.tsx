@@ -3,7 +3,7 @@ import { footerColumnLinks, footerLinks } from "@/data/content";
 
 export function SiteFooter() {
   return (
-    <footer className="mt-[70px] border-t border-line bg-background text-ink">
+    <footer className="mt-[70px] border-t-[3px] border-ink bg-background text-ink">
       <div className="ticketground-container grid gap-8 py-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,3fr)]">
         <div>
           <Link href="/" className="inline-flex items-center gap-1 whitespace-nowrap text-2xl font-black text-ink">

@@ -5,6 +5,7 @@ import {
   HomeHeroSection,
   OfficialResaleSection,
   RealtimeTop10Section,
+  SectionDivider,
   ShortcutsSection,
   TicketOpenSection,
 } from "@/components/home/home-sections";
@@ -18,6 +19,7 @@ export default function Home() {
       <main className="flex-1">
         <HomeHeroSection />
         <RealtimeTop10Section />
+        <SectionDivider />
         <TicketOpenSection />
         <OfficialResaleSection />
         <GenreRecommendationsSection />

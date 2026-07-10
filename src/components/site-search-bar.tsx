@@ -38,8 +38,8 @@ export function SiteSearchBar({ className, keyboardReachable = true }: SiteSearc
       role="search"
       suppressHydrationWarning
       className={cn(
-        "flex h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-card pl-5 pr-3",
-        "transition-colors hover:border-line-strong focus-within:border-line-strong focus-within:ring-3 focus-within:ring-ring/50",
+        "flex h-10 min-w-0 items-center gap-2 rounded-full border-2 border-ink bg-card pl-5 pr-3",
+        "transition-colors focus-within:ring-3 focus-within:ring-ring/50",
         className,
       )}
     >

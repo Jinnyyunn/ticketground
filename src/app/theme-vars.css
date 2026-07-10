@@ -71,6 +71,7 @@
   --shadow-1: rgba(0, 0, 0, .08) 0 1px 3px 0;
   --shadow-2: rgba(0, 0, 0, .13) 0 0 8px 0;
   --shadow-3: rgba(0, 0, 0, .16) 0 8px 24px -4px, rgba(0, 0, 0, .06) 0 2px 6px 0;
+  --shadow-pop: 6px 6px 0 0 var(--ink);
   --max-w: 1240px;
   --header-h: 64px;
   --catnav-h: 48px;
@@ -138,4 +139,5 @@
   --shadow-1: rgba(0, 0, 0, .32) 0 1px 3px 0;
   --shadow-2: rgba(0, 0, 0, .36) 0 0 8px 0;
   --shadow-3: rgba(0, 0, 0, .4) 0 12px 30px -8px, rgba(0, 0, 0, .28) 0 2px 8px 0;
+  --shadow-pop: 6px 6px 0 0 var(--accent-2);
 }
