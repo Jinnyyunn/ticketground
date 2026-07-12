@@ -1,10 +1,14 @@
 export type ApiEvent = {
   readonly id: string;
+  readonly slug: string;
   readonly title: string;
   readonly venue: string;
   readonly venueId: string;
   readonly category: string;
   readonly saleState: string;
+  readonly date: string;
+  readonly image: string;
+  readonly zones: readonly { readonly id: string; readonly name: string; readonly faceValue: number }[];
   readonly sale: {
     readonly label: string;
     readonly state: string;

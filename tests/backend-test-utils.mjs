@@ -10,6 +10,7 @@ const repoRoot = new URL("../", import.meta.url);
 const appAttestationSecret = "backend-test-app-attestation-secret";
 const adminToken = "backend-test-admin-token";
 const adminSessionSecret = "backend-test-admin-session-secret";
+export const bootstrapAdminPassword = "ticketground-test-admin";
 
 export function appAttestation(purpose, ...parts) {
   return crypto
@@ -44,7 +45,7 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_ADMIN_TOKEN: adminToken,
       TIG_ADMIN_SESSION_SECRET: adminSessionSecret,
       TIG_ADMIN_USERNAME: "admin",
-      TIG_ADMIN_PASSWORD: "admin",
+      TIG_ADMIN_PASSWORD: bootstrapAdminPassword,
       TIG_DB_PATH: path.join(tempDir, "db.json"),
       TIG_NOW: now,
       TIG_APP_ATTESTATION_SECRET: appAttestationSecret,

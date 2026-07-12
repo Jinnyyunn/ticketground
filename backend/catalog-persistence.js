@@ -25,6 +25,7 @@ function normalizeDb(db) {
   db.qrIssueLogs ||= [];
   db.operatorAlerts ||= [];
   db.paymentTransactions ||= [];
+  db.adminAccounts ||= [];
   db.ledger ||= [];
 
   if (!db.venues?.length) {
@@ -80,8 +81,11 @@ function normalizeDb(db) {
   }
 
   for (const event of db.events) {
+    const before = JSON.stringify(event);
+    event.slug ||= `event-${event.id}`;
     primaryDate(event);
     syncEventVenue(db, event);
+    if (JSON.stringify(event) !== before) changed = true;
     if (ensureTicketsForEvent(db, event)) changed = true;
   }
 
@@ -155,9 +159,13 @@ function seedDb() {
     qrIssueLogs: [],
     operatorAlerts: [],
     paymentTransactions: [],
+    adminAccounts: [],
     ledger: []
   };
-  for (const event of db.events) ensureTicketsForEvent(db, event);
+  for (const event of db.events) {
+    event.slug ||= `event-${event.id}`;
+    ensureTicketsForEvent(db, event);
+  }
   appendLedger(db, "SYSTEM", "BOOTSTRAP", { message: "Initial event, venue map and ticket minting snapshot" });
   return db;
 }

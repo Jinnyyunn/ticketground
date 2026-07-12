@@ -39,6 +39,7 @@ export async function createTicketgroundApp(options) {
     ensureTicketsForEvent: catalog.ensureTicketsForEvent,
     httpError: runtime.httpError,
     id: runtime.id,
+    mediaDir: options.mediaDir,
     money: runtime.money,
     now: runtime.now,
     seatLayoutForVenue: catalog.seatLayoutForVenue,
@@ -135,5 +136,5 @@ export async function createTicketgroundApp(options) {
     saveDb: persistence.saveDb
   });
   const db = await persistence.loadDb({ normalizeDb: catalog.normalizeDb, seedDb: catalog.seedDb });
-  return { db, handleRequest: http.handleRequest };
+  return { admin, db, handleRequest: http.handleRequest };
 }

@@ -18,6 +18,12 @@ Ticketground screens must feel like a dense Korean ticketing service: functional
 - Cards should stay compact, bordered, and single-layered. Do not place decorative cards inside other cards.
 - Korean labels in nav, shortcuts, and action buttons must avoid awkward wrapping. Prefer short labels such as `재판매` in tight slots and `공식 재판매` in page titles.
 
+## Admin Shell
+- The admin console uses one persistent operations shell: a compact bordered sidebar at desktop widths and a toggleable menu below `768px`. Each menu item owns one focused workspace URL under `/console/<workspace>`; do not recreate the former all-panels dashboard.
+- Admin surfaces use the existing `surface`, `line`, `ink`, `ok`, and `warn` tokens with `8px` radii. Workspace content is a single bordered working surface, with no decorative nested-card hierarchy.
+- The mobile menu button exposes its state with `aria-expanded`; the menu closes after navigation and on `Escape`. Keep each workspace usable at `390px` without horizontal scrolling.
+- Mutation feedback stays beside the active workspace action, in Korean, and in an `aria-live="polite"` region. Access-denied states explain the missing permission without attempting to load that workspace's data.
+
 ## States
 - Backend-backed controls must show loading, success, and error text near the action that caused the state.
 - Disabled controls must use existing muted surface tokens and remain readable.

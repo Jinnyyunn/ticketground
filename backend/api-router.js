@@ -2,6 +2,8 @@ export function createApiRouter({
   addSupportMessage,
   adminSummary,
   adminVenues,
+  adminWorkspace,
+  createAdminAccount,
   cancelResaleListing,
   createSupportThread,
   createEventDraft,
@@ -33,6 +35,7 @@ export function createApiRouter({
   trustDevice,
   updateEventSale,
   updateEventVenue,
+  updateAdminAccount,
   updateDemoProfile,
   updateSupportStatus,
   updateTicketStatus,
@@ -56,7 +59,14 @@ function requireBody(body, keys) {
 
 async function parseBody(req) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 8 * 1024 * 1024) {
+      throw httpError(413, "REQUEST_TOO_LARGE", "요청 본문이 너무 큽니다.");
+    }
+    chunks.push(chunk);
+  }
   if (!chunks.length) return {};
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -74,6 +84,7 @@ async function handleApi(req, res, db, surface) {
   const userIdentityMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/identity$/);
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
+  const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
 
   if (adminOnly && surface !== "admin") {
@@ -91,6 +102,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
   if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
+  if (req.method === "GET" && adminWorkspaceMatch) return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin);
   if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
   if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
   if (req.method === "GET" && userTicketsMatch) return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
@@ -203,8 +215,16 @@ async function handleApi(req, res, db, surface) {
     return updateEventSale(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/create") {
-    requireBody(body, ["title", "category", "startsAt", "venueId", "prices"]);
+    requireBody(body, ["title", "category", "startsAt", "venueId", "prices", "imageDataUrl"]);
     return createEventDraft(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/admin-accounts") {
+    requireBody(body, ["username", "password", "roleKeys"]);
+    return createAdminAccount(db, body, req.admin);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/admin-accounts/update") {
+    requireBody(body, ["adminId", "roleKeys"]);
+    return updateAdminAccount(db, body, req.admin);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/users/status") {
     requireBody(body, ["userId", "status"]);

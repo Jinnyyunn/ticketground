@@ -1,4 +1,5 @@
 import { FloatingSide } from "@/components/floating-side";
+import { AdminPublishedEventsSection } from "@/components/home/admin-published-events";
 import {
   EditorialEventsSection,
   GenreRecommendationsSection,
@@ -17,6 +18,7 @@ export default function Home() {
       <SiteHeader />
       <main className="flex-1">
         <HomeHeroSection />
+        <AdminPublishedEventsSection />
         <RealtimeTop10Section />
         <TicketOpenSection />
         <OfficialResaleSection />

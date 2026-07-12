@@ -21,11 +21,15 @@ import type {
 
 export const apiEventSchema = z.object({
   id: z.string(),
+  slug: z.string(),
   title: z.string(),
   venue: z.string(),
   venueId: z.string(),
   category: z.string(),
   saleState: z.string(),
+  date: z.string(),
+  image: z.string(),
+  zones: z.array(z.object({ id: z.string(), name: z.string(), faceValue: z.number() })),
   sale: z.object({
     label: z.string(),
     state: z.string(),
