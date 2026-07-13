@@ -68,11 +68,11 @@ async function checkoutWithoutSelectedTicket(page, baseUrl, slug) {
   });
   const purchaseRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/api/tickets/buy";
+    return url.pathname === "/api/payments/bootpay/purchase";
   });
   const purchaseResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
-    return url.pathname === "/api/tickets/buy";
+    return url.pathname === "/api/payments/bootpay/purchase";
   });
 
   await page.getByLabel(/결제 조건/).check();

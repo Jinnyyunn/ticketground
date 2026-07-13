@@ -3,6 +3,8 @@ export function createApiRouter({
   adminSummary,
   adminVenues,
   adminWorkspace,
+  bootpayConfig,
+  confirmBootpayPayment,
   createAdminAccount,
   cancelResaleListing,
   createSupportThread,
@@ -94,6 +96,7 @@ async function handleApi(req, res, db, surface) {
 
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") return publicCatalog(db);
+  if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/callback") return socialAuthCallback(db, req, "kakao", url.searchParams);
@@ -161,6 +164,22 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
     return publicPurchaseResult(buyPrimary(db, body));
+  }
+  if (req.method === "POST" && url.pathname === "/api/payments/bootpay/purchase") {
+    requireBody(body, ["userId", "ticketId", "paymentMethod"]);
+    const receipt = await confirmBootpayPayment(db, {
+      ticketId: body.ticketId,
+      userId: body.userId,
+      paymentKey: String(body.paymentMethod || "").toUpperCase(),
+      receiptId: body.receiptId
+    });
+    const result = buyPrimary(db, {
+      userId: body.userId,
+      ticketId: body.ticketId,
+      paymentMethod: body.paymentMethod,
+      pgTransactionId: receipt.receiptId
+    });
+    return { ...publicPurchaseResult(result), bootpay: receipt };
   }
   if (req.method === "POST" && url.pathname === "/api/resale/list") {
     requireBody(body, ["sellerId", "ticketId", "price"]);

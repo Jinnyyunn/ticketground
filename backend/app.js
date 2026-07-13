@@ -1,6 +1,7 @@
 import { createAdmissionBackend } from "./admission.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
+import { createBootpayBackend } from "./bootpay.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
@@ -106,13 +107,20 @@ export async function createTicketgroundApp(options) {
     resolvePaymentMethod: runtime.resolvePaymentMethod,
     saleSummary: catalog.saleSummary
   });
+  const bootpay = createBootpayBackend({
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    now: runtime.now
+  });
   const apiRouter = createApiRouter({
     ...admin,
     ...commerce,
     ...engagement,
     ...identity,
     ...session,
+    bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
+    confirmBootpayPayment: bootpay.confirmBootpayPayment,
     httpError: runtime.httpError,
     publicCatalog: dtos.publicCatalog,
     publicDirectTransferResult: dtos.publicDirectTransferResult,

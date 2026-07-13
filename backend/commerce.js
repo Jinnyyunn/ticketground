@@ -18,7 +18,7 @@ export function createCommerceBackend({
 }) {
   const OFFICIAL_RESALE_FEE_RATE = 0.05;
 
-  function buyPrimary(db, { userId, ticketId, paymentMethod }) {
+  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const ticket = db.tickets.find((item) => item.id === ticketId);
@@ -46,7 +46,7 @@ export function createCommerceBackend({
       amount: ticket.faceValue,
       method: payment.key,
       status: payment.status,
-      pgTransactionId: `${payment.key}-${hash(`${ticket.id}:${user.id}:${now()}`).slice(0, 12)}`,
+      pgTransactionId: pgTransactionId || `${payment.key}-${hash(`${ticket.id}:${user.id}:${now()}`).slice(0, 12)}`,
       createdAt: now()
     });
     appendLedger(db, user.id, "PRIMARY_PURCHASE", {
