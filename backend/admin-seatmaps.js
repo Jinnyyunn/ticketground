@@ -37,7 +37,7 @@ function adminVenueRecord(venue) {
       description: "대형 경기장형 관람석 배치도입니다."
     },
     venue_nanjipark: {
-      category: "festival",
+      category: "concert",
       mapId: "jamsil-aux-field",
       mapTitle: "잠실 보조 경기장 도면",
       mapImage: "/assets/jamsil-olympic-main-stadium.svg",
@@ -75,7 +75,8 @@ function resolveVenue(db, venueId) {
 }
 
 function seatMap(db, { category, venueId, eventId }) {
-  const event = db.events.find((item) => item.id === eventId) || db.events[0];
+  const event = eventId ? db.events.find((item) => item.id === eventId) : db.events[0];
+  if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
   const venue = venueId ? resolveVenue(db, venueId) : resolveVenue(db, event.venueId);
   const adminVenue = adminVenueRecord(venue);
   const zones = event.zones.map((zone) => ({

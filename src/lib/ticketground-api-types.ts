@@ -1,13 +1,37 @@
+export type ApiEventPrice = {
+  readonly grade: string;
+  readonly seat: string;
+  readonly price: number;
+};
+
+export type ApiEventSchedule = {
+  readonly label: string;
+  readonly date: string;
+  readonly times: readonly string[];
+};
+
 export type ApiEvent = {
   readonly id: string;
   readonly slug: string;
   readonly title: string;
+  readonly shortTitle?: string;
   readonly venue: string;
   readonly venueId: string;
   readonly category: string;
   readonly saleState: string;
   readonly date: string;
   readonly image: string;
+  readonly period?: string;
+  readonly runtime?: string;
+  readonly ageLimit?: string;
+  readonly badge?: string;
+  readonly artistSlug?: string;
+  readonly prices?: readonly ApiEventPrice[];
+  readonly schedules?: readonly ApiEventSchedule[];
+  readonly casts?: readonly string[];
+  readonly notices?: readonly string[];
+  readonly summary?: string;
+  readonly pinnedRank?: number | null;
   readonly zones: readonly { readonly id: string; readonly name: string; readonly faceValue: number }[];
   readonly sale: {
     readonly label: string;

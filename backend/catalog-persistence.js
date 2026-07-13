@@ -5,7 +5,6 @@ export function createCatalogPersistence({
   ensureAdmissionCredential,
   ensureTicketsForEvent,
   eventBlueprints,
-  eventZone,
   primaryDate,
   syncEventVenue,
   venueBlueprints
@@ -93,11 +92,12 @@ function normalizeDb(db) {
     const event = db.events.find((item) => item.id === ticket.eventId) || db.events[0];
     if (!event) continue;
     const performanceDate = primaryDate(event);
-    const { zone } = eventZone(db, event.id, ticket.zoneId || event.zones[0].id);
+    const zone = event.zones.find((item) => item.id === ticket.zoneId) || event.zones[0];
+    if (!zone) continue;
     const before = JSON.stringify(ticket);
     ticket.eventId ||= event.id;
     ticket.performanceDateId ||= performanceDate.id;
-    ticket.zoneId ||= zone.id;
+    ticket.zoneId = zone.id;
     ticket.faceValue ||= zone.faceValue;
     ticket.minPrice ||= Math.ceil(ticket.faceValue * 0.5);
     ticket.maxPrice ||= Math.ceil(ticket.faceValue * (1 + zone.resaleFeeRate));

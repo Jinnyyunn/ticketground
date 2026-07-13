@@ -211,11 +211,11 @@ async function handleApi(req, res, db, surface) {
     return updateEventVenue(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/sale") {
-    requireBody(body, ["eventId", "title", "category", "startsAt", "venueId", "prices"]);
+    requireBody(body, ["eventId", "title", "category", "startsAt", "venueId"]);
     return updateEventSale(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/create") {
-    requireBody(body, ["title", "category", "startsAt", "venueId", "prices", "imageDataUrl"]);
+    requireBody(body, ["title", "category", "startsAt", "venueId", "imageDataUrl"]);
     return createEventDraft(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/admin-accounts") {

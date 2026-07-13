@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { adminDto, isAdminIpAllowed, normalizeAdminIpAllowlist, roleCatalog } from "./admin-acl.js";
+import { createAdminEventContentBackend } from "./admin-event-content.js";
 import { createAdminSeatMapBackend } from "./admin-seatmaps.js";
 
 export function createAdminBackend({
@@ -20,6 +21,17 @@ export function createAdminBackend({
   verifyLedger
 }) {
   const {
+    assertInventorySize,
+    normalizeAdminEventInput,
+    normalizeCreateEventContent,
+    normalizeUpdateEventContent
+  } = createAdminEventContentBackend({
+    httpError,
+    money,
+    stableId
+  });
+
+  const {
     adminVenueRecord,
     resolveVenue,
     seatMap,
@@ -28,53 +40,6 @@ export function createAdminBackend({
     httpError,
     seatLayoutForVenue
   });
-
-const allowedCategories = ["concert", "festival", "musical", "sports"];
-const allowedSaleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"];
-
-function eventZonesFromPrices(prices) {
-  const priceMap = prices && typeof prices === "object" ? prices : {};
-  const defaults = [
-    { id: "zone_vip", name: "VIP", faceValue: 154000, resaleFeeRate: 0.08, maxTransferCount: 1 },
-    { id: "zone_r", name: "R석", faceValue: 121000, resaleFeeRate: 0.07, maxTransferCount: 1 },
-    { id: "zone_s", name: "S석", faceValue: 99000, resaleFeeRate: 0.06, maxTransferCount: 1 }
-  ];
-  return defaults.map((zone) => {
-    const nextPrice = money(priceMap[zone.id] ?? zone.faceValue);
-    if (!Number.isFinite(nextPrice) || nextPrice <= 0) {
-      throw httpError(422, "INVALID_ZONE_PRICE", `${zone.name} 가격을 확인해주세요.`);
-    }
-    return { ...zone, faceValue: nextPrice };
-  });
-}
-
-function normalizeAdminEventInput({ title, category, startsAt, venueId, prices, saleState, saleNote, discountRate, organizer }) {
-  const cleanTitle = String(title || "").trim();
-  if (!cleanTitle) throw httpError(400, "MISSING_FIELD", "행사명을 입력해주세요.");
-  const parsedDate = Date.parse(startsAt);
-  if (!startsAt || Number.isNaN(parsedDate)) {
-    throw httpError(422, "INVALID_EVENT_DATE", "개최 날짜와 시간을 확인해주세요.");
-  }
-  const nextCategory = String(category || "concert");
-  if (!allowedCategories.includes(nextCategory)) {
-    throw httpError(422, "INVALID_EVENT_CATEGORY", "지원하지 않는 행사 유형입니다.");
-  }
-  const nextSaleState = String(saleState || "OPEN_SOON");
-  if (!allowedSaleStates.includes(nextSaleState)) {
-    throw httpError(422, "INVALID_SALE_STATE", "지원하지 않는 판매 상태입니다.");
-  }
-  return {
-    category: nextCategory,
-    discountRate: Math.max(0, Math.min(90, Number(discountRate || 0))),
-    organizer: String(organizer || "Ticketground Admin").trim().slice(0, 80),
-    prices,
-    saleNote: String(saleNote || "").trim().slice(0, 80),
-    saleState: nextSaleState,
-    startsAt,
-    title: cleanTitle,
-    venueId
-  };
-}
 
 function imageExtension(buffer, mimeType) {
   if (mimeType === "image/png" && buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "png";
@@ -150,7 +115,12 @@ async function createEventDraft(db, payload) {
     throw httpError(409, "EVENT_ALREADY_EXISTS", "같은 공연 초안이 이미 있습니다.");
   }
   if (!payload.imageDataUrl) throw httpError(400, "MISSING_FIELD", "포스터 이미지를 등록해주세요.");
-  const zones = eventZonesFromPrices(input.prices);
+  const content = normalizeCreateEventContent(payload, {
+    eventId,
+    events: db.events,
+    startsAt: input.startsAt
+  });
+  assertInventorySize(content.zones, content.dates);
   const image = await storeEventImage(payload.imageDataUrl);
   const event = {
     id: eventId,
@@ -159,18 +129,13 @@ async function createEventDraft(db, payload) {
     venueId: venue.id,
     venue: venue.name,
     date: input.startsAt,
-    dates: [{ id: stableId("perf", eventId, input.startsAt), startsAt: input.startsAt, label: "1회차" }],
     organizer: input.organizer,
     image,
-    slug: `admin-${eventId}`,
-    badge: "관리자 등록",
     saleState: input.saleState,
     saleNote: input.saleNote || "관리자 초안",
     discountRate: input.discountRate,
-    durationMinutes: 120,
-    ageLimit: "전체 관람",
     rating: "0.0",
-    zones
+    ...content
   };
   db.events.push(event);
   const beforeTickets = db.tickets.length;
@@ -183,6 +148,44 @@ async function createEventDraft(db, payload) {
     ticketsCreated
   });
   return { event: clone(event), venue, ticketsCreated, seatMap: venueMapForEvent(db, event.id) };
+}
+
+function isTransactionalTicket(ticket) {
+  return Boolean(ticket.ownerId) || ticket.status !== "ON_SALE";
+}
+
+function assertTicketsCanUseInventory(db, event, nextZones, nextDates) {
+  const nextZoneIds = new Set(nextZones.map((zone) => zone.id));
+  const nextDateIds = new Set(nextDates.map((date) => date.id));
+  const blockedZoneTicket = db.tickets.find((ticket) => (
+    ticket.eventId === event.id
+    && !nextZoneIds.has(ticket.zoneId)
+    && isTransactionalTicket(ticket)
+  ));
+  if (blockedZoneTicket) {
+    throw httpError(409, "EVENT_ZONE_IN_USE", "이미 소유 또는 거래 중인 티켓이 있는 좌석 등급은 제거할 수 없습니다.");
+  }
+  const blockedDateTicket = db.tickets.find((ticket) => (
+    ticket.eventId === event.id
+    && !nextDateIds.has(ticket.performanceDateId)
+    && isTransactionalTicket(ticket)
+  ));
+  if (blockedDateTicket) {
+    throw httpError(409, "EVENT_SCHEDULE_IN_USE", "이미 소유 또는 거래 중인 티켓이 있는 공연 회차는 제거할 수 없습니다.");
+  }
+}
+
+function removeStaleOpenTickets(db, event) {
+  const activeZoneIds = new Set(event.zones.map((zone) => zone.id));
+  const activeDateIds = new Set((event.dates || []).map((date) => date.id));
+  db.tickets = db.tickets.filter((ticket) => (
+    ticket.eventId !== event.id
+    || (
+      activeZoneIds.has(ticket.zoneId)
+      && activeDateIds.has(ticket.performanceDateId)
+    )
+    || isTransactionalTicket(ticket)
+  ));
 }
 
 function createAdminAccount(db, payload, actor) {
@@ -270,50 +273,44 @@ function updateEventVenue(db, { eventId, venueId }) {
   return { event, venue, seatMap: venueMapForEvent(db, event.id) };
 }
 
-function updateEventSale(db, { eventId, title, category, startsAt, venueId, prices, saleState, saleNote, discountRate }) {
+function updateEventSale(db, payload) {
+  const { eventId } = payload;
   const event = db.events.find((item) => item.id === eventId);
   if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
-  const venue = resolveVenue(db, venueId || event.venueId);
-  const nextCategory = String(category || event.category || "concert");
-  if (!allowedCategories.includes(nextCategory)) {
-    throw httpError(422, "INVALID_EVENT_CATEGORY", "지원하지 않는 행사 유형입니다.");
-  }
-  const nextSaleState = String(saleState || event.saleState || "ON_SALE");
-  if (!allowedSaleStates.includes(nextSaleState)) {
-    throw httpError(422, "INVALID_SALE_STATE", "지원하지 않는 판매 상태입니다.");
-  }
-  const cleanTitle = String(title || "").trim();
-  if (!cleanTitle) throw httpError(400, "MISSING_FIELD", "행사명을 입력해주세요.");
-  const parsedDate = Date.parse(startsAt);
-  if (!startsAt || Number.isNaN(parsedDate)) {
-    throw httpError(422, "INVALID_EVENT_DATE", "개최 날짜와 시간을 확인해주세요.");
-  }
-
-  const priceMap = prices && typeof prices === "object" ? prices : {};
-  const updatedZones = event.zones.map((zone) => {
-    const nextPrice = money(priceMap[zone.id] ?? zone.faceValue);
-    if (!Number.isFinite(nextPrice) || nextPrice <= 0) {
-      throw httpError(422, "INVALID_ZONE_PRICE", `${zone.name} 가격을 확인해주세요.`);
-    }
-    return { ...zone, faceValue: nextPrice };
+  const input = normalizeAdminEventInput(payload, event);
+  const venue = resolveVenue(db, input.venueId || event.venueId);
+  const content = normalizeUpdateEventContent(payload, {
+    event,
+    eventId: event.id,
+    events: db.events,
+    startsAt: input.startsAt
   });
+  const nextZones = content.zones || event.zones;
+  const nextDates = content.dates || (event.dates?.length
+    ? event.dates.map((date, index) => (index === 0 ? { ...date, startsAt: input.startsAt, label: date.label || "1회차" } : date))
+    : [{ id: stableId("perf", event.id, input.startsAt), startsAt: input.startsAt, label: "1회차" }]);
+  assertInventorySize(nextZones, nextDates);
+  assertTicketsCanUseInventory(db, event, nextZones, nextDates);
 
-  event.title = cleanTitle;
-  event.category = nextCategory;
-  event.saleState = nextSaleState;
-  event.saleNote = String(saleNote || "").trim().slice(0, 80);
-  event.discountRate = Math.max(0, Math.min(90, Number(discountRate || 0)));
+  event.title = input.title;
+  event.category = input.category;
+  event.saleState = input.saleState;
+  event.saleNote = input.saleNote;
+  event.discountRate = input.discountRate;
   event.venueId = venue.id;
   event.venue = venue.name;
-  event.date = startsAt;
-  event.dates ||= [];
-  if (!event.dates.length) {
-    event.dates.push({ id: stableId("perf", event.id, startsAt), startsAt, label: "1회차" });
-  } else {
-    event.dates[0].startsAt = startsAt;
-    event.dates[0].label ||= "1회차";
+  Object.assign(event, content);
+  if (!content.date) event.date = input.startsAt;
+  if (!content.dates) {
+    event.dates ||= [];
+    if (!event.dates.length) {
+      event.dates.push({ id: stableId("perf", event.id, input.startsAt), startsAt: input.startsAt, label: "1회차" });
+    } else {
+      event.dates[0].startsAt = input.startsAt;
+      event.dates[0].label ||= "1회차";
+    }
   }
-  event.zones = updatedZones;
+  removeStaleOpenTickets(db, event);
 
   let repricedTickets = 0;
   for (const ticket of db.tickets) {
@@ -336,7 +333,7 @@ function updateEventSale(db, { eventId, title, category, startsAt, venueId, pric
     saleState: event.saleState,
     saleNote: event.saleNote,
     discountRate: event.discountRate,
-    startsAt,
+    startsAt: input.startsAt,
     venueId: venue.id,
     repricedTickets,
     prices: Object.fromEntries(event.zones.map((zone) => [zone.id, zone.faceValue]))

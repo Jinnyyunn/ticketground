@@ -14,6 +14,8 @@ import type { WorkspaceKey } from "./console-workspaces";
 
 export type AdminRole = { readonly key: string; readonly name: string };
 export type Permission = { readonly key: string; readonly label: string; readonly group: string };
+export type AdminEventPrice = { readonly grade: string; readonly seat: string; readonly price: number };
+export type AdminEventSchedule = { readonly label: string; readonly date: string; readonly times: readonly string[] };
 export type AdminSession = {
   readonly admin: {
     readonly id: string;
@@ -29,10 +31,23 @@ export type AdminSession = {
 export type AdminEvent = {
   readonly id: string;
   readonly title: string;
+  readonly shortTitle?: string;
   readonly category: string;
   readonly venueId: string;
   readonly venue: string;
   readonly date: string;
+  readonly period?: string;
+  readonly runtime?: string;
+  readonly ageLimit?: string;
+  readonly badge?: string;
+  readonly artistSlug?: string;
+  readonly slug?: string;
+  readonly prices?: readonly AdminEventPrice[];
+  readonly schedules?: readonly AdminEventSchedule[];
+  readonly casts?: readonly string[];
+  readonly notices?: readonly string[];
+  readonly summary?: string;
+  readonly pinnedRank?: number | null;
   readonly saleState: string;
   readonly saleNote?: string;
   readonly discountRate?: number;
@@ -98,12 +113,16 @@ const operatorLabels: Record<string, string> = {
   CLOSED: "종료",
   concert: "콘서트",
   DISCOUNT_SOON: "할인 예정",
+  children: "아동·가족",
+  classic: "클래식",
+  exhibition: "전시·행사",
   festival: "페스티벌",
   musical: "뮤지컬",
   ON_SALE: "판매 중",
   OPEN: "접수 중",
   OPEN_SOON: "오픈 예정",
   sports: "스포츠",
+  theater: "연극",
   WATCHLIST: "주의 관찰"
 };
 
