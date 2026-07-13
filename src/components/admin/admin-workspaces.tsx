@@ -10,6 +10,7 @@ import {
   Notice,
   SelectField,
   Stat,
+  TextareaField,
   valueFromForm,
   valuesFromForm,
   WorkspacePanel,
@@ -92,6 +93,35 @@ function ipAllowlistFromForm(form: HTMLFormElement): string[] {
   return valueFromForm(form, "ipAllowlist").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
 }
 
+const eventCategoryOptions = ["musical", "concert", "theater", "classic", "sports", "exhibition", "children"].map((value) => ({ label: operatorLabel(value), value }));
+
+function linesFromForm(form: HTMLFormElement, name: string): string[] {
+  return valueFromForm(form, name).split("\n").map((item) => item.trim()).filter(Boolean);
+}
+
+function pinnedRankFromForm(form: HTMLFormElement): number | null {
+  const raw = valueFromForm(form, "pinnedRank");
+  return raw ? Number(raw) : null;
+}
+
+function pricesFromForm(form: HTMLFormElement): { grade: string; seat: string; price: number }[] {
+  return linesFromForm(form, "prices").map((line) => {
+    const [grade, seat, price] = line.split(",").map((part) => part.trim());
+    return { grade: grade || "", seat: seat || grade || "", price: Number(price) || 0 };
+  });
+}
+
+function schedulesFromForm(form: HTMLFormElement): { label: string; date: string; times: string[] }[] {
+  return linesFromForm(form, "schedules").map((line) => {
+    const [label, date, times] = line.split("|").map((part) => part.trim());
+    return {
+      label: label || "",
+      date: date || "",
+      times: (times || "").split(",").map((time) => time.trim()).filter(Boolean),
+    };
+  });
+}
+
 function CatalogWorkspace({ data, feedback, mutate, onLocalError }: { readonly data: CatalogWorkspace } & MutableWorkspaceProps) {
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -116,11 +146,23 @@ function CatalogWorkspace({ data, feedback, mutate, onLocalError }: { readonly d
       venueId: valueFromForm(form, "venueId"),
       saleState: valueFromForm(form, "saleState"),
       saleNote: valueFromForm(form, "saleNote"),
-      prices: { zone_vip: Number(valueFromForm(form, "zone_vip")), zone_r: Number(valueFromForm(form, "zone_r")), zone_s: Number(valueFromForm(form, "zone_s")) },
+      shortTitle: valueFromForm(form, "shortTitle") || undefined,
+      period: valueFromForm(form, "period") || undefined,
+      runtime: valueFromForm(form, "runtime") || undefined,
+      ageLimit: valueFromForm(form, "ageLimit") || undefined,
+      badge: valueFromForm(form, "badge") || undefined,
+      artistSlug: valueFromForm(form, "artistSlug") || undefined,
+      slug: valueFromForm(form, "slug") || undefined,
+      summary: valueFromForm(form, "summary") || undefined,
+      prices: pricesFromForm(form),
+      schedules: schedulesFromForm(form),
+      casts: linesFromForm(form, "casts"),
+      notices: linesFromForm(form, "notices"),
+      pinnedRank: pinnedRankFromForm(form),
       imageDataUrl,
     }, "신규 공연과 티켓이 생성되었습니다.");
   };
-  return <WorkspacePanel><div className="flex items-center gap-2 border-b border-line pb-3"><CalendarPlus size={18} /><h2 className="text-base font-black">신규 공연/티켓 추가</h2></div><form className="mt-4 grid gap-3 md:grid-cols-2" noValidate onSubmit={submit}><Field label="공연명" name="title" required /><SelectField label="카테고리" name="category" defaultValue="concert" options={["concert", "festival", "musical", "sports"].map((value) => ({ label: operatorLabel(value), value }))} /><Field label="시작 일시" name="startsAt" defaultValue="2026-12-24T19:30:00+09:00" /><SelectField label="공연장" name="venueId" defaultValue={data.events[0]?.venueId} options={data.venues.map((venue) => ({ label: venue.name, value: venue.id }))} /><SelectField label="초기 판매 상태" name="saleState" defaultValue="OPEN_SOON" options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} /><Field label="운영 메모" name="saleNote" defaultValue="관리자 초안" /><label className="grid gap-1 text-sm font-bold text-ink-3 md:col-span-2">포스터 이미지<input accept="image/jpeg,image/png,image/webp" className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" name="poster" required type="file" /></label><p className="-mt-1 text-xs font-bold text-ink-3 md:col-span-2">PNG, JPEG, WebP · 최대 5MB · 등록 후 공개 웹 공연 카드와 상세 페이지에 표시됩니다.</p><Field label="VIP 가격" name="zone_vip" defaultValue={154000} type="number" /><Field label="R 가격" name="zone_r" defaultValue={121000} type="number" /><Field label="S 가격" name="zone_s" defaultValue={99000} type="number" /><button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">공연/티켓 생성</button></form><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel>;
+  return <WorkspacePanel><div className="flex items-center gap-2 border-b border-line pb-3"><CalendarPlus size={18} /><h2 className="text-base font-black">신규 공연/티켓 추가</h2></div><form className="mt-4 grid gap-3 md:grid-cols-2" noValidate onSubmit={submit}><Field label="공연명" name="title" required /><Field label="짧은 제목 (선택)" name="shortTitle" /><SelectField label="카테고리" name="category" defaultValue="concert" options={eventCategoryOptions} /><Field label="시작 일시" name="startsAt" defaultValue="2026-12-24T19:30:00+09:00" /><SelectField label="공연장" name="venueId" defaultValue={data.events[0]?.venueId} options={data.venues.map((venue) => ({ label: venue.name, value: venue.id }))} /><SelectField label="초기 판매 상태" name="saleState" defaultValue="OPEN_SOON" options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} /><Field label="운영 메모" name="saleNote" defaultValue="관리자 초안" /><Field label="공연 기간 (선택)" name="period" placeholder="2026.12.24 ~ 2026.12.31" /><Field label="러닝타임 (선택)" name="runtime" placeholder="170분(인터미션 20분 포함)" /><Field label="관람 연령 (선택)" name="ageLimit" placeholder="전체 관람" /><Field label="배지 문구 (선택)" name="badge" placeholder="관리자 등록" /><Field label="아티스트 슬러그 (선택)" name="artistSlug" /><Field label="공연 슬러그 (선택, 영문/숫자/하이픈)" name="slug" /><Field label="고정 랭킹 1~10 (선택)" name="pinnedRank" type="number" /><label className="grid gap-1 text-sm font-bold text-ink-3 md:col-span-2">포스터 이미지<input accept="image/jpeg,image/png,image/webp" className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" name="poster" required type="file" /></label><p className="-mt-1 text-xs font-bold text-ink-3 md:col-span-2">PNG, JPEG, WebP · 최대 5MB · 등록 후 공개 웹 공연 카드와 상세 페이지에 표시됩니다.</p><div className="md:col-span-2"><TextareaField defaultValue={"VIP,VIP석,154000\nR,R석,121000\nS,S석,99000"} hint="한 줄에 하나씩: 등급,좌석명,가격" label="좌석 가격" name="prices" rows={3} /></div><div className="md:col-span-2"><TextareaField defaultValue="1회차|2026-12-24|19:30" hint="한 줄에 하나씩: 회차명|날짜(YYYY-MM-DD)|시간1,시간2" label="공연 일정" name="schedules" rows={3} /></div><div className="md:col-span-2"><TextareaField hint="한 줄에 한 명씩 (선택)" label="출연진" name="casts" rows={3} /></div><div className="md:col-span-2"><TextareaField hint="한 줄에 하나씩 (선택)" label="유의사항" name="notices" rows={3} /></div><div className="md:col-span-2"><TextareaField hint="공연 소개 (선택, 최대 400자)" label="공연 소개" name="summary" rows={3} /></div><button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">공연/티켓 생성</button></form><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel>;
 }
 
 function SalesWorkspace({ data, feedback, mutate, onLocalError }: { readonly data: CatalogWorkspace } & MutableWorkspaceProps) {
@@ -138,7 +180,7 @@ function SalesWorkspace({ data, feedback, mutate, onLocalError }: { readonly dat
     const prices = Object.fromEntries(event.zones.map((zone) => [zone.id, Number(valueFromForm(form, zone.id))]));
     void mutate("/api/admin/events/sale", { eventId: event.id, title, category: valueFromForm(form, "category"), startsAt: valueFromForm(form, "startsAt"), venueId: valueFromForm(form, "venueId"), saleState: valueFromForm(form, "saleState"), saleNote: valueFromForm(form, "saleNote"), discountRate: Number(valueFromForm(form, "discountRate")), prices }, "판매 설정이 갱신되었습니다.");
   };
-  return <WorkspacePanel><div className="flex items-center gap-2 border-b border-line pb-3"><Ticket size={18} /><h2 className="text-base font-black">공연 판매 설정</h2></div><form className="mt-4 grid gap-3 lg:grid-cols-3" noValidate onSubmit={submit}><Field label="공연명" name="title" defaultValue={event.title} required /><SelectField label="카테고리" name="category" defaultValue={event.category} options={["concert", "festival", "musical", "sports"].map((value) => ({ label: operatorLabel(value), value }))} /><SelectField label="판매 상태" name="saleState" defaultValue={event.saleState} options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} /><Field label="시작 일시" name="startsAt" defaultValue={event.date} /><SelectField label="공연장" name="venueId" defaultValue={event.venueId} options={data.venues.map((venue) => ({ label: venue.name, value: venue.id }))} /><Field label="할인율" name="discountRate" defaultValue={event.discountRate || 0} type="number" /><Field label="운영 메모" name="saleNote" defaultValue={event.saleNote || ""} />{event.zones.map((zone) => <Field defaultValue={zone.faceValue} key={zone.id} label={`${zone.name} 가격`} name={zone.id} type="number" />)}<button className="h-10 rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink lg:col-span-3" type="submit">판매 설정 저장</button></form><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel>;
+  return <WorkspacePanel><div className="flex items-center gap-2 border-b border-line pb-3"><Ticket size={18} /><h2 className="text-base font-black">공연 판매 설정</h2></div><form className="mt-4 grid gap-3 lg:grid-cols-3" noValidate onSubmit={submit}><Field label="공연명" name="title" defaultValue={event.title} required /><SelectField label="카테고리" name="category" defaultValue={event.category} options={eventCategoryOptions} /><SelectField label="판매 상태" name="saleState" defaultValue={event.saleState} options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} /><Field label="시작 일시" name="startsAt" defaultValue={event.date} /><SelectField label="공연장" name="venueId" defaultValue={event.venueId} options={data.venues.map((venue) => ({ label: venue.name, value: venue.id }))} /><Field label="할인율" name="discountRate" defaultValue={event.discountRate || 0} type="number" /><Field label="운영 메모" name="saleNote" defaultValue={event.saleNote || ""} />{event.zones.map((zone) => <Field defaultValue={zone.faceValue} key={zone.id} label={`${zone.name} 가격`} name={zone.id} type="number" />)}<button className="h-10 rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink lg:col-span-3" type="submit">판매 설정 저장</button></form><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel>;
 }
 
 function InventoryWorkspace({ feedback, mutate, visibleTickets }: { readonly data?: InventoryWorkspace } & MutableWorkspaceProps & { readonly visibleTickets: readonly AdminTicket[] }) {

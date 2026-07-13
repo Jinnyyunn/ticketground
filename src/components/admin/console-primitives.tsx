@@ -52,15 +52,35 @@ type FieldProps = {
   readonly label: string;
   readonly name: string;
   readonly defaultValue?: string | number;
+  readonly placeholder?: string;
   readonly type?: string;
   readonly required?: boolean;
 };
 
-export function Field({ label, name, defaultValue, type = "text", required = false }: FieldProps) {
+export function Field({ label, name, defaultValue, placeholder, type = "text", required = false }: FieldProps) {
   return (
     <label className="grid gap-1 text-sm font-bold text-ink-3">
       {label}
-      <input aria-required={required} className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={defaultValue} name={name} type={type} />
+      <input aria-required={required} className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={defaultValue} name={name} placeholder={placeholder} type={type} />
+    </label>
+  );
+}
+
+type TextareaFieldProps = {
+  readonly label: string;
+  readonly name: string;
+  readonly defaultValue?: string;
+  readonly placeholder?: string;
+  readonly hint?: string;
+  readonly rows?: number;
+};
+
+export function TextareaField({ label, name, defaultValue, placeholder, hint, rows = 4 }: TextareaFieldProps) {
+  return (
+    <label className="grid gap-1 text-sm font-bold text-ink-3">
+      {label}
+      <textarea className="min-h-24 rounded-lg border border-line bg-background p-3 text-sm font-bold text-ink" defaultValue={defaultValue} name={name} placeholder={placeholder} rows={rows} />
+      {hint && <span className="text-xs font-bold text-ink-4">{hint}</span>}
     </label>
   );
 }
