@@ -1,11 +1,7 @@
 import { notFound } from "next/navigation";
 import { QueueWaitingRoom } from "@/components/ticketing/queue-waiting-room";
-import { getShow, ticketShows } from "@/data/ticketing";
+import { getShowBySlug } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
-
-export function generateStaticParams() {
-  return ticketShows.map((show) => ({ slug: show.slug }));
-}
 
 export default async function QueuePage({
   params,
@@ -16,7 +12,7 @@ export default async function QueuePage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const show = getShow(slug);
+  const show = await getShowBySlug(slug);
   if (!show) notFound();
 
   const fallbackSchedule = show.schedules[0];

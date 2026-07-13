@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { WatchlistBoard } from "@/components/watchlist/watchlist-board";
 import { featuredShow, genreRecommendations, miniShows, rankings, type PosterFit } from "@/components/home/home-content";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { generalSaleShows } from "@/data/ticketing";
+import { getGeneralSaleShows } from "@/data/catalog-server";
 
 export const metadata: Metadata = {
   title: "관심공연 알림 | Ticketground",
@@ -22,7 +22,8 @@ const homePosterBySlug = new Map<string, HomePosterEntry>(
   ]),
 );
 
-export default function WatchlistPage() {
+export default async function WatchlistPage() {
+  const generalSaleShows = await getGeneralSaleShows();
   const watchShows = generalSaleShows.slice(0, 3).map((show, index) => ({
     ...(homePosterBySlug.get(show.slug) ?? { poster: show.poster }),
     slug: show.slug,

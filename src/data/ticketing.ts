@@ -4,15 +4,10 @@ import type {
   QrStateStage,
   Reservation,
   ResalePolicy,
-  TicketShow,
   TransferRecipientField,
   WatchlistAlert,
 } from "@/types";
-import { homeTicketShows } from "./home-ticketing-catalog";
-import { supportingTicketShows } from "./ticketing-catalog";
 import { supportingReservations } from "./ticketing-reservations";
-
-const P = "/images/posters";
 
 export const cleanTicketResalePolicy: ResalePolicy = {
   minPercent: 90,
@@ -69,53 +64,6 @@ export const cleanTicketAdminLedgerRows: readonly AdminLedgerRow[] = [
     verified: true,
   },
 ];
-
-const catalogTicketShows: TicketShow[] = [
-  {
-    slug: "les-miserables",
-    code: "CTI-LM40",
-    backendEventId: "event_c945b7fa842c",
-    category: "뮤지컬",
-    title: "레미제라블 40주년 (Les Miserables 40th Anniversary)",
-    shortTitle: "레미제라블",
-    venue: "블루스퀘어 신한카드홀",
-    period: "2026.05.13 ~ 2026.08.30",
-    runtime: "170분(인터미션 20분 포함)",
-    ageLimit: "8세 이상 관람가",
-    poster: `${P}/26006232_p.gif`,
-    ranking: "뮤지컬 주간 1위",
-    badge: "클린티켓",
-    artistSlug: "les-miserables-cast",
-    prices: [
-      { grade: "VIP", seat: "VIP석", price: 190000 },
-      { grade: "R", seat: "R석", price: 160000 },
-      { grade: "S", seat: "S석", price: 120000 },
-      { grade: "A", seat: "A석", price: 80000 },
-    ],
-    schedules: [
-      { label: "5월 13일", date: "2026.05.13", times: ["19:30"] },
-      { label: "5월 14일", date: "2026.05.14", times: ["14:30", "19:30"] },
-      { label: "5월 16일", date: "2026.05.16", times: ["14:00", "19:00"] },
-    ],
-    casts: ["민우혁", "최재림", "김소현", "조정은", "박강현", "카이"],
-    notices: [
-      "Tig 공식 양도 티켓은 정가의 90~110% 범위에서만 등록할 수 있습니다.",
-      "구매 직후 QR은 소유 확인용 가상 티켓이며 입장에 사용할 수 없습니다.",
-      "동반자 입장은 공식 양도 흐름을 통해 받는 사람 정보를 등록해야 합니다.",
-    ],
-    summary: "블루스퀘어에서 만나는 레미제라블 40주년 대표 회차입니다. CTI 클린티켓 데이터의 기준 공연입니다.",
-  },
-  ...supportingTicketShows,
-];
-
-export const ticketShows: TicketShow[] = [
-  ...catalogTicketShows,
-  ...homeTicketShows.filter((homeShow) => !catalogTicketShows.some((catalogShow) => catalogShow.slug === homeShow.slug)),
-];
-
-// Shows registered for Tig 공식 양도 티켓 are sold out on the primary market —
-// they must only surface in the resale section, never in general sale listings.
-export const generalSaleShows: TicketShow[] = ticketShows.filter((show) => show.badge !== "클린티켓");
 
 export const cleanTicketReservation: CleanTicketReservation = {
   id: "CTI-260513-A4F2K9",
@@ -187,10 +135,6 @@ export const reservations: Reservation[] = [
 
 export const popularKeywords = ["싸이흠뻑쇼", "MSI", "보이넥스트도어", "야구", "스트레이키즈", "데이식스", "KBO 올스타전"];
 
-export function getShow(slug: string) {
-  return ticketShows.find((show) => show.slug === slug);
-}
-
 export function getReservation(id: string) {
   return reservations.find((reservation) => reservation.id === id);
 }
@@ -207,14 +151,6 @@ export function getCleanTicketReservation(reservationId: string | undefined): Cl
   if (!reservation) return cleanTicketReservation;
   if (isCleanTicketReservation(reservation)) return reservation;
   return toCleanTicketReservation(reservation);
-}
-
-export function searchShows(query: string) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return [];
-  return generalSaleShows.filter((show) =>
-    [show.title, show.shortTitle, show.venue, show.category].some((value) => value.toLowerCase().includes(normalized)),
-  );
 }
 
 export function currency(value: number) {

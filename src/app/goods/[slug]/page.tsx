@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { DetailBookingPanel } from "@/components/ticketing/detail-booking-panel";
 import { AdminEventDetail } from "@/components/ticketing/admin-event-detail";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { currency, getShow, ticketShows } from "@/data/ticketing";
+import { currency } from "@/data/ticketing";
+import { getShowBySlug } from "@/data/catalog-server";
 import { getVenueForShow } from "@/data/venues";
 
 const tabLinks = [
@@ -15,14 +16,10 @@ const tabLinks = [
   { href: "#notices", label: "유의사항" },
 ] as const;
 
-export function generateStaticParams() {
-  return ticketShows.map((show) => ({ slug: show.slug }));
-}
-
 export default async function GoodsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   if (slug.startsWith("admin-")) return <AdminEventDetail slug={slug} />;
-  const show = getShow(slug);
+  const show = await getShowBySlug(slug);
   if (!show) notFound();
 
   const calendarDays = Array.from({ length: 31 }, (_, index) => index + 1);

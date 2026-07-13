@@ -2,12 +2,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BookingPanel } from "@/components/ticketing/booking-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { getShow, ticketShows } from "@/data/ticketing";
+import { getShowBySlug } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
-
-export function generateStaticParams() {
-  return ticketShows.map((show) => ({ slug: show.slug }));
-}
 
 export default async function BookingPage({
   params,
@@ -18,7 +14,7 @@ export default async function BookingPage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const show = getShow(slug);
+  const show = await getShowBySlug(slug);
   if (!show) notFound();
   const timerQuery = queryParam(query.timer);
   const timerParam = Number(timerQuery);
