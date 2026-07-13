@@ -1,4 +1,69 @@
+import { createAdminEventContentBackend } from "./admin-event-content.js";
+import { legacyCategoryToAdminCategory, legacyShows, legacyVenueIdByName } from "./legacy-show-seed-data.js";
+import { createRuntime } from "./runtime.js";
+
 const JAMSIL_OLYMPIC_STADIUM_IMAGE = "/assets/jamsil-olympic-main-stadium.svg";
+
+const seedRuntime = createRuntime({});
+const { normalizeAdminEventInput, normalizeCreateEventContent } = createAdminEventContentBackend({
+  httpError: seedRuntime.httpError,
+  money: seedRuntime.money,
+  stableId: seedRuntime.stableId
+});
+
+function publicPosterPath(relativePath) {
+  return relativePath.replace(/^public/, "");
+}
+
+function legacyShowBlueprints(venues) {
+  const events = [];
+  for (const show of legacyShows) {
+    const venue = venues.find((item) => item.id === legacyVenueIdByName[show.venue]);
+    if (!venue) throw new Error(`legacy-show-seed-data: no venue blueprint for ${show.venue}`);
+    const input = normalizeAdminEventInput({
+      title: show.title,
+      category: legacyCategoryToAdminCategory[show.category],
+      venueId: venue.id,
+      startsAt: show.startsAt,
+      saleState: "ON_SALE",
+      saleNote: "레거시 카탈로그 이관"
+    });
+    const eventId = seedRuntime.stableId("event", input.title, input.startsAt, venue.id);
+    const content = normalizeCreateEventContent(
+      {
+        shortTitle: show.shortTitle,
+        period: show.period,
+        runtime: show.runtime,
+        ageLimit: show.ageLimit,
+        badge: show.badge,
+        artistSlug: show.artistSlug,
+        slug: show.slug,
+        summary: show.summary,
+        prices: show.prices,
+        schedules: show.schedules,
+        casts: show.casts,
+        notices: show.notices
+      },
+      { eventId, events, startsAt: input.startsAt }
+    );
+    events.push({
+      id: eventId,
+      category: input.category,
+      title: input.title,
+      venueId: venue.id,
+      venue: venue.name,
+      date: input.startsAt,
+      organizer: input.organizer,
+      image: publicPosterPath(show.poster),
+      saleState: input.saleState,
+      saleNote: input.saleNote,
+      discountRate: input.discountRate,
+      rating: "0.0",
+      ...content
+    });
+  }
+  return events;
+}
 
 function zoneBlueprints(overrides = {}) {
   return [
@@ -121,6 +186,7 @@ export function venueBlueprints() {
 
 export function eventBlueprints() {
   return [
+    ...legacyShowBlueprints(venueBlueprints()),
     {
       id: "event_kpop_001",
       category: "concert",

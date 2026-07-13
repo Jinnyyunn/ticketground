@@ -8,6 +8,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "iu-world-tour",
     code: "CTI-IU26",
+    backendEventId: "event_ca5eae7ab951",
     category: "콘서트",
     title: "IU 2026 WORLD TOUR",
     shortTitle: "IU 2026 WORLD TOUR",
@@ -39,7 +40,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "dracula",
     code: "L0000142",
-    backendEventId: "event_musical_001",
+    backendEventId: "event_0fce17f1a285",
     category: "뮤지컬",
     title: "뮤지컬 드라큘라 (Dracula：The Musical)",
     shortTitle: "뮤지컬 드라큘라",
@@ -74,7 +75,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "beethoven",
     code: "26006232",
-    backendEventId: "event_musical_001",
+    backendEventId: "event_4910a066efba",
     category: "뮤지컬",
     title: "［Ticketground 단독］ 뮤지컬 〈베토벤〉",
     shortTitle: "뮤지컬 베토벤",
@@ -101,7 +102,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "palette-festival",
     code: "26007850",
-    backendEventId: "event_festival_001",
+    backendEventId: "event_d91d3c4c539a",
     category: "콘서트",
     title: "2026 Palette Festival",
     shortTitle: "Palette Festival",
@@ -126,7 +127,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "king-lear",
     code: "26008115",
-    backendEventId: "event_musical_001",
+    backendEventId: "event_8243785b17e1",
     category: "연극",
     title: "국립극단 리어왕",
     shortTitle: "국립극단 리어왕",
@@ -153,7 +154,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "berlin-phil",
     code: "26007169",
-    backendEventId: "event_musical_001",
+    backendEventId: "event_fff94a64a3e4",
     category: "클래식",
     title: "베를린필 내한공연",
     shortTitle: "베를린필 내한공연",
@@ -181,7 +182,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "banksy",
     code: "26008579",
-    backendEventId: "event_festival_001",
+    backendEventId: "event_f8794ec4bd9f",
     category: "전시/행사",
     title: "［얼리버드］ 뱅크시 : Still Here",
     shortTitle: "뱅크시 : Still Here",
@@ -206,7 +207,7 @@ export const supportingTicketShows: TicketShow[] = [
   {
     slug: "breadbarbershop",
     code: "26008899",
-    backendEventId: "event_festival_001",
+    backendEventId: "event_88751f150b92",
     category: "아동/가족",
     title: "브레드이발소 여름방학 특별전",
     shortTitle: "브레드이발소",
