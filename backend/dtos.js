@@ -116,7 +116,17 @@ function publicResalePool(pool) {
   };
 }
 
+function soldCountByEventId(db) {
+  const counts = new Map();
+  for (const ticket of db.tickets) {
+    if (ticket.status === "ON_SALE") continue;
+    counts.set(ticket.eventId, (counts.get(ticket.eventId) || 0) + 1);
+  }
+  return counts;
+}
+
 function publicCatalog(db) {
+  const soldCounts = soldCountByEventId(db);
   return {
     // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
     // catalog schema and never carry a prices[] array - they power internal
@@ -145,6 +155,7 @@ function publicCatalog(db) {
       saleState: event.saleState,
       saleNote: event.saleNote,
       pinnedRank: event.pinnedRank ?? null,
+      soldCount: soldCounts.get(event.id) || 0,
       sale: saleSummary(event)
     })),
     venues: db.venues.map(({ id, name, address, map }) => ({

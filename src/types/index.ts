@@ -69,6 +69,8 @@ export interface TicketShow {
   readonly ageLimit: string;
   readonly poster: string;
   readonly ranking?: string;
+  readonly pinnedRank: number | null;
+  readonly soldCount: number;
   readonly badge?: string;
   readonly artistSlug?: string;
   readonly prices: readonly TicketPrice[];

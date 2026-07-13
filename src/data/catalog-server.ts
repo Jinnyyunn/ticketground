@@ -23,6 +23,7 @@ interface ApiCatalogEvent {
   readonly notices?: readonly string[];
   readonly prices: readonly TicketPrice[];
   readonly pinnedRank: number | null;
+  readonly soldCount: number;
 }
 
 interface ApiCatalogResponse {
@@ -50,6 +51,8 @@ function toTicketShow(event: ApiCatalogEvent): TicketShow {
     ageLimit: event.ageLimit || "전체 관람가",
     poster: event.image,
     ranking: event.pinnedRank ? `고정 랭킹 ${event.pinnedRank}위` : undefined,
+    pinnedRank: event.pinnedRank,
+    soldCount: event.soldCount,
     badge: event.badge,
     artistSlug: event.artistSlug,
     prices: event.prices,

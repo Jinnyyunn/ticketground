@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { WatchlistBoard } from "@/components/watchlist/watchlist-board";
-import { featuredShow, genreRecommendations, miniShows, rankings, type PosterFit } from "@/components/home/home-content";
+import { featuredShow, genreRecommendations, miniShows, type PosterFit } from "@/components/home/home-content";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { getGeneralSaleShows } from "@/data/catalog-server";
 
@@ -14,7 +14,7 @@ type HomePosterEntry = {
   readonly posterFit?: PosterFit;
 };
 
-const homePosterEntries = [featuredShow, ...miniShows, ...rankings, ...genreRecommendations.flatMap((group) => group.items)];
+const homePosterEntries = [featuredShow, ...miniShows, ...genreRecommendations.flatMap((group) => group.items)];
 const homePosterBySlug = new Map<string, HomePosterEntry>(
   homePosterEntries.map((show) => [
     show.href.replace("/goods/", ""),

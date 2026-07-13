@@ -102,18 +102,12 @@ export const miniShows: readonly FeaturedShow[] = [
   },
 ];
 
-export const rankings: readonly RankingShow[] = [
-  { rank: 1, title: "IU 2026 WORLD TOUR", venue: "잠실종합운동장", date: "2026.09.12", href: "/goods/iu-world-tour", movement: "up", delta: "2", gradient: "g1", poster: posterImages.iu },
-  { rank: 2, title: "SEVENTEEN TOUR", venue: "고척스카이돔", date: "2026.08.08", href: "/goods/seventeen-tour", movement: "up", delta: "1", gradient: "g6", poster: posterImages.seventeen },
-  { rank: 3, title: "베를린필 내한공연", venue: "예술의전당", date: "2026.10.21", href: "/goods/berlin-phil", movement: "up", delta: "4", gradient: "g4", poster: posterImages.berlinPhil },
-  { rank: 4, title: "NCT WISH FANMEETING", venue: "KSPO DOME", date: "2026.07.25", href: "/goods/nct-wish-fanmeeting", movement: "same", delta: "-", gradient: "g8", poster: posterImages.nctWish, posterFit: "contain" },
-  { rank: 5, title: "오페라의 유령", venue: "세종문화회관", date: "2026.06.30", href: "/goods/phantom-of-the-opera", movement: "down", delta: "2", gradient: "g5", poster: posterImages.phantom },
-  { rank: 6, title: "DAY6 Special Live", venue: "인스파이어 아레나", date: "2026.08.29", href: "/goods/day6-special-live", movement: "same", delta: "-", gradient: "g7", poster: posterImages.day6 },
-  { rank: 7, title: "드라큘라", venue: "LG아트센터", date: "2026.07.10", href: "/goods/dracula", movement: "up", delta: "3", gradient: "g3", poster: posterImages.dracula, posterFit: "contain" },
-  { rank: 8, title: "뮤지컬 베토벤", venue: "세종문화회관", date: "2026.06.18", href: "/goods/beethoven", movement: "same", delta: "-", gradient: "g9", poster: posterImages.beethoven, posterFit: "contain" },
-  { rank: 9, title: "연극 벚꽃동산", venue: "대학로예술극장", date: "2026.08.06", href: "/goods/cherry-orchard", movement: "down", delta: "1", gradient: "g11", poster: posterImages.cherryOrchard },
-  { rank: 10, title: "백건우와 라벨", venue: "통영국제음악당", date: "2026.09.04", href: "/goods/kun-woo-paik-ravel", movement: "up", delta: "2", gradient: "g8", poster: posterImages.kunWooPaik },
-];
+// Poster lookup for the ticket-open thumbnail, matched by fuzzy title -
+// decoupled from the (now live-data-driven) ranking list.
+export const ticketOpenPosters: Record<string, string> = {
+  "SEVENTEEN TOUR": posterImages.seventeen,
+  "베를린필 내한공연": posterImages.berlinPhil,
+};
 
 export const ticketOpens: readonly TicketOpen[] = [
   { month: "07", day: "01", time: "20:00", title: "SEVENTEEN TOUR 고척", round: "팬클럽 선예매", dday: "D-3" },
