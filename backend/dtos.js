@@ -116,6 +116,44 @@ function publicResalePool(pool) {
   };
 }
 
+function publicCatalog(db) {
+  return {
+    events: db.events.map((event) => ({
+      id: event.id,
+      slug: event.slug,
+      category: event.category,
+      title: event.title,
+      shortTitle: event.shortTitle,
+      venueId: event.venueId,
+      venue: event.venue,
+      date: event.date,
+      dates: event.dates,
+      schedules: event.schedules,
+      period: event.period,
+      runtime: event.runtime,
+      ageLimit: event.ageLimit,
+      image: event.image,
+      badge: event.badge,
+      artistSlug: event.artistSlug,
+      summary: event.summary,
+      casts: event.casts,
+      notices: event.notices,
+      prices: event.prices,
+      saleState: event.saleState,
+      saleNote: event.saleNote,
+      pinnedRank: event.pinnedRank ?? null,
+      sale: saleSummary(event)
+    })),
+    venues: db.venues.map(({ id, name, address, map }) => ({
+      id,
+      name,
+      address,
+      mapType: map?.type,
+      imageUrl: map?.imageUrl || ""
+    }))
+  };
+}
+
 function publicState(db) {
   return {
     events: db.events.map((event) => ({
@@ -151,6 +189,7 @@ function publicTicketsForUser(db, userId) {
 
   return {
     adminTicket,
+    publicCatalog,
     publicDirectTransferResult,
     publicPayment,
     publicPurchaseResult,

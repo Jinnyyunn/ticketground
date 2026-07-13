@@ -114,6 +114,7 @@ export async function createTicketgroundApp(options) {
     ...session,
     buyPrimary: commerce.buyPrimary,
     httpError: runtime.httpError,
+    publicCatalog: dtos.publicCatalog,
     publicDirectTransferResult: dtos.publicDirectTransferResult,
     publicPurchaseResult: dtos.publicPurchaseResult,
     publicResaleDrawResult: dtos.publicResaleDrawResult,

@@ -18,6 +18,7 @@ export function createApiRouter({
   listForResale,
   notifyWatchlist,
   purchaseResale,
+  publicCatalog,
   publicDirectTransferResult,
   publicPurchaseResult,
   publicResaleDrawResult,
@@ -92,6 +93,7 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
+  if (req.method === "GET" && url.pathname === "/api/catalog") return publicCatalog(db);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/callback") return socialAuthCallback(db, req, "kakao", url.searchParams);
