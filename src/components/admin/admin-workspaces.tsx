@@ -76,15 +76,55 @@ function OverviewWorkspace({ data }: { readonly data: OverviewWorkspace }) {
 
 type MutableWorkspaceProps = { readonly feedback: Feedback; readonly mutate: Mutation; readonly onLocalError?: (message: string) => void };
 
-function readImageFile(file: File): Promise<string> {
-  if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) return Promise.reject(new Error("포스터는 PNG, JPEG, WebP 파일만 등록할 수 있습니다."));
-  if (file.size > 5 * 1024 * 1024) return Promise.reject(new Error("포스터 파일은 5MB 이하로 등록해주세요."));
+const maxPosterBytes = 5 * 1024 * 1024;
+
+function readFileAsDataUrl(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.addEventListener("load", () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("포스터 파일을 읽지 못했습니다.")));
     reader.addEventListener("error", () => reject(new Error("포스터 파일을 읽지 못했습니다.")));
     reader.readAsDataURL(file);
   });
+}
+
+function dataUrlByteLength(dataUrl: string): number {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+// Large real-world poster photos routinely exceed 5MB; instead of rejecting
+// them outright, downscale to a reasonable poster size and re-encode as JPEG.
+async function shrinkImage(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.addEventListener("load", () => resolve());
+      image.addEventListener("error", () => reject(new Error("포스터 파일을 읽지 못했습니다.")));
+      image.src = objectUrl;
+    });
+    const maxEdge = 1600;
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(image.naturalWidth * scale);
+    canvas.height = Math.round(image.naturalHeight * scale);
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("포스터 파일을 처리하지 못했습니다.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.82, 0.7, 0.55, 0.4]) {
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      if (dataUrlByteLength(dataUrl) <= maxPosterBytes) return dataUrl;
+    }
+    throw new Error("포스터 파일 용량을 5MB 이하로 줄이지 못했습니다. 더 작은 이미지를 사용해주세요.");
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function readImageFile(file: File): Promise<string> {
+  if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) throw new Error("포스터는 PNG, JPEG, WebP 파일만 등록할 수 있습니다.");
+  if (file.size <= maxPosterBytes) return readFileAsDataUrl(file);
+  return shrinkImage(file);
 }
 
 function readPoster(form: HTMLFormElement): Promise<string> {
