@@ -74,7 +74,9 @@ const app = await createTicketgroundApp({
     seatMapDir
   }
 });
-const nextApp = next({ dev: isDev, hostname, port });
+const publicServer = http.createServer((req, res) => { void servePublic(req, res); });
+const adminServer = http.createServer(serveAdmin);
+const nextApp = next({ dev: isDev, hostname: adminHostname, port: adminPort, httpServer: adminServer });
 const handleNextRequest = nextApp.getRequestHandler();
 const adminSessions = new Map();
 const adminSessionCookieName = "tig_admin_session";
@@ -409,10 +411,16 @@ function serveAdmin(req, res) {
 
 await nextApp.prepare();
 
-http.createServer((req, res) => { void servePublic(req, res); }).listen(port, hostname, () => {
+if (isDev) {
+  publicServer.on("upgrade", (req, socket, head) => {
+    nextApp.upgradeHandler(req, socket, head);
+  });
+}
+
+publicServer.listen(port, hostname, () => {
   console.log(`Ticketground public app running at http://${hostname}:${port}`);
 });
 
-http.createServer(serveAdmin).listen(adminPort, adminHostname, () => {
+adminServer.listen(adminPort, adminHostname, () => {
   console.log(`Ticketground admin API running at http://${adminHostname}:${adminPort}`);
 });
