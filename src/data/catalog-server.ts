@@ -22,6 +22,15 @@ interface ApiCatalogEvent {
   readonly casts?: readonly string[];
   readonly notices?: readonly string[];
   readonly prices: readonly TicketPrice[];
+  readonly saleState: string;
+  readonly sale: {
+    readonly label: string;
+    readonly note: string;
+    readonly bookable: boolean;
+    readonly displayPrice: number;
+    readonly basePrice: number;
+    readonly discountRate: number;
+  };
   readonly pinnedRank: number | null;
   readonly soldCount: number;
 }
@@ -53,6 +62,8 @@ function toTicketShow(event: ApiCatalogEvent): TicketShow {
     ranking: event.pinnedRank ? `고정 랭킹 ${event.pinnedRank}위` : undefined,
     pinnedRank: event.pinnedRank,
     soldCount: event.soldCount,
+    saleState: event.saleState,
+    sale: event.sale,
     badge: event.badge,
     artistSlug: event.artistSlug,
     prices: event.prices,

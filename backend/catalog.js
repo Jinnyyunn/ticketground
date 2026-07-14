@@ -25,7 +25,8 @@ function ticketIdFor(event, performanceDateId, seat) {
 }
 
 function generatedSeatsForZone(zone) {
-  return Array.from({ length: 12 }, (_, index) => ({
+  const seatCount = Number.isInteger(zone.seatCount) && zone.seatCount > 0 ? zone.seatCount : 12;
+  return Array.from({ length: seatCount }, (_, index) => ({
     zoneId: zone.id,
     seatLabel: `${zone.name}-${String(index + 1).padStart(2, "0")}`
   }));
@@ -56,7 +57,7 @@ function eventDate(event, performanceDateId) {
 }
 
 function eventSaleState(event) {
-  const allowed = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"];
+  const allowed = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"];
   return allowed.includes(event.saleState) ? event.saleState : "ON_SALE";
 }
 
@@ -73,7 +74,8 @@ function saleSummary(event) {
     ON_SALE: "예매 가능",
     OPEN_SOON: "오픈 예정",
     DISCOUNT_SOON: "할인 예정",
-    ADMIN_HOLD: "판매 보류"
+    ADMIN_HOLD: "판매 보류",
+    CLOSED: "판매 종료"
   };
   const state = eventSaleState(event);
   const discountRate = Number(event.discountRate || 0);

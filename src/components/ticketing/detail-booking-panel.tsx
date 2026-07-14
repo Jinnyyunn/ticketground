@@ -17,9 +17,13 @@ type DetailBookingPanelProps = {
   readonly venueHref: string;
   readonly schedules: readonly DetailSchedule[];
   readonly lowestPriceLabel: string;
+  readonly originalPriceLabel?: string;
+  readonly saleLabel: string;
+  readonly saleNote: string;
+  readonly bookable: boolean;
 };
 
-export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPriceLabel }: DetailBookingPanelProps) {
+export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPriceLabel, originalPriceLabel, saleLabel, saleNote, bookable }: DetailBookingPanelProps) {
   const [selectedDate, setSelectedDate] = useState(schedules[0]?.date ?? "");
   const selectedSchedule = schedules.find((schedule) => schedule.date === selectedDate) ?? schedules[0];
   const [selectedTime, setSelectedTime] = useState(selectedSchedule?.times[0] ?? "");
@@ -43,7 +47,7 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPr
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold text-ticketground">공식 예매</p>
+          <p className="text-xs font-bold text-ticketground">{saleLabel}</p>
           <h2 className="mt-1 text-xl font-black text-ink">상품 예매하기</h2>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-ink px-2 py-1 text-xs font-black text-on-ink">
@@ -114,17 +118,29 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPr
 
       <p className="mt-5 text-sm font-black text-ink">
         최저 <span className="text-ticketground">{lowestPriceLabel}</span>부터
+        {originalPriceLabel ? <span className="ml-2 text-xs text-ink-4 line-through">{originalPriceLabel}</span> : null}
       </p>
       <p className="mt-2 rounded-sm border border-line bg-surface px-3 py-2 text-xs font-bold leading-relaxed text-ink-3">
-        티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다.
+        {bookable ? "티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다." : saleNote}
       </p>
-      <Link
-        data-testid="detail-queue-link"
-        href={queueHref}
-        className="mt-2 flex h-13 items-center justify-center rounded-sm bg-ticketground text-base font-black text-white whitespace-nowrap transition-colors hover:bg-ink hover:text-on-ink focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
-      >
-        선택 회차 예매
-      </Link>
+      {bookable ? (
+        <Link
+          data-testid="detail-queue-link"
+          href={queueHref}
+          className="mt-2 flex h-13 items-center justify-center rounded-sm bg-ticketground text-base font-black text-white whitespace-nowrap transition-colors hover:bg-ink hover:text-on-ink focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
+        >
+          선택 회차 예매
+        </Link>
+      ) : (
+        <button
+          data-testid="detail-queue-link"
+          disabled
+          className="mt-2 flex h-13 w-full cursor-not-allowed items-center justify-center rounded-sm border border-line bg-surface text-base font-black text-ink-3 whitespace-nowrap"
+          type="button"
+        >
+          {saleLabel}
+        </button>
+      )}
       <Link
         href={venueHref}
         className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line bg-background text-sm font-bold text-ink-2 whitespace-nowrap transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"

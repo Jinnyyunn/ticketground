@@ -1,6 +1,6 @@
 export const allowedCategories = ["musical", "concert", "theater", "classic", "sports", "exhibition", "children"];
 
-const allowedSaleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"];
+const allowedSaleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"];
 const legacyCategoryAliases = { festival: "concert" };
 const maxArrayItems = {
   casts: 80,
@@ -12,10 +12,12 @@ const maxArrayItems = {
   ticketCandidates: 10000
 };
 const maxFaceValue = 10000000;
+const minZoneSeatCount = 1;
+const maxZoneSeatCount = 2000;
 const defaultZones = [
-  { id: "zone_vip", name: "VIP", faceValue: 154000, resaleFeeRate: 0.08, maxTransferCount: 1 },
-  { id: "zone_r", name: "R석", faceValue: 121000, resaleFeeRate: 0.07, maxTransferCount: 1 },
-  { id: "zone_s", name: "S석", faceValue: 99000, resaleFeeRate: 0.06, maxTransferCount: 1 }
+  { id: "zone_vip", name: "VIP", faceValue: 154000, resaleFeeRate: 0.08, maxTransferCount: 1, seatCount: 12 },
+  { id: "zone_r", name: "R석", faceValue: 121000, resaleFeeRate: 0.07, maxTransferCount: 1, seatCount: 12 },
+  { id: "zone_s", name: "S석", faceValue: 99000, resaleFeeRate: 0.06, maxTransferCount: 1, seatCount: 12 }
 ];
 const clearableTextKeys = ["shortTitle", "period", "runtime", "artistSlug", "summary"];
 
@@ -147,11 +149,24 @@ export function createAdminEventContentBackend({ httpError, money, stableId }) {
     return faceValue;
   }
 
+  function normalizeSeatCount(value, fallback = 12) {
+    const seatCount = Number(value ?? fallback);
+    if (!Number.isInteger(seatCount) || seatCount < minZoneSeatCount || seatCount > maxZoneSeatCount) {
+      throw httpError(422, "INVALID_ZONE_SEAT_COUNT", "구역별 판매 좌석 수는 1~2000 사이로 입력해주세요.");
+    }
+    return seatCount;
+  }
+
   function canonicalPriceRow(price) {
     if (!isPlainObject(price)) throw httpError(422, "INVALID_ZONE_PRICE", "좌석 가격 정보를 확인해주세요.");
     const grade = requiredStringField(price, "grade", "INVALID_ZONE_GRADE", "좌석 등급을 확인해주세요.", 40);
     const seat = requiredStringField(price, "seat", "INVALID_ZONE_SEAT", "좌석명을 확인해주세요.", 60);
-    return { grade, seat, price: normalizeFaceValue(price.price, seat) };
+    return {
+      grade,
+      seat,
+      price: normalizeFaceValue(price.price, seat),
+      seatCount: normalizeSeatCount(price.seatCount)
+    };
   }
 
   function zoneIdForPrice(price, duplicateGrades) {
@@ -173,7 +188,8 @@ export function createAdminEventContentBackend({ httpError, money, stableId }) {
       name: price.seat,
       faceValue: price.price,
       resaleFeeRate: resaleFeeRateForIndex(index),
-      maxTransferCount: 1
+      maxTransferCount: 1,
+      seatCount: price.seatCount
     };
   }
 
@@ -190,29 +206,32 @@ export function createAdminEventContentBackend({ httpError, money, stableId }) {
     const seenZoneIds = new Set();
     const zones = parsedPrices.map((price, index) => zoneFromPrice(price, index, duplicateGrades, seenZoneIds));
     return {
-      prices: zones.map((zone) => zone.price),
+      prices: parsedPrices.map((price) => ({ grade: price.grade, seat: price.seat, price: price.price })),
       zones: zones.map((zone) => ({
         id: zone.id,
         name: zone.name,
         faceValue: zone.faceValue,
         resaleFeeRate: zone.resaleFeeRate,
-        maxTransferCount: zone.maxTransferCount
+        maxTransferCount: zone.maxTransferCount,
+        seatCount: zone.seatCount
       }))
     };
   }
 
-  function zonesFromLegacyPriceMap(prices, existingZones) {
+  function zonesFromLegacyPriceMap(prices, existingZones, seatCounts) {
     const priceMap = prices && typeof prices === "object" && !Array.isArray(prices) ? prices : {};
+    const seatCountMap = seatCounts && typeof seatCounts === "object" && !Array.isArray(seatCounts) ? seatCounts : {};
     const zones = (existingZones || defaultZones).map((zone) => ({
       ...zone,
-      faceValue: normalizeFaceValue(priceMap[zone.id] ?? zone.faceValue, zone.name)
+      faceValue: normalizeFaceValue(priceMap[zone.id] ?? zone.faceValue, zone.name),
+      seatCount: normalizeSeatCount(seatCountMap[zone.id] ?? zone.seatCount)
     }));
     return { prices: priceRowsFromZones(zones), zones };
   }
 
-  function normalizePrices(prices, existingZones) {
+  function normalizePrices(prices, existingZones, seatCounts) {
     if (Array.isArray(prices)) return zonesFromPriceArray(prices);
-    return zonesFromLegacyPriceMap(prices, existingZones);
+    return zonesFromLegacyPriceMap(prices, existingZones, seatCounts);
   }
 
   function normalizeScheduleDate(value) {
@@ -323,7 +342,7 @@ export function createAdminEventContentBackend({ httpError, money, stableId }) {
 
   function assertInventorySize(zones, dates) {
     if (!zones || !dates) return;
-    const projectedCandidates = zones.length * 12 * dates.length;
+    const projectedCandidates = zones.reduce((sum, zone) => sum + normalizeSeatCount(zone.seatCount), 0) * dates.length;
     if (projectedCandidates > maxArrayItems.ticketCandidates) {
       throw httpError(422, "EVENT_INVENTORY_TOO_LARGE", "좌석 등급과 공연 회차가 너무 많습니다.");
     }
@@ -349,8 +368,8 @@ export function createAdminEventContentBackend({ httpError, money, stableId }) {
     } else if (!event) {
       content.slug = `admin-${eventId}`;
     }
-    if (hasOwn(payload, "prices") || !event) {
-      Object.assign(content, normalizePrices(payload.prices, event?.zones));
+    if (hasOwn(payload, "prices") || hasOwn(payload, "seatCounts") || !event) {
+      Object.assign(content, normalizePrices(payload.prices, event?.zones, payload.seatCounts));
     }
     if (hasOwn(payload, "schedules")) {
       const schedules = normalizeSchedules(payload.schedules);

@@ -14,8 +14,19 @@ import type { WorkspaceKey } from "./console-workspaces";
 
 export type AdminRole = { readonly key: string; readonly name: string };
 export type Permission = { readonly key: string; readonly label: string; readonly group: string };
-export type AdminEventPrice = { readonly grade: string; readonly seat: string; readonly price: number };
+export type AdminEventPrice = { readonly grade: string; readonly seat: string; readonly price: number; readonly seatCount?: number };
 export type AdminEventSchedule = { readonly label: string; readonly date: string; readonly times: readonly string[] };
+export type AdminEventSummary = {
+  readonly id: string;
+  readonly title: string;
+  readonly category: string;
+  readonly saleState: string;
+  readonly venue: string;
+  readonly date?: string;
+  readonly dates?: readonly { readonly id: string; readonly startsAt: string; readonly label: string }[];
+  readonly ticketCount: number;
+  readonly soldCount: number;
+};
 export type AdminSession = {
   readonly admin: {
     readonly id: string;
@@ -51,7 +62,8 @@ export type AdminEvent = {
   readonly saleState: string;
   readonly saleNote?: string;
   readonly discountRate?: number;
-  readonly zones: readonly { readonly id: string; readonly name: string; readonly faceValue: number }[];
+  readonly image?: string;
+  readonly zones: readonly { readonly id: string; readonly name: string; readonly faceValue: number; readonly seatCount?: number }[];
 };
 export type Venue = { readonly id: string; readonly name: string };
 export type AdminUser = { readonly id: string; readonly name: string; readonly status: string; readonly trustScore: number };
@@ -59,7 +71,7 @@ export type AdminTicket = { readonly id: string; readonly seatLabel: string; rea
 export type SupportThread = { readonly id: string; readonly subject?: string; readonly status: string; readonly messages: readonly { readonly actorId: string; readonly message: string }[] };
 
 export type OverviewWorkspace = { readonly stats: { readonly totalTickets: number; readonly onSaleTickets: number; readonly supportOpen: number; readonly ledgerVerified: boolean } };
-export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly venues: readonly Venue[] };
+export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly eventSummaries?: readonly AdminEventSummary[]; readonly venues: readonly Venue[] };
 export type InventoryWorkspace = { readonly tickets: readonly AdminTicket[] };
 export type AccountsWorkspace = { readonly users: readonly AdminUser[] };
 export type SupportWorkspace = { readonly supportThreads: readonly SupportThread[] };
@@ -100,7 +112,7 @@ export const workspaceDefinitions = {
   acl: { label: "관리자/ACL", heading: "관리자/ACL", description: "관리자 계정, 역할, 접근 허용 IP를 관리합니다.", permission: "acl.read", Icon: ShieldCheck },
 } satisfies Record<WorkspaceKey, WorkspaceDefinition>;
 
-export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"] as const;
+export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"] as const;
 export const userStatuses = ["ACTIVE", "WATCHLIST", "BANNED"] as const;
 export const ticketStatuses = ["ON_SALE", "ADMIN_HOLD"] as const;
 export const supportStatuses = ["OPEN", "ANSWERED", "CLOSED"] as const;

@@ -36,6 +36,10 @@ export type ApiEvent = {
   readonly sale: {
     readonly label: string;
     readonly state: string;
+    readonly note: string;
+    readonly discountRate: number;
+    readonly displayPrice: number;
+    readonly basePrice: number;
     readonly bookable: boolean;
   };
 };

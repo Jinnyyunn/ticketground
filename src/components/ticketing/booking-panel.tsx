@@ -94,8 +94,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const baseAmount = useBackendSeatMap ? selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0) : selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
   const feeAmount = selectedCount * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
-  const canChooseSeats = !timerExpired && Boolean(date && time && quantity);
-  const canPay = !timerExpired && (useBackendSeatMap ? selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity : selectedSeats.length > 0 && selectedSeats.length <= quantity);
+  const canChooseSeats = show.sale.bookable && !timerExpired && Boolean(date && time && quantity);
+  const canPay = show.sale.bookable && !timerExpired && (useBackendSeatMap ? selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity : selectedSeats.length > 0 && selectedSeats.length <= quantity);
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}`;
 
   function selectBackendSeat(ticketId: string) {
@@ -172,6 +172,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
           <BookingExpiryNotice date={date} expired={timerExpired} showSlug={show.slug} time={time} />
           <BookingTimerWarning visible={timerWarning} />
+          {!show.sale.bookable ? (
+            <div className="rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3" role="status">
+              <span className="font-black text-ticketground">{show.sale.label}</span> · {show.sale.note}
+            </div>
+          ) : null}
           <div data-testid="booking-identity-notice" className="rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3">
             티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다. 이미 다른 계정에서 인증된 휴대폰 번호는 다시 사용할 수 없습니다.
           </div>
@@ -185,7 +190,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">관람일</h3>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {show.schedules.map((schedule) => (
-                      <button key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>{schedule.label}</button>
+                      <button disabled={!show.sale.bookable} key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50")}>{schedule.label}</button>
                     ))}
                   </div>
                 </div>
@@ -193,7 +198,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">회차</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {(show.schedules.find((schedule) => schedule.date === date)?.times ?? []).map((item) => (
-                      <button key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink")}>{item}</button>
+                      <button disabled={!show.sale.bookable} key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50")}>{item}</button>
                     ))}
                   </div>
                 </div>
@@ -201,7 +206,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">매수</h3>
                   <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
                     {[1, 2].map((count) => (
-                      <button key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3")}>{count}매</button>
+                      <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3", !show.sale.bookable && "cursor-not-allowed opacity-50")}>{count}매</button>
                     ))}
                   </div>
                   <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 2매까지 선택할 수 있습니다.</p>

@@ -98,6 +98,44 @@ function adminAccountDto(account) {
   };
 }
 
+function eventTicketCounts(db, eventId) {
+  const tickets = db.tickets.filter((ticket) => ticket.eventId === eventId);
+  return {
+    ticketCount: tickets.length,
+    soldCount: tickets.filter((ticket) => ticket.status !== "ON_SALE").length
+  };
+}
+
+function eventPickerSummary(db, event) {
+  const counts = eventTicketCounts(db, event.id);
+  return {
+    id: event.id,
+    title: event.title,
+    category: event.category,
+    saleState: event.saleState,
+    venue: event.venue,
+    date: event.date,
+    dates: event.dates,
+    ticketCount: counts.ticketCount,
+    soldCount: counts.soldCount
+  };
+}
+
+function firstEditableEvent(db, eventId) {
+  if (eventId) {
+    const selected = db.events.find((event) => event.id === eventId);
+    if (!selected) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
+    return selected;
+  }
+  return db.events.find((event) => Array.isArray(event.prices) && event.prices.length > 0) || db.events[0] || null;
+}
+
+function scheduleFromStartsAt(startsAt) {
+  const date = String(startsAt || "").slice(0, 10);
+  const time = String(startsAt || "").slice(11, 16) || "19:30";
+  return [{ label: "1회차", date, times: [time] }];
+}
+
 function assertAssignableRoles(actor, roleKeys) {
   const actorPermissions = new Set(adminDto(actor).permissions);
   const requestedPermissions = roleKeys.flatMap((key) => roleCatalog.find((role) => role.key === key)?.permissions || []);
@@ -154,6 +192,21 @@ function isTransactionalTicket(ticket) {
   return Boolean(ticket.ownerId) || ticket.status !== "ON_SALE";
 }
 
+function activeSeatKeysForEvent(event) {
+  const layoutSeats = seatLayoutForVenue(event.venueId);
+  const layoutZoneIds = new Set(layoutSeats.map((seat) => seat.zoneId));
+  const activeSeats = layoutSeats
+    .filter((seat) => event.zones.some((zone) => zone.id === seat.zoneId))
+    .map((seat) => [seat.zoneId, seat.seatLabel].join(":"));
+  const generatedSeats = event.zones
+    .filter((zone) => !layoutZoneIds.has(zone.id))
+    .flatMap((zone) => {
+      const seatCount = Number.isInteger(zone.seatCount) && zone.seatCount > 0 ? zone.seatCount : 12;
+      return Array.from({ length: seatCount }, (_, index) => [zone.id, `${zone.name}-${String(index + 1).padStart(2, "0")}`].join(":"));
+    });
+  return new Set([...activeSeats, ...generatedSeats]);
+}
+
 function assertTicketsCanUseInventory(db, event, nextZones, nextDates) {
   const nextZoneIds = new Set(nextZones.map((zone) => zone.id));
   const nextDateIds = new Set(nextDates.map((date) => date.id));
@@ -178,11 +231,13 @@ function assertTicketsCanUseInventory(db, event, nextZones, nextDates) {
 function removeStaleOpenTickets(db, event) {
   const activeZoneIds = new Set(event.zones.map((zone) => zone.id));
   const activeDateIds = new Set((event.dates || []).map((date) => date.id));
+  const activeSeatKeys = activeSeatKeysForEvent(event);
   db.tickets = db.tickets.filter((ticket) => (
     ticket.eventId !== event.id
     || (
       activeZoneIds.has(ticket.zoneId)
       && activeDateIds.has(ticket.performanceDateId)
+      && activeSeatKeys.has([ticket.zoneId, ticket.seatLabel].join(":"))
     )
     || isTransactionalTicket(ticket)
   ));
@@ -235,8 +290,10 @@ function updateAdminAccount(db, payload, actor) {
   account.roleKeys = roleKeys;
   account.ipAllowlist = ipAllowlist;
   account.active = payload.active !== false;
+  const passwordUpdated = Object.hasOwn(payload, "password") && String(payload.password || "").length > 0;
+  if (passwordUpdated) Object.assign(account, passwordRecord(payload.password));
   account.updatedAt = now();
-  appendLedger(db, "ADMIN", "ADMIN_ACCOUNT_UPDATED", { adminId: account.id, roleKeys: account.roleKeys, ipAllowlist: account.ipAllowlist, active: account.active });
+  appendLedger(db, "ADMIN", "ADMIN_ACCOUNT_UPDATED", { adminId: account.id, roleKeys: account.roleKeys, ipAllowlist: account.ipAllowlist, active: account.active, passwordUpdated });
   return adminAccountDto(account);
 }
 
@@ -263,6 +320,7 @@ function updateEventVenue(db, { eventId, venueId }) {
   if (!venue) throw httpError(404, "VENUE_NOT_FOUND", "공연장을 찾을 수 없습니다.");
   event.venueId = venue.id;
   event.venue = venue.name;
+  removeStaleOpenTickets(db, event);
   ensureTicketsForEvent(db, event);
   appendLedger(db, "ADMIN", "EVENT_VENUE_UPDATED", {
     eventId: event.id,
@@ -273,7 +331,7 @@ function updateEventVenue(db, { eventId, venueId }) {
   return { event, venue, seatMap: venueMapForEvent(db, event.id) };
 }
 
-function updateEventSale(db, payload) {
+async function updateEventSale(db, payload) {
   const { eventId } = payload;
   const event = db.events.find((item) => item.id === eventId);
   if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
@@ -299,6 +357,7 @@ function updateEventSale(db, payload) {
   event.discountRate = input.discountRate;
   event.venueId = venue.id;
   event.venue = venue.name;
+  if (payload.imageDataUrl) event.image = await storeEventImage(payload.imageDataUrl);
   Object.assign(event, content);
   if (!content.date) event.date = input.startsAt;
   if (!content.dates) {
@@ -309,6 +368,7 @@ function updateEventSale(db, payload) {
       event.dates[0].startsAt = input.startsAt;
       event.dates[0].label ||= "1회차";
     }
+    event.schedules = scheduleFromStartsAt(input.startsAt);
   }
   removeStaleOpenTickets(db, event);
 
@@ -342,10 +402,11 @@ function updateEventSale(db, payload) {
 }
 
 function adminVenues(db) {
-  const event = db.events[0];
+  const event = firstEditableEvent(db);
   return {
     venues: db.venues.map(adminVenueRecord),
-    events: db.events,
+    eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
+    events: event ? [clone(event)] : [],
     event
   };
 }
@@ -385,13 +446,15 @@ function adminSummary(db) {
   };
 }
 
-function adminWorkspace(db, workspace, actor) {
+function adminWorkspace(db, workspace, actor, options = {}) {
   if (workspace === "overview") {
     return { stats: adminSummary(db).stats };
   }
   if (workspace === "catalog" || workspace === "sales") {
+    const event = firstEditableEvent(db, options.eventId);
     return {
-      events: clone(db.events),
+      eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
+      events: event ? [clone(event)] : [],
       venues: db.venues.map(adminVenueRecord)
     };
   }

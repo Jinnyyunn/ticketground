@@ -51,6 +51,10 @@ export const apiEventSchema = z.object({
   sale: z.object({
     label: z.string(),
     state: z.string(),
+    note: z.string(),
+    discountRate: z.number(),
+    displayPrice: z.number(),
+    basePrice: z.number(),
     bookable: z.boolean(),
   }),
 }) satisfies ZodType<ApiEvent>;

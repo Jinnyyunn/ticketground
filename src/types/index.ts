@@ -71,6 +71,15 @@ export interface TicketShow {
   readonly ranking?: string;
   readonly pinnedRank: number | null;
   readonly soldCount: number;
+  readonly saleState: string;
+  readonly sale: {
+    readonly label: string;
+    readonly note: string;
+    readonly bookable: boolean;
+    readonly displayPrice: number;
+    readonly basePrice: number;
+    readonly discountRate: number;
+  };
   readonly badge?: string;
   readonly artistSlug?: string;
   readonly prices: readonly TicketPrice[];

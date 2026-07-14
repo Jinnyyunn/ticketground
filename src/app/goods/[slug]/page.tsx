@@ -25,7 +25,9 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
   const calendarDays = Array.from({ length: 31 }, (_, index) => index + 1);
   const scheduledDays = new Set(show.schedules.map((schedule) => Number(schedule.date.split(".").at(-1))));
   const firstPrice = show.prices[0];
-  const lowestPriceLabel = show.prices.length > 0 ? currency(Math.min(...show.prices.map((price) => price.price))) : "좌석별 상이";
+  const rawLowestPrice = show.prices.length > 0 ? Math.min(...show.prices.map((price) => price.price)) : null;
+  const lowestPriceLabel = rawLowestPrice === null ? "좌석별 상이" : currency(show.sale.displayPrice);
+  const originalPriceLabel = rawLowestPrice !== null && show.sale.displayPrice < rawLowestPrice ? currency(rawLowestPrice) : undefined;
   const venue = getVenueForShow(show);
   const venueHref = venue ? `/place/${venue.slug}` : "/place";
   const artistHref = show.artistSlug ? `/artist/${show.artistSlug}` : undefined;
@@ -52,6 +54,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
             <div className="flex flex-wrap items-center gap-2">
               {show.badge && <span className="rounded bg-ticketground px-2 py-1 text-xs font-black text-white">{show.badge}</span>}
               {show.ranking && <span className="text-sm font-bold text-ticketground">{show.ranking}</span>}
+              <span className="rounded border border-line px-2 py-1 text-xs font-black text-ink-3">{show.sale.label}</span>
             </div>
             <h2 className="balanced-title mt-4 text-[30px] font-black leading-tight text-ink sm:text-4xl">{show.title}</h2>
             <p className="mt-4 max-w-[680px] text-base leading-loose text-ink-3">{show.summary}</p>
@@ -80,10 +83,11 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
                   </div>
                 ))}
               </div>
+              {originalPriceLabel ? <p className="mt-3 text-sm font-bold text-ticketground">할인 표시가 적용되어 최저가 {originalPriceLabel}에서 {lowestPriceLabel}로 노출됩니다.</p> : null}
             </section>
           </section>
 
-          <DetailBookingPanel slug={show.slug} title={show.title} venueHref={venueHref} schedules={show.schedules} lowestPriceLabel={lowestPriceLabel} />
+          <DetailBookingPanel bookable={show.sale.bookable} lowestPriceLabel={lowestPriceLabel} originalPriceLabel={originalPriceLabel} saleLabel={show.sale.label} saleNote={show.sale.note} schedules={show.schedules} slug={show.slug} title={show.title} venueHref={venueHref} />
 
           <nav className="no-scrollbar sticky top-0 z-20 overflow-x-auto border-b border-line bg-background py-3 shadow-sm lg:col-span-2" aria-label="상세 정보 바로가기">
             <div className="mx-auto flex w-max gap-3">

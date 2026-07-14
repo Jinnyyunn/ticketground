@@ -285,6 +285,182 @@ test("admin API accepts repeated source price grades and stores canonical price 
   assert.equal(ownedTicket.faceValue, 121000);
 });
 
+test("admin workspace selects a requested non-default event by eventId", async (t) => {
+  // Given: a seeded app with many public catalog events.
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-workspace-event-picker-"));
+  t.after(() => rm(tempDir, { recursive: true, force: true }));
+  const app = await ticketgroundApp(tempDir);
+  const catalog = await requestApp(app, { surface: "public", method: "GET", url: "/api/catalog" });
+  assert.equal(catalog.status, 200, catalog.body);
+  assert.ok(catalog.json.data.events.length > 2);
+  const target = catalog.json.data.events[2];
+
+  // When: the sales workspace is requested with a specific eventId.
+  const selected = await requestApp(app, {
+    surface: "admin",
+    method: "GET",
+    url: `/api/admin/workspaces/sales?eventId=${encodeURIComponent(target.id)}`
+  });
+  const defaulted = await requestApp(app, {
+    surface: "admin",
+    method: "GET",
+    url: "/api/admin/workspaces/sales"
+  });
+
+  // Then: the lightweight picker still lists all events, while the editable record is the selected event.
+  assert.equal(selected.status, 200, selected.body);
+  assert.equal(selected.json.data.events.length, 1);
+  assert.equal(selected.json.data.events[0].id, target.id);
+  assert.ok(selected.json.data.eventSummaries.length >= catalog.json.data.events.length);
+  assert.ok(selected.json.data.eventSummaries.some((event) => event.id === target.id && event.ticketCount > 0));
+  assert.notEqual(defaulted.json.data.events[0].id, "event_kpop_001");
+  assert.ok(defaulted.json.data.events[0].prices.length > 0);
+});
+
+test("admin hold and closed sale states are visible and not bookable in the public catalog", async (t) => {
+  // Given: an admin-created event that is explicitly held.
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-sale-state-public-"));
+  t.after(() => rm(tempDir, { recursive: true, force: true }));
+  const app = await ticketgroundApp(tempDir);
+  const create = await requestApp(app, {
+    surface: "admin",
+    method: "POST",
+    url: "/api/admin/events/create",
+    body: {
+      title: "관리 보류 공개 검증",
+      category: "concert",
+      startsAt: "2026-05-30T13:00:00+09:00",
+      venueId: "venue_nanjipark",
+      saleState: "ADMIN_HOLD",
+      saleNote: "운영 검수 중",
+      slug: "admin-hold-public-contract",
+      prices: [{ grade: "PASS", seat: "1일권", price: 121000 }],
+      imageDataUrl: tinyPng
+    }
+  });
+  assert.equal(create.status, 200, create.body);
+
+  // When: the public catalog is read and then the same event is closed.
+  const heldCatalog = await requestApp(app, { surface: "public", method: "GET", url: "/api/catalog" });
+  const heldEvent = eventById(heldCatalog.json, create.json.data.event.id);
+  const closed = await requestApp(app, {
+    surface: "admin",
+    method: "POST",
+    url: "/api/admin/events/sale",
+    body: {
+      eventId: create.json.data.event.id,
+      title: "관리 보류 공개 검증",
+      category: "concert",
+      startsAt: "2026-05-30T13:00:00+09:00",
+      venueId: "venue_nanjipark",
+      saleState: "CLOSED"
+    }
+  });
+  const closedCatalog = await requestApp(app, { surface: "public", method: "GET", url: "/api/catalog" });
+  const closedEvent = eventById(closedCatalog.json, create.json.data.event.id);
+
+  // Then: users see the sale state before checkout and both states are non-bookable.
+  assert.equal(heldEvent.saleState, "ADMIN_HOLD");
+  assert.equal(heldEvent.sale.bookable, false);
+  assert.equal(heldEvent.sale.label, "판매 보류");
+  assert.equal(heldEvent.sale.note, "운영 검수 중");
+  assert.equal(closed.status, 200, closed.body);
+  assert.equal(closedEvent.saleState, "CLOSED");
+  assert.equal(closedEvent.sale.bookable, false);
+  assert.equal(closedEvent.sale.label, "판매 종료");
+});
+
+test("admin venue change removes stale open tickets from the previous venue", async (t) => {
+  // Given: an event with generated tickets for one real venue.
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-venue-stale-tickets-"));
+  t.after(() => rm(tempDir, { recursive: true, force: true }));
+  const app = await ticketgroundApp(tempDir);
+  const create = await requestApp(app, {
+    surface: "admin",
+    method: "POST",
+    url: "/api/admin/events/create",
+    body: {
+      title: "장소 변경 유령 좌석 검증",
+      category: "concert",
+      startsAt: "2026-06-01T20:00:00+09:00",
+      venueId: "venue_jamsil_olympic",
+      slug: "venue-stale-ticket-cleanup",
+      imageDataUrl: tinyPng
+    }
+  });
+  assert.equal(create.status, 200, create.body);
+  const eventId = create.json.data.event.id;
+  const baseTicket = app.db.tickets.find((ticket) => ticket.eventId === eventId && ticket.status === "ON_SALE");
+  assert.ok(baseTicket);
+  app.db.tickets.push({
+    ...baseTicket,
+    id: "ticket_old_venue_ghost",
+    seatLabel: "OLD-VENUE-GHOST-1"
+  });
+
+  // When: the venue changes to a different layout.
+  const changed = await requestApp(app, {
+    surface: "admin",
+    method: "POST",
+    url: "/api/admin/events/venue",
+    body: { eventId, venueId: "venue_bluesquare_shinhan_card_hall" }
+  });
+
+  // Then: no open ticket from the previous venue remains sellable.
+  assert.equal(changed.status, 200, changed.body);
+  assert.equal(app.db.tickets.some((ticket) => ticket.id === "ticket_old_venue_ghost"), false);
+  assert.ok(app.db.tickets.some((ticket) => ticket.eventId === eventId && ticket.status === "ON_SALE"));
+});
+
+test("admin sale update syncs schedules from startsAt and applies custom zone seat counts", async (t) => {
+  // Given: a custom-grade event with an explicit synthetic capacity.
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-schedule-seatcount-"));
+  t.after(() => rm(tempDir, { recursive: true, force: true }));
+  const app = await ticketgroundApp(tempDir);
+  const create = await requestApp(app, {
+    surface: "admin",
+    method: "POST",
+    url: "/api/admin/events/create",
+    body: {
+      title: "좌석 수 및 일정 동기화",
+      category: "concert",
+      startsAt: "2026-07-01T19:30:00+09:00",
+      venueId: "venue_nanjipark",
+      slug: "seat-count-schedule-sync",
+      prices: [{ grade: "FLOORX", seat: "커스텀 플로어", price: 88000, seatCount: 7 }],
+      schedules: [{ label: "7월 1일", date: "2026.07.01", times: ["19:30"] }],
+      imageDataUrl: tinyPng
+    }
+  });
+  assert.equal(create.status, 200, create.body);
+  const eventId = create.json.data.event.id;
+  assert.equal(app.db.tickets.filter((ticket) => ticket.eventId === eventId).length, 7);
+
+  // When: the sales endpoint changes only the representative startsAt and increases synthetic capacity.
+  const update = await requestApp(app, {
+    surface: "admin",
+    method: "POST",
+    url: "/api/admin/events/sale",
+    body: {
+      eventId,
+      title: "좌석 수 및 일정 동기화",
+      category: "concert",
+      startsAt: "2026-07-02T20:15:00+09:00",
+      venueId: "venue_nanjipark",
+      prices: { [create.json.data.event.zones[0].id]: 99000 },
+      seatCounts: { [create.json.data.event.zones[0].id]: 9 }
+    }
+  });
+
+  // Then: the public schedule and generated tickets match the sales edit.
+  assert.equal(update.status, 200, update.body);
+  const state = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const event = eventById(state.json, eventId);
+  assert.deepEqual(event.schedules, [{ label: "1회차", date: "2026-07-02", times: ["20:15"] }]);
+  assert.equal(event.zones[0].seatCount, 9);
+  assert.equal(state.json.data.tickets.filter((ticket) => ticket.eventId === eventId).length, 9);
+});
+
 test("admin API maps legacy festival category payloads to the public concert taxonomy", async (t) => {
   // Given: the previously accepted admin category value from the legacy console.
   const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-legacy-festival-"));

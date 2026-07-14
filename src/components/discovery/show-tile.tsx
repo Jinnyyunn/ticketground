@@ -11,6 +11,8 @@ type ShowTileProps = {
 
 export function ShowTile({ show, compact = false }: ShowTileProps) {
   const lowestPrice = Math.min(...show.prices.map((price) => price.price));
+  const displayPrice = show.sale.displayPrice;
+  const discounted = displayPrice < lowestPrice;
 
   return (
     <Link
@@ -32,6 +34,7 @@ export function ShowTile({ show, compact = false }: ShowTileProps) {
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           {show.badge && <span className="rounded bg-ticketground px-2 py-1 text-xs font-black text-white">{show.badge}</span>}
+          <span className="rounded border border-line px-2 py-1 text-xs font-black text-ink-3">{show.sale.label}</span>
           <span className="text-sm font-black text-ink-3">{show.category}</span>
         </div>
         <h2
@@ -45,7 +48,10 @@ export function ShowTile({ show, compact = false }: ShowTileProps) {
         <p className="mt-2 text-sm text-ink-3">{show.venue}</p>
         <p className="mt-1 text-sm text-ink-4">{show.period}</p>
         {!compact && <p className="mt-3 clamp-2 text-sm leading-relaxed text-ink-3">{show.summary}</p>}
-        <p className="mt-3 text-base font-black text-ink">최저 {currency(lowestPrice)}</p>
+        <p className="mt-3 text-base font-black text-ink">
+          최저 {currency(displayPrice)}
+          {discounted ? <span className="ml-2 text-xs text-ink-4 line-through">{currency(lowestPrice)}</span> : null}
+        </p>
       </div>
     </Link>
   );

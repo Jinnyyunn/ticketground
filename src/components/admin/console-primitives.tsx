@@ -40,7 +40,7 @@ export function hasSupportThreads(data: WorkspaceData | null): data is SupportWo
 
 export function Notice({ feedback }: { readonly feedback: Feedback }) {
   if (!feedback) return null;
-  const tone = feedback.tone === "success" ? "bg-surface text-ok" : "bg-tint-red text-ticketground";
+  const tone = feedback.tone === "success" ? "bg-surface text-ok" : "bg-background text-ticketground";
   return <p aria-live="polite" className={`rounded-lg border border-line px-3 py-2 text-sm font-bold ${tone}`}>{feedback.message}</p>;
 }
 

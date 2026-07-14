@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { getState, type ApiEvent } from "@/lib/ticketground-api";
 
 function priceLabel(event: ApiEvent): string {
-  const lowest = Math.min(...event.zones.map((zone) => zone.faceValue));
+  const lowest = event.sale.displayPrice;
   return `${new Intl.NumberFormat("ko-KR").format(lowest)}원부터`;
 }
 
