@@ -24,4 +24,8 @@ enum FixtureScenario: String {
         }
         return FixtureScenario(rawValue: arguments[index + 1]) ?? .malformed
     }
+
+    static var reduceMotionRequested: Bool {
+        ProcessInfo.processInfo.arguments.contains("-reduce-motion")
+    }
 }

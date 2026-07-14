@@ -8,6 +8,15 @@ struct TicketGroundApp: App {
         WindowGroup {
             ContentView()
                 .environment(container)
+                .environment(\.sizeCategory, requestedSizeCategory)
+        }
+    }
+
+    private var requestedSizeCategory: ContentSizeCategory {
+        switch ProcessInfo.processInfo.environment["TICKETGROUND_UI_CONTENT_SIZE"] {
+        case "accessibilityExtraExtraExtraLarge": return .accessibilityExtraExtraExtraLarge
+        case "accessibilityExtraExtraLarge": return .accessibilityExtraExtraLarge
+        default: return .large
         }
     }
 }
