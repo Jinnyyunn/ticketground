@@ -90,6 +90,7 @@ const defaultAdminRoles = (process.env.TIG_ADMIN_ROLES || "owner")
 const defaultAdminIpAllowlist = String(process.env.TIG_ADMIN_IP_ALLOWLIST || "").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
 const trustAdminProxy = process.env.TIG_TRUST_PROXY === "1";
 const trustedProxyIps = String(process.env.TIG_TRUSTED_PROXY_IPS || "").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+const apiRateWindows = new Map();
 
 const sessionRoutePermissions = [
   { method: "POST", pattern: /^\/api\/admin\/logout$/, permission: "admin.dashboard.read" },
@@ -132,6 +133,29 @@ function requestIp(req) {
     : "";
   const address = forwarded || peerAddress;
   return address.startsWith("::ffff:") ? address.slice(7) : address;
+}
+
+function apiRateLimitFor(req) {
+  const method = String(req.method || "GET").toUpperCase();
+  return method === "GET"
+    ? { limit: 600, windowMs: 60_000 }
+    : { limit: 120, windowMs: 60_000 };
+}
+
+function isApiRateLimited(req) {
+  const nowMs = Date.now();
+  const { limit, windowMs } = apiRateLimitFor(req);
+  const key = `${requestIp(req)}:${String(req.method || "GET").toUpperCase()}`;
+  const current = apiRateWindows.get(key);
+  if (!current || current.resetAt <= nowMs) {
+    apiRateWindows.set(key, { count: 1, resetAt: nowMs + windowMs });
+    for (const [entryKey, entry] of apiRateWindows) {
+      if (entry.resetAt <= nowMs) apiRateWindows.delete(entryKey);
+    }
+    return false;
+  }
+  current.count += 1;
+  return current.count > limit;
 }
 
 function signedSessionValue(sessionId) {
@@ -346,6 +370,10 @@ function serveApiOnly(req, res) {
   const requestUrl = req.url || "/";
   if (!requestUrl.startsWith("/api/")) {
     writeNotFound(res);
+    return;
+  }
+  if (isApiRateLimited(req)) {
+    writeJson(res, 429, { ok: false, error: { code: "RATE_LIMITED", message: "요청이 너무 많습니다." } });
     return;
   }
   app.handleRequest(req, res, app.db, "public");

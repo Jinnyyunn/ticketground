@@ -91,7 +91,7 @@ test("backend resale draw applies official fee policy and settlement fields", as
   assert.equal(joined.data.buyerCount, 1);
   assert.equal(joined.data.buyers, undefined);
 
-  const stateAfterJoin = await api(baseUrl, "/api/state");
+  const stateAfterJoin = await api(baseUrl, "/api/state?include=tickets");
   const publicPool = stateAfterJoin.data.resalePools.find((item) => item.id === pool.data.id);
   assert.equal(publicPool.buyerCount, 1);
   assert.equal(publicPool.buyers, undefined);

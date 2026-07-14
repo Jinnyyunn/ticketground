@@ -55,7 +55,7 @@ async function handleRequest(req, res, db, surface) {
   try {
     if (req.url.startsWith("/api/")) {
       const result = await handleApi(req, res, db, surface);
-      await saveDb(db);
+      if (req.method !== "GET") await saveDb(db);
       if (result?.redirect) {
         res.writeHead(result.status || 302, {
           Location: result.redirect,

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { api, appAttestation, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
+import { api, appAttestation, appAttestationFor, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
 
 test("backend issues virtual ticket, app-only admission QR, and one-use gate verification", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -21,24 +21,26 @@ test("backend issues virtual ticket, app-only admission QR, and one-use gate ver
   assert.equal(virtualQr.data.ownerId, undefined);
   assert.equal(virtualQr.data.signature, undefined);
 
+  const trustAttestation = await appAttestationFor(baseUrl, "TRUST_DEVICE", "user_fan_a", "iphone-15-pro");
   const device = await api(baseUrl, "/api/devices/trust", {
     userId: "user_fan_a",
     deviceId: "iphone-15-pro",
     deviceName: "민서 iPhone",
     platform: "iOS",
     biometricVerified: true,
-    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "iphone-15-pro")
+    ...trustAttestation
   });
   assert.equal(device.data.device.status, "TRUSTED");
   assert.ok(device.data.deviceToken);
 
+  const qrAttestation = await appAttestationFor(baseUrl, "ISSUE_QR", "user_fan_a", "iphone-15-pro", ticket.id);
   const admissionQr = await api(baseUrl, "/api/tickets/qr", {
     userId: "user_fan_a",
     ticketId: ticket.id,
     channel: "APP",
     deviceId: "iphone-15-pro",
     deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "iphone-15-pro", ticket.id)
+    ...qrAttestation
   });
   assert.equal(admissionQr.data.type, "ADMISSION");
   assert.equal(admissionQr.data.ttlSeconds, 20);
@@ -51,7 +53,7 @@ test("backend issues virtual ticket, app-only admission QR, and one-use gate ver
   const replay = await api(baseUrl, "/api/gate/verify", admissionQr.data);
   assert.equal(replay.data.valid, false);
 
-  const stateAfterQr = await api(baseUrl, "/api/state");
+  const stateAfterQr = await api(baseUrl, "/api/state?include=tickets");
   const publicTicket = stateAfterQr.data.tickets.find((item) => item.id === ticket.id);
   assert.equal(publicTicket.ownerId, undefined);
   assert.equal(publicTicket.admissionCredentialId, undefined);
@@ -80,11 +82,12 @@ test("backend issues virtual ticket, app-only admission QR, and one-use gate ver
 test("backend rejects web admission QR, early QR activation, and forged app attestations", async (t) => {
   const early = await startServer(t, { now: "2026-09-19T15:00:00+09:00" });
   const { ticket } = await buyFirstTicket(early.baseUrl);
+  const trustAttestation = await appAttestationFor(early.baseUrl, "TRUST_DEVICE", "user_fan_a", "iphone-early");
   const device = await api(early.baseUrl, "/api/devices/trust", {
     userId: "user_fan_a",
     deviceId: "iphone-early",
     biometricVerified: true,
-    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "iphone-early")
+    ...trustAttestation
   });
 
   const forgedDevice = await api(early.baseUrl, "/api/devices/trust", {
@@ -101,23 +104,26 @@ test("backend rejects web admission QR, early QR activation, and forged app atte
   }, 403);
   assert.equal(webQr.error.code, "APP_CHANNEL_REQUIRED");
 
+  const earlyQrAttestation = await appAttestationFor(early.baseUrl, "ISSUE_QR", "user_fan_a", "iphone-early", ticket.id);
   const earlyQr = await api(early.baseUrl, "/api/tickets/qr", {
     userId: "user_fan_a",
     ticketId: ticket.id,
     channel: "APP",
     deviceId: "iphone-early",
     deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "iphone-early", ticket.id)
+    ...earlyQrAttestation
   }, 409);
   assert.equal(earlyQr.error.code, "REAL_QR_NOT_READY");
 
+  const forgedNonce = await api(early.baseUrl, "/api/devices/attestation-nonce?purpose=ISSUE_QR");
   const forgedQr = await api(early.baseUrl, "/api/tickets/qr", {
     userId: "user_fan_a",
     ticketId: ticket.id,
     channel: "APP",
     deviceId: "iphone-early",
     deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_b", "iphone-early", ticket.id)
+    nonce: forgedNonce.data.nonce,
+    appAttestation: appAttestation("ISSUE_QR", forgedNonce.data.nonce, "user_fan_b", "iphone-early", ticket.id)
   }, 403);
   assert.equal(forgedQr.error.code, "APP_ATTESTATION_REQUIRED");
 

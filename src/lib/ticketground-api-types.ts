@@ -204,6 +204,7 @@ export type ApiSession = {
   readonly name: string;
   readonly status: string;
   readonly trustScore: number;
+  readonly sessionToken?: string;
 };
 
 export type ApiNotificationJob = {

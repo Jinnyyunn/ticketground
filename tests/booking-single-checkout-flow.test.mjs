@@ -80,7 +80,7 @@ test("checkout ignores tampered URL amount parameters for a selected backend tic
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   t.after(() => page.close());
 
-  const stateResponse = await fetch(`${baseUrl}/api/state`);
+  const stateResponse = await fetch(`${baseUrl}/api/state?include=tickets`);
   const statePayload = await stateResponse.json();
   assert.equal(statePayload.ok, true);
   const ticket = statePayload.data.tickets.find((item) => item.eventId === "event_c945b7fa842c" && item.status === "ON_SALE");

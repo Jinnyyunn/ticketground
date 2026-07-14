@@ -126,7 +126,7 @@ test("browser admin session uses HttpOnly cookie, csrf, ACL, and create-event mu
   });
   assert.equal(status.json.data.status, "WATCHLIST");
 
-  const before = await api(server.baseUrl, "/api/state");
+  const before = await api(server.baseUrl, "/api/state?include=tickets");
   const create = await adminSessionRequest(server, "/api/admin/events/create", {
     cookie,
     csrf,
@@ -149,7 +149,7 @@ test("browser admin session uses HttpOnly cookie, csrf, ACL, and create-event mu
   assert.equal(uploadedPoster.status, 200);
   assert.match(uploadedPoster.headers.get("content-type") || "", /image\/png/);
 
-  const after = await api(server.baseUrl, "/api/state");
+  const after = await api(server.baseUrl, "/api/state?include=tickets");
   assert.equal(after.data.events.length, before.data.events.length + 1);
   assert.ok(after.data.events.every((event) => typeof event.slug === "string" && event.slug.length > 0));
   assert.ok(after.data.events.some((event) => event.id === create.json.data.event.id));
@@ -356,7 +356,7 @@ test("catalog browser upload publishes a poster-backed performance to the public
   await page.getByRole("button", { name: "공연/티켓 생성" }).click();
   await page.getByText("신규 공연과 티켓이 생성되었습니다.").waitFor();
 
-  const state = await api(server.baseUrl, "/api/state");
+  const state = await api(server.baseUrl, "/api/state?include=tickets");
   const event = state.data.events.find((item) => item.title === title);
   assert.ok(event);
   t.after(() => rm(new URL(`../public${event.image}`, import.meta.url), { force: true }));
@@ -424,7 +424,7 @@ test("admin venue map images resolve through public assets", async (t) => {
 test("admin sale settings update public event state and ticket prices", async (t) => {
   const server = await startServer(t);
   const { baseUrl } = server;
-  const before = await api(baseUrl, "/api/state");
+  const before = await api(baseUrl, "/api/state?include=tickets");
   const event = eventById(before);
   const prices = Object.fromEntries(event.zones.map((zone, index) => [zone.id, zone.faceValue + ((index + 1) * 1000)]));
 
@@ -445,7 +445,7 @@ test("admin sale settings update public event state and ticket prices", async (t
   assert.equal(updated.data.event.discountRate, 15);
   assert.ok(updated.data.repricedTickets > 0);
 
-  const after = await api(baseUrl, "/api/state");
+  const after = await api(baseUrl, "/api/state?include=tickets");
   const publicEvent = eventById(after);
   assert.equal(publicEvent.title, "QA Live Sale");
   assert.equal(publicEvent.saleNote, "QA sale note");

@@ -137,7 +137,7 @@ function post<T>(path: string, dataSchema: ZodType<T>, body: Record<string, unkn
 }
 
 export function getState() {
-  return readApi("/api/state", apiStateSchema);
+  return readApi("/api/state?include=tickets", apiStateSchema);
 }
 
 export function getSeatMap(eventId = DEMO_EVENT_ID) {

@@ -6,6 +6,7 @@ export function createEngagementBackend({
   now,
   offsetIso,
   primaryDate,
+  sendPushNotification,
   stableId
 }) {
   function userWatchlist(db, userId) {
@@ -124,6 +125,18 @@ export function createEngagementBackend({
       updatedAt: now()
     };
     db.notificationJobs.push(job);
+    if (job.status === "SENT" && job.channels.includes("APP_PUSH")) {
+      const tokens = db.pushTokens.filter((token) => token.userId === watch.userId && token.status === "ACTIVE");
+      for (const token of tokens) {
+        sendPushNotification(token, {
+          type: normalizedType,
+          title: job.title,
+          eventId: watch.eventId,
+          watchlistId: watch.id,
+          notificationJobId: job.id
+        });
+      }
+    }
     appendLedger(db, "SYSTEM", "WATCHLIST_NOTIFICATION_RECORDED", {
       watchlistId: watch.id,
       eventId: watch.eventId,

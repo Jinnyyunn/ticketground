@@ -32,7 +32,9 @@ export function createApiRouter({
   socialAuthSession,
   socialAuthStart,
   buyPrimary,
+  createAppAttestationNonce,
   seatMap,
+  registerPushToken,
   startPortOneDanalVerification,
   supportThreadForUser,
   trustDevice,
@@ -46,6 +48,7 @@ export function createApiRouter({
   updateUserStatuses,
   upsertWatchlist,
   userWatchlist,
+  verifySessionToken,
   venueMapForEvent,
   verifyAppAttestation,
   verifyLedger,
@@ -55,8 +58,39 @@ export function createApiRouter({
 function requireBody(body, keys) {
   for (const key of keys) {
     if (body[key] === undefined || body[key] === "") {
-      throw httpError(400, "MISSING_FIELD", `${key} 값이 필요합니다.`);
+      throw httpError(400, "MISSING_FIELD", `${key} 값이 필요합니다.`, { field: key });
     }
+  }
+}
+
+function appConfig() {
+  return {
+    minSupportedVersion: process.env.TIG_APP_MIN_VERSION || "0.0.0",
+    recommendedVersion: process.env.TIG_APP_RECOMMENDED_VERSION || process.env.TIG_APP_MIN_VERSION || "0.0.0",
+    maintenanceMode: process.env.TIG_MAINTENANCE_MODE === "1",
+    maintenanceMessage: process.env.TIG_MAINTENANCE_MESSAGE || "",
+    appChannelRequired: ["/api/devices/trust", "/api/tickets/qr"]
+  };
+}
+
+function bearerUserId(req) {
+  const header = req.headers.authorization;
+  if (!header) return null;
+  const match = String(header).match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  try {
+    return verifySessionToken(match[1]).userId;
+  } catch {
+    return null;
+  }
+}
+
+function requireBearerUserMatch(tokenUserId, ownerUserId) {
+  if (tokenUserId && tokenUserId !== ownerUserId) {
+    throw httpError(403, "TOKEN_USER_MISMATCH", "세션 토큰 사용자와 요청 사용자가 일치하지 않습니다.", {
+      tokenUserId,
+      requestUserId: ownerUserId
+    });
   }
 }
 
@@ -81,6 +115,7 @@ async function parseBody(req) {
 async function handleApi(req, res, db, surface) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const body = req.method === "POST" ? await parseBody(req) : {};
+  const tokenUserId = bearerUserId(req);
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
   const userProfileMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/profile$/);
@@ -94,8 +129,18 @@ async function handleApi(req, res, db, surface) {
     throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
   }
 
-  if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
-  if (req.method === "GET" && url.pathname === "/api/catalog") return publicCatalog(db);
+  if (req.method === "GET" && url.pathname === "/api/health") return { status: "UP", time: new Date().toISOString() };
+  if (req.method === "GET" && url.pathname === "/api/app/config") return appConfig();
+  if (req.method === "GET" && url.pathname === "/api/devices/attestation-nonce") {
+    return createAppAttestationNonce(url.searchParams.get("purpose"));
+  }
+  if (req.method === "GET" && url.pathname === "/api/state") return publicState(db, { includeTickets: url.searchParams.get("include") === "tickets" });
+  if (req.method === "GET" && url.pathname === "/api/catalog") {
+    return publicCatalog(db, {
+      limit: url.searchParams.get("limit"),
+      cursor: url.searchParams.get("cursor")
+    });
+  }
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
@@ -110,11 +155,20 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && adminWorkspaceMatch) return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin);
   if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
   if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
-  if (req.method === "GET" && userTicketsMatch) return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
-  if (req.method === "GET" && userWatchlistMatch) return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
+  if (req.method === "GET" && userTicketsMatch) {
+    const userId = decodeURIComponent(userTicketsMatch[1]);
+    requireBearerUserMatch(tokenUserId, userId);
+    return publicTicketsForUser(db, userId);
+  }
+  if (req.method === "GET" && userWatchlistMatch) {
+    const userId = decodeURIComponent(userWatchlistMatch[1]);
+    requireBearerUserMatch(tokenUserId, userId);
+    return userWatchlist(db, userId);
+  }
   if (req.method === "GET" && url.pathname === "/api/support/threads") {
     const userId = url.searchParams.get("userId");
     if (!userId) throw httpError(400, "MISSING_FIELD", "userId 값이 필요합니다.");
+    requireBearerUserMatch(tokenUserId, userId);
     return supportThreadForUser(db, userId);
   }
   if (req.method === "GET" && url.pathname === "/api/seat-map") {
@@ -128,6 +182,7 @@ async function handleApi(req, res, db, surface) {
 
   if (req.method === "POST" && url.pathname === "/api/support/threads") {
     requireBody(body, ["userId", "message"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     return createSupportThread(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/support/messages") {
@@ -140,14 +195,17 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/start") {
     requireBody(body, ["userId", "phone"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     return startPortOneDanalVerification(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/confirm") {
     requireBody(body, ["userId", "phone", "identityVerificationId"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     return confirmPortOneDanalVerification(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist") {
     requireBody(body, ["userId", "eventId"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     return upsertWatchlist(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist/notify") {
@@ -155,6 +213,7 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && userProfileMatch) {
     requireBody(body, ["name"]);
+    requireBearerUserMatch(tokenUserId, decodeURIComponent(userProfileMatch[1]));
     return updateDemoProfile(db, {
       userId: decodeURIComponent(userProfileMatch[1]),
       name: body.name
@@ -163,10 +222,12 @@ async function handleApi(req, res, db, surface) {
 
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     return publicPurchaseResult(buyPrimary(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/payments/bootpay/purchase") {
     requireBody(body, ["userId", "ticketId", "paymentMethod"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     const receipt = await confirmBootpayPayment(db, {
       ticketId: body.ticketId,
       userId: body.userId,
@@ -183,14 +244,17 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/resale/list") {
     requireBody(body, ["sellerId", "ticketId", "price"]);
+    requireBearerUserMatch(tokenUserId, body.sellerId);
     return publicResalePool(listForResale(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/resale/join") {
     requireBody(body, ["buyerId", "poolId"]);
+    requireBearerUserMatch(tokenUserId, body.buyerId);
     return publicResalePool(joinPool(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/resale/cancel") {
     requireBody(body, ["sellerId", "poolId"]);
+    requireBearerUserMatch(tokenUserId, body.sellerId);
     return publicResalePool(cancelResaleListing(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/resale/draw") {
@@ -199,6 +263,7 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/resale/purchase") {
     requireBody(body, ["buyerId", "poolId"]);
+    requireBearerUserMatch(tokenUserId, body.buyerId);
     return publicResaleDrawResult(purchaseResale(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/security/direct-transfer-attempt") {
@@ -207,13 +272,20 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
     requireBody(body, ["userId", "deviceId", "biometricVerified"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     verifyAppAttestation(body, "TRUST_DEVICE", [body.userId, body.deviceId]);
     return trustDevice(db, { ...body, attestationVerified: true });
   }
+  if (req.method === "POST" && url.pathname === "/api/devices/push-token") {
+    requireBody(body, ["userId", "platform", "token"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
+    return registerPushToken(db, body);
+  }
   if (req.method === "POST" && url.pathname === "/api/tickets/qr") {
     requireBody(body, ["userId", "ticketId"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     if (String(body.channel || "WEB").toUpperCase() === "APP") {
-      requireBody(body, ["deviceId", "appAttestation"]);
+      requireBody(body, ["deviceId"]);
       verifyAppAttestation(body, "ISSUE_QR", [body.userId, body.deviceId, body.ticketId]);
       return issueQr(db, { ...body, attestationVerified: true });
     }
@@ -221,6 +293,7 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/virtual-qr") {
     requireBody(body, ["userId", "ticketId"]);
+    requireBearerUserMatch(tokenUserId, body.userId);
     return virtualQr(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/gate/verify") {

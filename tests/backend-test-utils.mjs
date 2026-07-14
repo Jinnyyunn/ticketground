@@ -19,6 +19,14 @@ export function appAttestation(purpose, ...parts) {
     .digest("hex");
 }
 
+export async function appAttestationFor(baseUrl, purpose, ...parts) {
+  const nonce = await api(baseUrl, `/api/devices/attestation-nonce?purpose=${encodeURIComponent(purpose)}`);
+  return {
+    nonce: nonce.data.nonce,
+    appAttestation: appAttestation(purpose, nonce.data.nonce, ...parts)
+  };
+}
+
 async function freePort() {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -35,6 +43,8 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
   const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-backend-"));
   const port = await freePort();
   const adminPort = await freePort();
+  const apiPort = await freePort();
+  const dbPath = path.join(tempDir, "db.json");
   const child = spawn(process.execPath, ["server.js"], {
     cwd: repoRoot,
     env: {
@@ -42,11 +52,12 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_NEXT_DEV: "0",
       PORT: String(port),
       ADMIN_PORT: String(adminPort),
+      API_PORT: String(apiPort),
       TIG_ADMIN_TOKEN: adminToken,
       TIG_ADMIN_SESSION_SECRET: adminSessionSecret,
       TIG_ADMIN_USERNAME: "admin",
       TIG_ADMIN_PASSWORD: bootstrapAdminPassword,
-      TIG_DB_PATH: path.join(tempDir, "db.json"),
+      TIG_DB_PATH: dbPath,
       TIG_NOW: now,
       TIG_APP_ATTESTATION_SECRET: appAttestationSecret,
       TIG_PORTONE_IDENTITY_TEST_MODE: "1",
@@ -78,11 +89,12 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
   });
 
   const baseUrl = `http://127.0.0.1:${port}`;
+  const apiOnlyUrl = `http://127.0.0.1:${apiPort}`;
   for (let attempt = 0; attempt < 80; attempt += 1) {
     if (exited) break;
     try {
       const response = await fetch(`${baseUrl}/api/state`);
-      if (response.ok) return { baseUrl, adminToken, adminUrl: `http://127.0.0.1:${adminPort}`, stderr };
+      if (response.ok) return { baseUrl, apiOnlyUrl, adminToken, adminUrl: `http://127.0.0.1:${adminPort}`, dbPath, stderr };
     } catch {
       // wait until both HTTP servers bind
     }
@@ -118,7 +130,7 @@ export async function verifyIdentity(baseUrl, userId = "user_fan_a", phone = "01
 
 export async function buyFirstTicket(baseUrl) {
   await verifyIdentity(baseUrl, "user_fan_a", "010-9000-0001");
-  const state = await api(baseUrl, "/api/state");
+  const state = await api(baseUrl, "/api/state?include=tickets");
   const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
   assert.ok(ticket, "seeded kpop ticket exists");
   const purchase = await api(baseUrl, "/api/tickets/buy", {

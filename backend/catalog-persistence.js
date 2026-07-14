@@ -21,6 +21,7 @@ function normalizeDb(db) {
   db.identityVerifications ||= [];
   db.admissionCredentials ||= [];
   db.trustedDevices ||= [];
+  db.pushTokens ||= [];
   db.qrIssueLogs ||= [];
   db.operatorAlerts ||= [];
   db.paymentTransactions ||= [];
@@ -156,6 +157,7 @@ function seedDb() {
     identityVerifications: [],
     admissionCredentials: [],
     trustedDevices: [],
+    pushTokens: [],
     qrIssueLogs: [],
     operatorAlerts: [],
     paymentTransactions: [],

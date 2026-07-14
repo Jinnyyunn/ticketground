@@ -122,7 +122,7 @@ test("admin API stores complete event content when creating and updating catalog
   assert.deepEqual(create.json.data.event.zones.map((zone) => zone.id), ["zone_op", "zone_vip", "zone_r", "zone_s", "zone_a"]);
   assert.ok(create.json.data.ticketsCreated > 0);
 
-  const createdState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const createdState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
   assert.equal(createdState.status, 200, createdState.body);
   const createdEvent = eventById(createdState.json, create.json.data.event.id);
   assert.equal(createdEvent.shortTitle, createPayload.shortTitle);
@@ -185,7 +185,7 @@ test("admin API stores complete event content when creating and updating catalog
   // Then: edited content is reflected in the same public state response.
   assert.equal(updated.status, 200, updated.body);
   assert.equal(updated.json.data.event.slug, updatePayload.slug);
-  const updatedState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const updatedState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
   assert.equal(updatedState.status, 200, updatedState.body);
   const updatedEvent = eventById(updatedState.json, create.json.data.event.id);
   assert.equal(updatedEvent.title, updatePayload.title);
@@ -250,7 +250,7 @@ test("admin API accepts repeated source price grades and stores canonical price 
   assert.equal(create.status, 200, create.body);
   assert.equal(create.json.data.event.zones[0].id, "zone_pass-1");
   assert.match(create.json.data.event.zones[1].id, /^zone_pass-[a-f0-9]{12}$/);
-  const state = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const state = await requestApp(app, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
   const event = eventById(state.json, create.json.data.event.id);
   assert.deepEqual(event.prices, [
     { grade: "PASS", seat: "1일권", price: 121000 },
@@ -309,7 +309,7 @@ test("admin API maps legacy festival category payloads to the public concert tax
   // Then: the request remains compatible, but stored public category uses the new taxonomy.
   assert.equal(create.status, 200, create.body);
   assert.equal(create.json.data.event.category, "concert");
-  const state = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const state = await requestApp(app, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
   const event = eventById(state.json, create.json.data.event.id);
   assert.equal(event.category, "concert");
 });
@@ -319,7 +319,7 @@ test("admin API rejects malformed or oversized event content before persisting i
   const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-bad-content-"));
   t.after(() => rm(tempDir, { recursive: true, force: true }));
   const app = await ticketgroundApp(tempDir);
-  const initialState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const initialState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
   const initialEventCount = initialState.json.data.events.length;
   const basePayload = {
     title: "입력 검증 공연",
@@ -353,7 +353,7 @@ test("admin API rejects malformed or oversized event content before persisting i
     assert.equal(response.status, 422, response.body);
     assert.ok(response.json.error.code);
   }
-  const finalState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const finalState = await requestApp(app, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
   assert.equal(finalState.json.data.events.length, initialEventCount);
 });
 
@@ -437,7 +437,7 @@ test("admin update preserves owned tickets and removes stale open tickets for re
 
   // Then: stale open tickets for removed dates are gone and new date inventory exists.
   assert.equal(updated.status, 200, updated.body);
-  const state = await requestApp(app, { surface: "public", method: "GET", url: "/api/state" });
+  const state = await requestApp(app, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
   const event = eventById(state.json, eventId);
   const activeDateIds = new Set(event.dates.map((date) => date.id));
   const eventTickets = state.json.data.tickets.filter((ticket) => ticket.eventId === eventId);

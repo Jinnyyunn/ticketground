@@ -61,7 +61,7 @@ async function checkoutWithoutSelectedTicket(page, baseUrl, slug) {
   await page.addInitScript(() => {
     window.localStorage.setItem("ticketground:session-user-id", "user_fan_a");
   });
-  const stateResponse = await fetch(`${baseUrl}/api/state`);
+  const stateResponse = await fetch(`${baseUrl}/api/state?include=tickets`);
   const statePayload = await stateResponse.json();
   await page.goto(`${baseUrl}/checkout/${slug}?date=2026.07.04&time=12%3A00&seats=&base=121000&fee=2000&total=123000&count=1`, {
     waitUntil: "networkidle"

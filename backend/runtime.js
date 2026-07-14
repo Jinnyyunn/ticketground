@@ -10,6 +10,9 @@ const PAYMENT_METHODS = {
 
 export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
   const attestationSecret = appAttestationSecret || crypto.randomBytes(32).toString("hex");
+  const attestationNonces = new Map();
+  const attestationNonceTtlMs = Math.max(1, Number(process.env.TIG_APP_ATTESTATION_NONCE_TTL_MS || 120_000));
+  const sessionTokenTtlMs = 30 * 24 * 60 * 60 * 1000;
 
   function currentTimeMs() {
     if (!nowOverride) return Date.now();
@@ -56,21 +59,73 @@ export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
     return crypto.createHmac("sha256", secret).update(input).digest("hex");
   }
 
-  function appAttestationSignature(purpose, ...parts) {
+  function timingSafeHexEqual(actual, expected) {
+    const expectedBuffer = Buffer.from(expected, "hex");
+    const actualBuffer = Buffer.from(actual, "hex");
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  }
+
+  function appAttestationSignature(purpose, nonce, ...parts) {
     return crypto
       .createHmac("sha256", attestationSecret)
-      .update(["app", purpose, ...parts].join(":"))
+      .update(["app", purpose, nonce, ...parts].join(":"))
       .digest("hex");
   }
 
+  function createAppAttestationNonce(purpose) {
+    const normalizedPurpose = String(purpose || "").toUpperCase();
+    if (!["TRUST_DEVICE", "ISSUE_QR"].includes(normalizedPurpose)) {
+      throw httpError(422, "INVALID_ATTESTATION_PURPOSE", "지원하지 않는 앱 인증 목적입니다.");
+    }
+    const nonce = randomHex(16);
+    const expiresAtMs = Date.now() + attestationNonceTtlMs;
+    attestationNonces.set(nonce, { purpose: normalizedPurpose, expiresAtMs });
+    for (const [key, value] of attestationNonces) {
+      if (value.expiresAtMs <= Date.now()) attestationNonces.delete(key);
+    }
+    return {
+      nonce,
+      purpose: normalizedPurpose,
+      expiresAt: new Date(expiresAtMs).toISOString()
+    };
+  }
+
   function verifyAppAttestation(body, purpose, parts) {
-    const expected = appAttestationSignature(purpose, ...parts.map((part) => String(part || "")));
-    const provided = String(body.appAttestation || "");
-    const expectedBuffer = Buffer.from(expected, "hex");
-    const providedBuffer = Buffer.from(provided, "hex");
-    if (providedBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
+    const nonce = String(body.nonce || "");
+    const issued = attestationNonces.get(nonce);
+    if (!issued || issued.purpose !== purpose || issued.expiresAtMs <= Date.now()) {
+      if (issued) attestationNonces.delete(nonce);
       throw httpError(403, "APP_ATTESTATION_REQUIRED", "전용앱 인증 서명이 필요합니다.");
     }
+    const expected = appAttestationSignature(purpose, nonce, ...parts.map((part) => String(part || "")));
+    const provided = String(body.appAttestation || "");
+    if (!timingSafeHexEqual(provided, expected)) {
+      throw httpError(403, "APP_ATTESTATION_REQUIRED", "전용앱 인증 서명이 필요합니다.");
+    }
+    attestationNonces.delete(nonce);
+  }
+
+  function createSessionToken(userId) {
+    const expiresAt = Date.now() + sessionTokenTtlMs;
+    const signature = hmac(`session:${userId}:${expiresAt}`);
+    return `${Buffer.from(String(userId)).toString("base64url")}.${expiresAt}.${signature}`;
+  }
+
+  function verifySessionToken(token) {
+    const [encodedUserId, expiresAtText, signature] = String(token || "").split(".");
+    if (!encodedUserId || !expiresAtText || !signature) {
+      throw httpError(401, "INVALID_SESSION_TOKEN", "세션 토큰을 확인할 수 없습니다.");
+    }
+    const userId = Buffer.from(encodedUserId, "base64url").toString("utf8");
+    const expiresAt = Number(expiresAtText);
+    if (!userId || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      throw httpError(401, "INVALID_SESSION_TOKEN", "세션 토큰을 확인할 수 없습니다.");
+    }
+    const expected = hmac(`session:${userId}:${expiresAt}`);
+    if (!timingSafeHexEqual(signature, expected)) {
+      throw httpError(401, "INVALID_SESSION_TOKEN", "세션 토큰을 확인할 수 없습니다.");
+    }
+    return { userId, expiresAt };
   }
 
   function id(prefix) {
@@ -105,6 +160,8 @@ export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
 
   return {
     clone,
+    createAppAttestationNonce,
+    createSessionToken,
     currentTimeMs,
     findUser,
     hash,
@@ -118,6 +175,7 @@ export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
     resolvePaymentMethod,
     stableId,
     sortJson,
-    verifyAppAttestation
+    verifyAppAttestation,
+    verifySessionToken
   };
 }

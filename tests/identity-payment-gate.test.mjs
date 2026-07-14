@@ -5,7 +5,7 @@ import { api, startServer } from "./backend-test-utils.mjs";
 test("primary ticket purchase requires PortOne Danal identity verification and blocks duplicate verified phone numbers", async (t) => {
   // Given: an on-sale ticket and a user that has not completed identity verification.
   const { baseUrl } = await startServer(t);
-  const state = await api(baseUrl, "/api/state");
+  const state = await api(baseUrl, "/api/state?include=tickets");
   const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
   assert.ok(ticket, "seeded kpop ticket exists");
 
@@ -18,7 +18,7 @@ test("primary ticket purchase requires PortOne Danal identity verification and b
 
   // Then: the backend blocks payment before ticket ownership changes.
   assert.equal(blockedPurchase.error.code, "IDENTITY_VERIFICATION_REQUIRED");
-  const unchangedState = await api(baseUrl, "/api/state");
+  const unchangedState = await api(baseUrl, "/api/state?include=tickets");
   const unchangedTicket = unchangedState.data.tickets.find((item) => item.id === ticket.id);
   assert.equal(unchangedTicket.status, "ON_SALE");
 

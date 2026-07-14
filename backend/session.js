@@ -5,7 +5,7 @@ const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth
 const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
 
-export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, now, stableId }) {
+export function createSessionBackend({ appendLedger, createSessionToken, currentTimeMs, findUser, hmac, httpError, now, stableId }) {
   function publicSessionUser(user) {
     return {
       id: user.id,
@@ -15,13 +15,20 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     };
   }
 
+  function publicSessionUserWithToken(user) {
+    return {
+      ...publicSessionUser(user),
+      sessionToken: createSessionToken(user.id)
+    };
+  }
+
   const socialOAuth = createSocialOAuthBackend({
     appendLedger,
     currentTimeMs,
     hmac,
     httpError,
     now,
-    publicSessionUser,
+    publicSessionUser: publicSessionUserWithToken,
     stableId
   });
 
@@ -99,7 +106,7 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       provider: "google",
       authenticatedAt: now()
     });
-    return publicSessionUser(user);
+    return publicSessionUserWithToken(user);
   }
 
   function updateDemoProfile(db, { userId, name }) {

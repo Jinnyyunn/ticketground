@@ -125,13 +125,18 @@ function soldCountByEventId(db) {
   return counts;
 }
 
-function publicCatalog(db) {
+function publicCatalog(db, options = {}) {
   const soldCounts = soldCountByEventId(db);
+  const allEvents = db.events.filter((event) => Array.isArray(event.prices) && event.prices.length > 0);
+  const limit = Number(options.limit || 0);
+  const cursor = Math.max(0, Number(options.cursor || 0));
+  const events = limit > 0 ? allEvents.slice(cursor, cursor + limit) : allEvents;
+  const nextCursor = limit > 0 && cursor + limit < allEvents.length ? String(cursor + limit) : null;
   return {
     // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
     // catalog schema and never carry a prices[] array - they power internal
     // ticket/resale-engine demos, not the public show listing.
-    events: db.events.filter((event) => Array.isArray(event.prices) && event.prices.length > 0).map((event) => ({
+    events: events.map((event) => ({
       id: event.id,
       slug: event.slug,
       category: event.category,
@@ -164,12 +169,14 @@ function publicCatalog(db) {
       address,
       mapType: map?.type,
       imageUrl: map?.imageUrl || ""
-    }))
+    })),
+    nextCursor,
+    total: allEvents.length
   };
 }
 
-function publicState(db) {
-  return {
+function publicState(db, options = {}) {
+  const state = {
     events: db.events.map((event) => ({
       ...event,
       sale: saleSummary(event)
@@ -182,7 +189,6 @@ function publicState(db) {
       imageUrl: map?.imageUrl || ""
     })),
     users: db.users.map(publicUser),
-    tickets: db.tickets.map(publicTicket),
     resalePools: db.resalePools.map(publicResalePool),
     backendSummary: {
       events: db.events.length,
@@ -193,6 +199,8 @@ function publicState(db) {
       totalEntries: db.ledger.length
     }
   };
+  if (options.includeTickets) state.tickets = db.tickets.map(publicTicket);
+  return state;
 }
 
 function publicTicketsForUser(db, userId) {

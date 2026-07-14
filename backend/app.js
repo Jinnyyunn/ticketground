@@ -9,6 +9,8 @@ import { createEngagementBackend } from "./engagement.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
 import { createPersistence } from "./persistence.js";
+import { sendPushNotification } from "./push-delivery.js";
+import { createPushTokenBackend } from "./push-tokens.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
 
@@ -70,10 +72,12 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     offsetIso: runtime.offsetIso,
     primaryDate: catalog.primaryDate,
+    sendPushNotification,
     stableId: runtime.stableId
   });
   const session = createSessionBackend({
     appendLedger: persistence.appendLedger,
+    createSessionToken: runtime.createSessionToken,
     currentTimeMs: runtime.currentTimeMs,
     findUser: runtime.findUser,
     hmac: runtime.hmac,
@@ -112,15 +116,23 @@ export async function createTicketgroundApp(options) {
     httpError: runtime.httpError,
     now: runtime.now
   });
+  const pushTokens = createPushTokenBackend({
+    findUser: runtime.findUser,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
   const apiRouter = createApiRouter({
     ...admin,
     ...commerce,
     ...engagement,
     ...identity,
+    ...pushTokens,
     ...session,
     bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
     confirmBootpayPayment: bootpay.confirmBootpayPayment,
+    createAppAttestationNonce: runtime.createAppAttestationNonce,
     httpError: runtime.httpError,
     publicCatalog: dtos.publicCatalog,
     publicDirectTransferResult: dtos.publicDirectTransferResult,
@@ -134,6 +146,7 @@ export async function createTicketgroundApp(options) {
     trustDevice: admission.trustDevice,
     verifyAppAttestation: runtime.verifyAppAttestation,
     verifyLedger: persistence.verifyLedger,
+    verifySessionToken: runtime.verifySessionToken,
     verifyQr: (db, payload) => ({ valid: admission.verifyQr(db, payload).valid }),
     virtualQr: admission.virtualQr,
     issueQr: admission.issueQr

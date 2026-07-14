@@ -97,7 +97,7 @@ test("admin event remains loadable after update removes price zones", async () =
 
     // Then: a fresh app load normalizes the DB without stale removed-zone tickets.
     const reloaded = await ticketgroundApp(tempDir);
-    const state = await requestApp(reloaded, { surface: "public", method: "GET", url: "/api/state" });
+    const state = await requestApp(reloaded, { surface: "public", method: "GET", url: "/api/state?include=tickets" });
     assert.equal(state.status, 200);
     const event = state.json.data.events.find((item) => item.id === create.json.data.event.id);
     assert.ok(event);
