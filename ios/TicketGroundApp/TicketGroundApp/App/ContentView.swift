@@ -5,6 +5,7 @@ struct ContentView: View {
 
     var body: some View {
         @Bindable var container = container
+        let scenario = FixtureScenario.current
         NavigationStack(path: $container.navigationPath) {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Ticketground")
@@ -14,6 +15,8 @@ struct ContentView: View {
                 Text("데이터 모드: \(container.environment.mode.rawValue)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(scenario.statusText)
+                    .accessibilityIdentifier("fixture-state-\(scenario.rawValue)")
                 Spacer()
             }
             .padding(24)
