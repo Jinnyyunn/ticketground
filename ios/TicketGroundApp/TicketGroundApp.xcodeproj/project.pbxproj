@@ -1,0 +1,71 @@
+// !$*UTF8*$!
+{
+  archiveVersion = 1;
+  classes = {};
+  objectVersion = 77;
+  objects = {
+    A10000000000000000000001 /* Project object */ = {
+      isa = PBXProject;
+      attributes = {
+        LastSwiftUpdateCheck = 2600;
+        TargetAttributes = {
+          A10000000000000000000060 = { CreatedOnToolsVersion = 26.0; };
+          A10000000000000000000061 = { CreatedOnToolsVersion = 26.0; TestTargetID = A10000000000000000000060; };
+          A10000000000000000000062 = { CreatedOnToolsVersion = 26.0; TestTargetID = A10000000000000000000060; };
+        };
+      };
+      buildConfigurationList = A10000000000000000000080;
+      compatibilityVersion = "Xcode 16.0";
+      developmentRegion = ko;
+      knownRegions = (en, ko);
+      mainGroup = A10000000000000000000002;
+      productRefGroup = A10000000000000000000005;
+      projectDirPath = "";
+      projectRoot = "";
+      targets = (A10000000000000000000060, A10000000000000000000061, A10000000000000000000062);
+    };
+    A10000000000000000000002 = { isa = PBXGroup; children = (A10000000000000000000003, A10000000000000000000004, A10000000000000000000007, A10000000000000000000005); sourceTree = "<group>"; };
+    A10000000000000000000003 = { isa = PBXGroup; children = (A10000000000000000000006); path = TicketGroundApp; sourceTree = "<group>"; };
+    A10000000000000000000004 = { isa = PBXGroup; children = (A10000000000000000000008); path = TicketGroundAppTests; sourceTree = "<group>"; };
+    A10000000000000000000005 = { isa = PBXGroup; children = (A10000000000000000000020, A10000000000000000000021, A10000000000000000000022); name = Products; sourceTree = "<group>"; };
+    A10000000000000000000006 = { isa = PBXGroup; children = (A10000000000000000000030, A10000000000000000000031); path = App; sourceTree = "<group>"; };
+    A10000000000000000000008 = { isa = PBXGroup; children = (A10000000000000000000032); path = TicketGroundAppTests; sourceTree = "<group>"; };
+    A10000000000000000000007 = { isa = PBXGroup; children = (A10000000000000000000033); path = TicketGroundAppUITests; sourceTree = "<group>"; };
+    A10000000000000000000020 = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TicketGroundApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+    A10000000000000000000021 = { isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TicketGroundAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+    A10000000000000000000022 = { isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TicketGroundAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+    A10000000000000000000030 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroundApp.swift; sourceTree = "<group>"; };
+    A10000000000000000000031 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+    A10000000000000000000032 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroundAppTests.swift; sourceTree = "<group>"; };
+    A10000000000000000000033 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketGroundAppUITests.swift; sourceTree = "<group>"; };
+    A10000000000000000000040 = { isa = PBXBuildFile; fileRef = A10000000000000000000030; };
+    A10000000000000000000041 = { isa = PBXBuildFile; fileRef = A10000000000000000000031; };
+    A10000000000000000000042 = { isa = PBXBuildFile; fileRef = A10000000000000000000032; };
+    A10000000000000000000043 = { isa = PBXBuildFile; fileRef = A10000000000000000000033; };
+    A10000000000000000000050 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000040, A10000000000000000000041); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000051 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000042); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000052 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000043); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000053 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000054 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000055 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000056 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000057 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000058 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+    A10000000000000000000060 = { isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000081; buildPhases = (A10000000000000000000056, A10000000000000000000050, A10000000000000000000053); buildRules = (); dependencies = (); name = TicketGroundApp; productName = TicketGroundApp; productReference = A10000000000000000000020; productType = "com.apple.product-type.application"; };
+    A10000000000000000000061 = { isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000082; buildPhases = (A10000000000000000000057, A10000000000000000000051, A10000000000000000000054); buildRules = (); dependencies = (); name = TicketGroundAppTests; productName = TicketGroundAppTests; productReference = A10000000000000000000021; productType = "com.apple.product-type.bundle.unit-test"; };
+    A10000000000000000000062 = { isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000083; buildPhases = (A10000000000000000000058, A10000000000000000000052, A10000000000000000000055); buildRules = (); dependencies = (); name = TicketGroundAppUITests; productName = TicketGroundAppUITests; productReference = A10000000000000000000022; productType = "com.apple.product-type.bundle.ui-testing"; };
+    A10000000000000000000080 = { isa = XCConfigurationList; buildConfigurations = (A10000000000000000000070, A10000000000000000000071); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+    A10000000000000000000081 = { isa = XCConfigurationList; buildConfigurations = (A10000000000000000000070, A10000000000000000000071); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+    A10000000000000000000082 = { isa = XCConfigurationList; buildConfigurations = (A10000000000000000000072, A10000000000000000000073); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+    A10000000000000000000083 = { isa = XCConfigurationList; buildConfigurations = (A10000000000000000000074, A10000000000000000000075); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+    A10000000000000000000070 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; DEVELOPMENT_LANGUAGE = ko; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Ticketground; INFOPLIST_KEY_CFBundleShortVersionString = 1.0; INFOPLIST_KEY_CFBundleVersion = 1; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app; PRODUCT_NAME = TicketGroundApp; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+    A10000000000000000000071 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; DEVELOPMENT_LANGUAGE = ko; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Ticketground; INFOPLIST_KEY_CFBundleShortVersionString = 1.0; INFOPLIST_KEY_CFBundleVersion = 1; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app; PRODUCT_NAME = TicketGroundApp; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+    A10000000000000000000072 = { isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app.tests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TicketGroundApp.app/TicketGroundApp"; }; name = Debug; };
+    A10000000000000000000073 = { isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app.tests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TicketGroundApp.app/TicketGroundApp"; }; name = Release; };
+    A10000000000000000000074 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app.uitests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_TARGET_NAME = TicketGroundApp; }; name = Debug; };
+    A10000000000000000000075 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app.uitests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_TARGET_NAME = TicketGroundApp; }; name = Release; };
+    A10000000000000000000076 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app.uitests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_TARGET_NAME = TicketGroundApp; }; name = Debug; };
+    A10000000000000000000077 = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = kr.ticketground.app.uitests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_TARGET_NAME = TicketGroundApp; }; name = Release; };
+  };
+  rootObject = A10000000000000000000001;
+}
