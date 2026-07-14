@@ -25,8 +25,10 @@ const seatMapDir = path.join(projectDir, "좌석 도면");
 const dbPath = path.resolve(process.env.TIG_DB_PATH || path.join(projectDir, "data", "db.json"));
 const port = Number(process.env.PORT || 4173);
 const adminPort = Number(process.env.ADMIN_PORT || 50084);
+const apiPort = Number(process.env.API_PORT || port + 1);
 const hostname = process.env.HOSTNAME || "0.0.0.0";
 const adminHostname = process.env.ADMIN_HOSTNAME || "127.0.0.1";
+const apiHostname = process.env.API_HOSTNAME || hostname;
 
 function requiredSecret(name) {
   const value = process.env[name];
@@ -164,6 +166,8 @@ async function parseJsonBody(req) {
   }
 }
 
+const adminCookieSecure = process.env.TIG_ADMIN_COOKIE_SECURE === undefined ? !isDev : process.env.TIG_ADMIN_COOKIE_SECURE === "1";
+
 function sessionCookie(value, maxAgeSeconds = Math.floor(adminSessionTtlMs / 1000)) {
   return [
     `${adminSessionCookieName}=${encodeURIComponent(value)}`,
@@ -171,7 +175,7 @@ function sessionCookie(value, maxAgeSeconds = Math.floor(adminSessionTtlMs / 100
     "HttpOnly",
     "SameSite=Lax",
     `Max-Age=${maxAgeSeconds}`,
-    ...(isDev ? [] : ["Secure"])
+    ...(adminCookieSecure ? ["Secure"] : [])
   ].join("; ");
 }
 
@@ -336,6 +340,15 @@ async function serveAdminUpload(res, pathname) {
   return true;
 }
 
+function serveApiOnly(req, res) {
+  const requestUrl = req.url || "/";
+  if (!requestUrl.startsWith("/api/")) {
+    writeNotFound(res);
+    return;
+  }
+  app.handleRequest(req, res, app.db, "public");
+}
+
 async function servePublic(req, res) {
   const requestUrl = req.url || "/";
   const { pathname } = new URL(requestUrl, `http://${req.headers.host}`);
@@ -415,4 +428,8 @@ http.createServer((req, res) => { void servePublic(req, res); }).listen(port, ho
 
 http.createServer(serveAdmin).listen(adminPort, adminHostname, () => {
   console.log(`Ticketground admin API running at http://${adminHostname}:${adminPort}`);
+});
+
+http.createServer((req, res) => { void serveApiOnly(req, res); }).listen(apiPort, apiHostname, () => {
+  console.log(`Ticketground API-only (no UI) running at http://${apiHostname}:${apiPort}`);
 });
