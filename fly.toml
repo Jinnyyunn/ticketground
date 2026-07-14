@@ -1,0 +1,51 @@
+app = "ticketground-backend"
+primary_region = "nrt"
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4173"
+  ADMIN_PORT = "50084"
+  API_PORT = "4174"
+  HOSTNAME = "0.0.0.0"
+  API_HOSTNAME = "0.0.0.0"
+  ADMIN_HOSTNAME = "0.0.0.0"
+  TIG_DB_PATH = "/app/storage/db.json"
+  TIG_UPLOADS_DIR = "/app/storage/uploads/admin"
+
+[[mounts]]
+  source = "ticketground_data"
+  destination = "/app/storage"
+
+[[services]]
+  internal_port = 4173
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "get"
+    path = "/api/state"
+
+[[services]]
+  internal_port = 4174
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 8443
+    handlers = ["tls", "http"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

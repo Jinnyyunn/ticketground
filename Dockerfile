@@ -78,8 +78,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4173
 ENV ADMIN_PORT=50084
+ENV API_PORT=4174
 ENV ADMIN_HOSTNAME="127.0.0.1"
 ENV HOSTNAME="0.0.0.0"
+ENV API_HOSTNAME="0.0.0.0"
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
@@ -103,6 +105,6 @@ RUN mkdir -p data && chown -R node:node data .next
 # Switch to non-root user for security best practices
 USER node
 
-EXPOSE 4173
+EXPOSE 4173 4174
 
 CMD ["node", "server.js"]

@@ -20,7 +20,9 @@ if (process.env.TIG_SOCIAL_AUTH_TEST_MODE === "1" && process.env.NODE_ENV !== "p
 }
 const publicDir = path.join(projectDir, "public");
 const adminDir = path.join(projectDir, "admin");
-const adminUploadDir = path.join(publicDir, "uploads", "admin");
+const adminUploadDir = process.env.TIG_UPLOADS_DIR
+  ? path.resolve(process.env.TIG_UPLOADS_DIR)
+  : path.join(publicDir, "uploads", "admin");
 const seatMapDir = path.join(projectDir, "좌석 도면");
 const dbPath = path.resolve(process.env.TIG_DB_PATH || path.join(projectDir, "data", "db.json"));
 const port = Number(process.env.PORT || 4173);
