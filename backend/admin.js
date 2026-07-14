@@ -240,6 +240,12 @@ function updateAdminAccount(db, payload, actor) {
   return adminAccountDto(account);
 }
 
+function timingSafeStringMatches(actual, expected) {
+  const actualBuffer = Buffer.from(String(actual || ""));
+  const expectedBuffer = Buffer.from(String(expected || ""));
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
 function authenticateAdminAccount(db, username, password, bootstrapAdmin) {
   const cleanUsername = String(username || "").trim().toLowerCase();
   const account = db.adminAccounts.find((item) => item.username === cleanUsername);
@@ -247,7 +253,7 @@ function authenticateAdminAccount(db, username, password, bootstrapAdmin) {
     if (account.active === false || !passwordMatches(account, password)) return null;
     return account;
   }
-  if (cleanUsername !== String(bootstrapAdmin.username || "").trim().toLowerCase() || String(password || "") !== String(bootstrapAdmin.password || "")) return null;
+  if (cleanUsername !== String(bootstrapAdmin.username || "").trim().toLowerCase() || !timingSafeStringMatches(password, bootstrapAdmin.password)) return null;
   return { id: "bootstrap-admin", username: bootstrapAdmin.username, roleKeys: bootstrapAdmin.roleKeys, ipAllowlist: bootstrapAdmin.ipAllowlist || [], active: true, bootstrap: true };
 }
 
