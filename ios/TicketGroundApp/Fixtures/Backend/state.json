@@ -1,0 +1,52 @@
+{
+  "contractId": "ticketground-native-ios-virtual-fixture-v1",
+  "fixtureId": "virtual-state-001",
+  "mode": "virtual",
+  "source": "fixture-only",
+  "live": false,
+  "deterministic": true,
+  "status": 200,
+  "body": {
+    "events": [
+      {
+        "id": "virtual-event-001",
+        "title": "가상 별빛 콘서트",
+        "category": "concert",
+        "venueId": "virtual-venue-001",
+        "startsAt": "2026-08-01T19:00:00+09:00",
+        "sale": { "status": "ON_SALE", "available": true }
+      }
+    ],
+    "venues": [
+      {
+        "id": "virtual-venue-001",
+        "name": "가상 아레나",
+        "address": "서울특별시 가상구 1",
+        "mapType": "fixture",
+        "imageUrl": ""
+      }
+    ],
+    "users": [{ "id": "virtual-user-001", "name": "가상 사용자" }],
+    "tickets": [
+      {
+        "id": "virtual-ticket-001",
+        "eventId": "virtual-event-001",
+        "performanceDateId": "virtual-date-001",
+        "zoneId": "virtual-zone-vip",
+        "seatLabel": "A-01",
+        "status": "ON_SALE",
+        "available": true,
+        "faceValue": 99000,
+        "minPrice": 99000,
+        "maxPrice": 99000,
+        "transferCount": 0,
+        "maxTransferCount": 1,
+        "issuedAt": null,
+        "virtualQr": null
+      }
+    ],
+    "resalePools": [],
+    "backendSummary": { "events": 1, "tickets": 1 },
+    "ledger": { "verified": true, "totalEntries": 0 }
+  }
+}
