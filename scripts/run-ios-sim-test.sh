@@ -44,12 +44,14 @@ for ((index = 0; index < ${#COMMAND[@]}; index += 1)); do
     RESULT_BUNDLES+=("${COMMAND[$index]}")
   fi
 done
-for result_bundle in "${RESULT_BUNDLES[@]}"; do
-  if [[ -e "$result_bundle" ]]; then
-    echo "result bundle already exists: $result_bundle" >&2
-    exit 2
-  fi
-done
+if ((${#RESULT_BUNDLES[@]} > 0)); then
+  for result_bundle in "${RESULT_BUNDLES[@]}"; do
+    if [[ -e "$result_bundle" ]]; then
+      echo "result bundle already exists: $result_bundle" >&2
+      exit 2
+    fi
+  done
+fi
 
 DEVICE_ID=""
 COMMAND_PID=""
