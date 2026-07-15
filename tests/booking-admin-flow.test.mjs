@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { rm } from "node:fs/promises";
 import { chromium } from "playwright";
 import { normalizeAdminIpAllowlist } from "../backend/admin-acl.js";
-import { adminApi, api, bootstrapAdminPassword, startServer } from "./backend-test-utils.mjs";
+import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAF/wJ/0R5yyAAAAABJRU5ErkJggg==";
 
@@ -428,6 +428,69 @@ test("browser console menus load focused workspaces and save support status", as
   await page.getByRole("heading", { name: "관리자/ACL", exact: true }).waitFor();
 });
 
+test("browser admin inventory and resale operations work through changed controls", async (t) => {
+  // Given: an open resale pool and an unread support alert visible to the admin console.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const pool = await api(server.baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price: ticket.faceValue
+  });
+  await api(server.baseUrl, "/api/support/threads", {
+    userId: "user_fan_b",
+    subject: "브라우저 알림 확인",
+    message: "운영 알림 확인 요청"
+  });
+
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const bulkRequests = [];
+  const cancelRequests = [];
+  const ackRequests = [];
+  page.on("request", (request) => {
+    const pathName = new URL(request.url()).pathname;
+    if (pathName === "/api/admin/tickets/statuses") bulkRequests.push(request.postDataJSON());
+    if (pathName === "/api/admin/resale/cancel") cancelRequests.push(request.postDataJSON());
+    if (pathName === "/api/admin/alerts/ack") ackRequests.push(request.postDataJSON());
+  });
+
+  // When: the operator filters inventory and bulk-holds one visible ticket.
+  await page.goto(`${server.adminUrl}/console/inventory`);
+  await page.locator('input[name="username"]').fill("admin");
+  await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
+  await page.getByRole("button", { name: "로그인" }).click();
+  await page.getByRole("heading", { name: "티켓 재고 상태" }).waitFor();
+  await page.locator('select[name="eventId"]').selectOption("event_kpop_001");
+  await page.getByRole("button", { name: "필터 적용" }).click();
+  await page.getByText(/건 중 .*건 표시/).waitFor();
+  await page.locator('select[name="performanceDateId"]').selectOption("perf_kpop_20260919_1900");
+  await page.locator('select[name="zoneId"]').selectOption("zone_vip");
+  await page.getByRole("button", { name: "필터 적용" }).click();
+  await page.getByText(/건 중 .*건 표시/).waitFor();
+  await page.locator("tbody tr", { hasText: "판매 중" }).first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 보류" }).click();
+  await page.getByText("1개 티켓 상태가 갱신되었습니다.").waitFor();
+
+  // Then: resale operations and alert acknowledgement are also driven through the UI.
+  await page.getByRole("link", { name: "재판매/양도" }).click();
+  await page.getByRole("heading", { name: "재판매/양도 현황" }).waitFor();
+  await page.locator('input[name="reason"]').first().fill("브라우저 QA 강제 취소");
+  await page.getByRole("button", { name: "강제 취소" }).first().click();
+  await page.getByText("재판매 풀이 취소되었습니다.").waitFor();
+  await page.getByRole("button", { name: "모두 확인" }).click();
+  await page.getByText("운영 알림을 확인 처리했습니다.").waitFor();
+
+  assert.equal(bulkRequests.length, 1);
+  assert.equal(bulkRequests[0].updates[0].status, "ADMIN_HOLD");
+  assert.equal(cancelRequests.length, 1);
+  assert.equal(cancelRequests[0].poolId, pool.data.id);
+  assert.equal(cancelRequests[0].reason, "브라우저 QA 강제 취소");
+  assert.equal(ackRequests.length, 1);
+  assert.ok(ackRequests[0].alertIds.length > 0);
+});
+
 test("admin venue map images resolve through public assets", async (t) => {
   const server = await startServer(t);
   const venues = await adminApi(server, "/api/admin/venues");
@@ -511,4 +574,114 @@ test("account, support, watchlist, and seat-map APIs remain observable", async (
   assert.ok(admin.data.stats.watchlistEntries >= 1);
   assert.ok(admin.data.stats.supportOpen >= 1);
   assert.ok(admin.data.users.some((user) => user.id === "user_fan_b" && user.status === "WATCHLIST"));
+});
+
+test("admin inventory workspace filters, paginates, and summarizes selected event zones", async (t) => {
+  // Given: seeded tickets across multiple events, dates, and zones.
+  const server = await startServer(t);
+  const state = await api(server.baseUrl, "/api/state");
+  const event = eventById(state);
+  const performanceDateId = event.dates[1].id;
+  const zoneId = event.zones[1].id;
+
+  // When: the operator narrows inventory to one event/date/zone with a small page size.
+  const inventory = await adminApi(server, `/api/admin/workspaces/inventory?eventId=${event.id}&performanceDateId=${performanceDateId}&zoneId=${zoneId}&limit=3&page=1`);
+
+  // Then: only the requested slice is returned, page metadata is bounded, and all event zones are summarized.
+  assert.equal(inventory.data.tickets.length, 3);
+  assert.equal(inventory.data.page.limit, 3);
+  assert.equal(inventory.data.page.page, 1);
+  assert.ok(inventory.data.page.total > 3);
+  assert.ok(inventory.data.page.hasNext);
+  assert.ok(inventory.data.tickets.every((ticket) => ticket.eventId === event.id));
+  assert.ok(inventory.data.tickets.every((ticket) => ticket.performanceDateId === performanceDateId));
+  assert.ok(inventory.data.tickets.every((ticket) => ticket.zoneId === zoneId));
+  assert.deepEqual(inventory.data.filters, { eventId: event.id, performanceDateId, zoneId });
+  assert.deepEqual(inventory.data.zoneSummary.map((zone) => zone.zoneId), event.zones.map((zone) => zone.id));
+  assert.equal(inventory.data.zoneSummary.find((zone) => zone.zoneId === zoneId).availableCount > 0, true);
+});
+
+test("admin bulk ticket status update is transactional when one ticket is invalid", async (t) => {
+  // Given: two available inventory tickets and one already-owned ticket.
+  const server = await startServer(t);
+  const state = await api(server.baseUrl, "/api/state");
+  const availableTickets = state.data.tickets.filter((ticket) => ticket.eventId === "event_kpop_001" && ticket.status === "ON_SALE").slice(0, 2);
+  assert.equal(availableTickets.length, 2);
+  await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
+  const purchase = await api(server.baseUrl, "/api/tickets/buy", {
+    userId: "user_fan_a",
+    ticketId: availableTickets[1].id,
+    paymentMethod: "CREDIT_CARD"
+  });
+
+  // When: a batch contains one valid update followed by a locked ticket.
+  const rejected = await adminApi(server, "/api/admin/tickets/statuses", {
+    updates: [
+      { ticketId: availableTickets[0].id, status: "ADMIN_HOLD" },
+      { ticketId: purchase.data.ticket.id, status: "ADMIN_HOLD" }
+    ]
+  }, 409);
+
+  // Then: the error identifies the failed ticket and no earlier update is committed.
+  assert.equal(rejected.error.code, "TICKET_LOCKED");
+  assert.equal(rejected.error.detail.ticketId, purchase.data.ticket.id);
+  const afterRejected = await api(server.baseUrl, "/api/state");
+  assert.equal(afterRejected.data.tickets.find((ticket) => ticket.id === availableTickets[0].id).status, "ON_SALE");
+  assert.equal(afterRejected.data.tickets.find((ticket) => ticket.id === purchase.data.ticket.id).status, "OWNED");
+
+  const accepted = await adminApi(server, "/api/admin/tickets/statuses", {
+    updates: [{ ticketId: availableTickets[0].id, status: "ADMIN_HOLD" }]
+  });
+  assert.deepEqual(accepted.data.map((ticket) => ticket.status), ["ADMIN_HOLD"]);
+});
+
+test("admin can force cancel another seller resale pool with an audit reason", async (t) => {
+  // Given: a seller-owned open resale pool.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const pool = await api(server.baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price: ticket.faceValue
+  });
+
+  // When: admin force-cancels it without being the seller.
+  const canceled = await adminApi(server, "/api/admin/resale/cancel", {
+    poolId: pool.data.id,
+    reason: "판매자 응답 없음"
+  });
+
+  // Then: the pool closes, the ticket returns to owned, and the ledger records the admin action.
+  assert.equal(canceled.data.status, "CANCELED");
+  const admin = await adminApi(server, "/api/admin/summary");
+  assert.equal(admin.data.resalePools.find((item) => item.id === pool.data.id).cancelReason, "판매자 응답 없음");
+  assert.equal(admin.data.tickets.find((item) => item.id === ticket.id).status, "OWNED");
+  assert.ok(admin.data.ledger.some((entry) => entry.action === "ADMIN_RESALE_POOL_CANCELED" && entry.payload.poolId === pool.data.id));
+});
+
+test("admin alert acknowledgement reduces overview unread count", async (t) => {
+  // Given: a support thread creates an unread operator alert.
+  const server = await startServer(t);
+  await api(server.baseUrl, "/api/support/threads", {
+    userId: "user_fan_a",
+    subject: "알림 확인 테스트",
+    message: "읽음 처리 확인"
+  });
+  const resale = await adminApi(server, "/api/admin/workspaces/resale");
+  const alert = resale.data.operatorAlerts.find((item) => item.status !== "ACKED");
+  assert.ok(alert);
+  const before = await adminApi(server, "/api/admin/summary");
+  assert.ok(before.data.stats.operatorAlerts > 0);
+
+  // When: the alert is acknowledged through the admin endpoint.
+  const acked = await adminApi(server, "/api/admin/alerts/ack", {
+    alertIds: [alert.id]
+  });
+
+  // Then: the same overview count drops and the resale workspace shows ACKED.
+  assert.deepEqual(acked.data.acknowledgedAlertIds, [alert.id]);
+  const after = await adminApi(server, "/api/admin/summary");
+  assert.equal(after.data.stats.operatorAlerts, before.data.stats.operatorAlerts - 1);
+  const refreshed = await adminApi(server, "/api/admin/workspaces/resale");
+  assert.equal(refreshed.data.operatorAlerts.find((item) => item.id === alert.id).status, "ACKED");
 });

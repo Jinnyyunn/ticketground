@@ -121,6 +121,26 @@ function eventPickerSummary(db, event) {
   };
 }
 
+function normalizePageOptions(options) {
+  const page = Math.max(1, Number.parseInt(String(options.page || "1"), 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(String(options.limit || "50"), 10) || 50));
+  return { page, limit };
+}
+
+function zoneSellThroughSummary(tickets, event) {
+  return event.zones.map((zone) => {
+    const zoneTickets = tickets.filter((ticket) => ticket.zoneId === zone.id);
+    return {
+      zoneId: zone.id,
+      zoneName: zone.name,
+      totalCount: zoneTickets.length,
+      availableCount: zoneTickets.filter((ticket) => ticket.status === "ON_SALE").length,
+      soldCount: zoneTickets.filter((ticket) => ticket.ownerId || ticket.status === "OWNED" || ticket.status === "IN_RESALE_POOL").length,
+      heldCount: zoneTickets.filter((ticket) => ticket.status === "ADMIN_HOLD").length
+    };
+  });
+}
+
 function firstEditableEvent(db, eventId) {
   if (eventId) {
     const selected = db.events.find((event) => event.id === eventId);
@@ -465,7 +485,50 @@ function adminWorkspace(db, workspace, actor, options = {}) {
     };
   }
   if (workspace === "inventory") {
-    return { tickets: db.tickets.map(adminTicket) };
+    const event = firstEditableEvent(db, options.eventId);
+    if (!event) {
+      return {
+        eventSummaries: [],
+        events: [],
+        filters: { eventId: null, performanceDateId: null, zoneId: null },
+        page: { page: 1, limit: 50, total: 0, hasNext: false, hasPrevious: false },
+        tickets: [],
+        zoneSummary: []
+      };
+    }
+    const performanceDateId = options.performanceDateId || undefined;
+    const zoneId = options.zoneId || undefined;
+    if (performanceDateId && !event.dates?.some((date) => date.id === performanceDateId)) {
+      throw httpError(404, "EVENT_DATE_NOT_FOUND", "예매 날짜를 찾을 수 없습니다.");
+    }
+    if (zoneId && !event.zones.some((zone) => zone.id === zoneId)) {
+      throw httpError(404, "ZONE_NOT_FOUND", "구역을 찾을 수 없습니다.");
+    }
+    const { page, limit } = normalizePageOptions(options);
+    const eventTickets = db.tickets.filter((ticket) => ticket.eventId === event.id);
+    const filteredTickets = eventTickets.filter((ticket) => (
+      (!performanceDateId || ticket.performanceDateId === performanceDateId)
+      && (!zoneId || ticket.zoneId === zoneId)
+    ));
+    const start = (page - 1) * limit;
+    return {
+      eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
+      events: [clone(event)],
+      filters: {
+        eventId: event.id,
+        performanceDateId: performanceDateId || null,
+        zoneId: zoneId || null
+      },
+      page: {
+        page,
+        limit,
+        total: filteredTickets.length,
+        hasNext: start + limit < filteredTickets.length,
+        hasPrevious: page > 1
+      },
+      tickets: filteredTickets.slice(start, start + limit).map(adminTicket),
+      zoneSummary: zoneSellThroughSummary(eventTickets, event)
+    };
   }
   if (workspace === "accounts") {
     return {
@@ -479,8 +542,23 @@ function adminWorkspace(db, workspace, actor, options = {}) {
   }
   if (workspace === "support") return { supportThreads: clone(db.supportThreads) };
   if (workspace === "resale") {
+    const usersById = new Map(db.users.map((user) => [user.id, user]));
+    const ticketsById = new Map(db.tickets.map((ticket) => [ticket.id, ticket]));
+    const eventsById = new Map(db.events.map((event) => [event.id, event]));
     return {
-      resalePools: clone(db.resalePools),
+      resalePools: db.resalePools.map((pool) => {
+        const event = eventsById.get(pool.eventId);
+        const ticket = ticketsById.get(pool.ticketId);
+        const zone = event?.zones.find((item) => item.id === pool.zoneId);
+        const seller = usersById.get(pool.sellerId);
+        return {
+          ...clone(pool),
+          eventTitle: event?.title || pool.eventId,
+          seatLabel: ticket?.seatLabel || pool.ticketId,
+          sellerName: seller?.name || pool.sellerId,
+          zoneName: zone?.name || pool.zoneId
+        };
+      }),
       watchlist: clone(db.watchlist),
       notificationJobs: clone(db.notificationJobs),
       operatorAlerts: clone(db.operatorAlerts)
@@ -540,15 +618,7 @@ function updateUserStatuses(db, { updates, reason }) {
 }
 
 function updateTicketStatus(db, { ticketId, status }) {
-  const allowed = ["ON_SALE", "ADMIN_HOLD"];
-  if (!allowed.includes(status)) {
-    throw httpError(422, "INVALID_TICKET_STATUS", "지원하지 않는 티켓 상태입니다.");
-  }
-  const ticket = db.tickets.find((item) => item.id === ticketId);
-  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
-  if (ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status)) {
-    throw httpError(409, "TICKET_LOCKED", "소유자 또는 거래 상태가 있는 티켓은 재고 상태만 변경할 수 없습니다.");
-  }
+  const ticket = assertTicketStatusUpdate(db, { ticketId, status });
   ticket.status = status;
   appendLedger(db, "ADMIN", "TICKET_STATUS_UPDATED", {
     ticketId: ticket.id,
@@ -558,11 +628,86 @@ function updateTicketStatus(db, { ticketId, status }) {
   return ticket;
 }
 
+function assertTicketStatusUpdate(db, { ticketId, status }, index = null) {
+  const allowed = ["ON_SALE", "ADMIN_HOLD"];
+  const detail = index === null ? { ticketId } : { ticketId, index };
+  if (!allowed.includes(status)) {
+    throw httpError(422, "INVALID_TICKET_STATUS", "지원하지 않는 티켓 상태입니다.", detail);
+  }
+  const ticket = db.tickets.find((item) => item.id === ticketId);
+  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.", detail);
+  if (ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status)) {
+    throw httpError(409, "TICKET_LOCKED", "소유자 또는 거래 상태가 있는 티켓은 재고 상태만 변경할 수 없습니다.", detail);
+  }
+  return ticket;
+}
+
+function updateTicketStatuses(db, { updates }) {
+  if (!Array.isArray(updates) || !updates.length) {
+    throw httpError(400, "MISSING_FIELD", "수정할 티켓 상태를 선택해주세요.");
+  }
+  const validated = updates.map((item, index) => ({
+    ticket: assertTicketStatusUpdate(db, item, index),
+    status: item.status
+  }));
+  for (const item of validated) {
+    item.ticket.status = item.status;
+    appendLedger(db, "ADMIN", "TICKET_STATUS_UPDATED", {
+      ticketId: item.ticket.id,
+      status: item.status,
+      policy: "operator-inventory-control-batch"
+    });
+  }
+  return validated.map((item) => item.ticket);
+}
+
+function adminCancelResalePool(db, { poolId, reason }) {
+  const pool = db.resalePools.find((item) => item.id === poolId);
+  if (!pool) throw httpError(404, "POOL_NOT_FOUND", "재판매 풀을 찾을 수 없습니다.", { poolId });
+  if (pool.status !== "OPEN") throw httpError(409, "POOL_CLOSED", "이미 종료된 풀입니다.", { poolId });
+  const ticket = db.tickets.find((item) => item.id === pool.ticketId);
+  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.", { ticketId: pool.ticketId, poolId });
+
+  const cancelReason = String(reason || "").trim() || "관리자 강제 취소";
+  ticket.status = "OWNED";
+  pool.status = "CANCELED";
+  pool.canceledAt = now();
+  pool.cancelReason = cancelReason;
+  appendLedger(db, "ADMIN", "ADMIN_RESALE_POOL_CANCELED", {
+    poolId: pool.id,
+    ticketId: ticket.id,
+    reason: cancelReason,
+    policy: "admin-force-cancel-open-resale-pool"
+  });
+  return pool;
+}
+
+function acknowledgeOperatorAlerts(db, { alertId, alertIds }) {
+  const ids = Array.isArray(alertIds) ? alertIds : [alertId].filter(Boolean);
+  const uniqueIds = [...new Set(ids.map((item) => String(item || "").trim()).filter(Boolean))];
+  if (!uniqueIds.length) throw httpError(400, "MISSING_FIELD", "확인할 운영 알림을 선택해주세요.");
+  const alerts = uniqueIds.map((idValue) => {
+    const alert = db.operatorAlerts.find((item) => item.id === idValue);
+    if (!alert) throw httpError(404, "ALERT_NOT_FOUND", "운영 알림을 찾을 수 없습니다.", { alertId: idValue });
+    return alert;
+  });
+  for (const alert of alerts) {
+    alert.status = "ACKED";
+    alert.ackedAt = now();
+  }
+  appendLedger(db, "ADMIN", "OPERATOR_ALERT_ACKED", {
+    alertIds: alerts.map((alert) => alert.id),
+    policy: "operator-alert-acknowledgement"
+  });
+  return { acknowledgedAlertIds: alerts.map((alert) => alert.id) };
+}
+
 
 
   return {
     activeAdminAccount,
     adminAccountDto,
+    adminCancelResalePool,
     adminSummary,
     adminVenues,
     adminWorkspace,
@@ -570,6 +715,7 @@ function updateTicketStatus(db, { ticketId, status }) {
     authenticateAdminAccount,
     createAdminAccount,
     createEventDraft,
+    acknowledgeOperatorAlerts,
     isAdminIpAllowed,
     resolveVenue,
     seatMap,
@@ -577,6 +723,7 @@ function updateTicketStatus(db, { ticketId, status }) {
     updateEventVenue,
     updateAdminAccount,
     updateTicketStatus,
+    updateTicketStatuses,
     updateUserStatus,
     updateUserStatuses,
     venueMapForEvent

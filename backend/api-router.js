@@ -1,5 +1,7 @@
 export function createApiRouter({
   addSupportMessage,
+  acknowledgeOperatorAlerts,
+  adminCancelResalePool,
   adminSummary,
   adminVenues,
   adminWorkspace,
@@ -42,6 +44,7 @@ export function createApiRouter({
   updateDemoProfile,
   updateSupportStatus,
   updateTicketStatus,
+  updateTicketStatuses,
   updateUserStatus,
   updateUserStatuses,
   upsertWatchlist,
@@ -109,7 +112,11 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
   if (req.method === "GET" && adminWorkspaceMatch) {
     return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin, {
-      eventId: url.searchParams.get("eventId") || undefined
+      eventId: url.searchParams.get("eventId") || undefined,
+      performanceDateId: url.searchParams.get("performanceDateId") || undefined,
+      zoneId: url.searchParams.get("zoneId") || undefined,
+      limit: url.searchParams.get("limit") || undefined,
+      page: url.searchParams.get("page") || undefined
     });
   }
   if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
@@ -262,6 +269,17 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/tickets/status") {
     requireBody(body, ["ticketId", "status"]);
     return updateTicketStatus(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/tickets/statuses") {
+    requireBody(body, ["updates"]);
+    return updateTicketStatuses(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/resale/cancel") {
+    requireBody(body, ["poolId"]);
+    return adminCancelResalePool(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/alerts/ack") {
+    return acknowledgeOperatorAlerts(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/support/messages") {
     requireBody(body, ["threadId", "message"]);

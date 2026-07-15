@@ -47,6 +47,7 @@ export type AdminEvent = {
   readonly venueId: string;
   readonly venue: string;
   readonly date: string;
+  readonly dates?: readonly { readonly id: string; readonly startsAt: string; readonly label: string }[];
   readonly period?: string;
   readonly runtime?: string;
   readonly ageLimit?: string;
@@ -67,15 +68,55 @@ export type AdminEvent = {
 };
 export type Venue = { readonly id: string; readonly name: string };
 export type AdminUser = { readonly id: string; readonly name: string; readonly status: string; readonly trustScore: number };
-export type AdminTicket = { readonly id: string; readonly seatLabel: string; readonly status: string; readonly ownerId: string | null; readonly faceValue: number };
+export type AdminTicket = {
+  readonly id: string;
+  readonly eventId: string;
+  readonly performanceDateId: string;
+  readonly zoneId: string;
+  readonly seatLabel: string;
+  readonly status: string;
+  readonly ownerId: string | null;
+  readonly faceValue: number;
+};
 export type SupportThread = { readonly id: string; readonly subject?: string; readonly status: string; readonly messages: readonly { readonly actorId: string; readonly message: string }[] };
 
 export type OverviewWorkspace = { readonly stats: { readonly totalTickets: number; readonly onSaleTickets: number; readonly supportOpen: number; readonly ledgerVerified: boolean } };
 export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly eventSummaries?: readonly AdminEventSummary[]; readonly venues: readonly Venue[] };
-export type InventoryWorkspace = { readonly tickets: readonly AdminTicket[] };
+export type InventoryWorkspace = {
+  readonly eventSummaries: readonly AdminEventSummary[];
+  readonly events: readonly AdminEvent[];
+  readonly filters: { readonly eventId: string | null; readonly performanceDateId: string | null; readonly zoneId: string | null };
+  readonly page: { readonly page: number; readonly limit: number; readonly total: number; readonly hasNext: boolean; readonly hasPrevious: boolean };
+  readonly tickets: readonly AdminTicket[];
+  readonly zoneSummary: readonly {
+    readonly zoneId: string;
+    readonly zoneName: string;
+    readonly totalCount: number;
+    readonly availableCount: number;
+    readonly soldCount: number;
+    readonly heldCount: number;
+  }[];
+};
 export type AccountsWorkspace = { readonly users: readonly AdminUser[] };
 export type SupportWorkspace = { readonly supportThreads: readonly SupportThread[] };
-export type ResaleWorkspace = { readonly resalePools: readonly { readonly id: string; readonly status: string; readonly buyerCount?: number; readonly price: number }[]; readonly watchlist: readonly { readonly id: string }[]; readonly notificationJobs: readonly { readonly id: string; readonly status: string }[]; readonly operatorAlerts: readonly { readonly id: string; readonly message: string; readonly status: string }[] };
+export type ResaleWorkspace = {
+  readonly resalePools: readonly {
+    readonly id: string;
+    readonly eventTitle: string;
+    readonly seatLabel: string;
+    readonly sellerName: string;
+    readonly zoneName: string;
+    readonly status: string;
+    readonly buyerCount?: number;
+    readonly buyers?: readonly string[];
+    readonly price: number;
+    readonly createdAt: string;
+    readonly cancelReason?: string;
+  }[];
+  readonly watchlist: readonly { readonly id: string }[];
+  readonly notificationJobs: readonly { readonly id: string; readonly status: string }[];
+  readonly operatorAlerts: readonly { readonly id: string; readonly message: string; readonly status: string; readonly createdAt?: string }[];
+};
 export type AdmissionWorkspace = { readonly admissionCredentials: readonly { readonly id: string; readonly status: string; readonly riskStatus?: string }[] };
 export type AuditWorkspace = { readonly ledger: readonly { readonly id: string; readonly action: string; readonly at: string }[]; readonly ledgerCheck: { readonly ok: boolean } };
 export type AdminAccount = {
@@ -106,7 +147,7 @@ export const workspaceDefinitions = {
   inventory: { label: "티켓 재고", heading: "티켓 재고", description: "판매 가능 티켓의 운영 보류 상태를 관리합니다.", permission: "catalog.manage", Icon: ClipboardCheck },
   accounts: { label: "계정", heading: "계정", description: "회원 신뢰도와 계정 상태를 검토합니다.", permission: "accounts.manage", Icon: UserCog },
   support: { label: "고객 지원", heading: "고객 지원", description: "열린 문의를 답변하고 처리 상태를 갱신합니다.", permission: "support.manage", Icon: LifeBuoy },
-  resale: { label: "재판매/양도", heading: "재판매/양도", description: "재판매 풀과 운영 알림을 읽기 전용으로 확인합니다.", permission: "finance.read", Icon: Banknote },
+  resale: { label: "재판매/양도", heading: "재판매/양도", description: "재판매 풀을 강제 취소하고 운영 알림을 확인합니다.", permission: "finance.read", Icon: Banknote },
   admission: { label: "입장/QR", heading: "입장/QR", description: "입장 자격과 현장 리스크 상태를 확인합니다.", permission: "admission.manage", Icon: QrCode },
   audit: { label: "감사 원장", heading: "감사 원장", description: "최근 감사 원장과 체인 검증 상태를 확인합니다.", permission: "security.manage", Icon: BadgeCheck },
   acl: { label: "관리자/ACL", heading: "관리자/ACL", description: "관리자 계정, 역할, 접근 허용 IP를 관리합니다.", permission: "acl.read", Icon: ShieldCheck },
