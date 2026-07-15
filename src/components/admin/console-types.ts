@@ -5,6 +5,7 @@ import {
   LifeBuoy,
   PackagePlus,
   QrCode,
+  ReceiptText,
   ShieldCheck,
   Ticket,
   UserCog,
@@ -80,7 +81,19 @@ export type AdminTicket = {
 };
 export type SupportThread = { readonly id: string; readonly subject?: string; readonly status: string; readonly messages: readonly { readonly actorId: string; readonly message: string }[] };
 
-export type OverviewWorkspace = { readonly stats: { readonly totalTickets: number; readonly onSaleTickets: number; readonly supportOpen: number; readonly ledgerVerified: boolean } };
+export type OverviewWorkspace = {
+  readonly stats: {
+    readonly totalTickets: number;
+    readonly onSaleTickets: number;
+    readonly supportOpen: number;
+    readonly ledgerVerified: boolean;
+    readonly todayPaymentCount: number;
+    readonly todayPaymentAmount: number;
+    readonly totalPaymentAmount: number;
+    readonly totalPaymentFees: number;
+    readonly totalSettlements: number;
+  };
+};
 export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly eventSummaries?: readonly AdminEventSummary[]; readonly venues: readonly Venue[] };
 export type InventoryWorkspace = {
   readonly eventSummaries: readonly AdminEventSummary[];
@@ -97,8 +110,32 @@ export type InventoryWorkspace = {
     readonly heldCount: number;
   }[];
 };
+export type PageInfo = { readonly page: number; readonly limit: number; readonly total: number; readonly hasNext: boolean; readonly hasPrevious: boolean };
 export type AccountsWorkspace = { readonly users: readonly AdminUser[] };
 export type SupportWorkspace = { readonly supportThreads: readonly SupportThread[] };
+export type FinanceWorkspace = {
+  readonly eventSummaries: readonly AdminEventSummary[];
+  readonly filters: { readonly eventId: string | null; readonly from: string | null; readonly method: string | null; readonly status: string | null; readonly to: string | null };
+  readonly page: PageInfo;
+  readonly summary: { readonly count: number; readonly totalAmount: number; readonly totalFees: number; readonly totalSettlements: number };
+  readonly transactions: readonly {
+    readonly id: string;
+    readonly ticketId: string;
+    readonly userId: string;
+    readonly sellerId?: string;
+    readonly type: string;
+    readonly amount: number;
+    readonly transferAmount: number;
+    readonly platformFee: number;
+    readonly method: string;
+    readonly status: string;
+    readonly pgTransactionId: string;
+    readonly createdAt: string;
+    readonly eventId: string | null;
+    readonly eventTitle: string | null;
+    readonly seatLabel: string | null;
+  }[];
+};
 export type ResaleWorkspace = {
   readonly resalePools: readonly {
     readonly id: string;
@@ -118,7 +155,12 @@ export type ResaleWorkspace = {
   readonly operatorAlerts: readonly { readonly id: string; readonly message: string; readonly status: string; readonly createdAt?: string }[];
 };
 export type AdmissionWorkspace = { readonly admissionCredentials: readonly { readonly id: string; readonly status: string; readonly riskStatus?: string }[] };
-export type AuditWorkspace = { readonly ledger: readonly { readonly id: string; readonly action: string; readonly at: string }[]; readonly ledgerCheck: { readonly ok: boolean } };
+export type AuditWorkspace = {
+  readonly filters: { readonly action: string | null; readonly actorId: string | null; readonly from: string | null; readonly to: string | null };
+  readonly ledger: readonly { readonly index: number; readonly actorId: string; readonly action: string; readonly at: string; readonly payload: unknown }[];
+  readonly page: PageInfo;
+  readonly ledgerCheck: { readonly ok: boolean };
+};
 export type AdminAccount = {
   readonly id: string;
   readonly username: string;
@@ -128,7 +170,7 @@ export type AdminAccount = {
   readonly bootstrap?: boolean;
 };
 export type AclWorkspaceData = { readonly adminAccounts: readonly AdminAccount[] };
-export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData;
+export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData;
 export type Feedback = { readonly tone: "error" | "success"; readonly message: string } | null;
 export type Mutation = (path: string, body: Record<string, unknown>, success: string) => Promise<boolean>;
 
@@ -147,6 +189,7 @@ export const workspaceDefinitions = {
   inventory: { label: "티켓 재고", heading: "티켓 재고", description: "판매 가능 티켓의 운영 보류 상태를 관리합니다.", permission: "catalog.manage", Icon: ClipboardCheck },
   accounts: { label: "계정", heading: "계정", description: "회원 신뢰도와 계정 상태를 검토합니다.", permission: "accounts.manage", Icon: UserCog },
   support: { label: "고객 지원", heading: "고객 지원", description: "열린 문의를 답변하고 처리 상태를 갱신합니다.", permission: "support.manage", Icon: LifeBuoy },
+  finance: { label: "정산", heading: "정산", description: "결제 거래, 수수료, 판매자 정산 합계를 조회합니다.", permission: "finance.read", Icon: ReceiptText },
   resale: { label: "재판매/양도", heading: "재판매/양도", description: "재판매 풀을 강제 취소하고 운영 알림을 확인합니다.", permission: "finance.read", Icon: Banknote },
   admission: { label: "입장/QR", heading: "입장/QR", description: "입장 자격과 현장 리스크 상태를 확인합니다.", permission: "admission.manage", Icon: QrCode },
   audit: { label: "감사 원장", heading: "감사 원장", description: "최근 감사 원장과 체인 검증 상태를 확인합니다.", permission: "security.manage", Icon: BadgeCheck },
@@ -163,8 +206,10 @@ const operatorLabels: Record<string, string> = {
   ADMIN_HOLD: "관리 보류",
   ANSWERED: "답변 완료",
   BANNED: "이용 제한",
+  BANK_TRANSFER: "계좌이체",
   CLOSED: "종료",
   concert: "콘서트",
+  CREDIT_CARD: "신용카드",
   DISCOUNT_SOON: "할인 예정",
   children: "아동·가족",
   classic: "클래식",
@@ -174,6 +219,9 @@ const operatorLabels: Record<string, string> = {
   ON_SALE: "판매 중",
   OPEN: "접수 중",
   OPEN_SOON: "오픈 예정",
+  PAID: "결제 완료",
+  PRIMARY: "일반 예매",
+  RESALE: "공식 재판매",
   sports: "스포츠",
   theater: "연극",
   WATCHLIST: "주의 관찰"

@@ -29,6 +29,7 @@ import {
   type AuditWorkspace,
   type CatalogWorkspace,
   type Feedback,
+  type FinanceWorkspace,
   type InventoryWorkspace,
   type Mutation,
   type OverviewWorkspace,
@@ -45,6 +46,8 @@ type WorkspaceProps = {
   readonly feedback: Feedback;
   readonly mutate: Mutation;
   readonly session: AdminSession;
+  readonly onAuditFilterChange: (filters: { readonly action?: string; readonly actorId?: string; readonly from?: string; readonly to?: string; readonly page?: number }) => void;
+  readonly onFinanceFilterChange: (filters: { readonly eventId?: string; readonly from?: string; readonly method?: string; readonly status?: string; readonly to?: string; readonly page?: number }) => void;
   readonly onInventoryFilterChange: (filters: { readonly eventId?: string; readonly performanceDateId?: string; readonly zoneId?: string; readonly page?: number }) => void;
   readonly onSelectEvent: (eventId: string) => void;
   readonly onLocalError: (message: string) => void;
@@ -56,7 +59,7 @@ function focusInput(form: HTMLFormElement, name: string): void {
 }
 
 export function WorkspaceContent(props: WorkspaceProps) {
-  const { workspace, data, feedback, mutate, session, onInventoryFilterChange, onLocalError, onSelectEvent } = props;
+  const { workspace, data, feedback, mutate, session, onAuditFilterChange, onFinanceFilterChange, onInventoryFilterChange, onLocalError, onSelectEvent } = props;
   if (!data) return <WorkspacePanel><p aria-live="polite" className="text-sm font-bold text-ticketground">작업공간 데이터를 불러오지 못했습니다.</p></WorkspacePanel>;
   if (workspace === "overview" && "stats" in data) return <OverviewWorkspace data={data} />;
   if (workspace === "catalog" && hasEvents(data)) return <CatalogWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
@@ -64,15 +67,16 @@ export function WorkspaceContent(props: WorkspaceProps) {
   if (workspace === "inventory" && hasTickets(data)) return <InventoryWorkspace data={data} feedback={feedback} mutate={mutate} onInventoryFilterChange={onInventoryFilterChange} />;
   if (workspace === "accounts" && hasUsers(data)) return <AccountsWorkspace data={data} feedback={feedback} mutate={mutate} />;
   if (workspace === "support" && hasSupportThreads(data)) return <SupportWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
+  if (workspace === "finance" && "transactions" in data) return <FinanceWorkspace data={data} onFinanceFilterChange={onFinanceFilterChange} />;
   if (workspace === "resale" && "resalePools" in data) return <ResaleWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
   if (workspace === "admission" && "admissionCredentials" in data) return <AdmissionWorkspace data={data} />;
-  if (workspace === "audit" && "ledger" in data) return <AuditWorkspace data={data} />;
+  if (workspace === "audit" && "ledger" in data) return <AuditWorkspace data={data} onAuditFilterChange={onAuditFilterChange} />;
   if (workspace === "acl" && "adminAccounts" in data) return <AclWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} session={session} />;
   return <WorkspacePanel><p aria-live="polite" className="text-sm font-bold text-ticketground">작업공간 데이터를 표시할 수 없습니다.</p></WorkspacePanel>;
 }
 
 function OverviewWorkspace({ data }: { readonly data: OverviewWorkspace }) {
-  return <WorkspacePanel><div className="grid divide-y divide-line overflow-hidden sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"><Stat label="전체 티켓" value={money(data.stats.totalTickets)} /><Stat label="판매 가능" value={money(data.stats.onSaleTickets)} /><Stat label="열린 문의" tone={data.stats.supportOpen ? "warn" : "default"} value={money(data.stats.supportOpen)} /><Stat label="감사 원장" tone={data.stats.ledgerVerified ? "ok" : "warn"} value={data.stats.ledgerVerified ? "정상" : "불일치"} /></div></WorkspacePanel>;
+  return <WorkspacePanel><div className="grid divide-y divide-line overflow-hidden sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"><Stat label="전체 티켓" value={money(data.stats.totalTickets)} /><Stat label="판매 가능" value={money(data.stats.onSaleTickets)} /><Stat label="열린 문의" tone={data.stats.supportOpen ? "warn" : "default"} value={money(data.stats.supportOpen)} /><Stat label="감사 원장" tone={data.stats.ledgerVerified ? "ok" : "warn"} value={data.stats.ledgerVerified ? "정상" : "불일치"} /><Stat label="오늘 결제" value={`${money(data.stats.todayPaymentCount)}건`} /><Stat label="오늘 결제액" value={`${money(data.stats.todayPaymentAmount)}원`} /><Stat label="누적 수수료" value={`${money(data.stats.totalPaymentFees)}원`} /><Stat label="판매자 정산" value={`${money(data.stats.totalSettlements)}원`} /></div></WorkspacePanel>;
 }
 
 type MutableWorkspaceProps = { readonly feedback: Feedback; readonly mutate: Mutation; readonly onLocalError?: (message: string) => void };
@@ -510,6 +514,115 @@ function SupportWorkspace({ data, feedback, mutate, onLocalError }: { readonly d
   return <WorkspacePanel><h2 className="text-base font-black">문의 답변/상태</h2><p className="mt-3 border-y border-line py-2 text-sm font-bold text-ink-3">{thread.subject || thread.id} · {operatorLabel(thread.status)}</p><form className="mt-4 grid gap-3 md:grid-cols-2" noValidate onSubmit={submit}><Field label="답변" name="message" defaultValue="운영자 확인 후 처리했습니다." /><SelectField label="처리 상태" name="status" defaultValue="ANSWERED" options={supportStatuses.map((value) => ({ label: operatorLabel(value), value }))} /><button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">문의 답변 등록</button></form><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel>;
 }
 
+function FinanceWorkspace({
+  data,
+  onFinanceFilterChange,
+}: {
+  readonly data: FinanceWorkspace;
+  readonly onFinanceFilterChange: (filters: { readonly eventId?: string; readonly from?: string; readonly method?: string; readonly status?: string; readonly to?: string; readonly page?: number }) => void;
+}) {
+  const currentFilters = {
+    eventId: data.filters.eventId || undefined,
+    from: data.filters.from || undefined,
+    method: data.filters.method || undefined,
+    status: data.filters.status || undefined,
+    to: data.filters.to || undefined,
+  };
+  const updateFilters = (filters: typeof currentFilters & { readonly page?: number }): void => onFinanceFilterChange(filters);
+  return (
+    <WorkspacePanel>
+      <div className="flex flex-col gap-3 border-b border-line pb-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-base font-black">정산 거래</h2>
+          <p className="mt-1 text-sm font-bold text-ink-3">{data.page.total.toLocaleString("ko-KR")}건 중 {data.transactions.length.toLocaleString("ko-KR")}건 표시</p>
+        </div>
+      </div>
+      <div className="mt-4 grid divide-y divide-line overflow-hidden rounded-lg border border-line sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
+        <Stat label="거래 수" value={`${money(data.summary.count)}건`} />
+        <Stat label="총 결제액" value={`${money(data.summary.totalAmount)}원`} />
+        <Stat label="플랫폼 수수료" value={`${money(data.summary.totalFees)}원`} />
+        <Stat label="판매자 정산" value={`${money(data.summary.totalSettlements)}원`} />
+      </div>
+      <form
+        className="mt-4 grid gap-3 lg:grid-cols-6"
+        onSubmit={(submission) => {
+          submission.preventDefault();
+          const form = submission.currentTarget;
+          updateFilters({
+            eventId: valueFromForm(form, "eventId") || undefined,
+            from: valueFromForm(form, "from") || undefined,
+            method: valueFromForm(form, "method") || undefined,
+            status: valueFromForm(form, "status") || undefined,
+            to: valueFromForm(form, "to") || undefined,
+            page: 1,
+          });
+        }}
+      >
+        <SelectField label="공연" name="eventId" defaultValue={data.filters.eventId ?? ""} options={[{ label: "전체 공연", value: "" }, ...data.eventSummaries.map((summary) => ({ label: summary.title, value: summary.id }))]} />
+        <Field label="시작일" name="from" defaultValue={data.filters.from ?? undefined} type="datetime-local" />
+        <Field label="종료일" name="to" defaultValue={data.filters.to ?? undefined} type="datetime-local" />
+        <SelectField label="결제 수단" name="method" defaultValue={data.filters.method ?? ""} options={[{ label: "전체 수단", value: "" }, { label: "신용카드", value: "CREDIT_CARD" }, { label: "계좌이체", value: "BANK_TRANSFER" }, { label: "간편결제", value: "EASY_PAY" }]} />
+        <SelectField label="상태" name="status" defaultValue={data.filters.status ?? ""} options={[{ label: "전체 상태", value: "" }, { label: "결제 완료", value: "PAID" }, { label: "대기", value: "PENDING" }, { label: "실패", value: "FAILED" }]} />
+        <button className="h-10 self-end rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink" type="submit">필터 적용</button>
+      </form>
+      <div className="mt-4 grid gap-3 md:hidden">
+        {data.transactions.map((transaction) => (
+          <article className="rounded-lg border border-line bg-background p-3" key={transaction.id}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-ink">{transaction.eventTitle || transaction.eventId || "공연 정보 없음"}</p>
+                <p className="mt-1 font-mono text-xs text-ink-3">{transaction.seatLabel || transaction.ticketId}</p>
+              </div>
+              <strong className="shrink-0 text-sm font-black text-ink">{money(transaction.amount)}원</strong>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-ink-3">
+              <div><dt>일시</dt><dd className="mt-1 font-mono">{transaction.createdAt.slice(0, 16).replace("T", " ")}</dd></div>
+              <div><dt>유형</dt><dd className="mt-1">{operatorLabel(transaction.type)}</dd></div>
+              <div><dt>수수료</dt><dd className="mt-1">{money(transaction.platformFee)}원</dd></div>
+              <div><dt>정산</dt><dd className="mt-1">{money(transaction.transferAmount)}원</dd></div>
+            </dl>
+            <p className="mt-3 text-xs font-bold text-ink-3">{operatorLabel(transaction.method)} · {operatorLabel(transaction.status)}</p>
+          </article>
+        ))}
+      </div>
+      <div className="mt-4 hidden overflow-hidden rounded-lg border border-line md:block">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="border-b border-line bg-surface text-xs font-black text-ink-3">
+            <tr>
+              <th className="p-3">일시</th>
+              <th className="p-3">공연/좌석</th>
+              <th className="p-3">유형</th>
+              <th className="p-3">금액</th>
+              <th className="p-3">수수료/정산</th>
+              <th className="p-3">상태</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {data.transactions.map((transaction) => (
+              <tr key={transaction.id}>
+                <td className="p-3 font-mono text-xs text-ink-3">{transaction.createdAt.slice(0, 16).replace("T", " ")}</td>
+                <td className="min-w-0 p-3"><p className="truncate font-black text-ink">{transaction.eventTitle || transaction.eventId || "공연 정보 없음"}</p><p className="mt-1 font-mono text-xs text-ink-3">{transaction.seatLabel || transaction.ticketId}</p></td>
+                <td className="p-3 font-bold text-ink-3">{operatorLabel(transaction.type)}</td>
+                <td className="p-3 font-black text-ink">{money(transaction.amount)}원</td>
+                <td className="p-3 font-bold text-ink-3">수수료 {money(transaction.platformFee)}원 · 정산 {money(transaction.transferAmount)}원</td>
+                <td className="p-3 font-bold text-ink-3">{operatorLabel(transaction.method)} · {operatorLabel(transaction.status)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {data.transactions.length ? null : <p className="mt-4 rounded-lg border border-line p-3 text-sm font-bold text-ink-3">조건에 맞는 결제 거래가 없습니다.</p>}
+      <div className="mt-4 flex flex-col gap-3 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-bold text-ink-3">{data.page.page.toLocaleString("ko-KR")}페이지</p>
+        <div className="flex gap-2">
+          <button className="h-9 rounded-lg border border-line bg-background px-3 text-sm font-black disabled:bg-surface disabled:text-ink-3" disabled={!data.page.hasPrevious} onClick={() => updateFilters({ ...currentFilters, page: Math.max(1, data.page.page - 1) })} type="button">이전</button>
+          <button className="h-9 rounded-lg border border-line bg-background px-3 text-sm font-black disabled:bg-surface disabled:text-ink-3" disabled={!data.page.hasNext} onClick={() => updateFilters({ ...currentFilters, page: data.page.page + 1 })} type="button">다음</button>
+        </div>
+      </div>
+    </WorkspacePanel>
+  );
+}
+
 function ResaleWorkspace({ data, feedback, mutate, onLocalError }: { readonly data: ResaleWorkspace } & MutableWorkspaceProps) {
   const openPools = data.resalePools.filter((pool) => pool.status === "OPEN");
   const unreadAlerts = data.operatorAlerts.filter((alert) => alert.status !== "ACKED");
@@ -577,7 +690,124 @@ function ResaleWorkspace({ data, feedback, mutate, onLocalError }: { readonly da
   );
 }
 function AdmissionWorkspace({ data }: { readonly data: AdmissionWorkspace }) { const risks = data.admissionCredentials.filter((item) => item.riskStatus && item.riskStatus !== "CLEAR").length; return <WorkspacePanel><h2 className="text-base font-black">입장/QR 현황</h2><dl className="mt-4 grid gap-3 text-sm font-bold text-ink-3 sm:grid-cols-2"><div><dt>입장 자격</dt><dd className="mt-1 text-xl text-ink">{data.admissionCredentials.length}건</dd></div><div><dt>현장 리스크</dt><dd className={`mt-1 text-xl ${risks ? "text-warn" : "text-ok"}`}>{risks}건</dd></div></dl><p className="mt-5 border-t border-line pt-3 text-sm font-bold text-ink-3">현재 백엔드에 운영 변경 기능이 없어 이 작업공간은 읽기 전용입니다.</p></WorkspacePanel>; }
-function AuditWorkspace({ data }: { readonly data: AuditWorkspace }) { return <WorkspacePanel><div className="flex items-center justify-between gap-3"><h2 className="text-base font-black">감사 원장</h2><span className={`text-sm font-black ${data.ledgerCheck.ok ? "text-ok" : "text-warn"}`}>{data.ledgerCheck.ok ? "원장 검증 정상" : "원장 검증 불일치"}</span></div><div className="mt-4 divide-y divide-line border-y border-line">{data.ledger.map((entry) => <div className="flex items-center justify-between gap-3 py-3 text-sm" key={entry.id}><span className="font-bold text-ink">{entry.action}</span><time className="shrink-0 text-xs font-bold text-ink-3">{entry.at}</time></div>)}</div></WorkspacePanel>; }
+function AuditWorkspace({
+  data,
+  onAuditFilterChange,
+}: {
+  readonly data: AuditWorkspace;
+  readonly onAuditFilterChange: (filters: { readonly action?: string; readonly actorId?: string; readonly from?: string; readonly to?: string; readonly page?: number }) => void;
+}) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(data.ledger[0]?.index ?? null);
+  const currentFilters = {
+    action: data.filters.action || undefined,
+    actorId: data.filters.actorId || undefined,
+    from: data.filters.from || undefined,
+    to: data.filters.to || undefined,
+  };
+  const selectedEntry = data.ledger.find((entry) => entry.index === selectedIndex) ?? data.ledger[0] ?? null;
+  const exportParams = new URLSearchParams();
+  if (currentFilters.action) exportParams.set("action", currentFilters.action);
+  if (currentFilters.actorId) exportParams.set("actorId", currentFilters.actorId);
+  if (currentFilters.from) exportParams.set("from", currentFilters.from);
+  if (currentFilters.to) exportParams.set("to", currentFilters.to);
+  const exportHref = `/api/admin/ledger/export${exportParams.toString() ? `?${exportParams.toString()}` : ""}`;
+  const updateFilters = (filters: typeof currentFilters & { readonly page?: number }): void => {
+    setSelectedIndex(null);
+    onAuditFilterChange(filters);
+  };
+  return (
+    <WorkspacePanel>
+      <div className="flex flex-col gap-3 border-b border-line pb-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-base font-black">감사 원장</h2>
+          <p className="mt-1 text-sm font-bold text-ink-3">{data.page.total.toLocaleString("ko-KR")}건 중 {data.ledger.length.toLocaleString("ko-KR")}건 표시</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`text-sm font-black ${data.ledgerCheck.ok ? "text-ok" : "text-warn"}`}>{data.ledgerCheck.ok ? "원장 검증 정상" : "원장 검증 불일치"}</span>
+          <a className="inline-flex h-9 items-center rounded-lg border border-line bg-background px-3 text-sm font-black text-ink no-underline" href={exportHref}>내보내기</a>
+        </div>
+      </div>
+      <form
+        className="mt-4 grid gap-3 lg:grid-cols-5"
+        onSubmit={(submission) => {
+          submission.preventDefault();
+          const form = submission.currentTarget;
+          updateFilters({
+            action: valueFromForm(form, "action") || undefined,
+            actorId: valueFromForm(form, "actorId") || undefined,
+            from: valueFromForm(form, "from") || undefined,
+            to: valueFromForm(form, "to") || undefined,
+            page: 1,
+          });
+        }}
+      >
+        <Field label="액션" name="action" defaultValue={data.filters.action ?? undefined} placeholder="EVENT_SALE_UPDATED" />
+        <Field label="행위자" name="actorId" defaultValue={data.filters.actorId ?? undefined} placeholder="ADMIN" />
+        <Field label="시작일" name="from" defaultValue={data.filters.from ?? undefined} type="datetime-local" />
+        <Field label="종료일" name="to" defaultValue={data.filters.to ?? undefined} type="datetime-local" />
+        <button className="h-10 self-end rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink" type="submit">필터 적용</button>
+      </form>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]">
+        <div className="grid gap-3 md:hidden">
+          {data.ledger.map((entry) => {
+            const active = selectedEntry?.index === entry.index;
+            return (
+              <article className={`rounded-lg border p-3 ${active ? "border-ink bg-surface" : "border-line bg-background"}`} key={entry.index}>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-mono text-xs font-bold text-ink-3">{entry.at.slice(0, 16).replace("T", " ")}</p>
+                    <p className="text-xs font-bold text-ink-3">{entry.actorId}</p>
+                  </div>
+                  <button className="min-w-0 break-all text-left text-sm font-black text-ink underline-offset-2 hover:underline" onClick={() => setSelectedIndex(entry.index)} type="button">{entry.action}</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-hidden rounded-lg border border-line md:block">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="border-b border-line bg-surface text-xs font-black text-ink-3">
+              <tr>
+                <th className="p-3">시간</th>
+                <th className="p-3">행위자</th>
+                <th className="p-3">액션</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {data.ledger.map((entry) => {
+                const active = selectedEntry?.index === entry.index;
+                return (
+                  <tr className={active ? "bg-surface" : "bg-background"} key={entry.index}>
+                    <td className="p-3 font-mono text-xs text-ink-3">{entry.at.slice(0, 16).replace("T", " ")}</td>
+                    <td className="p-3 font-bold text-ink-3">{entry.actorId}</td>
+                    <td className="p-3"><button className="text-left text-sm font-black text-ink underline-offset-2 hover:underline" onClick={() => setSelectedIndex(entry.index)} type="button">{entry.action}</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <aside className="min-w-0 rounded-lg border border-line bg-background p-3">
+          <h3 className="text-sm font-black text-ink">상세 페이로드</h3>
+          {selectedEntry ? (
+            <div className="mt-3 grid gap-2">
+              <p className="text-xs font-bold text-ink-3">{selectedEntry.action} · {selectedEntry.actorId}</p>
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-xs font-bold text-ink">{JSON.stringify(selectedEntry.payload, null, 2)}</pre>
+            </div>
+          ) : <p className="mt-3 text-sm font-bold text-ink-3">표시할 감사 항목이 없습니다.</p>}
+        </aside>
+      </div>
+      {data.ledger.length ? null : <p className="mt-4 rounded-lg border border-line p-3 text-sm font-bold text-ink-3">조건에 맞는 감사 항목이 없습니다.</p>}
+      <div className="mt-4 flex flex-col gap-3 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-bold text-ink-3">{data.page.page.toLocaleString("ko-KR")}페이지</p>
+        <div className="flex gap-2">
+          <button className="h-9 rounded-lg border border-line bg-background px-3 text-sm font-black disabled:bg-surface disabled:text-ink-3" disabled={!data.page.hasPrevious} onClick={() => updateFilters({ ...currentFilters, page: Math.max(1, data.page.page - 1) })} type="button">이전</button>
+          <button className="h-9 rounded-lg border border-line bg-background px-3 text-sm font-black disabled:bg-surface disabled:text-ink-3" disabled={!data.page.hasNext} onClick={() => updateFilters({ ...currentFilters, page: data.page.page + 1 })} type="button">다음</button>
+        </div>
+      </div>
+    </WorkspacePanel>
+  );
+}
 function RoleFields({ roles, selected = [] }: { readonly roles: readonly { readonly key: string; readonly name: string }[]; readonly selected?: readonly string[] }) {
   return <fieldset className="grid gap-2 rounded-lg border border-line p-3"><legend className="px-1 text-sm font-bold text-ink-3">관리자 역할</legend><div className="flex flex-wrap gap-3">{roles.map((role) => <label className="inline-flex items-center gap-2 text-sm font-bold text-ink" key={role.key}><input defaultChecked={selected.includes(role.key)} name="roleKeys" type="checkbox" value={role.key} />{role.name}</label>)}</div></fieldset>;
 }

@@ -491,6 +491,51 @@ test("browser admin inventory and resale operations work through changed control
   assert.ok(ackRequests[0].alertIds.length > 0);
 });
 
+test("browser admin finance and audit workspaces expose filters, payload detail, and export", async (t) => {
+  // Given: purchase and resale data visible to finance plus ledger payloads visible to audit.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const pool = await api(server.baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price: ticket.faceValue
+  });
+  await verifyIdentity(server.baseUrl, "user_fan_b", "010-9000-0002");
+  await api(server.baseUrl, "/api/resale/purchase", {
+    buyerId: "user_fan_b",
+    poolId: pool.data.id,
+    paymentMethod: "BANK_TRANSFER"
+  });
+
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const context = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+
+  // When: the operator filters finance to the resale payment method.
+  await page.goto(`${server.adminUrl}/console/finance`);
+  await page.locator('input[name="username"]').fill("admin");
+  await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
+  await page.getByRole("button", { name: "로그인" }).click();
+  await page.getByRole("heading", { name: "정산 거래" }).waitFor();
+  await page.locator('select[name="method"]').selectOption("BANK_TRANSFER");
+  await page.getByRole("button", { name: "필터 적용" }).click();
+  await page.getByRole("cell", { name: "공식 재판매" }).waitFor();
+  await page.getByText(/플랫폼 수수료/).waitFor();
+
+  // Then: audit filtering exposes the full payload and CSV export downloads.
+  await page.getByRole("link", { name: "감사 원장" }).click();
+  await page.getByRole("heading", { level: 2, name: "감사 원장" }).waitFor();
+  await page.locator('input[name="action"]').fill("RESALE_PURCHASE_MATCHED");
+  await page.getByRole("button", { name: "필터 적용" }).click();
+  await page.getByRole("button", { name: "RESALE_PURCHASE_MATCHED" }).first().click();
+  await page.getByText("sellerSettlement").waitFor();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "내보내기" }).click();
+  const download = await downloadPromise;
+  assert.match(download.suggestedFilename(), /ledger\.csv$/);
+});
+
 test("admin venue map images resolve through public assets", async (t) => {
   const server = await startServer(t);
   const venues = await adminApi(server, "/api/admin/venues");
@@ -599,6 +644,114 @@ test("admin inventory workspace filters, paginates, and summarizes selected even
   assert.deepEqual(inventory.data.filters, { eventId: event.id, performanceDateId, zoneId });
   assert.deepEqual(inventory.data.zoneSummary.map((zone) => zone.zoneId), event.zones.map((zone) => zone.id));
   assert.equal(inventory.data.zoneSummary.find((zone) => zone.zoneId === zoneId).availableCount > 0, true);
+});
+
+test("admin finance workspace filters transactions and summarizes payment totals", async (t) => {
+  // Given: one primary purchase and one resale purchase with known fee math.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const pool = await api(server.baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price: ticket.faceValue
+  });
+  await verifyIdentity(server.baseUrl, "user_fan_b", "010-9000-0002");
+  const resale = await api(server.baseUrl, "/api/resale/purchase", {
+    buyerId: "user_fan_b",
+    poolId: pool.data.id,
+    paymentMethod: "BANK_TRANSFER"
+  });
+  const resaleFee = Math.ceil(ticket.faceValue * 0.05);
+
+  // When: finance reads all transactions and then filters to the resale payment method.
+  const finance = await adminApi(server, "/api/admin/workspaces/finance?eventId=event_kpop_001&limit=10");
+  const transferOnly = await adminApi(server, "/api/admin/workspaces/finance?eventId=event_kpop_001&method=BANK_TRANSFER&status=PAID&limit=10");
+
+  // Then: summary totals match the real purchase/resale records created through commerce.
+  assert.equal(finance.data.summary.count, 2);
+  assert.equal(finance.data.summary.totalAmount, ticket.faceValue + resale.data.buyerTotal);
+  assert.equal(finance.data.summary.totalFees, resaleFee);
+  assert.equal(finance.data.summary.totalSettlements, ticket.faceValue);
+  assert.equal(transferOnly.data.transactions.length, 1);
+  assert.equal(transferOnly.data.transactions[0].type, "RESALE");
+  assert.equal(transferOnly.data.transactions[0].method, "BANK_TRANSFER");
+  assert.equal(transferOnly.data.summary.totalAmount, resale.data.buyerTotal);
+});
+
+test("admin audit workspace filters, paginates, and returns full payloads", async (t) => {
+  // Given: two admin actions that write detailed USER_STATUS_UPDATED payloads.
+  const server = await startServer(t);
+  await adminApi(server, "/api/admin/users/status", {
+    userId: "user_fan_a",
+    status: "WATCHLIST",
+    reason: "audit page one"
+  });
+  await adminApi(server, "/api/admin/users/status", {
+    userId: "user_fan_b",
+    status: "BANNED",
+    reason: "audit page two"
+  });
+
+  // When: the audit workspace is filtered to that action and paginated.
+  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=USER_STATUS_UPDATED&actorId=ADMIN&limit=1&page=1");
+  const nextPage = await adminApi(server, "/api/admin/workspaces/audit?action=USER_STATUS_UPDATED&actorId=ADMIN&limit=1&page=2");
+
+  // Then: full payloads are included and page metadata walks the full ledger result set.
+  assert.equal(audit.data.ledger.length, 1);
+  assert.equal(audit.data.page.limit, 1);
+  assert.equal(audit.data.page.total, 2);
+  assert.equal(audit.data.page.hasNext, true);
+  assert.equal(audit.data.ledger[0].action, "USER_STATUS_UPDATED");
+  assert.equal(audit.data.ledger[0].actorId, "ADMIN");
+  assert.ok(["audit page one", "audit page two"].includes(audit.data.ledger[0].payload.reason));
+  assert.equal(nextPage.data.ledger.length, 1);
+  assert.notEqual(nextPage.data.ledger[0].index, audit.data.ledger[0].index);
+});
+
+test("admin ledger CSV export returns filtered CSV and session permissions are enforced", async (t) => {
+  // Given: an audit entry and browser-session roles with different read scopes.
+  const server = await startServer(t);
+  await adminApi(server, "/api/admin/users/status", {
+    userId: "user_fan_a",
+    status: "WATCHLIST",
+    reason: "csv export reason"
+  });
+  const financeOnlyServer = await startServer(t, { env: { TIG_ADMIN_ROLES: "finance" } });
+  const readonlyServer = await startServer(t, { env: { TIG_ADMIN_ROLES: "readonly" } });
+  const financeLogin = await adminSessionRequest(financeOnlyServer, "/api/admin/login", {
+    body: { username: "admin", password: bootstrapAdminPassword }
+  });
+  const readonlyLogin = await adminSessionRequest(readonlyServer, "/api/admin/login", {
+    body: { username: "admin", password: bootstrapAdminPassword }
+  });
+
+  // When: CSV export uses action filters and restricted sessions request finance/export routes.
+  const exportResponse = await fetch(`${server.adminUrl}/api/admin/ledger/export?action=USER_STATUS_UPDATED&actorId=ADMIN`, {
+    headers: { "x-tig-admin-token": server.adminToken }
+  });
+  const csv = await exportResponse.text();
+  const deniedExport = await adminSessionRequest(financeOnlyServer, "/api/admin/ledger/export", {
+    cookie: financeLogin.setCookie.split(";")[0],
+    expectedStatus: 403
+  });
+  const deniedFinance = await adminSessionRequest(readonlyServer, "/api/admin/workspaces/finance", {
+    cookie: readonlyLogin.setCookie.split(";")[0],
+    expectedStatus: 403
+  });
+  const allowedFinance = await adminSessionRequest(financeOnlyServer, "/api/admin/workspaces/finance", {
+    cookie: financeLogin.setCookie.split(";")[0]
+  });
+
+  // Then: the export is real CSV with filtered rows and permissions match read/security scopes.
+  assert.equal(exportResponse.status, 200);
+  assert.match(exportResponse.headers.get("content-type") || "", /text\/csv/);
+  assert.match(csv.split("\n")[0], /^"timestamp","actor","action","payload"$/);
+  assert.match(csv, /USER_STATUS_UPDATED/);
+  assert.match(csv, /csv export reason/);
+  assert.doesNotMatch(csv, /BOOTSTRAP/);
+  assert.equal(deniedExport.json.error.detail.permission, "security.manage");
+  assert.equal(deniedFinance.json.error.detail.permission, "finance.read");
+  assert.equal(Array.isArray(allowedFinance.json.data.transactions), true);
 });
 
 test("admin bulk ticket status update is transactional when one ticket is invalid", async (t) => {

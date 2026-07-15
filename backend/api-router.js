@@ -2,6 +2,7 @@ export function createApiRouter({
   addSupportMessage,
   acknowledgeOperatorAlerts,
   adminCancelResalePool,
+  adminLedgerCsv,
   adminSummary,
   adminVenues,
   adminWorkspace,
@@ -110,10 +111,30 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
   if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
+  if (req.method === "GET" && url.pathname === "/api/admin/ledger/export") {
+    return {
+      rawBody: adminLedgerCsv(db, {
+        action: url.searchParams.get("action") || undefined,
+        actorId: url.searchParams.get("actorId") || undefined,
+        from: url.searchParams.get("from") || undefined,
+        to: url.searchParams.get("to") || undefined
+      }),
+      responseHeaders: {
+        "Content-Disposition": "attachment; filename=\"ticketground-ledger.csv\"",
+        "Content-Type": "text/csv; charset=utf-8"
+      }
+    };
+  }
   if (req.method === "GET" && adminWorkspaceMatch) {
     return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin, {
+      action: url.searchParams.get("action") || undefined,
+      actorId: url.searchParams.get("actorId") || undefined,
       eventId: url.searchParams.get("eventId") || undefined,
+      from: url.searchParams.get("from") || undefined,
+      method: url.searchParams.get("method") || undefined,
       performanceDateId: url.searchParams.get("performanceDateId") || undefined,
+      status: url.searchParams.get("status") || undefined,
+      to: url.searchParams.get("to") || undefined,
       zoneId: url.searchParams.get("zoneId") || undefined,
       limit: url.searchParams.get("limit") || undefined,
       page: url.searchParams.get("page") || undefined

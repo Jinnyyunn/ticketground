@@ -64,6 +64,14 @@ async function handleRequest(req, res, db, surface) {
         res.end();
         return;
       }
+      if (Object.hasOwn(result || {}, "rawBody")) {
+        res.writeHead(200, {
+          "Content-Type": "text/plain; charset=utf-8",
+          ...(result.responseHeaders || {})
+        });
+        res.end(result.rawBody);
+        return;
+      }
       res.writeHead(200, {
         "Content-Type": "application/json; charset=utf-8",
         ...(result?.responseHeaders || {})

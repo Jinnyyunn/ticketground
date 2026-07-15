@@ -127,6 +127,96 @@ function normalizePageOptions(options) {
   return { page, limit };
 }
 
+function withinDateRange(value, { from, to }) {
+  if (!value) return false;
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) return false;
+  const fromTime = from ? Date.parse(from) : null;
+  const toTime = to ? Date.parse(to) : null;
+  return (fromTime === null || time >= fromTime) && (toTime === null || time <= toTime);
+}
+
+function pageSlice(items, options) {
+  const { page, limit } = normalizePageOptions(options);
+  const start = (page - 1) * limit;
+  return {
+    items: items.slice(start, start + limit),
+    page: {
+      page,
+      limit,
+      total: items.length,
+      hasNext: start + limit < items.length,
+      hasPrevious: page > 1
+    }
+  };
+}
+
+function ticketEventMaps(db) {
+  const eventsById = new Map(db.events.map((event) => [event.id, event]));
+  const ticketsById = new Map(db.tickets.map((ticket) => [ticket.id, ticket]));
+  return { eventsById, ticketsById };
+}
+
+function paymentTransactionDto(transaction, maps) {
+  const ticket = maps.ticketsById.get(transaction.ticketId);
+  const event = ticket ? maps.eventsById.get(ticket.eventId) : null;
+  return {
+    ...transaction,
+    eventId: event?.id || null,
+    eventTitle: event?.title || null,
+    seatLabel: ticket?.seatLabel || null,
+    platformFee: transaction.platformFee || 0,
+    transferAmount: transaction.transferAmount || 0
+  };
+}
+
+function filteredPaymentTransactions(db, options) {
+  const maps = ticketEventMaps(db);
+  return db.paymentTransactions
+    .map((transaction) => paymentTransactionDto(transaction, maps))
+    .filter((transaction) => (
+      (!options.eventId || transaction.eventId === options.eventId)
+      && (!options.method || transaction.method === options.method)
+      && (!options.status || transaction.status === options.status)
+      && withinDateRange(transaction.createdAt, { from: options.from, to: options.to })
+    ))
+    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+}
+
+function paymentSummary(transactions) {
+  return transactions.reduce((summary, transaction) => ({
+    count: summary.count + 1,
+    totalAmount: summary.totalAmount + (transaction.amount || 0),
+    totalFees: summary.totalFees + (transaction.platformFee || 0),
+    totalSettlements: summary.totalSettlements + (transaction.transferAmount || 0)
+  }), { count: 0, totalAmount: 0, totalFees: 0, totalSettlements: 0 });
+}
+
+function filteredLedgerEntries(db, options) {
+  return db.ledger
+    .filter((entry) => (
+      (!options.action || entry.action === options.action)
+      && (!options.actorId || entry.actorId === options.actorId)
+      && withinDateRange(entry.at, { from: options.from, to: options.to })
+    ))
+    .sort((left, right) => String(right.at).localeCompare(String(left.at)));
+}
+
+function csvCell(value) {
+  const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+  return `"${text.replaceAll("\"", "\"\"")}"`;
+}
+
+function ledgerCsv(entries) {
+  const rows = [["timestamp", "actor", "action", "payload"], ...entries.map((entry) => [
+    entry.at,
+    entry.actorId,
+    entry.action,
+    entry.payload
+  ])];
+  return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+}
+
 function zoneSellThroughSummary(tickets, event) {
   return event.zones.map((zone) => {
     const zoneTickets = tickets.filter((ticket) => ticket.zoneId === zone.id);
@@ -442,11 +532,28 @@ function adminSummary(db) {
   const openPools = db.resalePools.filter((pool) => pool.status === "OPEN");
   const watchUsers = db.users.filter((user) => user.status === "WATCHLIST" || user.trustScore < 50);
   const openSupportThreads = db.supportThreads.filter((thread) => thread.status !== "CLOSED");
+  const today = now().slice(0, 10);
+  const todayPayments = db.paymentTransactions.filter((transaction) => String(transaction.createdAt || "").startsWith(today));
+  const allPaymentSummary = paymentSummary(db.paymentTransactions.map((transaction) => ({
+    ...transaction,
+    platformFee: transaction.platformFee || 0,
+    transferAmount: transaction.transferAmount || 0
+  })));
+  const todayPaymentSummary = paymentSummary(todayPayments.map((transaction) => ({
+    ...transaction,
+    platformFee: transaction.platformFee || 0,
+    transferAmount: transaction.transferAmount || 0
+  })));
   return {
     stats: {
       totalTickets: db.tickets.length,
       onSaleTickets: db.tickets.filter((ticket) => ticket.status === "ON_SALE").length,
       ownedTickets: db.tickets.filter((ticket) => ticket.status === "OWNED").length,
+      totalPaymentAmount: allPaymentSummary.totalAmount,
+      totalPaymentFees: allPaymentSummary.totalFees,
+      totalSettlements: allPaymentSummary.totalSettlements,
+      todayPaymentCount: todayPaymentSummary.count,
+      todayPaymentAmount: todayPaymentSummary.totalAmount,
       resalePools: openPools.length,
       supportOpen: openSupportThreads.length,
       watchUsers: watchUsers.length,
@@ -530,6 +637,23 @@ function adminWorkspace(db, workspace, actor, options = {}) {
       zoneSummary: zoneSellThroughSummary(eventTickets, event)
     };
   }
+  if (workspace === "finance") {
+    const transactions = filteredPaymentTransactions(db, options);
+    const paged = pageSlice(transactions, options);
+    return {
+      eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
+      filters: {
+        eventId: options.eventId || null,
+        from: options.from || null,
+        method: options.method || null,
+        status: options.status || null,
+        to: options.to || null
+      },
+      page: paged.page,
+      summary: paymentSummary(transactions),
+      transactions: clone(paged.items)
+    };
+  }
   if (workspace === "accounts") {
     return {
       users: db.users.map((user) => ({
@@ -566,8 +690,17 @@ function adminWorkspace(db, workspace, actor, options = {}) {
   }
   if (workspace === "admission") return { admissionCredentials: clone(db.admissionCredentials) };
   if (workspace === "audit") {
+    const entries = filteredLedgerEntries(db, options);
+    const paged = pageSlice(entries, options);
     return {
-      ledger: clone(db.ledger.slice(-12).reverse()),
+      filters: {
+        action: options.action || null,
+        actorId: options.actorId || null,
+        from: options.from || null,
+        to: options.to || null
+      },
+      ledger: clone(paged.items),
+      page: paged.page,
       ledgerCheck: verifyLedger(db)
     };
   }
@@ -711,6 +844,7 @@ function acknowledgeOperatorAlerts(db, { alertId, alertIds }) {
     adminSummary,
     adminVenues,
     adminWorkspace,
+    adminLedgerCsv: (db, options = {}) => ledgerCsv(filteredLedgerEntries(db, options)),
     adminVenueRecord,
     authenticateAdminAccount,
     createAdminAccount,
