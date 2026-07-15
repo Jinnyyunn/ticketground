@@ -41,8 +41,25 @@ VM이 메모리가 작아서(약 954MB) 직접 빌드하지 않고, 로컬에서
      <로컬 backend_server 체크아웃>/ ubuntu@132.145.109.87:/home/ubuntu/app/
    ```
 3. 서버에서 `npm ci --omit=dev` 실행 (sharp 등 네이티브 모듈을 리눅스 x64용으로 재설치하기 위해 서버에서 직접 설치)
-4. `sudo systemctl restart ticketground-backend`
-5. `curl http://132.145.109.87:4174/api/health`, `/api/app/config`, `/api/catalog`로 정상 응답 확인. 세션 관련 변경을 배포했다면 `GET /api/users/:userId/session` 응답에 `sessionToken`이 없는지도 같이 확인(있으면 안 됨 — 데모 세션 조회는 토큰을 발급하지 않는 것이 의도된 동작).
+4. 서버의 `/home/ubuntu/app/.env.production`에 `TIG_DEPLOY_SHA=<배포할 git commit SHA>`를 기록합니다. 짧은 해시도 괜찮지만, 실제로 배포한 커밋을 써야 `/api/health`의 `version`으로 현재 운영 코드를 확인할 수 있습니다.
+5. `sudo systemctl restart ticketground-backend`
+6. `curl http://132.145.109.87:4174/api/health`, `/api/app/config`, `/api/catalog`로 정상 응답 확인. `/api/health`의 `data.version`이 4번에서 기록한 `TIG_DEPLOY_SHA`와 일치해야 합니다. 세션 관련 변경을 배포했다면 `GET /api/users/:userId/session` 응답에 `sessionToken`이 없는지도 같이 확인(있으면 안 됨 — 데모 세션 조회는 토큰을 발급하지 않는 것이 의도된 동작).
+
+### DB 백업
+
+운영 DB 파일은 `/home/ubuntu/app/.env.production`의 `TIG_DB_PATH` 값이 있으면 그 경로를 사용하고, 없으면 `/home/ubuntu/app/data/db.json`을 사용합니다.
+
+- **백업 위치**: `/home/ubuntu/backups/db-YYYY-MM-DD.json`
+- **스케줄**: `ubuntu` 사용자 crontab에서 매일 `03:17` 실행
+- **보관 정책**: 최근 14일만 보관하고 더 오래된 `db-*.json` 파일은 삭제
+
+수동 복구 절차:
+
+1. `sudo systemctl stop ticketground-backend`
+2. `cp /home/ubuntu/backups/db-YYYY-MM-DD.json <TIG_DB_PATH 또는 /home/ubuntu/app/data/db.json>`
+3. `sudo chown ubuntu:ubuntu <복구한 DB 파일 경로>`
+4. `sudo systemctl start ticketground-backend`
+5. `curl http://132.145.109.87:4174/api/health`와 필요한 조회 API로 정상 응답 확인
 
 ### 배포 이력
 
@@ -51,7 +68,7 @@ VM이 메모리가 작아서(약 954MB) 직접 빌드하지 않고, 로컬에서
   - 보안 수정: 직접양도(`/api/security/direct-transfer-attempt`) 스푸핑 방지(티켓 소유권 무조건 확인, bearer 토큰 유무와 무관하게 적용), 부트스트랩 관리자 비밀번호 및 QR·기기토큰 비교를 `crypto.timingSafeEqual`로 전환.
   - Next dev 모드 HMR 업그레이드 배선 수정(로컬 개발 편의용, 운영 동작에는 영향 없음).
   - 재배포 후 라이브 확인: `/api/health`·`/api/app/config` 정상 응답, 기존 `/api/catalog` 회귀 없음, `/api/users/:userId/session` 응답에 `sessionToken` 미포함 확인(세션 토큰 보안수정이 운영에도 반영됐음을 확인).
-- **재배포 시점 확인 방법**: `curl http://132.145.109.87:4174/api/health`가 404가 아니라 `{"ok":true,"data":{"status":"UP",...}}`를 반환하면 최소 Round 2 하드닝 이후 코드가 떠 있는 것. 그 이전 배포인지 이후 배포인지는 이 엔드포인트 존재 여부로 가늠할 수 있다.
+- **재배포 시점 확인 방법**: `curl http://132.145.109.87:4174/api/health`가 404가 아니라 `{"ok":true,"data":{"status":"UP",...,"version":"<sha>"}}`를 반환하면 최소 Round 2 하드닝 이후 코드가 떠 있는 것. `data.version`은 서버의 `/home/ubuntu/app/.env.production`에 기록된 `TIG_DEPLOY_SHA`이며, 현재 운영 서버가 어떤 git 커밋으로 배포됐는지 확인하는 기준입니다.
 
 ### HTTPS/TLS 미적용 (의도적, 임시)
 

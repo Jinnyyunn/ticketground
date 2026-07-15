@@ -61,7 +61,7 @@ appAttestation = HMAC_SHA256(secret, "app:" + purpose + ":" + nonce + ":" + part
 
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/api/health` | DB를 읽거나 저장하지 않는 경량 연결 상태 확인 |
+| GET | `/api/health` | DB를 읽거나 저장하지 않는 경량 연결 상태 확인. 응답 `data.version`은 운영 서버에 설정된 `TIG_DEPLOY_SHA`입니다. |
 | GET | `/api/app/config` | 앱 최소/권장 버전, 점검 모드, 앱 채널 필수 엔드포인트 목록 |
 | GET | `/api/devices/attestation-nonce?purpose=` | 앱 attestation용 1회성 nonce 발급 |
 | GET | `/api/state` | 공개 상태 스냅샷. 기본 응답은 전체 `tickets` 배열을 제외하고 `backendSummary.tickets` 카운트만 포함 |
@@ -119,6 +119,17 @@ appAttestation = HMAC_SHA256(secret, "app:" + purpose + ":" + nonce + ":" + part
 ```
 
 `TIG_APP_MIN_VERSION`, `TIG_APP_RECOMMENDED_VERSION`, `TIG_MAINTENANCE_MODE`, `TIG_MAINTENANCE_MESSAGE` 환경변수로 값을 바꿀 수 있으며 서비스 재시작 후 반영됩니다.
+
+**Health** (`/api/health`)
+```json
+{
+  "status": "UP",
+  "time": "2026-07-16T00:00:00.000Z",
+  "version": "17fe493"
+}
+```
+
+`version`은 운영 서버의 `TIG_DEPLOY_SHA` 환경변수 값이며, 설정되지 않은 환경에서는 `"unknown"`으로 반환됩니다.
 
 **Catalog** (`/api/catalog?limit=20&cursor=20`)
 ```json

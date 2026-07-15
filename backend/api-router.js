@@ -129,7 +129,13 @@ async function handleApi(req, res, db, surface) {
     throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
   }
 
-  if (req.method === "GET" && url.pathname === "/api/health") return { status: "UP", time: new Date().toISOString() };
+  if (req.method === "GET" && url.pathname === "/api/health") {
+    return {
+      status: "UP",
+      time: new Date().toISOString(),
+      version: process.env.TIG_DEPLOY_SHA || "unknown"
+    };
+  }
   if (req.method === "GET" && url.pathname === "/api/app/config") return appConfig();
   if (req.method === "GET" && url.pathname === "/api/devices/attestation-nonce") {
     return createAppAttestationNonce(url.searchParams.get("purpose"));
