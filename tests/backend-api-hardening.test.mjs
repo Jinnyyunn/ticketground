@@ -146,6 +146,63 @@ test("real login bearer token authorizes only the matching user", async (t) => {
   assert.equal(mismatch.error.code, "TOKEN_USER_MISMATCH");
 });
 
+test("direct transfer penalty rejects spoofed actors with or without a bearer token", async (t) => {
+  // Given: a signed login bearer for one user and a penalty request naming another actor.
+  const server = await startServer(t, {
+    env: {
+      TIG_GOOGLE_AUTH_TEST_MODE: "1"
+    }
+  });
+  const session = await api(server.baseUrl, "/api/auth/google", {
+    credential: "ticketground-google-test-credential"
+  });
+  const state = await api(server.baseUrl, "/api/state?include=tickets");
+  const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001");
+  assert.ok(ticket, "seeded ticket exists for direct transfer attempt");
+
+  const beforeMismatch = JSON.parse(await readFile(server.dbPath, "utf8"));
+  const userBeforeMismatch = beforeMismatch.users.find((user) => user.id === "user_fan_b");
+  assert.equal(userBeforeMismatch.trustScore, 88);
+  assert.equal(userBeforeMismatch.sanctions.length, 0);
+
+  // When: the bearer token user does not match the actorId to be penalized.
+  const mismatch = await api(server.baseUrl, "/api/security/direct-transfer-attempt", {
+    actorId: "user_fan_b",
+    ticketId: ticket.id,
+    targetUserId: "user_fan_a",
+    offeredPrice: 500000
+  }, 403, {
+    Authorization: `Bearer ${session.data.sessionToken}`
+  });
+  const afterMismatch = JSON.parse(await readFile(server.dbPath, "utf8"));
+  const userAfterMismatch = afterMismatch.users.find((user) => user.id === "user_fan_b");
+
+  // Then: the request is rejected before any trust penalty is applied to the body actor.
+  assert.equal(mismatch.error.code, "TOKEN_USER_MISMATCH");
+  assert.equal(userAfterMismatch.trustScore, 88);
+  assert.equal(userAfterMismatch.status, "ACTIVE");
+  assert.equal(userAfterMismatch.sanctions.length, 0);
+
+  // When: the same route is called without a bearer token at all, still naming an actor
+  // who does not own the referenced ticket.
+  const noToken = await api(server.baseUrl, "/api/security/direct-transfer-attempt", {
+    actorId: "user_fan_b",
+    ticketId: ticket.id,
+    targetUserId: "user_fan_a",
+    offeredPrice: 500000
+  }, 403);
+  const afterNoToken = JSON.parse(await readFile(server.dbPath, "utf8"));
+  const userAfterNoToken = afterNoToken.users.find((user) => user.id === "user_fan_b");
+
+  // Then: ticket-ownership is checked unconditionally, not only when a bearer token is
+  // present - omitting the token must not let a caller spoof a penalty against a user
+  // who doesn't own the ticket.
+  assert.equal(noToken.error.code, "TICKET_OWNER_MISMATCH");
+  assert.equal(userAfterNoToken.trustScore, 88);
+  assert.equal(userAfterNoToken.status, "ACTIVE");
+  assert.equal(userAfterNoToken.sanctions.length, 0);
+});
+
 test("push-token registration persists and watchlist notify tolerates stub delivery", async (t) => {
   // Given: a user and event with an app push watchlist.
   const server = await startServer(t);

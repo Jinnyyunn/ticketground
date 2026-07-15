@@ -268,6 +268,7 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/security/direct-transfer-attempt") {
     requireBody(body, ["actorId", "ticketId", "targetUserId"]);
+    requireBearerUserMatch(tokenUserId, body.actorId);
     return publicDirectTransferResult(directTransferAttempt(db, body));
   }
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
