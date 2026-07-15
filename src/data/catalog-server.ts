@@ -40,6 +40,18 @@ interface ApiCatalogResponse {
   readonly data?: { readonly events: readonly ApiCatalogEvent[] };
 }
 
+interface ApiPublicTicket {
+  readonly id: string;
+  readonly eventId: string;
+  readonly seatLabel: string;
+  readonly faceValue: number;
+}
+
+interface ApiStateResponse {
+  readonly ok: boolean;
+  readonly data?: { readonly tickets: readonly ApiPublicTicket[] };
+}
+
 async function catalogBaseUrl(): Promise<string> {
   const list = await headers();
   const host = list.get("host") ?? "localhost:4173";
@@ -97,6 +109,20 @@ export async function getGeneralSaleShows(): Promise<TicketShow[]> {
 export async function getShowBySlug(slug: string): Promise<TicketShow | undefined> {
   const shows = await getTicketShows();
   return shows.find((show) => show.slug === slug);
+}
+
+export async function getTicketById(ticketId: string): Promise<{ readonly ticket: ApiPublicTicket; readonly show: TicketShow } | undefined> {
+  if (!ticketId) return undefined;
+  const base = await catalogBaseUrl();
+  const response = await fetch(`${base}/api/state?include=tickets`, { cache: "no-store" });
+  if (!response.ok) return undefined;
+  const payload = (await response.json()) as ApiStateResponse;
+  const ticket = payload.data?.tickets.find((item) => item.id === ticketId);
+  if (!ticket) return undefined;
+  const shows = await getTicketShows();
+  const show = shows.find((item) => item.backendEventId === ticket.eventId);
+  if (!show) return undefined;
+  return { ticket, show };
 }
 
 export async function searchShowsAsync(query: string): Promise<TicketShow[]> {

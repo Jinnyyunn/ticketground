@@ -4,8 +4,24 @@ import { BackendAdmissionPanel } from "@/components/ticketing/backend-admission-
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { VirtualTicketCard } from "@/components/ticketing/virtual-ticket-card";
 import { appOnlyQrReservation, cleanTicketQrStages, getReservation, reservations } from "@/data/ticketing";
+import { getTicketById } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
 import type { Reservation, TicketSeat } from "@/types";
+
+function reservationFromRealTicket(ticket: { readonly id: string; readonly seatLabel: string; readonly faceValue: number }, show: { readonly title: string; readonly venue: string; readonly schedules: ReadonlyArray<{ readonly date: string; readonly times: readonly string[] }> }): Reservation {
+  const schedule = show.schedules[0];
+  return {
+    id: ticket.id,
+    showSlug: "",
+    showTitle: show.title,
+    venue: show.venue,
+    date: schedule?.date ?? "",
+    time: schedule?.times[0] ?? "",
+    seat: ticket.seatLabel,
+    price: `${ticket.faceValue.toLocaleString("ko-KR")}원`,
+    status: "예매완료",
+  };
+}
 
 export function generateStaticParams() {
   return [...reservations.map((reservation) => ({ id: reservation.id })), { id: appOnlyQrReservation.id }];
@@ -28,7 +44,8 @@ export default async function ReservationPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const reservation = getReservation(id);
+  const realTicket = await getTicketById(id);
+  const reservation = realTicket ? reservationFromRealTicket(realTicket.ticket, realTicket.show) : getReservation(id);
   if (!reservation && id === appOnlyQrReservation.id) return <AppOnlyQrGuard reservation={appOnlyQrReservation} />;
   if (!reservation) notFound();
 

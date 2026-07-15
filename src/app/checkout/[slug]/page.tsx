@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CheckoutPanel } from "@/components/ticketing/checkout-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { getReservationForShow } from "@/data/ticketing";
 import { getShowBySlug } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
 
@@ -30,18 +29,18 @@ export default async function CheckoutPage({
   const query = await searchParams;
   const show = await getShowBySlug(slug);
   if (!show) notFound();
-  const reservation = getReservationForShow(show.slug);
-  if (!reservation) notFound();
 
   const fallbackSchedule = show.schedules[0];
   const queryNumber = (value: string) => {
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
   };
-  const fallbackBase = Number.parseInt(reservation.price.replace(/\D/g, ""), 10);
-  const seats = queryParam(query.seats) || queryParam(query.seat) || reservation.seat;
+  const lowestPrice = show.prices.reduce((min, price) => Math.min(min, price.price), Number.POSITIVE_INFINITY);
+  const fallbackBase = show.sale.bookable ? show.sale.displayPrice : lowestPrice;
+  const queryBase = queryNumber(queryParam(query.base) || queryParam(query.price));
+  const seats = queryParam(query.seats) || queryParam(query.seat) || "";
   const count = queryNumber(queryParam(query.count)) || seats.split(",").filter(Boolean).length || 1;
-  const baseAmount = fallbackBase;
+  const baseAmount = queryBase || (Number.isFinite(fallbackBase) ? fallbackBase : 0);
   const feeAmount = count * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
   const discountAmount = 0;
@@ -51,10 +50,9 @@ export default async function CheckoutPage({
       <Suspense fallback={<div className="ticketground-container py-10 text-lg font-bold">결제 정보를 불러오는 중입니다.</div>}>
         <CheckoutPanel
           show={show}
-          reservation={reservation}
           selection={{
-            date: queryParam(query.date) || fallbackSchedule?.date || reservation.date,
-            time: queryParam(query.time) || fallbackSchedule?.times[0] || reservation.time,
+            date: queryParam(query.date) || fallbackSchedule?.date || "",
+            time: queryParam(query.time) || fallbackSchedule?.times[0] || "",
             seats,
             count,
             baseAmount,
