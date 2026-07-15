@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { DetailBookingPanel } from "@/components/ticketing/detail-booking-panel";
-import { AdminEventDetail } from "@/components/ticketing/admin-event-detail";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { currency } from "@/data/ticketing";
 import { getShowBySlug } from "@/data/catalog-server";
@@ -18,7 +17,6 @@ const tabLinks = [
 
 export default async function GoodsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (slug.startsWith("admin-")) return <AdminEventDetail slug={slug} />;
   const show = await getShowBySlug(slug);
   if (!show) notFound();
 
