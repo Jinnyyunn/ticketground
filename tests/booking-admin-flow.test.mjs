@@ -162,6 +162,24 @@ test("browser admin session uses HttpOnly cookie, csrf, ACL, and create-event mu
   assert.equal(tokenAcl.data.adminAccounts.some((account) => account.username === "admin" && account.bootstrap), true);
 });
 
+test("admin login rejects excessive attempts from one client IP", async (t) => {
+  const server = await startServer(t);
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const failedLogin = await adminSessionRequest(server, "/api/admin/login", {
+      body: { username: "admin", password: `wrong-password-${attempt}` },
+      expectedStatus: 401
+    });
+    assert.equal(failedLogin.json.error.code, "ADMIN_LOGIN_FAILED");
+  }
+
+  const limitedLogin = await adminSessionRequest(server, "/api/admin/login", {
+    body: { username: "admin", password: bootstrapAdminPassword },
+    expectedStatus: 429
+  });
+  assert.equal(limitedLogin.json.error.code, "RATE_LIMITED");
+});
+
 test("administrator account IP ACL protects login and active sessions", async (t) => {
   const server = await startServer(t);
   const bootstrap = await adminSessionRequest(server, "/api/admin/login", { body: { username: "admin", password: bootstrapAdminPassword } });

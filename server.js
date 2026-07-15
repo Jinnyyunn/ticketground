@@ -81,6 +81,9 @@ const handleNextRequest = nextApp.getRequestHandler();
 const adminSessions = new Map();
 const adminSessionCookieName = "tig_admin_session";
 const adminSessionTtlMs = 1000 * 60 * 60 * 8;
+const adminLoginRateLimitWindowMs = 1000 * 60 * 5;
+const adminLoginRateLimitMaxAttempts = 10;
+const adminLoginAttempts = new Map();
 const defaultAdminRoles = (process.env.TIG_ADMIN_ROLES || "owner")
   .split(",")
   .map((role) => role.trim())
@@ -88,6 +91,13 @@ const defaultAdminRoles = (process.env.TIG_ADMIN_ROLES || "owner")
 const defaultAdminIpAllowlist = String(process.env.TIG_ADMIN_IP_ALLOWLIST || "").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
 const trustAdminProxy = process.env.TIG_TRUST_PROXY === "1";
 const trustedProxyIps = String(process.env.TIG_TRUSTED_PROXY_IPS || "").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+const adminLoginRateLimitCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of adminLoginAttempts) {
+    if (entry.windowExpiresAt <= now) adminLoginAttempts.delete(ip);
+  }
+}, adminLoginRateLimitWindowMs);
+adminLoginRateLimitCleanup.unref?.();
 
 const sessionRoutePermissions = [
   { method: "POST", pattern: /^\/api\/admin\/logout$/, permission: "admin.dashboard.read" },
@@ -130,6 +140,21 @@ function requestIp(req) {
     : "";
   const address = forwarded || peerAddress;
   return address.startsWith("::ffff:") ? address.slice(7) : address;
+}
+
+function recordAdminLoginAttempt(ip) {
+  const now = Date.now();
+  const existing = adminLoginAttempts.get(ip);
+  if (!existing || existing.windowExpiresAt <= now) {
+    const entry = { count: 1, windowExpiresAt: now + adminLoginRateLimitWindowMs };
+    adminLoginAttempts.set(ip, entry);
+    return { limited: false, retryAfterSeconds: Math.ceil((entry.windowExpiresAt - now) / 1000) };
+  }
+  existing.count += 1;
+  return {
+    limited: existing.count > adminLoginRateLimitMaxAttempts,
+    retryAfterSeconds: Math.ceil((existing.windowExpiresAt - now) / 1000)
+  };
 }
 
 function signedSessionValue(sessionId) {
@@ -273,6 +298,17 @@ async function handleAdminSessionRoute(req, res, pathname) {
     return true;
   }
   if (req.method === "POST" && pathname === "/api/admin/login") {
+    const loginAttempt = recordAdminLoginAttempt(requestIp(req));
+    if (loginAttempt.limited) {
+      writeJson(res, 429, {
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "관리자 로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
+        }
+      }, { "Retry-After": String(loginAttempt.retryAfterSeconds) });
+      return true;
+    }
     const body = await parseJsonBody(req);
     if (!body || typeof body.username !== "string" || typeof body.password !== "string") {
       writeJson(res, 400, { ok: false, error: { code: "BAD_LOGIN_BODY", message: "아이디와 비밀번호를 확인해주세요." } });
