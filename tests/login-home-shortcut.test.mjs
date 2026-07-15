@@ -24,8 +24,8 @@ test("login and signup pages expose the home shortcut above the login card", asy
       assert.ok(shortcutBox, "home shortcut has a rendered box");
       assert.ok(heroHeadingBox, "login hero heading has a rendered box");
       assert.ok(shortcutBox.y < heroHeadingBox.y, "home shortcut is placed above the login hero");
-      assert.equal(headingText.replace(/\s+/g, " ").trim(), "클린 티켓 예매와 공식 재판매를 한 계정에서 이용해보세요.");
-      assert.match(headingHtml, /클린 티켓 예매와 공식 재판매를<\/span>\s*<br/);
+      assert.equal(headingText.replace(/\s+/g, " ").trim(), "클린 티켓 예매와 Tig 공식 양도 티켓을 한 계정에서 이용해보세요.");
+      assert.match(headingHtml, /클린 티켓 예매와 Tig 공식 양도 티켓을\s*<br/);
       assert.doesNotMatch(headingText, /환불 관리/);
       await page.getByRole("tab", { name: pathName === "/login" ? "로그인" : "회원가입", exact: true }).waitFor({ timeout: 5000 });
     } finally {

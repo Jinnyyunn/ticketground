@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
 
 const routes = [
-  { label: "연극", path: "/contents/genre/theater", slug: "king-lear", title: "국립극단 리어왕" },
+  { label: "연극", path: "/contents/genre/theater", slug: "cherry-orchard", title: "연극 벚꽃동산" },
   { label: "클래식", path: "/contents/genre/classic", slug: "berlin-phil", title: "베를린필 내한공연" },
 ];
 
@@ -54,7 +54,7 @@ test("existing musical and exhibition genre routes stay available", async (t) =>
 
   await page.goto(`${baseUrl}/contents/genre/musical`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "뮤지컬 예매", level: 1 }).waitFor({ timeout: 5000 });
-  assert.ok(await page.locator('a[href="/goods/les-miserables"]').count() >= 1);
+  assert.ok(await page.locator('a[href="/goods/dracula"]').count() >= 1);
 
   await page.goto(`${baseUrl}/contents/genre/exhibition`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "전시/행사 예매", level: 1 }).waitFor({ timeout: 5000 });

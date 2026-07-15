@@ -5,8 +5,8 @@ import { startServer } from "./backend-test-utils.mjs";
 
 const homeVisibleSearchCases = [
   { query: "IU", slug: "iu-world-tour", title: /IU 2026 WORLD TOUR/ },
-  { query: "하데스타운", slug: "hadestown", title: /하데스타운/ },
-  { query: "조성진", slug: "cho-seong-jin", title: /조성진 피아노 리사이틀/ },
+  { query: "베를린필", slug: "berlin-phil", title: /베를린필 내한공연/ },
+  { query: "DAY6", slug: "day6-special-live", title: /DAY6 Special Live/ },
 ];
 
 test("home-visible shows are searchable and link to detail pages", async (t) => {

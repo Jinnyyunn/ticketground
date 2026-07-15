@@ -4,9 +4,9 @@ import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
 
 const expectedPosters = [
-  { title: "레미제라블", slug: "les-miserables", poster: "/images/real-posters/les-miserables-40.jpg" },
   { title: "IU 2026 WORLD TOUR", slug: "iu-world-tour", poster: "/images/real-posters/iu-world-tour.jpg" },
   { title: "뮤지컬 드라큘라", slug: "dracula", poster: "/images/posters/L0000142_p.gif" },
+  { title: "뮤지컬 베토벤", slug: "beethoven", poster: "/images/posters/P0004669_p.gif" },
 ];
 
 test("watchlist cards reuse home and catalog poster images", async (t) => {

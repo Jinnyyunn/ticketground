@@ -31,7 +31,7 @@ test("desktop header places ticket open calendar to the right of resale", async 
 
     assert.ok(resale, `visible resale link missing: ${JSON.stringify(visibleQuickLinks)}`);
     assert.ok(openCalendar, `visible ticket open calendar link missing: ${JSON.stringify(visibleQuickLinks)}`);
-    assert.equal(resale.text, "CLEAN TICKET 재판매");
+    assert.equal(resale.text, "Tig 공식 양도 티켓");
     assert.equal(openCalendar.text, "티켓오픈 캘린더");
     assert.ok(resale.x < openCalendar.x, `expected resale before calendar: ${JSON.stringify(visibleQuickLinks)}`);
 
@@ -149,7 +149,7 @@ test("desktop resale action is visually stronger than ticket open calendar", asy
       };
     });
 
-    assert.equal(actionState.resaleText, "CLEAN TICKET 재판매");
+    assert.equal(actionState.resaleText, "Tig 공식 양도 티켓");
     assert.match(actionState.resaleClass, /bg-accent-2/);
     assert.match(actionState.resaleClass, /text-\[#3A2929\]/);
     assert.notEqual(actionState.resaleBackground, actionState.openBackground);

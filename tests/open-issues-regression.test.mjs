@@ -26,7 +26,7 @@ async function assertHomeDesktopResaleMenu(browser, baseUrl) {
   try {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
 
-    const resaleMenu = page.getByRole("link", { name: "CLEAN TICKET 재판매", exact: true });
+    const resaleMenu = page.locator("nav[aria-label='티켓오픈']").getByRole("link", { name: "Tig 공식 양도 티켓", exact: true });
     await resaleMenu.waitFor({ timeout: 5000 });
     assert.equal(await resaleMenu.count(), 1);
     assert.match(await resaleMenu.first().getAttribute("href"), /\/resale$/);
@@ -42,7 +42,7 @@ async function assertHomeMobileIssueFixes(browser, baseUrl) {
 
     const resaleSection = page.locator('[data-section="official-resale"]');
     await resaleSection.waitFor({ timeout: 5000 });
-    const resaleLink = resaleSection.getByRole("link", { name: "공식 재판매" });
+    const resaleLink = resaleSection.getByRole("link", { name: "Tig 공식 양도 티켓" });
     await resaleLink.waitFor({ timeout: 5000 });
     assert.match(await resaleLink.getAttribute("href"), /\/resale/);
 
@@ -79,7 +79,7 @@ async function assertMypageOfficialResaleAction(browser, baseUrl) {
     await page.goto(`${baseUrl}/mypage`, { waitUntil: "networkidle" });
 
     const main = page.locator("main#content");
-    const resaleLinks = main.getByRole("link", { name: /공식 재판매/ });
+    const resaleLinks = main.getByRole("link", { name: /Tig 공식 양도 티켓/ });
     await resaleLinks.first().waitFor({ timeout: 5000 });
     assert.ok(await resaleLinks.count() >= 2);
     assert.equal(await main.getByRole("link", { name: "양도", exact: true }).count(), 0);

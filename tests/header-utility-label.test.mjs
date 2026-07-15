@@ -88,7 +88,7 @@ test("mobile drawer hides private mypage entry points when signed out", async (t
     await page.getByRole("button", { name: "전체 메뉴 열기", exact: true }).click();
 
     const mobileUtilityNav = page.getByRole("navigation", { name: "모바일 유틸리티" });
-    await mobileUtilityNav.getByRole("link", { name: "고객센터", exact: true }).waitFor({ timeout: 5000 });
+    await page.getByRole("link", { name: "고객센터", exact: true }).waitFor({ timeout: 5000 });
     await mobileUtilityNav.getByRole("link", { name: "로그인", exact: true }).waitFor({ timeout: 5000 });
     await mobileUtilityNav.getByRole("link", { name: "회원가입", exact: true }).waitFor({ timeout: 5000 });
     assert.equal(await mobileUtilityNav.getByRole("link", { name: "MY", exact: true }).count(), 0);

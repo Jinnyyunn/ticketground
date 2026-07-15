@@ -47,6 +47,8 @@ test("home and watchlist pages render smooth-scroll and above-fold image policie
       { fetchPriority: "high", loading: "eager" },
       { fetchPriority: "high", loading: "eager" },
       { fetchPriority: "high", loading: "eager" },
+      { fetchPriority: "high", loading: "eager" },
+      { fetchPriority: "high", loading: "eager" },
     ],
     featuredPreloadExists: true,
     scrollBehavior: "smooth",

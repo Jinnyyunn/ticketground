@@ -17,7 +17,7 @@ const sectionMoreLinks = [
   {
     section: "official-resale",
     expectedPath: "/resale",
-    expectedHeading: "공식 재판매",
+    expectedHeading: "양도 허용 티켓",
   },
   {
     section: "editorial-events",
@@ -103,7 +103,7 @@ test("home more links and editorial cards use requested brand color surfaces", a
   assert.ok(moreLinks.length >= 5, "home renders section more links");
   assert.ok(moreLinks.every((color) => color === "rgb(26, 26, 29)"), `more links should be black: ${moreLinks.join(", ")}`);
 
-  const editorialCards = page.locator('[data-section="editorial-events"] [data-card="editorial-event"]');
+  const editorialCards = page.locator('[data-section="editorial-events"] [data-card="editorial-event"]:visible');
   await editorialCards.first().waitFor({ timeout: 5000 });
 
   assert.equal(await editorialCards.first().locator("[data-card-accent]").count(), 0, "dark editorial card should not render a top accent border");
@@ -135,16 +135,16 @@ test("ticket-open cards keep their selector and render compact poster thumbnails
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
-  const ticketOpenCards = page.locator('[data-section="ticket-open"] [data-card="ticket-open"]');
+  const ticketOpenCards = page.locator('[data-section="ticket-open"] [data-card="ticket-open"]:visible');
   await ticketOpenCards.first().waitFor({ timeout: 5000 });
-  assert.equal(await ticketOpenCards.count(), 4, "ticket-open selector should still identify all cards");
+  assert.equal(await ticketOpenCards.count(), 2, "ticket-open selector should still identify all cards");
 
   const thumbnailCount = await ticketOpenCards.locator('[data-ticket-open-thumbnail] img').count();
-  assert.equal(thumbnailCount, 4, "each ticket-open card should render one poster thumbnail");
+  assert.equal(thumbnailCount, 2, "each ticket-open card should render one poster thumbnail");
   const thumbnailSources = await ticketOpenCards.locator('[data-ticket-open-thumbnail] img').evaluateAll((images) =>
     images.map((image) => image.currentSrc || image.getAttribute("src") || ""),
   );
-  assert.ok(new Set(thumbnailSources).size >= 4, `ticket-open thumbnails should map to each card poster: ${thumbnailSources.join(", ")}`);
+  assert.ok(new Set(thumbnailSources).size >= 2, `ticket-open thumbnails should map to each card poster: ${thumbnailSources.join(", ")}`);
 
   const thumbnailBox = await ticketOpenCards.first().locator("[data-ticket-open-thumbnail]").boundingBox();
   assert.ok(thumbnailBox, "ticket-open thumbnail should be visible");

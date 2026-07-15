@@ -96,8 +96,8 @@ test("login page completes social callback, keeps nickname confirmation visible,
 
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     const googleArea = page.locator("[data-google-client-id]").first();
-    const kakaoLink = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
-    const naverLink = page.getByRole("link", { name: "네이버 계정으로 로그인하기", exact: true });
+    const kakaoLink = page.getByRole("link", { name: "카카오톡으로 계속하기", exact: true });
+    const naverLink = page.getByRole("link", { name: "네이버로 계속하기", exact: true });
     assert.equal(await kakaoLink.getAttribute("href"), "/api/auth/kakao/start");
     assert.equal(await naverLink.getAttribute("href"), "/api/auth/naver/start");
     assert.equal(await kakaoLink.locator("svg circle").getAttribute("fill"), "#FFDE32");
@@ -123,12 +123,13 @@ test("local preview Kakao and Naver buttons complete QA mock sessions without ex
 
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   try {
+    const providerLabels = { 카카오톡: "카카오톡으로 계속하기", 네이버: "네이버로 계속하기" };
     for (const providerName of ["카카오톡", "네이버"]) {
       await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
       await page.evaluate(() => window.localStorage.clear());
       await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
 
-      const button = page.getByRole("button", { name: `${providerName} 계정으로 로그인하기`, exact: true });
+      const button = page.getByRole("button", { name: providerLabels[providerName], exact: true });
       await button.waitFor({ timeout: 5000 });
       assert.equal(await button.getAttribute("data-social-ready"), "mock");
       await button.click();
@@ -162,7 +163,7 @@ test("unauthenticated login page waits for an explicit login action before showi
               element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
-              button.textContent = "Google 계정으로 로그인하기";
+              button.textContent = "Google로 계속하기";
               button.addEventListener("click", () => {
                 window.__ticketgroundGoogleCallback?.({ credential: "ticketground-google-test-credential" });
               });
@@ -178,7 +179,7 @@ test("unauthenticated login page waits for an explicit login action before showi
 
     assert.equal(await page.getByText("Google 인증 또는 데모 계정").count(), 0);
     assert.equal(await page.getByText("회원 기능 미리보기", { exact: true }).count(), 0);
-    assert.equal(await page.getByText("공식 재판매 풀", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("Tig 공식 양도 티켓 풀", { exact: true }).count(), 0);
     assert.equal(await page.getByText("세션 상태", { exact: true }).count(), 0);
     assert.equal(await page.getByText("로그인 또는 회원가입을 진행해 주세요", { exact: true }).count(), 0);
 
@@ -189,7 +190,7 @@ test("unauthenticated login page waits for an explicit login action before showi
     assert.equal(await page.getByPlaceholder("qa@ticketground.kr").count(), 0);
     assert.equal(await page.getByRole("button", { name: "mock 로그인 확인" }).count(), 0);
 
-    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByRole("button", { name: "Google로 계속하기", exact: true }).click();
     await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
     assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "google_user_test");
   } finally {

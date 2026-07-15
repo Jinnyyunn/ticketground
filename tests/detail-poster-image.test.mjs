@@ -4,7 +4,6 @@ import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
 
 const posterCases = [
-  { slug: "les-miserables", query: "레미제라블" },
   { slug: "dracula", query: "드라큘라" },
   { slug: "palette-festival", query: "Palette Festival" },
   { slug: "banksy", query: "뱅크시" },

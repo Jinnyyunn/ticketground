@@ -21,7 +21,7 @@ async function resolveBaseUrl(t) {
 async function assertDesktopTabFiltering(browser, baseUrl) {
   const page = await browser.newPage({ viewport: { width: 1293, height: 1043 }, deviceScaleFactor: 1 });
   try {
-    await page.goto(`${baseUrl}/contents/search?q=${encodeURIComponent("레미제라블")}`, { waitUntil: "networkidle" });
+    await page.goto(`${baseUrl}/contents/search?q=${encodeURIComponent("드라큘라")}`, { waitUntil: "networkidle" });
 
     const allTab = page.getByRole("tab", { name: "전체", exact: true });
     await allTab.waitFor({ timeout: 5000 });
@@ -32,22 +32,22 @@ async function assertDesktopTabFiltering(browser, baseUrl) {
     await showTab.click();
     assert.equal(await showTab.getAttribute("aria-selected"), "true");
     assert.match(await resultCount(page), /총 1개 공연 결과/);
-    assert.ok(await page.getByRole("heading", { name: /레미제라블 40주년/ }).count() >= 1);
+    assert.ok(await page.getByRole("heading", { name: /드라큘라/ }).count() >= 1);
 
     const artistTab = page.getByRole("tab", { name: "아티스트", exact: true });
     await artistTab.click();
     assert.equal(await artistTab.getAttribute("aria-selected"), "true");
-    assert.match(await emptyCopy(page), /"레미제라블"에 대한 아티스트 결과가 없습니다\./);
+    assert.match(await emptyCopy(page), /"드라큘라"에 대한 아티스트 결과가 없습니다\./);
 
     const venueTab = page.getByRole("tab", { name: "장소", exact: true });
     await venueTab.click();
     assert.equal(await venueTab.getAttribute("aria-selected"), "true");
-    assert.match(await emptyCopy(page), /"레미제라블"에 대한 장소 결과가 없습니다\./);
+    assert.match(await emptyCopy(page), /"드라큘라"에 대한 장소 결과가 없습니다\./);
 
     const collectionTab = page.getByRole("tab", { name: "기획전", exact: true });
     await collectionTab.click();
     assert.equal(await collectionTab.getAttribute("aria-selected"), "true");
-    assert.match(await emptyCopy(page), /"레미제라블"에 대한 기획전 결과가 없습니다\./);
+    assert.match(await emptyCopy(page), /"드라큘라"에 대한 기획전 결과가 없습니다\./);
   } finally {
     await page.close();
   }
@@ -56,7 +56,7 @@ async function assertDesktopTabFiltering(browser, baseUrl) {
 async function assertArtistTabFiltering(browser, baseUrl) {
   const page = await browser.newPage({ viewport: { width: 1024, height: 900 }, deviceScaleFactor: 1 });
   try {
-    await page.goto(`${baseUrl}/contents/search?q=${encodeURIComponent("민우혁")}`, { waitUntil: "networkidle" });
+    await page.goto(`${baseUrl}/contents/search?q=${encodeURIComponent("김준수")}`, { waitUntil: "networkidle" });
 
     assert.match(await resultCount(page), /총 0개 전체 결과/);
     const artistTab = page.getByRole("tab", { name: "아티스트", exact: true });
@@ -64,7 +64,7 @@ async function assertArtistTabFiltering(browser, baseUrl) {
     await waitForSelected(page, "아티스트");
     assert.equal(await artistTab.getAttribute("aria-selected"), "true");
     assert.match(await resultCount(page), /총 1개 아티스트 결과/);
-    assert.ok(await page.getByRole("heading", { name: /레미제라블 40주년/ }).count() >= 1);
+    assert.ok(await page.getByRole("heading", { name: /드라큘라/ }).count() >= 1);
   } finally {
     await page.close();
   }
@@ -88,7 +88,7 @@ async function assertMobileTouchArea(browser, baseUrl) {
     await venueTab.tap();
     await waitForSelected(page, "장소");
     assert.equal(await venueTab.getAttribute("aria-selected"), "true");
-    assert.match(await resultCount(page), /총 2개 장소 결과/);
+    assert.match(await resultCount(page), /총 1개 장소 결과/);
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 1, `mobile search page overflows horizontally by ${overflow}px`);

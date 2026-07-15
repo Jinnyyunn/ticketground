@@ -61,8 +61,8 @@ test("local preview Google button completes a QA mock session even when a client
   try {
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
 
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
-    await googleButton.waitFor({ timeout: 5000 });
+    await page.locator("[data-google-ready='mock']").waitFor({ timeout: 5000 });
+    const googleButton = page.getByRole("button", { name: "Google로 계속하기", exact: true });
     assert.equal(await googleButton.getAttribute("data-google-ready"), "mock");
     assert.equal(await googleButton.getAttribute("data-google-origin-supported"), "mock");
     await googleButton.click();
@@ -110,13 +110,13 @@ test("login page renders Google Identity Services wiring as a social-only button
     await googleArea.waitFor({ timeout: 5000 });
     await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
     assert.equal(await googleArea.getAttribute("data-google-scope"), "openid email profile");
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
+    const googleButton = page.getByRole("button", { name: "Google로 계속하기", exact: true });
     assert.ok(await googleButton.isVisible(), "Ticketground custom Google button should stay visible after GIS is ready");
     assert.equal(await page.getByRole("button", { name: "Sign in with Google", exact: true }).count(), 0);
     assert.ok(await googleArea.locator("svg").first().isVisible());
     assert.equal(await page.getByText("이메일과 프로필 확인 범위만 요청합니다.").count(), 0);
     assert.equal(await page.getByText("Google 버튼 로드 중").count(), 0);
-    const kakaoButton = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
+    const kakaoButton = page.getByRole("link", { name: "카카오톡으로 계속하기", exact: true });
     const googleBox = await googleButton.boundingBox();
     const kakaoBox = await kakaoButton.boundingBox();
     assert.ok(googleBox, "Google login control has a rendered box");
@@ -185,7 +185,7 @@ test("login page does not request Google Identity Services from unsupported prev
     await googleArea.waitFor({ timeout: 5000 });
     await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
     assert.equal(await googleArea.locator("svg path[fill='#4285F4']").count(), 1);
-    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByRole("button", { name: "Google로 계속하기", exact: true }).click();
     await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
 
     assert.equal(requestedGoogleScript, false);
@@ -222,7 +222,7 @@ test("login page does not assume localhost is Google-authorized without an expli
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
     assert.equal(await page.locator("[data-google-origin-supported='false'] svg path[fill='#4285F4']").count(), 1);
-    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByRole("button", { name: "Google로 계속하기", exact: true }).click();
     await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
 
     assert.equal(requestedGoogleScript, false);
@@ -254,7 +254,7 @@ test("login page initializes Google Identity Services only once in a browser ses
               element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
-              button.textContent = "Google 계정으로 로그인하기";
+              button.textContent = "Google로 계속하기";
               button.addEventListener("click", () => {
                 window.__ticketgroundGoogleCalls.credential += 1;
                 window.__ticketgroundGoogleCallback?.({ credential: "ticketground-google-test-credential" });
