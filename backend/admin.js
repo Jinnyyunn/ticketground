@@ -128,6 +128,7 @@ function normalizePageOptions(options) {
 }
 
 function withinDateRange(value, { from, to }) {
+  if (!from && !to) return true;
   if (!value) return false;
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return false;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, startServer } from "./backend-test-utils.mjs";
+import { adminApi, api, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
 
 test("public server serves the Next frontend and backend API on one port", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -95,6 +95,32 @@ test("public demo session supports login profile lookup and nickname update with
     name: "1234567890123"
   }, 422);
   assert.equal(longName.error.code, "INVALID_PROFILE_NAME");
+});
+
+test("direct transfer attempt rejects spoofed actors without penalizing the victim", async (t) => {
+  // Given: the demo owner has a ticket and another existing user starts with a clean trust profile.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const before = await adminApi(server, "/api/admin/workspaces/accounts?search=user_fan_b");
+  const victimBefore = before.data.users.find((user) => user.id === "user_fan_b");
+  assert.equal(victimBefore.trustScore, 88);
+  assert.equal(victimBefore.sanctions.length, 0);
+
+  // When: a caller tries to put that other user's id into the actor field.
+  const rejected = await api(server.baseUrl, "/api/security/direct-transfer-attempt", {
+    actorId: "user_fan_b",
+    ticketId: ticket.id,
+    targetUserId: "user_fan_a",
+    offeredPrice: 2000
+  }, 403);
+
+  // Then: the endpoint rejects the spoof and leaves the victim's reputation untouched.
+  assert.equal(rejected.error.code, "TICKET_OWNER_MISMATCH");
+  const after = await adminApi(server, "/api/admin/workspaces/accounts?search=user_fan_b");
+  const victimAfter = after.data.users.find((user) => user.id === "user_fan_b");
+  assert.equal(victimAfter.trustScore, 88);
+  assert.equal(victimAfter.status, "ACTIVE");
+  assert.equal(victimAfter.sanctions.length, 0);
 });
 
 test("public validation rejects malformed watchlist and support requests", async (t) => {

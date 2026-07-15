@@ -255,6 +255,12 @@ export function createCommerceBackend({
     const actor = findUser(db, actorId);
     const ticket = db.tickets.find((item) => item.id === ticketId);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
+    if (ticket.ownerId !== actor.id) {
+      throw httpError(403, "TICKET_OWNER_MISMATCH", "본인이 소유한 티켓에 대해서만 직접 양도 검증을 요청할 수 있습니다.", {
+        actorId: actor.id,
+        ticketId: ticket.id
+      });
+    }
 
     actor.trustScore = Math.max(0, actor.trustScore - 18);
     actor.status = actor.trustScore < 40 ? "WATCHLIST" : actor.status;
