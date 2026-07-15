@@ -1,6 +1,28 @@
 import XCTest
 @testable import TicketGroundApp
 
+private final class LiveAPIURLProtocol: URLProtocol {
+    static var responseData = Data()
+    static var statusCode = 200
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "http://localhost")!,
+            statusCode: Self.statusCode,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        ) else { return }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.responseData)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 final class AppEnvironmentTests: XCTestCase {
     func testColdStartAndRouteRestore() {
         let credentials = InMemoryCredentialStore()
@@ -47,5 +69,25 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(Set(routes.map(\.id)).count, routes.count)
         XCTAssertNil(RouteResolver.resolve(path: "/admin"))
         XCTAssertNil(RouteResolver.resolve(path: "/contents/genre/"))
+    }
+
+    func testLiveAPIClientUnwrapsBackendEnvelope() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        LiveAPIURLProtocol.responseData = Data(#"{"ok":true,"data":{"total":3}}"#.utf8)
+        LiveAPIURLProtocol.statusCode = 200
+
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: session
+        )
+
+        let response = try await client.data(for: "/api/catalog")
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response) as? [String: Int])
+        XCTAssertEqual(object["total"], 3)
+        XCTAssertEqual(client.resolveResource("/assets/poster.jpg"), "http://127.0.0.1:4173/assets/poster.jpg")
     }
 }

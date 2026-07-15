@@ -25,6 +25,14 @@ enum FixtureScenario: String {
         return FixtureScenario(rawValue: arguments[index + 1]) ?? .malformed
     }
 
+    static var isFixtureMode: Bool {
+        guard let index = ProcessInfo.processInfo.arguments.firstIndex(of: "-api-mode"),
+              ProcessInfo.processInfo.arguments.indices.contains(index + 1) else {
+            return false
+        }
+        return ProcessInfo.processInfo.arguments[index + 1] == "fixture"
+    }
+
     static var reduceMotionRequested: Bool {
         ProcessInfo.processInfo.arguments.contains("-reduce-motion")
     }

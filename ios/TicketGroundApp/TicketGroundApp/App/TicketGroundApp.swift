@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct TicketGroundApp: App {
-    @State private var container = AppContainer.fixture()
+    @State private var container = AppContainer.configured()
 
     var body: some Scene {
         WindowGroup {

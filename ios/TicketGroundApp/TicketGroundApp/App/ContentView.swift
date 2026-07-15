@@ -4,38 +4,97 @@ struct ContentView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedTab: TicketgroundTab = .home
+    @State private var discoveryContent: DiscoveryContent?
+    @State private var discoveryLoadFailed = false
 
     var body: some View {
         @Bindable var container = container
         let scenario = FixtureScenario.current
         NavigationStack(path: $container.navigationPath) {
-            VStack(spacing: 0) {
-                SiteHeader()
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                if reduceMotion || FixtureScenario.reduceMotionRequested {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityIdentifier("reduced-motion-safe")
+                }
+                SiteHeader(
+                    onSearch: { container.navigationPath.append(.search) }
+                )
+                    .containerRelativeFrame(.horizontal)
                 ScrollView {
                     VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                        Text("공연을 발견하고, 예매하고, 안전하게 관리하세요.")
-                            .font(.title3)
-                            .foregroundStyle(TicketgroundColor.inkSecondary)
-                        Text("데이터 모드: \(container.environment.mode.rawValue)")
-                            .font(.caption)
-                            .foregroundStyle(TicketgroundColor.inkMuted)
-                        Text(scenario.statusText)
-                            .font(.headline)
-                            .foregroundStyle(TicketgroundColor.ink)
-                            .accessibilityIdentifier("fixture-state-\(scenario.rawValue)")
-                        stateSurface(for: scenario)
-                    }
+                        if scenario == .happy {
+                            if let discoveryContent {
+                                DiscoveryHomeView(content: discoveryContent)
+                            } else if discoveryLoadFailed {
+                                TicketgroundErrorSurface(
+                                    title: "콘텐츠를 불러올 수 없습니다",
+                                    message: "번들 discovery fixture를 확인해 주세요.",
+                                    actionTitle: "다시 시도",
+                                    action: { discoveryLoadFailed = false }
+                                )
+                            } else {
+                                TicketgroundLoadingSurface(title: "공연 콘텐츠를 불러오는 중")
+                            }
+                        } else {
+                            Text("공연을 발견하고, 예매하고, 안전하게 관리하세요.")
+                                .font(.title3)
+                                .foregroundStyle(TicketgroundColor.inkSecondary)
+                            Text("데이터 모드: \(container.environment.mode.rawValue)")
+                                .font(.caption)
+                                .foregroundStyle(TicketgroundColor.inkMuted)
+                            Text(scenario.statusText)
+                                .font(.headline)
+                                .foregroundStyle(TicketgroundColor.ink)
+                                .accessibilityIdentifier("fixture-state-\(scenario.rawValue)")
+                            stateSurface(for: scenario)
+                            if scenario == .empty {
+                                DiscoveryEmptyCalendarView(action: { container.navigationPath.removeAll() })
+                            }
+                        }
+                        }
+                    .padding(.horizontal, TicketgroundSpacing.lg)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(TicketgroundSpacing.xl)
-                    .accessibilityIdentifier("screen-ready-home")
                 }
-                TicketgroundBottomNavigation(selectedTab: $selectedTab)
+                .containerRelativeFrame(.horizontal)
             }
-            .accessibilityIdentifier(reduceMotion || FixtureScenario.reduceMotionRequested ? "reduced-motion-safe" : "shell-root")
+            .overlay(alignment: .bottom) {
+                TicketgroundBottomNavigation(
+                    selectedTab: $selectedTab,
+                    visuallyHidden: scenario == .happy,
+                    onSelect: { tab in
+                        switch tab {
+                        case .home:
+                            container.navigationPath.removeAll()
+                        case .search:
+                            container.navigationPath.append(.search)
+                        case .watchlist:
+                            container.navigationPath.append(.watchlist)
+                        case .mypage:
+                            container.navigationPath.append(.mypage)
+                        }
+                    }
+                )
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: AppRoute.self) { route in
-                Text(route.id)
-                    .navigationTitle(route.id)
+                DiscoveryRouteView(route: route, content: discoveryContent)
+            }
+            .background(TicketgroundColor.surface.ignoresSafeArea())
+            .frame(width: geometry.size.width)
+            }
+        }
+        .task {
+            guard discoveryContent == nil, !discoveryLoadFailed else { return }
+            do {
+                if container.environment.mode == .fixture {
+                    discoveryContent = try DiscoveryFixtureLoader.load()
+                } else {
+                    discoveryContent = try await DiscoveryFixtureLoader.load(using: container.environment.apiClient)
+                }
+            } catch {
+                discoveryLoadFailed = true
             }
         }
     }

@@ -1,0 +1,75 @@
+{
+  "contractId": "ticketground-native-ios-discovery-v1",
+  "fixtureId": "virtual-discovery-001",
+  "mode": "virtual",
+  "source": "fixture-only",
+  "live": false,
+  "deterministic": true,
+  "status": 200,
+  "body": {
+    "categories": [
+      { "label": "홈", "systemImage": "house.fill", "route": "/" },
+      { "label": "콘서트", "systemImage": "music.mic", "route": "/contents/genre/concert" },
+      { "label": "뮤지컬", "systemImage": "theatermasks.fill", "route": "/contents/genre/musical" },
+      { "label": "연극", "systemImage": "person.2.fill", "route": "/contents/genre/play" },
+      { "label": "클래식", "systemImage": "pianokeys", "route": "/contents/genre/classic" },
+      { "label": "전시", "systemImage": "photo.artframe", "route": "/contents/genre/exhibition" },
+      { "label": "아동", "systemImage": "figure.2.and.child.holdinghands", "route": "/contents/genre/child" },
+      { "label": "스포츠", "systemImage": "sportscourt.fill", "route": "/contents/genre/sports" },
+      { "label": "티켓 양도", "systemImage": "arrow.left.arrow.right", "route": "/resale" },
+      { "label": "캘린더", "systemImage": "calendar", "route": "/open" }
+    ],
+    "featured": {
+      "title": "IU 2026 WORLD TOUR",
+      "eyebrow": "FEATURED",
+      "venue": "잠실종합운동장 주경기장",
+      "date": "2026.09.12 ~ 2026.09.13",
+      "cta": "예매하기",
+      "route": "/queue/iu-world-tour",
+      "imageResource": "iu-world-tour"
+    },
+    "supporting": [
+      {
+        "title": "베를린필 내한공연",
+        "eyebrow": "CLASSIC",
+        "venue": "예술의전당 콘서트홀",
+        "date": "2026.10.21",
+        "cta": "알림받기",
+        "route": "/goods/berlin-phil",
+        "imageResource": "berlin-phil"
+      }
+    ],
+    "rankings": [
+      { "rank": 1, "title": "IU 2026 WORLD TOUR", "genre": "콘서트", "venue": "잠실종합운동장", "date": "2026.09.12", "movement": "up", "delta": "2", "route": "/goods/iu-world-tour", "imageResource": "iu-world-tour" },
+      { "rank": 2, "title": "SEVENTEEN TOUR", "genre": "콘서트", "venue": "고척스카이돔", "date": "2026.08.08", "movement": "up", "delta": "1", "route": "/goods/seventeen-tour", "imageResource": "seventeen-tour" },
+      { "rank": 3, "title": "베를린필 내한공연", "genre": "클래식", "venue": "예술의전당", "date": "2026.10.21", "movement": "up", "delta": "4", "route": "/goods/berlin-phil", "imageResource": "berlin-phil" },
+      { "rank": 4, "title": "NCT WISH FANMEETING", "genre": "콘서트", "venue": "KSPO DOME", "date": "2026.07.25", "movement": "same", "delta": "-", "route": "/goods/nct-wish-fanmeeting", "imageResource": "nct-wish" },
+      { "rank": 5, "title": "오페라의 유령", "genre": "뮤지컬", "venue": "세종문화회관", "date": "2026.06.30", "movement": "down", "delta": "2", "route": "/goods/phantom-of-the-opera", "imageResource": "phantom-of-the-opera" },
+      { "rank": 6, "title": "DAY6 Special Live", "genre": "콘서트", "venue": "인스파이어 아레나", "date": "2026.08.29", "movement": "same", "delta": "-", "route": "/goods/day6-special-live" },
+      { "rank": 7, "title": "드라큘라", "genre": "뮤지컬", "venue": "LG아트센터", "date": "2026.07.10", "movement": "up", "delta": "3", "route": "/goods/dracula" },
+      { "rank": 8, "title": "뮤지컬 베토벤", "genre": "뮤지컬", "venue": "세종문화회관", "date": "2026.06.18", "movement": "same", "delta": "-", "route": "/goods/beethoven" },
+      { "rank": 9, "title": "연극 벚꽃동산", "genre": "연극", "venue": "대학로예술극장", "date": "2026.08.06", "movement": "down", "delta": "1", "route": "/goods/cherry-orchard" },
+      { "rank": 10, "title": "백건우와 라벨", "genre": "클래식", "venue": "통영국제음악당", "date": "2026.09.04", "movement": "up", "delta": "2", "route": "/goods/kun-woo-paik-ravel" }
+    ],
+    "openingSoon": [
+      { "month": "7", "day": "1", "time": "20:00", "title": "SEVENTEEN TOUR 고척", "round": "팬클럽 선예매", "dday": "D-3", "genre": "콘서트", "route": "/open", "alertRoute": "/watchlist" },
+      { "month": "7", "day": "5", "time": "12:00", "title": "베를린필 내한공연", "round": "일반예매", "dday": "D-7", "genre": "클래식", "route": "/open", "alertRoute": "/watchlist" },
+      { "month": "7", "day": "10", "time": "19:30", "title": "IU 2026 WORLD TOUR", "round": "일반예매", "dday": "D-10", "genre": "콘서트", "route": "/open", "alertRoute": "/watchlist" },
+      { "month": "7", "day": "15", "time": "14:00", "title": "레미제라블 40주년", "round": "일반예매", "dday": "D-15", "genre": "뮤지컬", "route": "/open", "alertRoute": "/watchlist" }
+    ],
+    "shortcuts": [
+      { "label": "지방 공연", "helper": "부산·대구·광주", "route": "/contents/region" },
+      { "label": "대학로", "helper": "소극장 신작", "route": "/contents/genre/musical" },
+      { "label": "양도", "helper": "공식 풀 거래", "route": "/resale" },
+      { "label": "VIP석", "helper": "등급별 보기", "route": "/contents/ranking" },
+      { "label": "오픈캘린더", "helper": "D-3 알림", "route": "/open" },
+      { "label": "당일 공연", "helper": "오늘 입장 가능", "route": "/contents/search" }
+    ],
+    "calendar": [
+      { "day": 1, "title": "SEVENTEEN TOUR 고척", "genre": "콘서트", "openingStatus": "팬클럽 선예매", "route": "/open" },
+      { "day": 5, "title": "베를린필 내한공연", "genre": "클래식", "openingStatus": "일반예매", "route": "/open" },
+      { "day": 10, "title": "IU 2026 WORLD TOUR", "genre": "콘서트", "openingStatus": "일반예매", "route": "/goods/iu-world-tour" },
+      { "day": 15, "title": "레미제라블 40주년", "genre": "뮤지컬", "openingStatus": "일반예매", "route": "/goods/les-miserables" }
+    ]
+  }
+}

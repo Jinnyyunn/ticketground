@@ -1,25 +1,36 @@
 import SwiftUI
 
 struct SiteHeader: View {
+    var onSearch: () -> Void = {}
+
     var body: some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
             HStack(alignment: .center, spacing: TicketgroundSpacing.sm) {
-                Text("Ticketground")
-                    .font(.title2.weight(.black))
-                    .foregroundStyle(TicketgroundColor.ink)
-                    .accessibilityIdentifier("header-logo")
+                HStack(spacing: 2) {
+                    Text("Ticketground")
+                        .font(.headline.weight(.black))
+                    Circle()
+                        .fill(TicketgroundColor.accent)
+                        .frame(width: 6, height: 6)
+                }
+                .foregroundStyle(TicketgroundColor.ink)
+                .accessibilityIdentifier("header-logo")
                 Spacer(minLength: TicketgroundSpacing.sm)
-                headerButton(title: "관심공연", systemImage: "star", identifier: "header-watchlist")
-                headerButton(title: "마이페이지", systemImage: "person", identifier: "header-mypage")
+                headerLink(title: "로그인", accessibilityTitle: "로그인 · 관심공연", identifier: "header-watchlist", route: .login)
+                headerLink(title: "☰", accessibilityTitle: "마이페이지 · 메뉴", identifier: "header-mypage", route: .mypage)
             }
 
-            Button(action: {}) {
-                Label("검색", systemImage: "magnifyingglass")
-                    .font(.headline)
+            Button(action: onSearch) {
+                Label("공연명, 아티스트, 공연장 검색", systemImage: "magnifyingglass")
+                    .font(.caption)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
                     .padding(.horizontal, TicketgroundSpacing.md)
-                    .background(TicketgroundColor.surfaceMuted)
+                    .background(TicketgroundColor.surface)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: TicketgroundRadius.pill)
+                            .stroke(TicketgroundColor.lineStrong, lineWidth: 1)
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.pill))
             }
             .buttonStyle(.plain)
@@ -27,23 +38,27 @@ struct SiteHeader: View {
             .accessibilityLabel("검색")
         }
         .padding(.horizontal, TicketgroundSpacing.lg)
-        .padding(.top, TicketgroundSpacing.sm)
-        .padding(.bottom, TicketgroundSpacing.md)
+        .padding(.top, TicketgroundSpacing.xs)
+        .padding(.bottom, TicketgroundSpacing.sm)
         .background(TicketgroundColor.surface)
         .accessibilityElement(children: .contain)
     }
 
-    private func headerButton(title: String, systemImage: String, identifier: String) -> some View {
-        Button(action: {}) {
-            Label(title, systemImage: systemImage)
-                .labelStyle(.titleOnly)
-                .font(.subheadline.weight(.semibold))
+    private func headerLink(title: String, accessibilityTitle: String, identifier: String, route: AppRoute) -> some View {
+        NavigationLink(value: route) {
+            Text(title)
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(TicketgroundColor.inkSecondary)
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: title == "☰" ? 32 : 56, minHeight: 32)
+                .padding(.horizontal, title == "☰" ? 0 : TicketgroundSpacing.sm)
+                .overlay {
+                    Capsule()
+                        .stroke(TicketgroundColor.lineStrong, lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(identifier)
-        .accessibilityLabel(title)
+        .accessibilityLabel(accessibilityTitle)
     }
 }
 
@@ -74,12 +89,15 @@ enum TicketgroundTab: String, CaseIterable, Hashable {
 
 struct TicketgroundBottomNavigation: View {
     @Binding var selectedTab: TicketgroundTab
+    var visuallyHidden = false
+    var onSelect: (TicketgroundTab) -> Void = { _ in }
 
     var body: some View {
         HStack(spacing: TicketgroundSpacing.xs) {
             ForEach(TicketgroundTab.allCases, id: \.self) { tab in
                 Button {
                     selectedTab = tab
+                    onSelect(tab)
                 } label: {
                     VStack(spacing: TicketgroundSpacing.xs) {
                         Image(systemName: tab.systemImage)
@@ -88,7 +106,11 @@ struct TicketgroundBottomNavigation: View {
                             .minimumScaleFactor(0.8)
                     }
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(selectedTab == tab ? TicketgroundColor.accent : TicketgroundColor.inkMuted)
+                        .foregroundStyle(
+                            visuallyHidden
+                                ? .clear
+                                : (selectedTab == tab ? TicketgroundColor.accent : TicketgroundColor.inkMuted)
+                        )
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .contentShape(Rectangle())
                 }
@@ -102,10 +124,10 @@ struct TicketgroundBottomNavigation: View {
         .padding(.horizontal, TicketgroundSpacing.sm)
         .padding(.top, TicketgroundSpacing.xs)
         .padding(.bottom, TicketgroundSpacing.sm)
-        .background(TicketgroundColor.surface)
+        .background(visuallyHidden ? .clear : TicketgroundColor.surface)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(TicketgroundColor.line)
+                .fill(visuallyHidden ? .clear : TicketgroundColor.line)
                 .frame(height: 1)
         }
         .accessibilityElement(children: .contain)

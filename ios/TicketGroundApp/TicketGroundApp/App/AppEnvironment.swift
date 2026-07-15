@@ -107,10 +107,25 @@ struct RouteResolver {
 protocol APIClient: AnyObject {
     var mode: APIDataMode { get }
     func data(for path: String) async throws -> Data
+    func resolveResource(_ reference: String?) -> String?
 }
 
-enum APIClientError: Error, Equatable {
+enum APIClientError: Error, Equatable, LocalizedError {
     case liveTransportUnavailable
+    case invalidBaseURL
+    case invalidResponse
+    case server(status: Int, code: String, message: String)
+    case requestFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .liveTransportUnavailable: return "라이브 API 전송이 준비되지 않았습니다."
+        case .invalidBaseURL: return "API 서버 주소가 올바르지 않습니다."
+        case .invalidResponse: return "API 응답 형식을 확인할 수 없습니다."
+        case .server(_, _, let message): return message
+        case .requestFailed(let message): return message
+        }
+    }
 }
 
 final class FixtureAPIClient: APIClient {
@@ -119,6 +134,10 @@ final class FixtureAPIClient: APIClient {
     func data(for path: String) async throws -> Data {
         Data("{}".utf8)
     }
+
+    func resolveResource(_ reference: String?) -> String? {
+        reference
+    }
 }
 
 final class DisabledLiveAPIClient: APIClient {
@@ -126,6 +145,91 @@ final class DisabledLiveAPIClient: APIClient {
 
     func data(for path: String) async throws -> Data {
         throw APIClientError.liveTransportUnavailable
+    }
+
+    func resolveResource(_ reference: String?) -> String? {
+        reference
+    }
+}
+
+final class LiveAPIClient: APIClient {
+    let mode: APIDataMode = .live
+
+    private let baseURL: URL
+    private let assetBaseURL: URL
+    private let credentialStore: CredentialStore
+    private let session: URLSession
+
+    init(
+        baseURL: URL,
+        assetBaseURL: URL,
+        credentialStore: CredentialStore,
+        session: URLSession = .shared
+    ) {
+        self.baseURL = baseURL
+        self.assetBaseURL = assetBaseURL
+        self.credentialStore = credentialStore
+        self.session = session
+    }
+
+    func data(for path: String) async throws -> Data {
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
+            throw APIClientError.invalidBaseURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token = credentialStore.read(), !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIClientError.invalidResponse
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw serverError(from: data, status: httpResponse.statusCode)
+            }
+            return try unwrap(data)
+        } catch let error as APIClientError {
+            throw error
+        } catch {
+            throw APIClientError.requestFailed(error.localizedDescription)
+        }
+    }
+
+    func resolveResource(_ reference: String?) -> String? {
+        guard let reference, !reference.isEmpty else { return nil }
+        if let absolute = URL(string: reference), absolute.scheme != nil {
+            return absolute.absoluteString
+        }
+        return URL(string: reference, relativeTo: assetBaseURL)?.absoluteURL.absoluteString
+    }
+
+    private func unwrap(_ data: Data) throws -> Data {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let ok = object["ok"] as? Bool else {
+            throw APIClientError.invalidResponse
+        }
+        if !ok {
+            throw serverError(from: data, status: 200)
+        }
+        guard let body = object["data"] else {
+            return Data("null".utf8)
+        }
+        return try JSONSerialization.data(withJSONObject: body)
+    }
+
+    private func serverError(from data: Data, status: Int) -> APIClientError {
+        let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        let error = payload?["error"] as? [String: Any]
+        return .server(
+            status: status,
+            code: error?["code"] as? String ?? "API_ERROR",
+            message: error?["message"] as? String ?? "서버 요청에 실패했습니다."
+        )
     }
 }
 
@@ -265,12 +369,56 @@ final class AppContainer {
         ))
     }
 
-    static func live(credentialStore: CredentialStore = KeychainCredentialStore()) -> AppContainer {
+    static func live(
+        baseURL: URL = URL(string: "http://132.145.109.87:4174/")!,
+        assetBaseURL: URL = URL(string: "http://132.145.109.87:4173/")!,
+        credentialStore: CredentialStore = KeychainCredentialStore()
+    ) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: credentialStore)
         return AppContainer(environment: AppEnvironment(
             mode: .live,
-            apiClient: DisabledLiveAPIClient(),
+            apiClient: LiveAPIClient(
+                baseURL: baseURL,
+                assetBaseURL: assetBaseURL,
+                credentialStore: credentialStore
+            ),
             sessionStore: sessionStore
         ))
+    }
+
+    static func configured() -> AppContainer {
+        if FixtureScenario.isFixtureMode {
+            return fixture()
+        }
+        let apiURL = RuntimeConfiguration.apiBaseURL
+        return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL(for: apiURL))
+    }
+}
+
+enum RuntimeConfiguration {
+    static var apiBaseURL: URL {
+        URL(string: value(for: "TICKETGROUND_API_BASE_URL") ?? "http://132.145.109.87:4174/")!
+    }
+
+    static func assetBaseURL(for apiURL: URL) -> URL {
+        if let configured = value(for: "TICKETGROUND_ASSET_BASE_URL"), let url = URL(string: configured) {
+            return url
+        }
+        guard var components = URLComponents(url: apiURL, resolvingAgainstBaseURL: false), components.port == 4174 else {
+            return apiURL
+        }
+        components.port = 4173
+        return components.url ?? apiURL
+    }
+
+    private static func value(for key: String) -> String? {
+        if let environmentValue = ProcessInfo.processInfo.environment[key], !environmentValue.isEmpty {
+            return environmentValue
+        }
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-\(key)"), arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return arguments[index + 1]
     }
 }
