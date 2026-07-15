@@ -121,6 +121,183 @@ function eventPickerSummary(db, event) {
   };
 }
 
+function normalizePageOptions(options) {
+  const page = Math.max(1, Number.parseInt(String(options.page || "1"), 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(String(options.limit || "50"), 10) || 50));
+  return { page, limit };
+}
+
+function withinDateRange(value, { from, to }) {
+  if (!value) return false;
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) return false;
+  const fromTime = from ? Date.parse(from) : null;
+  const toTime = to ? Date.parse(to) : null;
+  return (fromTime === null || time >= fromTime) && (toTime === null || time <= toTime);
+}
+
+function pageSlice(items, options) {
+  const { page, limit } = normalizePageOptions(options);
+  const start = (page - 1) * limit;
+  return {
+    items: items.slice(start, start + limit),
+    page: {
+      page,
+      limit,
+      total: items.length,
+      hasNext: start + limit < items.length,
+      hasPrevious: page > 1
+    }
+  };
+}
+
+function ticketEventMaps(db) {
+  const eventsById = new Map(db.events.map((event) => [event.id, event]));
+  const ticketsById = new Map(db.tickets.map((ticket) => [ticket.id, ticket]));
+  return { eventsById, ticketsById };
+}
+
+function paymentTransactionDto(transaction, maps) {
+  const ticket = maps.ticketsById.get(transaction.ticketId);
+  const event = ticket ? maps.eventsById.get(ticket.eventId) : null;
+  return {
+    ...transaction,
+    eventId: event?.id || null,
+    eventTitle: event?.title || null,
+    seatLabel: ticket?.seatLabel || null,
+    platformFee: transaction.platformFee || 0,
+    transferAmount: transaction.transferAmount || 0
+  };
+}
+
+function supportMessageDto(message) {
+  return {
+    id: message.id,
+    actorId: message.actorId,
+    role: message.role || "CUSTOMER",
+    body: message.body || message.message || "",
+    at: message.at || null
+  };
+}
+
+function supportThreadDto(thread) {
+  const messages = (thread.messages || []).map(supportMessageDto);
+  const lastMessage = messages.at(-1);
+  return {
+    ...clone(thread),
+    category: thread.category || "GENERAL",
+    priority: thread.priority || (thread.category === "URGENT" ? "URGENT" : "NORMAL"),
+    relatedTicketId: thread.relatedTicketId || thread.ticketId || null,
+    relatedBookingId: thread.relatedBookingId || thread.bookingId || null,
+    messageCount: messages.length,
+    lastMessagePreview: lastMessage?.body.slice(0, 120) || "",
+    messages
+  };
+}
+
+function filteredSupportThreads(db, options) {
+  const status = options.status ? String(options.status).toUpperCase() : null;
+  const category = options.category ? String(options.category).toUpperCase() : null;
+  return db.supportThreads
+    .map(supportThreadDto)
+    .filter((thread) => (!status || thread.status === status) && (!category || thread.category === category))
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt || 0) - Date.parse(a.updatedAt || a.createdAt || 0));
+}
+
+function adminUserDto(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    status: user.status,
+    trustScore: user.trustScore,
+    sanctions: clone(user.sanctions || [])
+  };
+}
+
+function filteredAdminUsers(db, options) {
+  const search = String(options.search || "").trim().toLowerCase();
+  return db.users
+    .filter((user) => !search || user.id.toLowerCase().includes(search) || String(user.name || "").toLowerCase().includes(search))
+    .map(adminUserDto);
+}
+
+function admissionCredentialDto(credential) {
+  return {
+    ...clone(credential),
+    adminHold: credential.adminHold === true,
+    adminHoldReason: credential.adminHoldReason || null,
+    adminHoldUpdatedAt: credential.adminHoldUpdatedAt || null
+  };
+}
+
+function qrIssueLogDto(log) {
+  return {
+    ...clone(log),
+    credentialId: log.credentialId || log.admissionCredentialId || null
+  };
+}
+
+function filteredPaymentTransactions(db, options) {
+  const maps = ticketEventMaps(db);
+  return db.paymentTransactions
+    .map((transaction) => paymentTransactionDto(transaction, maps))
+    .filter((transaction) => (
+      (!options.eventId || transaction.eventId === options.eventId)
+      && (!options.method || transaction.method === options.method)
+      && (!options.status || transaction.status === options.status)
+      && withinDateRange(transaction.createdAt, { from: options.from, to: options.to })
+    ))
+    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+}
+
+function paymentSummary(transactions) {
+  return transactions.reduce((summary, transaction) => ({
+    count: summary.count + 1,
+    totalAmount: summary.totalAmount + (transaction.amount || 0),
+    totalFees: summary.totalFees + (transaction.platformFee || 0),
+    totalSettlements: summary.totalSettlements + (transaction.transferAmount || 0)
+  }), { count: 0, totalAmount: 0, totalFees: 0, totalSettlements: 0 });
+}
+
+function filteredLedgerEntries(db, options) {
+  return db.ledger
+    .filter((entry) => (
+      (!options.action || entry.action === options.action)
+      && (!options.actorId || entry.actorId === options.actorId)
+      && withinDateRange(entry.at, { from: options.from, to: options.to })
+    ))
+    .sort((left, right) => String(right.at).localeCompare(String(left.at)));
+}
+
+function csvCell(value) {
+  const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+  return `"${text.replaceAll("\"", "\"\"")}"`;
+}
+
+function ledgerCsv(entries) {
+  const rows = [["timestamp", "actor", "action", "payload"], ...entries.map((entry) => [
+    entry.at,
+    entry.actorId,
+    entry.action,
+    entry.payload
+  ])];
+  return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+}
+
+function zoneSellThroughSummary(tickets, event) {
+  return event.zones.map((zone) => {
+    const zoneTickets = tickets.filter((ticket) => ticket.zoneId === zone.id);
+    return {
+      zoneId: zone.id,
+      zoneName: zone.name,
+      totalCount: zoneTickets.length,
+      availableCount: zoneTickets.filter((ticket) => ticket.status === "ON_SALE").length,
+      soldCount: zoneTickets.filter((ticket) => ticket.ownerId || ticket.status === "OWNED" || ticket.status === "IN_RESALE_POOL").length,
+      heldCount: zoneTickets.filter((ticket) => ticket.status === "ADMIN_HOLD").length
+    };
+  });
+}
+
 function firstEditableEvent(db, eventId) {
   if (eventId) {
     const selected = db.events.find((event) => event.id === eventId);
@@ -422,11 +599,28 @@ function adminSummary(db) {
   const openPools = db.resalePools.filter((pool) => pool.status === "OPEN");
   const watchUsers = db.users.filter((user) => user.status === "WATCHLIST" || user.trustScore < 50);
   const openSupportThreads = db.supportThreads.filter((thread) => thread.status !== "CLOSED");
+  const today = now().slice(0, 10);
+  const todayPayments = db.paymentTransactions.filter((transaction) => String(transaction.createdAt || "").startsWith(today));
+  const allPaymentSummary = paymentSummary(db.paymentTransactions.map((transaction) => ({
+    ...transaction,
+    platformFee: transaction.platformFee || 0,
+    transferAmount: transaction.transferAmount || 0
+  })));
+  const todayPaymentSummary = paymentSummary(todayPayments.map((transaction) => ({
+    ...transaction,
+    platformFee: transaction.platformFee || 0,
+    transferAmount: transaction.transferAmount || 0
+  })));
   return {
     stats: {
       totalTickets: db.tickets.length,
       onSaleTickets: db.tickets.filter((ticket) => ticket.status === "ON_SALE").length,
       ownedTickets: db.tickets.filter((ticket) => ticket.status === "OWNED").length,
+      totalPaymentAmount: allPaymentSummary.totalAmount,
+      totalPaymentFees: allPaymentSummary.totalFees,
+      totalSettlements: allPaymentSummary.totalSettlements,
+      todayPaymentCount: todayPaymentSummary.count,
+      todayPaymentAmount: todayPaymentSummary.totalAmount,
       resalePools: openPools.length,
       supportOpen: openSupportThreads.length,
       watchUsers: watchUsers.length,
@@ -465,31 +659,126 @@ function adminWorkspace(db, workspace, actor, options = {}) {
     };
   }
   if (workspace === "inventory") {
-    return { tickets: db.tickets.map(adminTicket) };
+    const event = firstEditableEvent(db, options.eventId);
+    if (!event) {
+      return {
+        eventSummaries: [],
+        events: [],
+        filters: { eventId: null, performanceDateId: null, zoneId: null },
+        page: { page: 1, limit: 50, total: 0, hasNext: false, hasPrevious: false },
+        tickets: [],
+        zoneSummary: []
+      };
+    }
+    const performanceDateId = options.performanceDateId || undefined;
+    const zoneId = options.zoneId || undefined;
+    if (performanceDateId && !event.dates?.some((date) => date.id === performanceDateId)) {
+      throw httpError(404, "EVENT_DATE_NOT_FOUND", "예매 날짜를 찾을 수 없습니다.");
+    }
+    if (zoneId && !event.zones.some((zone) => zone.id === zoneId)) {
+      throw httpError(404, "ZONE_NOT_FOUND", "구역을 찾을 수 없습니다.");
+    }
+    const { page, limit } = normalizePageOptions(options);
+    const eventTickets = db.tickets.filter((ticket) => ticket.eventId === event.id);
+    const filteredTickets = eventTickets.filter((ticket) => (
+      (!performanceDateId || ticket.performanceDateId === performanceDateId)
+      && (!zoneId || ticket.zoneId === zoneId)
+    ));
+    const start = (page - 1) * limit;
+    return {
+      eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
+      events: [clone(event)],
+      filters: {
+        eventId: event.id,
+        performanceDateId: performanceDateId || null,
+        zoneId: zoneId || null
+      },
+      page: {
+        page,
+        limit,
+        total: filteredTickets.length,
+        hasNext: start + limit < filteredTickets.length,
+        hasPrevious: page > 1
+      },
+      tickets: filteredTickets.slice(start, start + limit).map(adminTicket),
+      zoneSummary: zoneSellThroughSummary(eventTickets, event)
+    };
+  }
+  if (workspace === "finance") {
+    const transactions = filteredPaymentTransactions(db, options);
+    const paged = pageSlice(transactions, options);
+    return {
+      eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
+      filters: {
+        eventId: options.eventId || null,
+        from: options.from || null,
+        method: options.method || null,
+        status: options.status || null,
+        to: options.to || null
+      },
+      page: paged.page,
+      summary: paymentSummary(transactions),
+      transactions: clone(paged.items)
+    };
   }
   if (workspace === "accounts") {
     return {
-      users: db.users.map((user) => ({
-        id: user.id,
-        name: user.name,
-        status: user.status,
-        trustScore: user.trustScore
-      }))
+      filters: { search: options.search || null },
+      users: filteredAdminUsers(db, options)
     };
   }
-  if (workspace === "support") return { supportThreads: clone(db.supportThreads) };
-  if (workspace === "resale") {
+  if (workspace === "support") {
     return {
-      resalePools: clone(db.resalePools),
+      filters: {
+        category: options.category || null,
+        status: options.status || null
+      },
+      supportThreads: filteredSupportThreads(db, options)
+    };
+  }
+  if (workspace === "resale") {
+    const usersById = new Map(db.users.map((user) => [user.id, user]));
+    const ticketsById = new Map(db.tickets.map((ticket) => [ticket.id, ticket]));
+    const eventsById = new Map(db.events.map((event) => [event.id, event]));
+    return {
+      resalePools: db.resalePools.map((pool) => {
+        const event = eventsById.get(pool.eventId);
+        const ticket = ticketsById.get(pool.ticketId);
+        const zone = event?.zones.find((item) => item.id === pool.zoneId);
+        const seller = usersById.get(pool.sellerId);
+        return {
+          ...clone(pool),
+          eventTitle: event?.title || pool.eventId,
+          seatLabel: ticket?.seatLabel || pool.ticketId,
+          sellerName: seller?.name || pool.sellerId,
+          zoneName: zone?.name || pool.zoneId
+        };
+      }),
       watchlist: clone(db.watchlist),
       notificationJobs: clone(db.notificationJobs),
       operatorAlerts: clone(db.operatorAlerts)
     };
   }
-  if (workspace === "admission") return { admissionCredentials: clone(db.admissionCredentials) };
-  if (workspace === "audit") {
+  if (workspace === "admission") {
+    const paged = pageSlice(db.qrIssueLogs.map(qrIssueLogDto).reverse(), options);
     return {
-      ledger: clone(db.ledger.slice(-12).reverse()),
+      admissionCredentials: db.admissionCredentials.map(admissionCredentialDto),
+      page: paged.page,
+      qrIssueLogs: paged.items
+    };
+  }
+  if (workspace === "audit") {
+    const entries = filteredLedgerEntries(db, options);
+    const paged = pageSlice(entries, options);
+    return {
+      filters: {
+        action: options.action || null,
+        actorId: options.actorId || null,
+        from: options.from || null,
+        to: options.to || null
+      },
+      ledger: clone(paged.items),
+      page: paged.page,
       ledgerCheck: verifyLedger(db)
     };
   }
@@ -539,16 +828,26 @@ function updateUserStatuses(db, { updates, reason }) {
   }));
 }
 
+function adminHoldAdmissionCredential(db, { credentialId, hold, reason }) {
+  const credential = db.admissionCredentials.find((item) => item.id === credentialId);
+  if (!credential) throw httpError(404, "ADMISSION_CREDENTIAL_NOT_FOUND", "입장 자격을 찾을 수 없습니다.");
+  const activeHold = hold === true || hold === "true";
+  const cleanReason = String(reason || "").trim() || (activeHold ? "운영자 입장 QR 보류" : "운영자 입장 QR 보류 해제");
+  credential.adminHold = activeHold;
+  credential.adminHoldReason = cleanReason.slice(0, 160);
+  credential.adminHoldUpdatedAt = now();
+  credential.updatedAt = credential.adminHoldUpdatedAt;
+  appendLedger(db, "ADMIN", activeHold ? "ADMISSION_CREDENTIAL_HELD" : "ADMISSION_CREDENTIAL_RELEASED", {
+    credentialId: credential.id,
+    ticketId: credential.ticketId,
+    userId: credential.userId,
+    reason: credential.adminHoldReason
+  });
+  return admissionCredentialDto(credential);
+}
+
 function updateTicketStatus(db, { ticketId, status }) {
-  const allowed = ["ON_SALE", "ADMIN_HOLD"];
-  if (!allowed.includes(status)) {
-    throw httpError(422, "INVALID_TICKET_STATUS", "지원하지 않는 티켓 상태입니다.");
-  }
-  const ticket = db.tickets.find((item) => item.id === ticketId);
-  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
-  if (ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status)) {
-    throw httpError(409, "TICKET_LOCKED", "소유자 또는 거래 상태가 있는 티켓은 재고 상태만 변경할 수 없습니다.");
-  }
+  const ticket = assertTicketStatusUpdate(db, { ticketId, status });
   ticket.status = status;
   appendLedger(db, "ADMIN", "TICKET_STATUS_UPDATED", {
     ticketId: ticket.id,
@@ -558,18 +857,96 @@ function updateTicketStatus(db, { ticketId, status }) {
   return ticket;
 }
 
+function assertTicketStatusUpdate(db, { ticketId, status }, index = null) {
+  const allowed = ["ON_SALE", "ADMIN_HOLD"];
+  const detail = index === null ? { ticketId } : { ticketId, index };
+  if (!allowed.includes(status)) {
+    throw httpError(422, "INVALID_TICKET_STATUS", "지원하지 않는 티켓 상태입니다.", detail);
+  }
+  const ticket = db.tickets.find((item) => item.id === ticketId);
+  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.", detail);
+  if (ticket.ownerId || !["ON_SALE", "ADMIN_HOLD"].includes(ticket.status)) {
+    throw httpError(409, "TICKET_LOCKED", "소유자 또는 거래 상태가 있는 티켓은 재고 상태만 변경할 수 없습니다.", detail);
+  }
+  return ticket;
+}
+
+function updateTicketStatuses(db, { updates }) {
+  if (!Array.isArray(updates) || !updates.length) {
+    throw httpError(400, "MISSING_FIELD", "수정할 티켓 상태를 선택해주세요.");
+  }
+  const validated = updates.map((item, index) => ({
+    ticket: assertTicketStatusUpdate(db, item, index),
+    status: item.status
+  }));
+  for (const item of validated) {
+    item.ticket.status = item.status;
+    appendLedger(db, "ADMIN", "TICKET_STATUS_UPDATED", {
+      ticketId: item.ticket.id,
+      status: item.status,
+      policy: "operator-inventory-control-batch"
+    });
+  }
+  return validated.map((item) => item.ticket);
+}
+
+function adminCancelResalePool(db, { poolId, reason }) {
+  const pool = db.resalePools.find((item) => item.id === poolId);
+  if (!pool) throw httpError(404, "POOL_NOT_FOUND", "재판매 풀을 찾을 수 없습니다.", { poolId });
+  if (pool.status !== "OPEN") throw httpError(409, "POOL_CLOSED", "이미 종료된 풀입니다.", { poolId });
+  const ticket = db.tickets.find((item) => item.id === pool.ticketId);
+  if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.", { ticketId: pool.ticketId, poolId });
+
+  const cancelReason = String(reason || "").trim() || "관리자 강제 취소";
+  ticket.status = "OWNED";
+  pool.status = "CANCELED";
+  pool.canceledAt = now();
+  pool.cancelReason = cancelReason;
+  appendLedger(db, "ADMIN", "ADMIN_RESALE_POOL_CANCELED", {
+    poolId: pool.id,
+    ticketId: ticket.id,
+    reason: cancelReason,
+    policy: "admin-force-cancel-open-resale-pool"
+  });
+  return pool;
+}
+
+function acknowledgeOperatorAlerts(db, { alertId, alertIds }) {
+  const ids = Array.isArray(alertIds) ? alertIds : [alertId].filter(Boolean);
+  const uniqueIds = [...new Set(ids.map((item) => String(item || "").trim()).filter(Boolean))];
+  if (!uniqueIds.length) throw httpError(400, "MISSING_FIELD", "확인할 운영 알림을 선택해주세요.");
+  const alerts = uniqueIds.map((idValue) => {
+    const alert = db.operatorAlerts.find((item) => item.id === idValue);
+    if (!alert) throw httpError(404, "ALERT_NOT_FOUND", "운영 알림을 찾을 수 없습니다.", { alertId: idValue });
+    return alert;
+  });
+  for (const alert of alerts) {
+    alert.status = "ACKED";
+    alert.ackedAt = now();
+  }
+  appendLedger(db, "ADMIN", "OPERATOR_ALERT_ACKED", {
+    alertIds: alerts.map((alert) => alert.id),
+    policy: "operator-alert-acknowledgement"
+  });
+  return { acknowledgedAlertIds: alerts.map((alert) => alert.id) };
+}
+
 
 
   return {
+    adminHoldAdmissionCredential,
     activeAdminAccount,
     adminAccountDto,
+    adminCancelResalePool,
     adminSummary,
     adminVenues,
     adminWorkspace,
+    adminLedgerCsv: (db, options = {}) => ledgerCsv(filteredLedgerEntries(db, options)),
     adminVenueRecord,
     authenticateAdminAccount,
     createAdminAccount,
     createEventDraft,
+    acknowledgeOperatorAlerts,
     isAdminIpAllowed,
     resolveVenue,
     seatMap,
@@ -577,6 +954,7 @@ function updateTicketStatus(db, { ticketId, status }) {
     updateEventVenue,
     updateAdminAccount,
     updateTicketStatus,
+    updateTicketStatuses,
     updateUserStatus,
     updateUserStatuses,
     venueMapForEvent

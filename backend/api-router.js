@@ -1,5 +1,9 @@
 export function createApiRouter({
   addSupportMessage,
+  adminHoldAdmissionCredential,
+  acknowledgeOperatorAlerts,
+  adminCancelResalePool,
+  adminLedgerCsv,
   adminSummary,
   adminVenues,
   adminWorkspace,
@@ -42,6 +46,7 @@ export function createApiRouter({
   updateDemoProfile,
   updateSupportStatus,
   updateTicketStatus,
+  updateTicketStatuses,
   updateUserStatus,
   updateUserStatuses,
   upsertWatchlist,
@@ -107,9 +112,35 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
   if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
+  if (req.method === "GET" && url.pathname === "/api/admin/ledger/export") {
+    return {
+      rawBody: adminLedgerCsv(db, {
+        action: url.searchParams.get("action") || undefined,
+        actorId: url.searchParams.get("actorId") || undefined,
+        from: url.searchParams.get("from") || undefined,
+        to: url.searchParams.get("to") || undefined
+      }),
+      responseHeaders: {
+        "Content-Disposition": "attachment; filename=\"ticketground-ledger.csv\"",
+        "Content-Type": "text/csv; charset=utf-8"
+      }
+    };
+  }
   if (req.method === "GET" && adminWorkspaceMatch) {
     return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin, {
-      eventId: url.searchParams.get("eventId") || undefined
+      action: url.searchParams.get("action") || undefined,
+      actorId: url.searchParams.get("actorId") || undefined,
+      category: url.searchParams.get("category") || undefined,
+      eventId: url.searchParams.get("eventId") || undefined,
+      from: url.searchParams.get("from") || undefined,
+      method: url.searchParams.get("method") || undefined,
+      performanceDateId: url.searchParams.get("performanceDateId") || undefined,
+      status: url.searchParams.get("status") || undefined,
+      search: url.searchParams.get("search") || undefined,
+      to: url.searchParams.get("to") || undefined,
+      zoneId: url.searchParams.get("zoneId") || undefined,
+      limit: url.searchParams.get("limit") || undefined,
+      page: url.searchParams.get("page") || undefined
     });
   }
   if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
@@ -262,6 +293,21 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/tickets/status") {
     requireBody(body, ["ticketId", "status"]);
     return updateTicketStatus(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/tickets/statuses") {
+    requireBody(body, ["updates"]);
+    return updateTicketStatuses(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/admission/hold") {
+    requireBody(body, ["credentialId", "hold"]);
+    return adminHoldAdmissionCredential(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/resale/cancel") {
+    requireBody(body, ["poolId"]);
+    return adminCancelResalePool(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/alerts/ack") {
+    return acknowledgeOperatorAlerts(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/support/messages") {
     requireBody(body, ["threadId", "message"]);

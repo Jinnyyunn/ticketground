@@ -105,6 +105,7 @@ const sessionRoutePermissions = [
   { method: "GET", pattern: /^\/api\/admin\/venues$/, permission: "catalog.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/overview$/, permission: "admin.dashboard.read" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/(catalog|sales|inventory)$/, permission: "catalog.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/workspaces\/finance$/, permission: "finance.read" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/accounts$/, permission: "accounts.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/support$/, permission: "support.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/resale$/, permission: "finance.read" },
@@ -114,8 +115,12 @@ const sessionRoutePermissions = [
   { method: "POST", pattern: /^\/api\/admin\/events\//, permission: "catalog.manage" },
   { method: "POST", pattern: /^\/api\/admin\/admin-accounts(?:\/update)?$/, permission: "acl.manage" },
   { method: "POST", pattern: /^\/api\/admin\/users\/status/, permission: "accounts.manage" },
-  { method: "POST", pattern: /^\/api\/admin\/tickets\/status$/, permission: "catalog.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/tickets\/statuses?$/, permission: "catalog.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/admission\/hold$/, permission: "admission.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/resale\/cancel$/, permission: "security.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/alerts\/ack$/, permission: "security.manage" },
   { method: "POST", pattern: /^\/api\/admin\/support\//, permission: "support.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/ledger\/export$/, permission: "security.manage" },
   { method: "GET", pattern: /^\/api\/ledger/, permission: "security.manage" }
 ];
 

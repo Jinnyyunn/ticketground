@@ -38,6 +38,12 @@ export function createAdmissionQrBackend({
     const event = db.events.find((item) => item.id === ticket.eventId);
     const performanceDate = eventDate(event, ticket.performanceDateId);
     const credential = ensureAdmissionCredential(db, { user, ticket, event, performanceDate });
+    if (credential.adminHold === true && !emergencyAllowed) {
+      throw httpError(423, "ADMIN_HOLD_ACTIVE", "운영자 보류 중인 입장 자격은 QR을 발급할 수 없습니다.", {
+        credentialId: credential.id,
+        reason: credential.adminHoldReason || "operator-hold"
+      });
+    }
     if (!emergencyAllowed && String(channel).toUpperCase() !== "APP") {
       throw httpError(403, "APP_CHANNEL_REQUIRED", "실제 입장 QR은 전용앱에서만 활성화할 수 있습니다.", {
         allowedChannel: "APP",
