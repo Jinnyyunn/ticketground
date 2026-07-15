@@ -4,9 +4,10 @@ export function createApiRouter({
   acknowledgeOperatorAlerts,
   adminCancelResalePool,
   adminLedgerCsv,
-  adminSummary,
   adminVenues,
   adminWorkspace,
+  appendLedger,
+  assertTicketPurchasable,
   bootpayConfig,
   confirmBootpayPayment,
   createAdminAccount,
@@ -110,7 +111,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/auth/naver/session") return socialAuthSession(db, req, "naver");
   if (req.method === "GET" && url.pathname === "/api/ledger/verify") return verifyLedger(db);
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
-  if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
+  if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminWorkspace(db, "overview", req.admin);
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
   if (req.method === "GET" && url.pathname === "/api/admin/ledger/export") {
     return {
@@ -202,18 +203,34 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/payments/bootpay/purchase") {
     requireBody(body, ["userId", "ticketId", "paymentMethod"]);
+    const purchasable = assertTicketPurchasable(db, body.ticketId);
     const receipt = await confirmBootpayPayment(db, {
       ticketId: body.ticketId,
       userId: body.userId,
       paymentKey: String(body.paymentMethod || "").toUpperCase(),
       receiptId: body.receiptId
     });
-    const result = buyPrimary(db, {
-      userId: body.userId,
-      ticketId: body.ticketId,
-      paymentMethod: body.paymentMethod,
-      pgTransactionId: receipt.receiptId
-    });
+    let result;
+    try {
+      result = buyPrimary(db, {
+        userId: body.userId,
+        ticketId: body.ticketId,
+        paymentMethod: body.paymentMethod,
+        pgTransactionId: receipt.receiptId
+      });
+    } catch (error) {
+      appendLedger(db, body.userId, "BOOTPAY_PAYMENT_NEEDS_REFUND", {
+        ticketId: body.ticketId,
+        receiptId: receipt.receiptId,
+        amount: purchasable.ticket.faceValue,
+        reason: error.code || "ALLOCATION_FAILED"
+      });
+      throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {
+        ticketId: body.ticketId,
+        receiptId: receipt.receiptId,
+        reason: error.code || "ALLOCATION_FAILED"
+      });
+    }
     return { ...publicPurchaseResult(result), bootpay: receipt };
   }
   if (req.method === "POST" && url.pathname === "/api/resale/list") {

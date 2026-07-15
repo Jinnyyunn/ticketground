@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { api, appAttestation, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
+import { adminApi, api, appAttestation, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 test("backend issues virtual ticket, app-only admission QR, and one-use gate verification", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -132,4 +132,54 @@ test("backend rejects web admission QR, early QR activation, and forged app atte
 
   const ledger = await api(early.baseUrl, "/api/ledger/verify");
   assert.equal(ledger.data.ok, true);
+});
+
+test("official resale clears an old owner admin admission hold before new owner QR issuance", async (t) => {
+  // Given: an owner credential is under an admin hold.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const admissionBefore = await adminApi(server, "/api/admin/workspaces/admission");
+  const credential = admissionBefore.data.admissionCredentials.find((item) => item.ticketId === ticket.id);
+  assert.ok(credential);
+  const held = await adminApi(server, "/api/admin/admission/hold", {
+    credentialId: credential.id,
+    hold: true,
+    reason: "previous owner investigation"
+  });
+  assert.equal(held.data.adminHold, true);
+
+  // When: the ticket is reassigned through official resale to a different verified buyer.
+  const pool = await api(server.baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price: ticket.faceValue
+  });
+  await verifyIdentity(server.baseUrl, "user_fan_b", "010-9000-0002");
+  await api(server.baseUrl, "/api/resale/purchase", {
+    buyerId: "user_fan_b",
+    poolId: pool.data.id,
+    paymentMethod: "CREDIT_CARD"
+  });
+  const device = await api(server.baseUrl, "/api/devices/trust", {
+    userId: "user_fan_b",
+    deviceId: "buyer-iphone",
+    biometricVerified: true,
+    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_b", "buyer-iphone")
+  });
+
+  // Then: the new legitimate owner can issue a real admission QR instead of inheriting ADMIN_HOLD_ACTIVE.
+  const admissionQr = await api(server.baseUrl, "/api/tickets/qr", {
+    userId: "user_fan_b",
+    ticketId: ticket.id,
+    channel: "APP",
+    deviceId: "buyer-iphone",
+    deviceToken: device.data.deviceToken,
+    appAttestation: appAttestation("ISSUE_QR", "user_fan_b", "buyer-iphone", ticket.id)
+  });
+  assert.equal(admissionQr.data.type, "ADMISSION");
+  const admissionAfter = await adminApi(server, "/api/admin/workspaces/admission");
+  const reassignedCredential = admissionAfter.data.admissionCredentials.find((item) => item.ticketId === ticket.id);
+  assert.equal(reassignedCredential.userId, "user_fan_b");
+  assert.equal(reassignedCredential.adminHold, false);
+  assert.equal(reassignedCredential.adminHoldReason, null);
 });

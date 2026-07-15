@@ -118,6 +118,7 @@ export async function createTicketgroundApp(options) {
     ...engagement,
     ...identity,
     ...session,
+    appendLedger: persistence.appendLedger,
     bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
     confirmBootpayPayment: bootpay.confirmBootpayPayment,

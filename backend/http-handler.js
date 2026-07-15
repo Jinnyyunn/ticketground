@@ -84,6 +84,9 @@ async function handleRequest(req, res, db, surface) {
     }
     await serveStatic(req, res, staticDir, fallback);
   } catch (error) {
+    if (req.url.startsWith("/api/")) {
+      await saveDb(db).catch(() => {});
+    }
     const status = error.status || 500;
     if (surface === "public" && !req.url.startsWith("/api/") && status === 404) {
       res.writeHead(302, { Location: "/" });

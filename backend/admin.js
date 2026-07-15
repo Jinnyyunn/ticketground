@@ -939,7 +939,6 @@ function acknowledgeOperatorAlerts(db, { alertId, alertIds }) {
     activeAdminAccount,
     adminAccountDto,
     adminCancelResalePool,
-    adminSummary,
     adminVenues,
     adminWorkspace,
     adminLedgerCsv: (db, options = {}) => ledgerCsv(filteredLedgerEntries(db, options)),

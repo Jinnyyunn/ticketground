@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 export function createAdmissionDeviceBackend({
   appendLedger,
   findUser,
@@ -9,6 +11,12 @@ export function createAdmissionDeviceBackend({
 }) {
   function deviceTokenFor(userId, deviceId) {
     return hmac(`device:${userId}:${deviceId}`);
+  }
+
+  function timingSafeStringMatches(actual, expected) {
+    const actualBuffer = Buffer.from(String(actual || ""));
+    const expectedBuffer = Buffer.from(String(expected || ""));
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
   }
 
   function trustDevice(db, { userId, deviceId, deviceName, platform, biometricVerified, attestationVerified = false }) {
@@ -71,7 +79,7 @@ export function createAdmissionDeviceBackend({
     const device = db.trustedDevices.find((item) =>
       item.userId === user.id
       && item.deviceId === cleanDeviceId
-      && item.tokenHash === hash(deviceToken)
+      && timingSafeStringMatches(item.tokenHash, hash(deviceToken))
       && item.status === "TRUSTED"
     );
     if (!device) throw httpError(403, "TRUSTED_DEVICE_REQUIRED", "등록된 신뢰 기기를 확인할 수 없습니다.");

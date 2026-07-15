@@ -11,6 +11,7 @@ const bootpayMethodByPaymentKey = {
 export function createBootpayBackend({ hash, httpError, now }) {
   const applicationId = process.env.TIG_BOOTPAY_APPLICATION_ID || "";
   const privateKey = process.env.TIG_BOOTPAY_PRIVATE_KEY || "";
+  const mockConfirmDelayMs = Math.max(0, Number.parseInt(process.env.TIG_BOOTPAY_MOCK_CONFIRM_DELAY_MS || "0", 10) || 0);
 
   function isBootpayConfigured() {
     return Boolean(applicationId && privateKey);
@@ -60,6 +61,7 @@ export function createBootpayBackend({ hash, httpError, now }) {
       const verified = await verifyBootpayReceipt(receiptId);
       return { receiptId: verified.receiptId, method: verified.method, mock: false };
     }
+    await new Promise((resolve) => setTimeout(resolve, mockConfirmDelayMs));
     const receipt = mockBootpayReceipt({ ticketId, userId, paymentKey });
     return { receiptId: receipt.receiptId, method: receipt.method, mock: true };
   }

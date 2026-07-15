@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 export function createAdmissionQrBackend({
   appendLedger,
   currentTimeMs,
@@ -15,6 +17,12 @@ export function createAdmissionQrBackend({
 }) {
   function admissionCredentialForTicket(db, ticket) {
     return db.admissionCredentials.find((credential) => credential.ticketId === ticket.id);
+  }
+
+  function timingSafeStringMatches(actual, expected) {
+    const actualBuffer = Buffer.from(String(actual || ""));
+    const expectedBuffer = Buffer.from(String(expected || ""));
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
   }
 
   function issueQr(db, params, options = {}) {
@@ -117,7 +125,7 @@ export function createAdmissionQrBackend({
     const valid = Boolean(ticket)
       && ticket.ownerId === ownerId
       && ticket.currentQr?.signature === signature
-      && signature === expected
+      && timingSafeStringMatches(signature, expected)
       && Date.parse(expiresAt) > currentTimeMs()
       && !ticket.currentQr?.usedAt
       && credential?.status !== "USED";
