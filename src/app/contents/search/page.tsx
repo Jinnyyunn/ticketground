@@ -1,6 +1,6 @@
 import { SearchPanels } from "@/components/discovery/search-panels";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { generalSaleShows, searchShows } from "@/data/ticketing";
+import { getGeneralSaleShows, searchShowsAsync } from "@/data/catalog-server";
 
 export default async function SearchPage({
   searchParams,
@@ -9,7 +9,7 @@ export default async function SearchPage({
 }) {
   const params = await searchParams;
   const query = Array.isArray(params.q) ? params.q[0] ?? "" : params.q ?? "";
-  const results = searchShows(query);
+  const [results, generalSaleShows] = await Promise.all([searchShowsAsync(query), getGeneralSaleShows()]);
 
   return (
     <TicketingPageShell showHeaderSearchBar={false}>

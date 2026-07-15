@@ -1,9 +1,11 @@
 import { InquiryForm } from "@/components/ticketing/inquiry-form";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { inquiryThreads } from "@/data/ticketing-inquiries";
-import { reservations, ticketShows } from "@/data/ticketing";
+import { reservations } from "@/data/ticketing";
+import { getTicketShows } from "@/data/catalog-server";
 
-export default function InquiryPage() {
+export default async function InquiryPage() {
+  const ticketShows = await getTicketShows();
   return (
     <TicketingPageShell>
       <section className="ticketground-container py-10">

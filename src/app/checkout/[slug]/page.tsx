@@ -2,14 +2,11 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CheckoutPanel } from "@/components/ticketing/checkout-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { getReservationForShow, getShow, ticketShows } from "@/data/ticketing";
+import { getReservationForShow } from "@/data/ticketing";
+import { getShowBySlug } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
 
 const serviceFeePerSeat = 2000;
-
-export function generateStaticParams() {
-  return ticketShows.map((show) => ({ slug: show.slug }));
-}
 
 export default async function CheckoutPage({
   params,
@@ -31,7 +28,7 @@ export default async function CheckoutPage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const show = getShow(slug);
+  const show = await getShowBySlug(slug);
   if (!show) notFound();
   const reservation = getReservationForShow(show.slug);
   if (!reservation) notFound();

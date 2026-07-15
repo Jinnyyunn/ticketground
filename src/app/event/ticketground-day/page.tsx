@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ShowTile } from "@/components/discovery/show-tile";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { ticketShows } from "@/data/ticketing";
+import { getTicketShows } from "@/data/catalog-server";
 
-export default function TicketgroundDayPage() {
+export default async function TicketgroundDayPage() {
+  const ticketShows = await getTicketShows();
   const lineup = ticketShows.slice(0, 4);
 
   return (

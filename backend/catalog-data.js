@@ -1,4 +1,69 @@
+import { createAdminEventContentBackend } from "./admin-event-content.js";
+import { legacyCategoryToAdminCategory, legacyShows, legacyVenueIdByName } from "./legacy-show-seed-data.js";
+import { createRuntime } from "./runtime.js";
+
 const JAMSIL_OLYMPIC_STADIUM_IMAGE = "/assets/jamsil-olympic-main-stadium.svg";
+
+const seedRuntime = createRuntime({});
+const { normalizeAdminEventInput, normalizeCreateEventContent } = createAdminEventContentBackend({
+  httpError: seedRuntime.httpError,
+  money: seedRuntime.money,
+  stableId: seedRuntime.stableId
+});
+
+function publicPosterPath(relativePath) {
+  return relativePath.replace(/^public/, "");
+}
+
+function legacyShowBlueprints(venues) {
+  const events = [];
+  for (const show of legacyShows) {
+    const venue = venues.find((item) => item.id === legacyVenueIdByName[show.venue]);
+    if (!venue) throw new Error(`legacy-show-seed-data: no venue blueprint for ${show.venue}`);
+    const input = normalizeAdminEventInput({
+      title: show.title,
+      category: legacyCategoryToAdminCategory[show.category],
+      venueId: venue.id,
+      startsAt: show.startsAt,
+      saleState: "ON_SALE",
+      saleNote: "레거시 카탈로그 이관"
+    });
+    const eventId = seedRuntime.stableId("event", input.title, input.startsAt, venue.id);
+    const content = normalizeCreateEventContent(
+      {
+        shortTitle: show.shortTitle,
+        period: show.period,
+        runtime: show.runtime,
+        ageLimit: show.ageLimit,
+        badge: show.badge,
+        artistSlug: show.artistSlug,
+        slug: show.slug,
+        summary: show.summary,
+        prices: show.prices,
+        schedules: show.schedules,
+        casts: show.casts,
+        notices: show.notices
+      },
+      { eventId, events, startsAt: input.startsAt }
+    );
+    events.push({
+      id: eventId,
+      category: input.category,
+      title: input.title,
+      venueId: venue.id,
+      venue: venue.name,
+      date: input.startsAt,
+      organizer: input.organizer,
+      image: publicPosterPath(show.poster),
+      saleState: input.saleState,
+      saleNote: input.saleNote,
+      discountRate: input.discountRate,
+      rating: "0.0",
+      ...content
+    });
+  }
+  return events;
+}
 
 function zoneBlueprints(overrides = {}) {
   return [
@@ -6,6 +71,26 @@ function zoneBlueprints(overrides = {}) {
     { id: "zone_r", name: "R석", faceValue: overrides.r ?? 121000, resaleFeeRate: 0.07, maxTransferCount: 1 },
     { id: "zone_s", name: "S석", faceValue: overrides.s ?? 99000, resaleFeeRate: 0.06, maxTransferCount: 1 }
   ];
+}
+
+function arenaVenueBlueprint(id, name, address) {
+  return {
+    id,
+    name,
+    address,
+    map: {
+      type: "arena",
+      imageUrl: "",
+      imageSource: "Ticketground 기본 아레나 도면",
+      stage: "MAIN STAGE",
+      helper: `${name} 기본 좌석 배치도`,
+      labels: [
+        { text: "VIP", x: 50, y: 38 },
+        { text: "R", x: 30, y: 60 },
+        { text: "S", x: 70, y: 72 }
+      ]
+    }
+  };
 }
 
 export function venueBlueprints() {
@@ -78,12 +163,30 @@ export function venueBlueprints() {
           { text: "LAWN S", x: 68, y: 72 }
         ]
       }
-    }
+    },
+    arenaVenueBlueprint("venue_jamsil_sports_complex_main_stadium", "잠실종합운동장 주경기장", "서울특별시 송파구 올림픽로 25"),
+    arenaVenueBlueprint("venue_lg_arts_center_seoul_lg_signature_hall", "LG아트센터 서울 LG SIGNATURE 홀", "서울특별시 강서구 마곡중앙로 136"),
+    arenaVenueBlueprint("venue_sejong_grand_theater", "세종문화회관 대극장", "서울특별시 종로구 세종대로 175"),
+    arenaVenueBlueprint("venue_kintex_hall_9", "KINTEX HALL 9", "경기도 고양시 일산서구 킨텍스로 217-60"),
+    arenaVenueBlueprint("venue_myeongdong_theater", "명동예술극장", "서울특별시 중구 명동길 35"),
+    arenaVenueBlueprint("venue_seoul_arts_center_concert_hall", "예술의전당 콘서트홀", "서울특별시 서초구 남부순환로 2406"),
+    arenaVenueBlueprint("venue_thehyundai_seoul_alt1", "더현대서울 6층 ALT.1", "서울특별시 영등포구 여의대로 108"),
+    arenaVenueBlueprint("venue_bluesquare_nemo", "한남동 블루스퀘어 NEMO", "서울특별시 용산구 이태원로 294"),
+    arenaVenueBlueprint("venue_gocheok_sky_dome", "고척스카이돔", "서울특별시 구로구 경인로 430"),
+    arenaVenueBlueprint("venue_charlotte_theater", "샤롯데씨어터", "서울특별시 송파구 올림픽로 240"),
+    arenaVenueBlueprint("venue_kspo_dome_catalog", "KSPO DOME", "서울특별시 송파구 올림픽로 424"),
+    arenaVenueBlueprint("venue_lotte_concert_hall", "롯데콘서트홀", "서울특별시 송파구 올림픽로 300"),
+    arenaVenueBlueprint("venue_sejong_center", "세종문화회관", "서울특별시 종로구 세종대로 175"),
+    arenaVenueBlueprint("venue_inspire_arena", "인스파이어 아레나", "인천광역시 중구 공항문화로 127"),
+    arenaVenueBlueprint("venue_tongyeong_concert_hall", "통영국제음악당", "경상남도 통영시 큰발개1길 38"),
+    arenaVenueBlueprint("venue_daehakro_arts_theater", "대학로예술극장", "서울특별시 종로구 대학로10길 17"),
+    arenaVenueBlueprint("venue_bluesquare_shinhan_card_hall", "블루스퀘어 신한카드홀", "서울특별시 용산구 이태원로 294")
   ];
 }
 
 export function eventBlueprints() {
   return [
+    ...legacyShowBlueprints(venueBlueprints()),
     {
       id: "event_kpop_001",
       category: "concert",
@@ -153,7 +256,7 @@ export function eventBlueprints() {
     },
     {
       id: "event_festival_001",
-      category: "festival",
+      category: "concert",
       title: "Tig Summer Beat Festival",
       venueId: "venue_nanjipark",
       venue: "난지한강공원",

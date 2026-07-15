@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { generalSaleShows } from "@/data/ticketing";
+import { getGeneralSaleShows } from "@/data/catalog-server";
 
 const genreLinks = [
   { label: "콘서트", href: "/contents/genre/concert", category: "콘서트", description: "대형 투어와 라이브 공연을 빠르게 비교합니다." },
@@ -12,7 +12,8 @@ const genreLinks = [
   { label: "스포츠", href: "/contents/genre/sports", category: "스포츠", description: "경기와 응원석 정보를 함께 비교합니다." },
 ] as const;
 
-export default function GenreIndexPage() {
+export default async function GenreIndexPage() {
+  const generalSaleShows = await getGeneralSaleShows();
   return (
     <TicketingPageShell>
       <section className="ticketground-container py-10">

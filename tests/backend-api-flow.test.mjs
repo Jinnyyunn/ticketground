@@ -55,6 +55,17 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   assert.ok(admin.data.stats.notificationJobs >= 3);
 });
 
+test("seat-map API rejects an explicit missing event id", async (t) => {
+  // Given: a running backend with seeded events.
+  const { baseUrl } = await startServer(t);
+
+  // When: the caller asks for a specific event id that does not exist.
+  const seatMap = await api(baseUrl, "/api/seat-map?eventId=missing-event", null, 404);
+
+  // Then: the API reports the missing event instead of falling back to the first event.
+  assert.equal(seatMap.error.code, "EVENT_NOT_FOUND");
+});
+
 test("public demo session supports login profile lookup and nickname update without exposing state users", async (t) => {
   const { baseUrl } = await startServer(t);
 

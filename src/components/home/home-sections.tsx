@@ -5,7 +5,7 @@ import { CarouselRow } from "@/components/carousel-row";
 import { TicketgroundTag } from "@/components/ticketground/primitives";
 import { cn } from "@/lib/utils";
 import { GradientPoster, Movement, SectionHead } from "./home-cards";
-import { events, featuredShow, genreRecommendations, miniShows, rankings, shortcuts, ticketOpens } from "./home-content";
+import { events, featuredShow, genreRecommendations, miniShows, shortcuts, ticketOpenPosters, ticketOpens, type RankingShow } from "./home-content";
 import { GenreRecommendationsTabs } from "./genre-recommendations-tabs";
 import { MiniShowCarousel } from "./mini-show-carousel";
 import { TicketOpenAlertAction } from "./ticket-open-alert-action";
@@ -39,7 +39,7 @@ export function HomeHeroSection() {
   );
 }
 
-function RankingCard({ item }: { readonly item: (typeof rankings)[number] }) {
+function RankingCard({ item }: { readonly item: RankingShow }) {
   return (
     <Link href={item.href} className="group block min-w-0 focus-visible:ring-3 focus-visible:ring-ring/50">
       <span className="rnum block text-4xl font-black leading-none text-ink group-hover:text-ticketground sm:text-5xl">{item.rank}</span>
@@ -61,13 +61,13 @@ function RankingCard({ item }: { readonly item: (typeof rankings)[number] }) {
   );
 }
 
-export function RealtimeTop10Section() {
+export function RealtimeTop10Section({ items }: { readonly items: readonly RankingShow[] }) {
   return (
     <section data-section="realtime-top10" className="ticketground-container mt-16">
       <SectionHead title="실시간 예매 랭킹 TOP10" subtitle="지금 가장 빠르게 움직이는 공연입니다." moreHref="/contents/ranking" />
       <div className="lg:hidden">
         <CarouselRow className="mt-1 pb-1">
-          {rankings.map((item) => (
+          {items.map((item) => (
             <div key={item.rank} className="w-[112px] shrink-0 sm:w-[136px]">
               <RankingCard item={item} />
             </div>
@@ -75,7 +75,7 @@ export function RealtimeTop10Section() {
         </CarouselRow>
       </div>
       <div className="hidden lg:mt-1 lg:grid lg:grid-cols-5 lg:gap-4">
-        {rankings.map((item) => (
+        {items.map((item) => (
           <RankingCard key={item.rank} item={item} />
         ))}
       </div>
@@ -130,8 +130,8 @@ export function TicketOpenSection() {
 }
 
 function TicketOpenThumbnail({ title }: { readonly title: string }) {
-  const show = rankings.find((item) => title.includes(item.title) || item.title.includes(title));
-  const poster = show?.poster ?? featuredShow.poster;
+  const matchedKey = Object.keys(ticketOpenPosters).find((key) => title.includes(key) || key.includes(title));
+  const poster = (matchedKey && ticketOpenPosters[matchedKey]) ?? featuredShow.poster;
 
   return (
     <span
@@ -144,7 +144,7 @@ function TicketOpenThumbnail({ title }: { readonly title: string }) {
         alt=""
         fill
         sizes="64px"
-        className={cn("object-cover transition-transform duration-300 group-hover:scale-[1.03]", show?.posterFit === "contain" && "object-contain")}
+        className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         unoptimized={poster.endsWith(".gif")}
       />
     </span>

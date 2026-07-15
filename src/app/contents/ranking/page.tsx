@@ -1,11 +1,13 @@
 import { RankingList } from "@/components/discovery/ranking-list";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { generalSaleShows } from "@/data/ticketing";
+import { getGeneralSaleShows } from "@/data/catalog-server";
+import { rankShows } from "@/data/ranking";
 
-export default function RankingPage() {
+export default async function RankingPage() {
+  const generalSaleShows = await getGeneralSaleShows();
   return (
     <TicketingPageShell>
-      <RankingList shows={generalSaleShows} />
+      <RankingList shows={rankShows(generalSaleShows)} />
     </TicketingPageShell>
   );
 }

@@ -1,27 +1,19 @@
 import { notFound } from "next/navigation";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { CategoryBrowser } from "@/components/discovery/category-browser";
-import { generalSaleShows } from "@/data/ticketing";
-
-const genreLabels: Record<string, string> = {
-  musical: "뮤지컬",
-  concert: "콘서트",
-  theater: "연극",
-  classic: "클래식",
-  sports: "스포츠",
-  exhibition: "전시/행사",
-  children: "아동/가족",
-};
+import { getGeneralSaleShows } from "@/data/catalog-server";
+import { categoryEnToKo } from "@/data/show-categories";
 
 export function generateStaticParams() {
-  return Object.keys(genreLabels).map((genre) => ({ genre }));
+  return Object.keys(categoryEnToKo).map((genre) => ({ genre }));
 }
 
 export default async function GenrePage({ params }: { params: Promise<{ genre: string }> }) {
   const { genre } = await params;
-  const label = genreLabels[genre];
+  const label = categoryEnToKo[genre];
   if (!label) notFound();
 
+  const generalSaleShows = await getGeneralSaleShows();
   const shows = generalSaleShows.filter((show) => show.category === label);
 
   return (

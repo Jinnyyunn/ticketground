@@ -31,7 +31,7 @@ const sortOptions: readonly { readonly id: SortMode; readonly label: string }[] 
 ];
 
 function lowestPrice(show: TicketShow) {
-  return Math.min(...show.prices.map((price) => price.price));
+  return show.sale.displayPrice;
 }
 
 function toSortMode(value: string): SortMode {
@@ -155,7 +155,7 @@ export function CategoryBrowser({ label, shows }: CategoryBrowserProps) {
                 <span className="text-sm font-black text-white/85">{show.badge ?? show.category}</span>
                 <h2 className="mt-2 clamp-2 text-2xl font-black leading-tight">{show.shortTitle}</h2>
                 <p className="mt-2 text-sm text-white/80">{show.venue}</p>
-                <p className="mt-3 text-sm font-black">최저 {currency(lowestPrice(show))}</p>
+                <p className="mt-3 text-sm font-black">최저 {currency(lowestPrice(show))} · {show.sale.label}</p>
               </div>
             </a>
           ) : (

@@ -59,7 +59,6 @@ export interface ReviewItem {
 
 export interface TicketShow {
   readonly slug: string;
-  readonly code: string;
   readonly backendEventId?: string;
   readonly category: "뮤지컬" | "콘서트" | "연극" | "클래식" | "스포츠" | "전시/행사" | "아동/가족";
   readonly title: string;
@@ -70,6 +69,17 @@ export interface TicketShow {
   readonly ageLimit: string;
   readonly poster: string;
   readonly ranking?: string;
+  readonly pinnedRank: number | null;
+  readonly soldCount: number;
+  readonly saleState: string;
+  readonly sale: {
+    readonly label: string;
+    readonly note: string;
+    readonly bookable: boolean;
+    readonly displayPrice: number;
+    readonly basePrice: number;
+    readonly discountRate: number;
+  };
   readonly badge?: string;
   readonly artistSlug?: string;
   readonly prices: readonly TicketPrice[];

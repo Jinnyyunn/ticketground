@@ -2,8 +2,13 @@ export function createApiRouter({
   addSupportMessage,
   adminSummary,
   adminVenues,
+  adminWorkspace,
+  bootpayConfig,
+  confirmBootpayPayment,
+  createAdminAccount,
   cancelResaleListing,
   createSupportThread,
+  createEventDraft,
   demoSession,
   directTransferAttempt,
   drawPool,
@@ -15,6 +20,7 @@ export function createApiRouter({
   listForResale,
   notifyWatchlist,
   purchaseResale,
+  publicCatalog,
   publicDirectTransferResult,
   publicPurchaseResult,
   publicResaleDrawResult,
@@ -32,6 +38,7 @@ export function createApiRouter({
   trustDevice,
   updateEventSale,
   updateEventVenue,
+  updateAdminAccount,
   updateDemoProfile,
   updateSupportStatus,
   updateTicketStatus,
@@ -55,7 +62,14 @@ function requireBody(body, keys) {
 
 async function parseBody(req) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 8 * 1024 * 1024) {
+      throw httpError(413, "REQUEST_TOO_LARGE", "요청 본문이 너무 큽니다.");
+    }
+    chunks.push(chunk);
+  }
   if (!chunks.length) return {};
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -73,6 +87,7 @@ async function handleApi(req, res, db, surface) {
   const userIdentityMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/identity$/);
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
+  const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
 
   if (adminOnly && surface !== "admin") {
@@ -80,6 +95,8 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
+  if (req.method === "GET" && url.pathname === "/api/catalog") return publicCatalog(db);
+  if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/callback") return socialAuthCallback(db, req, "kakao", url.searchParams);
@@ -90,6 +107,11 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/ledger") return db.ledger.slice(-30).reverse();
   if (req.method === "GET" && url.pathname === "/api/admin/summary") return adminSummary(db);
   if (req.method === "GET" && url.pathname === "/api/admin/venues") return adminVenues(db);
+  if (req.method === "GET" && adminWorkspaceMatch) {
+    return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin, {
+      eventId: url.searchParams.get("eventId") || undefined
+    });
+  }
   if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
   if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
   if (req.method === "GET" && userTicketsMatch) return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
@@ -147,6 +169,22 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["userId", "ticketId"]);
     return publicPurchaseResult(buyPrimary(db, body));
   }
+  if (req.method === "POST" && url.pathname === "/api/payments/bootpay/purchase") {
+    requireBody(body, ["userId", "ticketId", "paymentMethod"]);
+    const receipt = await confirmBootpayPayment(db, {
+      ticketId: body.ticketId,
+      userId: body.userId,
+      paymentKey: String(body.paymentMethod || "").toUpperCase(),
+      receiptId: body.receiptId
+    });
+    const result = buyPrimary(db, {
+      userId: body.userId,
+      ticketId: body.ticketId,
+      paymentMethod: body.paymentMethod,
+      pgTransactionId: receipt.receiptId
+    });
+    return { ...publicPurchaseResult(result), bootpay: receipt };
+  }
   if (req.method === "POST" && url.pathname === "/api/resale/list") {
     requireBody(body, ["sellerId", "ticketId", "price"]);
     return publicResalePool(listForResale(db, body));
@@ -198,8 +236,20 @@ async function handleApi(req, res, db, surface) {
     return updateEventVenue(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/sale") {
-    requireBody(body, ["eventId", "title", "category", "startsAt", "venueId", "prices"]);
+    requireBody(body, ["eventId", "title", "category", "startsAt", "venueId"]);
     return updateEventSale(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/events/create") {
+    requireBody(body, ["title", "category", "startsAt", "venueId", "imageDataUrl"]);
+    return createEventDraft(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/admin-accounts") {
+    requireBody(body, ["username", "password", "roleKeys"]);
+    return createAdminAccount(db, body, req.admin);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/admin-accounts/update") {
+    requireBody(body, ["adminId", "roleKeys"]);
+    return updateAdminAccount(db, body, req.admin);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/users/status") {
     requireBody(body, ["userId", "status"]);

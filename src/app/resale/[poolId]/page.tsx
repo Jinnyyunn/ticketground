@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { ResaleCheckoutPanel } from "@/components/clean-ticket/resale-checkout-panel";
-import { ticketShows } from "@/data/ticketing";
+import { getTicketShows } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
@@ -22,6 +22,7 @@ export default async function ResaleCheckoutPage({
   const { poolId } = await params;
   const query = await searchParams;
   const sessionUserId = queryParam(query.sessionUserId) || queryParam(query.userId);
+  const ticketShows = await getTicketShows();
 
   return (
     <TicketingPageShell>

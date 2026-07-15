@@ -50,6 +50,8 @@ next-env.d.ts
 # Local temp files
 temp/
 data/
+public/uploads/admin/*
+!public/uploads/admin/.gitkeep
 
 # Local agent/runtime artifacts
 .omo/

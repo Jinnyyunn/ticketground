@@ -83,8 +83,8 @@ test("checkout ignores tampered URL amount parameters for a selected backend tic
   const stateResponse = await fetch(`${baseUrl}/api/state`);
   const statePayload = await stateResponse.json();
   assert.equal(statePayload.ok, true);
-  const ticket = statePayload.data.tickets.find((item) => item.eventId === "event_musical_001" && item.status === "ON_SALE");
-  assert.ok(ticket, "seeded musical ticket exists");
+  const ticket = statePayload.data.tickets.find((item) => item.eventId === "event_c945b7fa842c" && item.status === "ON_SALE");
+  assert.ok(ticket, "seeded les-miserables ticket exists");
 
   const tamperedUrl = new URL(`${baseUrl}/checkout/les-miserables`);
   tamperedUrl.searchParams.set("date", "2026.05.13");

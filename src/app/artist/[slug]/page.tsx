@@ -2,14 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShowTile } from "@/components/discovery/show-tile";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { ticketShows } from "@/data/ticketing";
-
-export function generateStaticParams() {
-  return ticketShows.flatMap((show) => (show.artistSlug ? [{ slug: show.artistSlug }] : []));
-}
+import { getTicketShows } from "@/data/catalog-server";
 
 export default async function ArtistPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const ticketShows = await getTicketShows();
   const show = ticketShows.find((item) => item.artistSlug === slug);
   if (!show) notFound();
 

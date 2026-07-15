@@ -5,6 +5,8 @@ import { currency } from "@/data/ticketing";
 
 export function ShowCard({ show, compact = false }: { show: TicketShow; compact?: boolean }) {
   const lowestPrice = Math.min(...show.prices.map((price) => price.price));
+  const displayPrice = show.sale.displayPrice;
+  const discounted = displayPrice < lowestPrice;
 
   return (
     <Link
@@ -24,13 +26,17 @@ export function ShowCard({ show, compact = false }: { show: TicketShow; compact?
           {show.badge && (
             <span className="rounded bg-ticketground px-2 py-1 text-xs font-bold text-white">{show.badge}</span>
           )}
+          <span className="rounded border border-line px-2 py-1 text-xs font-bold text-ink-3">{show.sale.label}</span>
           <span className="text-sm font-bold text-ink-3">{show.category}</span>
         </div>
         <h2 className="mt-2 clamp-2 text-xl font-bold leading-[1.35] text-ink-2">{show.title}</h2>
         <p className="mt-2 text-sm text-ink-3">{show.venue}</p>
         <p className="mt-1 text-sm text-ink-4">{show.period}</p>
         {!compact && <p className="mt-3 clamp-2 text-sm leading-[1.6] text-ink-3">{show.summary}</p>}
-        <p className="mt-3 text-base font-bold text-ink-2">최저 {currency(lowestPrice)}</p>
+        <p className="mt-3 text-base font-bold text-ink-2">
+          최저 {currency(displayPrice)}
+          {discounted ? <span className="ml-2 text-xs text-ink-4 line-through">{currency(lowestPrice)}</span> : null}
+        </p>
       </div>
     </Link>
   );

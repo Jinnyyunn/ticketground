@@ -1,6 +1,7 @@
 import { createAdmissionBackend } from "./admission.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
+import { createBootpayBackend } from "./bootpay.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
@@ -35,9 +36,11 @@ export async function createTicketgroundApp(options) {
   const admin = createAdminBackend({
     adminTicket: dtos.adminTicket,
     appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
     ensureTicketsForEvent: catalog.ensureTicketsForEvent,
     httpError: runtime.httpError,
     id: runtime.id,
+    mediaDir: options.mediaDir,
     money: runtime.money,
     now: runtime.now,
     seatLayoutForVenue: catalog.seatLayoutForVenue,
@@ -104,14 +107,22 @@ export async function createTicketgroundApp(options) {
     resolvePaymentMethod: runtime.resolvePaymentMethod,
     saleSummary: catalog.saleSummary
   });
+  const bootpay = createBootpayBackend({
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    now: runtime.now
+  });
   const apiRouter = createApiRouter({
     ...admin,
     ...commerce,
     ...engagement,
     ...identity,
     ...session,
+    bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
+    confirmBootpayPayment: bootpay.confirmBootpayPayment,
     httpError: runtime.httpError,
+    publicCatalog: dtos.publicCatalog,
     publicDirectTransferResult: dtos.publicDirectTransferResult,
     publicPurchaseResult: dtos.publicPurchaseResult,
     publicResaleDrawResult: dtos.publicResaleDrawResult,
@@ -134,5 +145,5 @@ export async function createTicketgroundApp(options) {
     saveDb: persistence.saveDb
   });
   const db = await persistence.loadDb({ normalizeDb: catalog.normalizeDb, seedDb: catalog.seedDb });
-  return { db, handleRequest: http.handleRequest };
+  return { admin, db, handleRequest: http.handleRequest };
 }

@@ -1,5 +1,7 @@
 import { z, type ZodType } from "zod";
 import type {
+  ApiBootpayConfig,
+  ApiBootpayPurchaseResult,
   ApiDirectTransferResult,
   ApiEvent,
   ApiIdentityStart,
@@ -21,14 +23,38 @@ import type {
 
 export const apiEventSchema = z.object({
   id: z.string(),
+  slug: z.string(),
   title: z.string(),
+  shortTitle: z.string().optional(),
   venue: z.string(),
   venueId: z.string(),
   category: z.string(),
   saleState: z.string(),
+  date: z.string(),
+  image: z.string(),
+  period: z.string().optional(),
+  runtime: z.string().optional(),
+  ageLimit: z.string().optional(),
+  badge: z.string().optional(),
+  artistSlug: z.string().optional(),
+  prices: z.array(z.object({ grade: z.string(), seat: z.string(), price: z.number() })).optional(),
+  schedules: z.array(z.object({
+    label: z.string(),
+    date: z.string(),
+    times: z.array(z.string()),
+  })).optional(),
+  casts: z.array(z.string()).optional(),
+  notices: z.array(z.string()).optional(),
+  summary: z.string().optional(),
+  pinnedRank: z.number().int().min(1).max(10).nullable().optional(),
+  zones: z.array(z.object({ id: z.string(), name: z.string(), faceValue: z.number() })),
   sale: z.object({
     label: z.string(),
     state: z.string(),
+    note: z.string(),
+    discountRate: z.number(),
+    displayPrice: z.number(),
+    basePrice: z.number(),
     bookable: z.boolean(),
   }),
 }) satisfies ZodType<ApiEvent>;
@@ -131,6 +157,19 @@ export const apiPurchaseResultSchema = z.object({
     activationChannel: z.string(),
   }),
 }) satisfies ZodType<ApiPurchaseResult>;
+
+export const apiBootpayConfigSchema = z.object({
+  configured: z.boolean(),
+  applicationId: z.string(),
+}) satisfies ZodType<ApiBootpayConfig>;
+
+export const apiBootpayPurchaseResultSchema = apiPurchaseResultSchema.extend({
+  bootpay: z.object({
+    receiptId: z.string(),
+    method: z.string(),
+    mock: z.boolean(),
+  }),
+}) satisfies ZodType<ApiBootpayPurchaseResult>;
 
 export const apiIdentityStatusSchema = z.object({
   userId: z.string(),

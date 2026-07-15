@@ -5,7 +5,6 @@ export function createCatalogPersistence({
   ensureAdmissionCredential,
   ensureTicketsForEvent,
   eventBlueprints,
-  eventZone,
   primaryDate,
   syncEventVenue,
   venueBlueprints
@@ -25,6 +24,7 @@ function normalizeDb(db) {
   db.qrIssueLogs ||= [];
   db.operatorAlerts ||= [];
   db.paymentTransactions ||= [];
+  db.adminAccounts ||= [];
   db.ledger ||= [];
 
   if (!db.venues?.length) {
@@ -80,8 +80,11 @@ function normalizeDb(db) {
   }
 
   for (const event of db.events) {
+    const before = JSON.stringify(event);
+    event.slug ||= `event-${event.id}`;
     primaryDate(event);
     syncEventVenue(db, event);
+    if (JSON.stringify(event) !== before) changed = true;
     if (ensureTicketsForEvent(db, event)) changed = true;
   }
 
@@ -89,11 +92,12 @@ function normalizeDb(db) {
     const event = db.events.find((item) => item.id === ticket.eventId) || db.events[0];
     if (!event) continue;
     const performanceDate = primaryDate(event);
-    const { zone } = eventZone(db, event.id, ticket.zoneId || event.zones[0].id);
+    const zone = event.zones.find((item) => item.id === ticket.zoneId) || event.zones[0];
+    if (!zone) continue;
     const before = JSON.stringify(ticket);
     ticket.eventId ||= event.id;
     ticket.performanceDateId ||= performanceDate.id;
-    ticket.zoneId ||= zone.id;
+    ticket.zoneId = zone.id;
     ticket.faceValue ||= zone.faceValue;
     ticket.minPrice ||= Math.ceil(ticket.faceValue * 0.5);
     ticket.maxPrice ||= Math.ceil(ticket.faceValue * (1 + zone.resaleFeeRate));
@@ -155,9 +159,13 @@ function seedDb() {
     qrIssueLogs: [],
     operatorAlerts: [],
     paymentTransactions: [],
+    adminAccounts: [],
     ledger: []
   };
-  for (const event of db.events) ensureTicketsForEvent(db, event);
+  for (const event of db.events) {
+    event.slug ||= `event-${event.id}`;
+    ensureTicketsForEvent(db, event);
+  }
   appendLedger(db, "SYSTEM", "BOOTSTRAP", { message: "Initial event, venue map and ticket minting snapshot" });
   return db;
 }

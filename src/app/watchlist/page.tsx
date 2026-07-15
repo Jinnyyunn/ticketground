@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { WatchlistBoard } from "@/components/watchlist/watchlist-board";
-import { featuredShow, genreRecommendations, miniShows, rankings, type PosterFit } from "@/components/home/home-content";
+import { featuredShow, genreRecommendations, miniShows, type PosterFit } from "@/components/home/home-content";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { generalSaleShows } from "@/data/ticketing";
+import { getGeneralSaleShows } from "@/data/catalog-server";
 
 export const metadata: Metadata = {
   title: "관심공연 알림 | Ticketground",
@@ -14,7 +14,7 @@ type HomePosterEntry = {
   readonly posterFit?: PosterFit;
 };
 
-const homePosterEntries = [featuredShow, ...miniShows, ...rankings, ...genreRecommendations.flatMap((group) => group.items)];
+const homePosterEntries = [featuredShow, ...miniShows, ...genreRecommendations.flatMap((group) => group.items)];
 const homePosterBySlug = new Map<string, HomePosterEntry>(
   homePosterEntries.map((show) => [
     show.href.replace("/goods/", ""),
@@ -22,7 +22,8 @@ const homePosterBySlug = new Map<string, HomePosterEntry>(
   ]),
 );
 
-export default function WatchlistPage() {
+export default async function WatchlistPage() {
+  const generalSaleShows = await getGeneralSaleShows();
   const watchShows = generalSaleShows.slice(0, 3).map((show, index) => ({
     ...(homePosterBySlug.get(show.slug) ?? { poster: show.poster }),
     slug: show.slug,

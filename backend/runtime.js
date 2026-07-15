@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 const PAYMENT_METHODS = {
   CREDIT_CARD: { label: "신용카드", status: "PAID" },
+  SIMPLE_PAY: { label: "간편결제", status: "PAID" },
   BANK_TRANSFER: { label: "계좌이체", status: "PAID" },
   BANK_DEPOSIT: { label: "무통장 입금", status: "WAITING_DEPOSIT" },
   MOBILE: { label: "휴대폰 결제", status: "PAID" }

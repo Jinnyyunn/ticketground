@@ -1,26 +1,109 @@
-import type { Reservation, TicketShow } from "@/types";
-import { homeTicketShows } from "./home-ticketing-catalog";
+import type { Reservation } from "@/types";
 
-function reservationFromShow(show: TicketShow): Reservation {
-  const schedule = show.schedules[0];
-  const price = show.prices[0];
-  const seat = price ? `${price.seat} A열 12번` : "일반석 A열 12번";
-  const amount = price?.price ?? 0;
-
-  return {
-    id: `CTI-${show.code}-001`,
-    showSlug: show.slug,
-    showTitle: show.title,
-    venue: show.venue,
-    date: schedule?.date ?? show.period,
-    time: schedule?.times[0] ?? "",
-    seat,
-    price: `${amount.toLocaleString("ko-KR")}원`,
+// Frozen snapshot of the former home-ticketing-catalog.ts derived reservations,
+// decoupled from the live show catalog since this mock reservation history is
+// decorative demo content, not data that should track admin-edited shows.
+const homeTicketReservations: Reservation[] = [
+  {
+    id: "CTI-HOME-IU-2026-001",
+    showSlug: "iu-world-tour",
+    showTitle: "IU 2026 WORLD TOUR",
+    venue: "잠실종합운동장 주경기장",
+    date: "2026.09.12",
+    time: "18:00",
+    seat: "VIP석 A열 12번",
+    price: "198,000원",
     status: "예매완료",
-  };
-}
-
-const homeTicketReservations = homeTicketShows.map(reservationFromShow);
+  },
+  {
+    id: "CTI-HOME-SVT-2026-001",
+    showSlug: "seventeen-tour",
+    showTitle: "SEVENTEEN TOUR",
+    venue: "고척스카이돔",
+    date: "2026.08.08",
+    time: "18:00",
+    seat: "VIP석 A열 12번",
+    price: "198,000원",
+    status: "예매완료",
+  },
+  {
+    id: "CTI-HOME-HADES-2026-001",
+    showSlug: "hadestown",
+    showTitle: "하데스타운",
+    venue: "샤롯데씨어터",
+    date: "2026.07.04",
+    time: "19:30",
+    seat: "VIP석 A열 12번",
+    price: "170,000원",
+    status: "예매완료",
+  },
+  {
+    id: "CTI-HOME-NCTW-2026-001",
+    showSlug: "nct-wish-fanmeeting",
+    showTitle: "NCT WISH FANMEETING",
+    venue: "KSPO DOME",
+    date: "2026.07.25",
+    time: "18:00",
+    seat: "R석 A열 12번",
+    price: "143,000원",
+    status: "예매완료",
+  },
+  {
+    id: "CTI-HOME-CSJ-2026-001",
+    showSlug: "cho-seong-jin",
+    showTitle: "조성진 피아노 리사이틀",
+    venue: "롯데콘서트홀",
+    date: "2026.11.02",
+    time: "20:00",
+    seat: "VIP석 A열 12번",
+    price: "220,000원",
+    status: "예매완료",
+  },
+  {
+    id: "CTI-HOME-PHANTOM-2026-001",
+    showSlug: "phantom-of-the-opera",
+    showTitle: "오페라의 유령",
+    venue: "세종문화회관",
+    date: "2026.06.30",
+    time: "19:30",
+    seat: "VIP석 A열 12번",
+    price: "180,000원",
+    status: "예매완료",
+  },
+  {
+    id: "CTI-HOME-DAY6-2026-001",
+    showSlug: "day6-special-live",
+    showTitle: "DAY6 Special Live",
+    venue: "인스파이어 아레나",
+    date: "2026.08.29",
+    time: "18:00",
+    seat: "R석 A열 12번",
+    price: "154,000원",
+    status: "예매완료",
+  },
+  {
+    id: "CTI-HOME-KWP-2026-001",
+    showSlug: "kun-woo-paik-ravel",
+    showTitle: "백건우와 라벨",
+    venue: "통영국제음악당",
+    date: "2026.09.04",
+    time: "19:30",
+    seat: "R석 A열 12번",
+    price: "120,000원",
+    status: "예매완료",
+  },
+  {
+    id: "CTI-HOME-CHERRY-2026-001",
+    showSlug: "cherry-orchard",
+    showTitle: "연극 벚꽃동산",
+    venue: "대학로예술극장",
+    date: "2026.08.06",
+    time: "19:30",
+    seat: "R석 A열 12번",
+    price: "66,000원",
+    status: "예매완료",
+  },
+];
 
 export const supportingReservations: Reservation[] = [
   {

@@ -24,6 +24,24 @@ function ticketIdFor(event, performanceDateId, seat) {
   return stableId("ticket", event.id, performanceDateId, seat.zoneId, seat.seatLabel);
 }
 
+function generatedSeatsForZone(zone) {
+  const seatCount = Number.isInteger(zone.seatCount) && zone.seatCount > 0 ? zone.seatCount : 12;
+  return Array.from({ length: seatCount }, (_, index) => ({
+    zoneId: zone.id,
+    seatLabel: `${zone.name}-${String(index + 1).padStart(2, "0")}`
+  }));
+}
+
+function seatsForEvent(event) {
+  const layoutSeats = seatLayoutForVenue(event.venueId);
+  const layoutZoneIds = new Set(layoutSeats.map((seat) => seat.zoneId));
+  const matchingSeats = layoutSeats.filter((seat) => event.zones.some((zone) => zone.id === seat.zoneId));
+  const generatedSeats = event.zones
+    .filter((zone) => !layoutZoneIds.has(zone.id))
+    .flatMap(generatedSeatsForZone);
+  return [...matchingSeats, ...generatedSeats];
+}
+
 function eventZone(db, eventId, zoneId) {
   const event = db.events.find((item) => item.id === eventId);
   if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
@@ -39,7 +57,7 @@ function eventDate(event, performanceDateId) {
 }
 
 function eventSaleState(event) {
-  const allowed = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"];
+  const allowed = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"];
   return allowed.includes(event.saleState) ? event.saleState : "ON_SALE";
 }
 
@@ -56,7 +74,8 @@ function saleSummary(event) {
     ON_SALE: "예매 가능",
     OPEN_SOON: "오픈 예정",
     DISCOUNT_SOON: "할인 예정",
-    ADMIN_HOLD: "판매 보류"
+    ADMIN_HOLD: "판매 보류",
+    CLOSED: "판매 종료"
   };
   const state = eventSaleState(event);
   const discountRate = Number(event.discountRate || 0);
@@ -74,17 +93,20 @@ function saleSummary(event) {
 
 function ensureTicketsForEvent(db, event) {
   let changed = false;
-  const seats = seatLayoutForVenue(event.venueId);
+  const seats = seatsForEvent(event);
+  const zonesById = new Map(event.zones.map((zone) => [zone.id, zone]));
+  const existingTicketKeys = new Set(db.tickets.map((ticket) => [
+    ticket.eventId,
+    ticket.performanceDateId,
+    ticket.zoneId,
+    ticket.seatLabel
+  ].join(":")));
   for (const performanceDate of event.dates || [primaryDate(event)]) {
     for (const seat of seats) {
-      const { zone } = eventZone(db, event.id, seat.zoneId);
-      const existing = db.tickets.find((ticket) =>
-        ticket.eventId === event.id
-        && ticket.performanceDateId === performanceDate.id
-        && ticket.zoneId === seat.zoneId
-        && ticket.seatLabel === seat.seatLabel
-      );
-      if (existing) continue;
+      const zone = zonesById.get(seat.zoneId);
+      if (!zone) throw httpError(404, "ZONE_NOT_FOUND", "구역을 찾을 수 없습니다.");
+      const ticketKey = [event.id, performanceDate.id, seat.zoneId, seat.seatLabel].join(":");
+      if (existingTicketKeys.has(ticketKey)) continue;
       db.tickets.push({
         id: ticketIdFor(event, performanceDate.id, seat),
         eventId: event.id,
@@ -101,6 +123,7 @@ function ensureTicketsForEvent(db, event) {
         currentQr: null,
         issuedAt: now()
       });
+      existingTicketKeys.add(ticketKey);
       changed = true;
     }
   }

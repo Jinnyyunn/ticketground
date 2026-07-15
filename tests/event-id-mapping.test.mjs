@@ -13,18 +13,18 @@ test("booking pages fetch each show's mapped backend event", async (t) => {
 
   await assertBookingEventSource(page, baseUrl, {
     slug: "les-miserables",
-    eventId: "event_musical_001",
-    sourceTitle: "Midnight Sonata"
+    eventId: "event_c945b7fa842c",
+    sourceTitle: "레미제라블 40주년 (Les Miserables 40th Anniversary)"
   });
   await assertBookingEventSource(page, baseUrl, {
     slug: "palette-festival",
-    eventId: "event_festival_001",
-    sourceTitle: "Tig Summer Beat Festival"
+    eventId: "event_d91d3c4c539a",
+    sourceTitle: "2026 Palette Festival"
   });
   await assertBookingEventSource(page, baseUrl, {
     slug: "hadestown",
-    eventId: "event_musical_001",
-    sourceTitle: "Midnight Sonata"
+    eventId: "event_521ce6187445",
+    sourceTitle: "하데스타운"
   });
 });
 
@@ -53,7 +53,7 @@ async function assertBookingEventSource(page, baseUrl, { slug, eventId, sourceTi
   assert.equal(requestUrl.searchParams.get("eventId"), eventId, `${slug} should fetch its mapped backend event`);
   assert.equal(payload.data.event.title, sourceTitle);
   await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
-  await page.getByText(sourceTitle).waitFor({ timeout: 5000 });
+  await page.getByText(sourceTitle).first().waitFor({ timeout: 5000 });
 }
 
 async function checkoutWithoutSelectedTicket(page, baseUrl, slug) {
@@ -68,11 +68,11 @@ async function checkoutWithoutSelectedTicket(page, baseUrl, slug) {
   });
   const purchaseRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/api/tickets/buy";
+    return url.pathname === "/api/payments/bootpay/purchase";
   });
   const purchaseResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
-    return url.pathname === "/api/tickets/buy";
+    return url.pathname === "/api/payments/bootpay/purchase";
   });
 
   await page.getByLabel(/결제 조건/).check();
@@ -83,10 +83,10 @@ async function checkoutWithoutSelectedTicket(page, baseUrl, slug) {
   const requestBody = request.postDataJSON();
   const selectedTicket = statePayload.data.tickets.find((ticket) => ticket.id === requestBody.ticketId);
   assert.ok(selectedTicket, `checkout selected unknown ticket ${requestBody.ticketId}`);
-  assert.equal(selectedTicket.eventId, "event_festival_001");
+  assert.equal(selectedTicket.eventId, "event_d91d3c4c539a");
 
   const payload = await response.json();
-  assert.equal(payload.ok, false);
-  assert.equal(payload.error.code, "EVENT_NOT_ON_SALE");
+  assert.equal(payload.ok, true);
+  assert.equal(payload.data.event.id, "event_d91d3c4c539a");
   return selectedTicket;
 }

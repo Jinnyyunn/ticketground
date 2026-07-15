@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { ResaleFlow } from "@/components/clean-ticket/resale-flow";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
-import { getCleanTicketReservation, ticketShows } from "@/data/ticketing";
+import { getCleanTicketReservation } from "@/data/ticketing";
+import { getTicketShows } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
 
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ export default async function MyResalePage({
   const sessionUserId = queryParam(query.sessionUserId) || queryParam(query.userId) || defaultDemoUserId;
   const reservationId = queryParam(query.reservation);
   const reservation = getCleanTicketReservation(reservationId);
+  const ticketShows = await getTicketShows();
   const show = ticketShows.find((item) => item.slug === reservation.showSlug);
 
   return (
