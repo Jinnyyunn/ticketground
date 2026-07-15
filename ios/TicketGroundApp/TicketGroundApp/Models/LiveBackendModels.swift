@@ -222,6 +222,12 @@ enum LiveSupportStatus: String, Decodable, Equatable {
     case open = "OPEN"
     case answered = "ANSWERED"
     case closed = "CLOSED"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
 }
 
 struct LiveSupportMessage: Decodable, Equatable {
@@ -235,4 +241,10 @@ struct LiveSupportMessage: Decodable, Equatable {
 enum LiveSupportRole: String, Decodable, Equatable {
     case customer = "CUSTOMER"
     case admin = "ADMIN"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
 }

@@ -104,4 +104,13 @@ final class LiveBackendServiceTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
+
+    func testDecodesUnknownSupportStatusAndRoleAsUnknown() throws {
+        let data = Data(#"{"id":"thread-1","userId":"user-1","subject":"문의","status":"ESCALATED","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","actorId":"moderator-1","role":"MODERATOR","body":"확인 중입니다","at":"2026-07-15T00:00:00Z"}]}"#.utf8)
+
+        let thread = try JSONDecoder().decode(LiveSupportThread.self, from: data)
+
+        XCTAssertEqual(thread.status, .unknown)
+        XCTAssertEqual(thread.messages.first?.role, .unknown)
+    }
 }

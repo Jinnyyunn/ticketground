@@ -180,7 +180,9 @@ final class LiveAPIClient: APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token = credentialStore.read(), !token.isEmpty {
+        if url.scheme?.lowercased() == "https",
+           let token = credentialStore.read(),
+           !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 

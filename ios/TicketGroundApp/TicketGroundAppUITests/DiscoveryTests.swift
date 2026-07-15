@@ -98,6 +98,151 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.textFields["search-input"].exists)
     }
 
+    func testLiveCatalogRouteShowsLiveStateAndSeatMapEntry() {
+        let app = liveApp()
+        app.launch()
+
+        let featuredCTA = app.buttons["discovery-featured-cta"]
+        XCTAssertTrue(featuredCTA.waitForExistence(timeout: 20))
+        featuredCTA.tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "live-route-state").waitForExistence(timeout: 20))
+        XCTAssertTrue(anyElement(app, identifier: "live-catalog-event").exists)
+        XCTAssertFalse(app.staticTexts["이 화면은 다음 discovery 단계에서 콘텐츠를 연결합니다."].exists)
+
+        let seatMapLink = app.buttons["live-seat-map-link"]
+        XCTAssertTrue(seatMapLink.waitForExistence(timeout: 20))
+        seatMapLink.tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 20))
+        XCTAssertTrue(anyElement(app, identifier: "live-seat-map-zones").exists)
+    }
+
+    func testLiveLoginDoesNotCreateFixtureUser() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-watchlist"].waitForExistence(timeout: 10))
+        app.buttons["header-watchlist"].tap()
+        XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
+
+        app.buttons["login-google"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-login-provider-state").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "login-success").exists)
+    }
+
+    func testLiveDeferredRouteIsExplicit() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-watchlist"].waitForExistence(timeout: 10))
+        app.buttons["header-watchlist"].tap()
+        XCTAssertTrue(app.buttons["login-signup"].waitForExistence(timeout: 10))
+        app.buttons["login-signup"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "live-unsupported-capability").waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["이 화면은 다음 discovery 단계에서 콘텐츠를 연결합니다."].exists)
+    }
+
+    func testLiveAccountRouteExposesWatchlistAndSupportState() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-account").waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["live-mypage-watchlist"].exists)
+        XCTAssertTrue(app.buttons["live-mypage-support"].exists)
+
+        app.buttons["live-mypage-support"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-support").waitForExistence(timeout: 20))
+        XCTAssertTrue(anyElement(app, identifier: "live-login-required").exists
+                      || anyElementWithIdentifierPrefix(app, prefix: "live-support-thread-").exists
+                      || anyElement(app, identifier: "live-support-empty").exists
+                      || anyElement(app, identifier: "live-support-error").exists)
+
+        let watchlistApp = liveApp()
+        watchlistApp.launch()
+        XCTAssertTrue(watchlistApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        watchlistApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(watchlistApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        watchlistApp.buttons["live-menu-account"].tap()
+        XCTAssertTrue(watchlistApp.buttons["live-mypage-watchlist"].waitForExistence(timeout: 20))
+        watchlistApp.buttons["live-mypage-watchlist"].tap()
+        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist").waitForExistence(timeout: 20))
+        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-login-required").exists || anyElement(watchlistApp, identifier: "live-watchlist-items").exists)
+    }
+
+    func testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        for identifier in [
+            "live-menu-login",
+            "live-menu-watchlist",
+            "live-menu-search",
+            "live-menu-ranking",
+            "live-menu-open-calendar",
+            "live-menu-help",
+            "live-menu-inquiry",
+            "live-menu-category-concert",
+            "live-menu-category-musical"
+        ] {
+            XCTAssertTrue(app.buttons[identifier].exists, identifier)
+        }
+        XCTAssertFalse(app.staticTexts["fixture-state-happy"].exists)
+        XCTAssertFalse(app.staticTexts["fixture"].exists)
+
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-account").waitForExistence(timeout: 20))
+
+        let supportApp = liveApp()
+        supportApp.launch()
+        XCTAssertTrue(supportApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        supportApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(supportApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        supportApp.buttons["live-menu-help"].tap()
+        XCTAssertTrue(anyElement(supportApp, identifier: "live-support").waitForExistence(timeout: 20))
+    }
+
+    func testLiveSearchFiltersCatalogAndShowsExplicitEmptyState() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-search"].waitForExistence(timeout: 10))
+        app.buttons["header-search"].tap()
+
+        let searchInput = app.textFields["live-search-input"]
+        XCTAssertTrue(searchInput.waitForExistence(timeout: 20))
+        searchInput.tap()
+        searchInput.typeText("kInTeX")
+        XCTAssertTrue(app.staticTexts["2026 Palette Festival"].waitForExistence(timeout: 20))
+
+        let emptyApp = liveApp()
+        emptyApp.launch()
+        XCTAssertTrue(emptyApp.buttons["header-search"].waitForExistence(timeout: 10))
+        emptyApp.buttons["header-search"].tap()
+        let emptySearchInput = emptyApp.textFields["live-search-input"]
+        XCTAssertTrue(emptySearchInput.waitForExistence(timeout: 20))
+        emptySearchInput.tap()
+        emptySearchInput.typeText("없는공연검색")
+        XCTAssertTrue(anyElement(emptyApp, identifier: "live-search-empty").waitForExistence(timeout: 10))
+    }
+
+    private func liveApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-api-mode", "live"]
+        return app
+    }
+
+    private func anyElement(_ app: XCUIApplication, identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
+    private func anyElementWithIdentifierPrefix(_ app: XCUIApplication, prefix: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
+    }
+
     private func assertDiscoverable(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: 10), file: file, line: line)
     }

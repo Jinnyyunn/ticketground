@@ -4,11 +4,13 @@ import XCTest
 private final class LiveAPIURLProtocol: URLProtocol {
     static var responseData = Data()
     static var statusCode = 200
+    static var requests: [URLRequest] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        Self.requests.append(request)
         guard let response = HTTPURLResponse(
             url: request.url ?? URL(string: "http://localhost")!,
             statusCode: Self.statusCode,
@@ -89,5 +91,30 @@ final class AppEnvironmentTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response) as? [String: Int])
         XCTAssertEqual(object["total"], 3)
         XCTAssertEqual(client.resolveResource("/assets/poster.jpg"), "http://127.0.0.1:4173/assets/poster.jpg")
+    }
+
+    func testLiveAPIClientDoesNotSendBearerCredentialOverHTTP() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let credentials = InMemoryCredentialStore()
+        credentials.save("native-credential")
+        LiveAPIURLProtocol.requests = []
+        LiveAPIURLProtocol.responseData = Data(#"{"ok":true,"data":{"total":3}}"#.utf8)
+        LiveAPIURLProtocol.statusCode = 200
+
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            credentialStore: credentials,
+            session: session
+        )
+
+        let response = try await client.data(for: "/api/catalog")
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response) as? [String: Int])
+        let request = try XCTUnwrap(LiveAPIURLProtocol.requests.first)
+
+        XCTAssertEqual(object["total"], 3)
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
     }
 }
