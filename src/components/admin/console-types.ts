@@ -68,7 +68,13 @@ export type AdminEvent = {
   readonly zones: readonly { readonly id: string; readonly name: string; readonly faceValue: number; readonly seatCount?: number }[];
 };
 export type Venue = { readonly id: string; readonly name: string };
-export type AdminUser = { readonly id: string; readonly name: string; readonly status: string; readonly trustScore: number };
+export type AdminUser = {
+  readonly id: string;
+  readonly name: string;
+  readonly status: string;
+  readonly trustScore: number;
+  readonly sanctions: readonly { readonly id: string; readonly reason: string; readonly penalty: string; readonly at: string }[];
+};
 export type AdminTicket = {
   readonly id: string;
   readonly eventId: string;
@@ -79,7 +85,20 @@ export type AdminTicket = {
   readonly ownerId: string | null;
   readonly faceValue: number;
 };
-export type SupportThread = { readonly id: string; readonly subject?: string; readonly status: string; readonly messages: readonly { readonly actorId: string; readonly message: string }[] };
+export type SupportCategory = "GENERAL" | "PAYMENT" | "TICKET_QR" | "URGENT";
+export type SupportThread = {
+  readonly id: string;
+  readonly userId: string;
+  readonly subject?: string;
+  readonly status: string;
+  readonly category: SupportCategory;
+  readonly priority: string;
+  readonly messageCount: number;
+  readonly lastMessagePreview: string;
+  readonly relatedTicketId: string | null;
+  readonly relatedBookingId: string | null;
+  readonly messages: readonly { readonly id: string; readonly actorId: string; readonly role: string; readonly body: string; readonly at: string | null }[];
+};
 
 export type OverviewWorkspace = {
   readonly stats: {
@@ -111,8 +130,8 @@ export type InventoryWorkspace = {
   }[];
 };
 export type PageInfo = { readonly page: number; readonly limit: number; readonly total: number; readonly hasNext: boolean; readonly hasPrevious: boolean };
-export type AccountsWorkspace = { readonly users: readonly AdminUser[] };
-export type SupportWorkspace = { readonly supportThreads: readonly SupportThread[] };
+export type AccountsWorkspace = { readonly filters: { readonly search: string | null }; readonly users: readonly AdminUser[] };
+export type SupportWorkspace = { readonly filters: { readonly category: string | null; readonly status: string | null }; readonly supportThreads: readonly SupportThread[] };
 export type FinanceWorkspace = {
   readonly eventSummaries: readonly AdminEventSummary[];
   readonly filters: { readonly eventId: string | null; readonly from: string | null; readonly method: string | null; readonly status: string | null; readonly to: string | null };
@@ -154,7 +173,30 @@ export type ResaleWorkspace = {
   readonly notificationJobs: readonly { readonly id: string; readonly status: string }[];
   readonly operatorAlerts: readonly { readonly id: string; readonly message: string; readonly status: string; readonly createdAt?: string }[];
 };
-export type AdmissionWorkspace = { readonly admissionCredentials: readonly { readonly id: string; readonly status: string; readonly riskStatus?: string }[] };
+export type AdmissionWorkspace = {
+  readonly admissionCredentials: readonly {
+    readonly id: string;
+    readonly ticketId: string;
+    readonly userId: string;
+    readonly status: string;
+    readonly riskStatus?: string;
+    readonly adminHold: boolean;
+    readonly adminHoldReason: string | null;
+    readonly adminHoldUpdatedAt: string | null;
+  }[];
+  readonly page: PageInfo;
+  readonly qrIssueLogs: readonly {
+    readonly id: string;
+    readonly ticketId: string;
+    readonly credentialId: string | null;
+    readonly userId: string;
+    readonly deviceId: string;
+    readonly channel: string;
+    readonly issuedAt: string;
+    readonly expiresAt: string;
+    readonly traceCode: string;
+  }[];
+};
 export type AuditWorkspace = {
   readonly filters: { readonly action: string | null; readonly actorId: string | null; readonly from: string | null; readonly to: string | null };
   readonly ledger: readonly { readonly index: number; readonly actorId: string; readonly action: string; readonly at: string; readonly payload: unknown }[];
@@ -200,6 +242,7 @@ export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD"
 export const userStatuses = ["ACTIVE", "WATCHLIST", "BANNED"] as const;
 export const ticketStatuses = ["ON_SALE", "ADMIN_HOLD"] as const;
 export const supportStatuses = ["OPEN", "ANSWERED", "CLOSED"] as const;
+export const supportCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"] as const;
 
 const operatorLabels: Record<string, string> = {
   ACTIVE: "활성",
@@ -211,6 +254,7 @@ const operatorLabels: Record<string, string> = {
   concert: "콘서트",
   CREDIT_CARD: "신용카드",
   DISCOUNT_SOON: "할인 예정",
+  GENERAL: "일반",
   children: "아동·가족",
   classic: "클래식",
   exhibition: "전시·행사",
@@ -220,10 +264,13 @@ const operatorLabels: Record<string, string> = {
   OPEN: "접수 중",
   OPEN_SOON: "오픈 예정",
   PAID: "결제 완료",
+  PAYMENT: "결제",
   PRIMARY: "일반 예매",
   RESALE: "공식 재판매",
   sports: "스포츠",
+  TICKET_QR: "티켓/QR",
   theater: "연극",
+  URGENT: "긴급",
   WATCHLIST: "주의 관찰"
 };
 

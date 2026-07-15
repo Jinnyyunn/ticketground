@@ -170,6 +170,73 @@ function paymentTransactionDto(transaction, maps) {
   };
 }
 
+function supportMessageDto(message) {
+  return {
+    id: message.id,
+    actorId: message.actorId,
+    role: message.role || "CUSTOMER",
+    body: message.body || message.message || "",
+    at: message.at || null
+  };
+}
+
+function supportThreadDto(thread) {
+  const messages = (thread.messages || []).map(supportMessageDto);
+  const lastMessage = messages.at(-1);
+  return {
+    ...clone(thread),
+    category: thread.category || "GENERAL",
+    priority: thread.priority || (thread.category === "URGENT" ? "URGENT" : "NORMAL"),
+    relatedTicketId: thread.relatedTicketId || thread.ticketId || null,
+    relatedBookingId: thread.relatedBookingId || thread.bookingId || null,
+    messageCount: messages.length,
+    lastMessagePreview: lastMessage?.body.slice(0, 120) || "",
+    messages
+  };
+}
+
+function filteredSupportThreads(db, options) {
+  const status = options.status ? String(options.status).toUpperCase() : null;
+  const category = options.category ? String(options.category).toUpperCase() : null;
+  return db.supportThreads
+    .map(supportThreadDto)
+    .filter((thread) => (!status || thread.status === status) && (!category || thread.category === category))
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt || 0) - Date.parse(a.updatedAt || a.createdAt || 0));
+}
+
+function adminUserDto(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    status: user.status,
+    trustScore: user.trustScore,
+    sanctions: clone(user.sanctions || [])
+  };
+}
+
+function filteredAdminUsers(db, options) {
+  const search = String(options.search || "").trim().toLowerCase();
+  return db.users
+    .filter((user) => !search || user.id.toLowerCase().includes(search) || String(user.name || "").toLowerCase().includes(search))
+    .map(adminUserDto);
+}
+
+function admissionCredentialDto(credential) {
+  return {
+    ...clone(credential),
+    adminHold: credential.adminHold === true,
+    adminHoldReason: credential.adminHoldReason || null,
+    adminHoldUpdatedAt: credential.adminHoldUpdatedAt || null
+  };
+}
+
+function qrIssueLogDto(log) {
+  return {
+    ...clone(log),
+    credentialId: log.credentialId || log.admissionCredentialId || null
+  };
+}
+
 function filteredPaymentTransactions(db, options) {
   const maps = ticketEventMaps(db);
   return db.paymentTransactions
@@ -656,15 +723,19 @@ function adminWorkspace(db, workspace, actor, options = {}) {
   }
   if (workspace === "accounts") {
     return {
-      users: db.users.map((user) => ({
-        id: user.id,
-        name: user.name,
-        status: user.status,
-        trustScore: user.trustScore
-      }))
+      filters: { search: options.search || null },
+      users: filteredAdminUsers(db, options)
     };
   }
-  if (workspace === "support") return { supportThreads: clone(db.supportThreads) };
+  if (workspace === "support") {
+    return {
+      filters: {
+        category: options.category || null,
+        status: options.status || null
+      },
+      supportThreads: filteredSupportThreads(db, options)
+    };
+  }
   if (workspace === "resale") {
     const usersById = new Map(db.users.map((user) => [user.id, user]));
     const ticketsById = new Map(db.tickets.map((ticket) => [ticket.id, ticket]));
@@ -688,7 +759,14 @@ function adminWorkspace(db, workspace, actor, options = {}) {
       operatorAlerts: clone(db.operatorAlerts)
     };
   }
-  if (workspace === "admission") return { admissionCredentials: clone(db.admissionCredentials) };
+  if (workspace === "admission") {
+    const paged = pageSlice(db.qrIssueLogs.map(qrIssueLogDto).reverse(), options);
+    return {
+      admissionCredentials: db.admissionCredentials.map(admissionCredentialDto),
+      page: paged.page,
+      qrIssueLogs: paged.items
+    };
+  }
   if (workspace === "audit") {
     const entries = filteredLedgerEntries(db, options);
     const paged = pageSlice(entries, options);
@@ -748,6 +826,24 @@ function updateUserStatuses(db, { updates, reason }) {
     status: item.status,
     reason: reason || "운영 콘솔 일괄 상태 변경"
   }));
+}
+
+function adminHoldAdmissionCredential(db, { credentialId, hold, reason }) {
+  const credential = db.admissionCredentials.find((item) => item.id === credentialId);
+  if (!credential) throw httpError(404, "ADMISSION_CREDENTIAL_NOT_FOUND", "입장 자격을 찾을 수 없습니다.");
+  const activeHold = hold === true || hold === "true";
+  const cleanReason = String(reason || "").trim() || (activeHold ? "운영자 입장 QR 보류" : "운영자 입장 QR 보류 해제");
+  credential.adminHold = activeHold;
+  credential.adminHoldReason = cleanReason.slice(0, 160);
+  credential.adminHoldUpdatedAt = now();
+  credential.updatedAt = credential.adminHoldUpdatedAt;
+  appendLedger(db, "ADMIN", activeHold ? "ADMISSION_CREDENTIAL_HELD" : "ADMISSION_CREDENTIAL_RELEASED", {
+    credentialId: credential.id,
+    ticketId: credential.ticketId,
+    userId: credential.userId,
+    reason: credential.adminHoldReason
+  });
+  return admissionCredentialDto(credential);
 }
 
 function updateTicketStatus(db, { ticketId, status }) {
@@ -838,6 +934,7 @@ function acknowledgeOperatorAlerts(db, { alertId, alertIds }) {
 
 
   return {
+    adminHoldAdmissionCredential,
     activeAdminAccount,
     adminAccountDto,
     adminCancelResalePool,

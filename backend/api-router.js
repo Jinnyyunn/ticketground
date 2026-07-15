@@ -1,5 +1,6 @@
 export function createApiRouter({
   addSupportMessage,
+  adminHoldAdmissionCredential,
   acknowledgeOperatorAlerts,
   adminCancelResalePool,
   adminLedgerCsv,
@@ -129,11 +130,13 @@ async function handleApi(req, res, db, surface) {
     return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin, {
       action: url.searchParams.get("action") || undefined,
       actorId: url.searchParams.get("actorId") || undefined,
+      category: url.searchParams.get("category") || undefined,
       eventId: url.searchParams.get("eventId") || undefined,
       from: url.searchParams.get("from") || undefined,
       method: url.searchParams.get("method") || undefined,
       performanceDateId: url.searchParams.get("performanceDateId") || undefined,
       status: url.searchParams.get("status") || undefined,
+      search: url.searchParams.get("search") || undefined,
       to: url.searchParams.get("to") || undefined,
       zoneId: url.searchParams.get("zoneId") || undefined,
       limit: url.searchParams.get("limit") || undefined,
@@ -294,6 +297,10 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/tickets/statuses") {
     requireBody(body, ["updates"]);
     return updateTicketStatuses(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/admission/hold") {
+    requireBody(body, ["credentialId", "hold"]);
+    return adminHoldAdmissionCredential(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/resale/cancel") {
     requireBody(body, ["poolId"]);

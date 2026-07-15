@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { rm } from "node:fs/promises";
 import { chromium } from "playwright";
 import { normalizeAdminIpAllowlist } from "../backend/admin-acl.js";
-import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, appAttestation, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAF/wJ/0R5yyAAAAABJRU5ErkJggg==";
 
@@ -416,7 +416,7 @@ test("browser console menus load focused workspaces and save support status", as
 
   await page.getByRole("link", { name: "고객 지원" }).click();
   await page.getByRole("heading", { name: "고객 지원", exact: true }).waitFor();
-  await page.locator('select[name="status"]').selectOption("CLOSED");
+  await page.getByLabel("처리 상태").selectOption("CLOSED");
   await page.getByRole("button", { name: "문의 답변 등록" }).click();
   await page.getByText("문의 답변과 상태가 갱신되었습니다.").waitFor();
   assert.equal(statusRequests.length, 1);
@@ -426,6 +426,110 @@ test("browser console menus load focused workspaces and save support status", as
   await page.getByRole("button", { name: "메뉴 열기" }).click();
   await page.getByRole("link", { name: "관리자/ACL" }).click();
   await page.getByRole("heading", { name: "관리자/ACL", exact: true }).waitFor();
+});
+
+test("admin support workspace filters threads and browser shows message history before reply", async (t) => {
+  // Given: two support threads in different categories with customer/admin history.
+  const server = await startServer(t);
+  const paymentThread = await api(server.baseUrl, "/api/support/threads", {
+    userId: "user_fan_a",
+    subject: "결제 문의",
+    message: "카드 결제 영수증이 보이지 않습니다.",
+    category: "PAYMENT"
+  });
+  await adminApi(server, "/api/admin/support/messages", {
+    threadId: paymentThread.data.id,
+    message: "영수증 재발행을 확인하겠습니다."
+  });
+  const qrThread = await api(server.baseUrl, "/api/support/threads", {
+    userId: "user_fan_b",
+    subject: "QR 문의",
+    message: "입장 QR이 열리지 않습니다.",
+    category: "TICKET_QR"
+  });
+
+  // When: the workspace is filtered by category and the browser opens support.
+  const filtered = await adminApi(server, "/api/admin/workspaces/support?category=PAYMENT&status=ANSWERED");
+  assert.deepEqual(filtered.data.supportThreads.map((thread) => thread.id), [paymentThread.data.id]);
+  assert.equal(filtered.data.supportThreads[0].messageCount, 2);
+  assert.match(filtered.data.supportThreads[0].lastMessagePreview, /영수증 재발행/);
+
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.goto(`${server.adminUrl}/console/support`);
+  await page.locator('input[name="username"]').fill("admin");
+  await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
+  await page.getByRole("button", { name: "로그인" }).click();
+  await page.getByRole("heading", { name: "문의함" }).waitFor();
+
+  // Then: both threads are selectable and the selected panel shows full history before reply controls.
+  await page.getByRole("button", { name: /QR 문의/ }).click();
+  await page.getByRole("article").getByText("입장 QR이 열리지 않습니다.").waitFor();
+  await page.getByRole("button", { name: /결제 문의/ }).click();
+  await page.getByRole("article").getByText("카드 결제 영수증이 보이지 않습니다.").waitFor();
+  await page.getByRole("article").getByText("영수증 재발행을 확인하겠습니다.").waitFor();
+  assert.equal(await page.getByRole("button", { name: /QR 문의/ }).count(), 1);
+  assert.equal(qrThread.data.category, "TICKET_QR");
+});
+
+test("browser account workspace searches users, shows sanctions, confirms single changes, and bulk updates", async (t) => {
+  // Given: one user already has a sanctions history.
+  const server = await startServer(t);
+  await adminApi(server, "/api/admin/users/status", {
+    userId: "user_fan_b",
+    status: "WATCHLIST",
+    reason: "이전 거래 패턴 검토"
+  });
+  const searched = await adminApi(server, "/api/admin/workspaces/accounts?search=지후");
+  assert.deepEqual(searched.data.users.map((user) => user.id), ["user_fan_b"]);
+  assert.equal(searched.data.users[0].sanctions.length, 1);
+  assert.equal(searched.data.users[0].trustScore, 39);
+
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const singleRequests = [];
+  const bulkRequests = [];
+  page.on("request", (request) => {
+    const pathName = new URL(request.url()).pathname;
+    if (pathName === "/api/admin/users/status") singleRequests.push(request.postDataJSON());
+    if (pathName === "/api/admin/users/statuses") bulkRequests.push(request.postDataJSON());
+  });
+
+  // When: the operator searches, reviews sanctions, confirms a single change, and submits a bulk change.
+  await page.goto(`${server.adminUrl}/console/accounts`);
+  await page.locator('input[name="username"]').fill("admin");
+  await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
+  await page.getByRole("button", { name: "로그인" }).click();
+  await page.getByRole("heading", { name: "회원 검색/상태 관리" }).waitFor();
+  await page.locator('input[name="search"]').fill("지후");
+  await page.getByRole("button", { name: "검색" }).click();
+  await page.getByRole("button", { name: /지후/ }).click();
+  await page.getByText("이전 거래 패턴 검토").waitFor();
+  await page.locator('select[name="status"]').first().selectOption("BANNED");
+  await page.locator('input[name="reason"]').first().fill("수정하시겠습니까 테스트");
+  await page.getByRole("button", { name: "변경 확인" }).click();
+  await page.getByText("수정하시겠습니까?").waitFor();
+  await page.getByRole("button", { name: "계정 상태 저장" }).click();
+  await page.getByText("계정 상태가 갱신되었습니다.").waitFor();
+  await page.locator('input[name="search"]').fill("");
+  await page.getByRole("button", { name: "검색" }).click();
+  await page.getByRole("button", { name: /민서/ }).waitFor();
+  await page.locator('input[aria-label="민서 선택"]').check();
+  await page.locator('input[aria-label="하린 선택"]').check();
+  await page.locator('select[name="bulkStatus"]').selectOption("WATCHLIST");
+  await page.locator('input[name="bulkReason"]').fill("브라우저 일괄 변경");
+  await page.getByRole("button", { name: "선택 계정 일괄 변경" }).click();
+  await page.getByText("2개 계정 상태가 갱신되었습니다.").waitFor();
+
+  // Then: both single and bulk admin endpoints were driven through the UI.
+  assert.equal(singleRequests.length, 1);
+  assert.equal(singleRequests[0].userId, "user_fan_b");
+  assert.equal(singleRequests[0].status, "BANNED");
+  assert.equal(bulkRequests.length, 1);
+  assert.deepEqual(bulkRequests[0].updates.map((item) => item.userId).sort(), ["user_fan_a", "user_seller"]);
+  assert.equal(bulkRequests[0].updates[0].status, "WATCHLIST");
 });
 
 test("browser admin inventory and resale operations work through changed controls", async (t) => {
@@ -837,4 +941,85 @@ test("admin alert acknowledgement reduces overview unread count", async (t) => {
   assert.equal(after.data.stats.operatorAlerts, before.data.stats.operatorAlerts - 1);
   const refreshed = await adminApi(server, "/api/admin/workspaces/resale");
   assert.equal(refreshed.data.operatorAlerts.find((item) => item.id === alert.id).status, "ACKED");
+});
+
+test("admin admission hold surfaces QR logs and blocks subsequent QR issuance", async (t) => {
+  // Given: a real ticket QR was issued successfully and is visible in admission logs.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const device = await api(server.baseUrl, "/api/devices/trust", {
+    userId: "user_fan_a",
+    deviceId: "hold-test-iphone",
+    biometricVerified: true,
+    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "hold-test-iphone")
+  });
+  const firstQr = await api(server.baseUrl, "/api/tickets/qr", {
+    userId: "user_fan_a",
+    ticketId: ticket.id,
+    channel: "APP",
+    deviceId: "hold-test-iphone",
+    deviceToken: device.data.deviceToken,
+    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "hold-test-iphone", ticket.id)
+  });
+  assert.equal(firstQr.data.type, "ADMISSION");
+  const admissionBefore = await adminApi(server, "/api/admin/workspaces/admission?limit=5");
+  const credential = admissionBefore.data.admissionCredentials.find((item) => item.ticketId === ticket.id);
+  assert.ok(credential);
+  assert.equal(admissionBefore.data.qrIssueLogs.some((log) => log.credentialId === credential.id), true);
+
+  // When: admin holds the admission credential.
+  const held = await adminApi(server, "/api/admin/admission/hold", {
+    credentialId: credential.id,
+    hold: true,
+    reason: "고위험 계정 현장 확인"
+  });
+
+  // Then: a subsequent real QR issuance attempt is rejected by the issuance path, not just marked in UI.
+  assert.equal(held.data.adminHold, true);
+  const blockedQr = await api(server.baseUrl, "/api/tickets/qr", {
+    userId: "user_fan_a",
+    ticketId: ticket.id,
+    channel: "APP",
+    deviceId: "hold-test-iphone",
+    deviceToken: device.data.deviceToken,
+    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "hold-test-iphone", ticket.id)
+  }, 423);
+  assert.equal(blockedQr.error.code, "ADMIN_HOLD_ACTIVE");
+  const released = await adminApi(server, "/api/admin/admission/hold", {
+    credentialId: credential.id,
+    hold: false,
+    reason: "현장 확인 완료"
+  });
+  assert.equal(released.data.adminHold, false);
+});
+
+test("admin admission hold route requires admission manage permission", async (t) => {
+  // Given: browser sessions with finance-only and admission permissions.
+  const financeServer = await startServer(t, { env: { TIG_ADMIN_ROLES: "finance" } });
+  const admissionServer = await startServer(t, { env: { TIG_ADMIN_ROLES: "admission" } });
+  const { ticket } = await buyFirstTicket(admissionServer.baseUrl);
+  const admissionWorkspace = await adminApi(admissionServer, "/api/admin/workspaces/admission");
+  const credential = admissionWorkspace.data.admissionCredentials.find((item) => item.ticketId === ticket.id);
+  assert.ok(credential);
+  const financeLogin = await adminSessionRequest(financeServer, "/api/admin/login", {
+    body: { username: "admin", password: bootstrapAdminPassword }
+  });
+  const admissionLogin = await adminSessionRequest(admissionServer, "/api/admin/login", {
+    body: { username: "admin", password: bootstrapAdminPassword }
+  });
+
+  // When/Then: finance is denied and admission can mutate the hold.
+  const denied = await adminSessionRequest(financeServer, "/api/admin/admission/hold", {
+    cookie: financeLogin.setCookie.split(";")[0],
+    csrf: financeLogin.json.data.csrf,
+    body: { credentialId: "cred_missing", hold: true, reason: "permission check" },
+    expectedStatus: 403
+  });
+  assert.equal(denied.json.error.detail.permission, "admission.manage");
+  const allowed = await adminSessionRequest(admissionServer, "/api/admin/admission/hold", {
+    cookie: admissionLogin.setCookie.split(";")[0],
+    csrf: admissionLogin.json.data.csrf,
+    body: { credentialId: credential.id, hold: true, reason: "permission check" }
+  });
+  assert.equal(allowed.json.data.adminHold, true);
 });

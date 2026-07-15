@@ -141,16 +141,19 @@ export function createEngagementBackend({
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   }
 
-  function createSupportThread(db, { userId, subject, message }) {
+  function createSupportThread(db, { userId, subject, message, category }) {
     const user = findUser(db, userId);
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "문의 내용을 입력해주세요.");
+    const allowedCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"];
+    const normalizedCategory = allowedCategories.includes(String(category || "").toUpperCase()) ? String(category).toUpperCase() : "GENERAL";
     const thread = {
       id: id("support"),
       userId: user.id,
       subject: String(subject || "1:1 실시간 문의").trim().slice(0, 80) || "1:1 실시간 문의",
       status: "OPEN",
       priority: "NORMAL",
+      category: normalizedCategory,
       createdAt: now(),
       updatedAt: now(),
       messages: [

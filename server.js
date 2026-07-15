@@ -116,6 +116,7 @@ const sessionRoutePermissions = [
   { method: "POST", pattern: /^\/api\/admin\/admin-accounts(?:\/update)?$/, permission: "acl.manage" },
   { method: "POST", pattern: /^\/api\/admin\/users\/status/, permission: "accounts.manage" },
   { method: "POST", pattern: /^\/api\/admin\/tickets\/statuses?$/, permission: "catalog.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/admission\/hold$/, permission: "admission.manage" },
   { method: "POST", pattern: /^\/api\/admin\/resale\/cancel$/, permission: "security.manage" },
   { method: "POST", pattern: /^\/api\/admin\/alerts\/ack$/, permission: "security.manage" },
   { method: "POST", pattern: /^\/api\/admin\/support\//, permission: "support.manage" },
