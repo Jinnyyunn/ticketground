@@ -82,6 +82,12 @@ export function createCommerceBackend({
     }
 
     const resalePrice = money(price);
+    if (!Number.isFinite(resalePrice)) {
+      throw httpError(422, "INVALID_RESALE_PRICE", "재판매 가격을 확인해주세요.", {
+        minPrice: ticket.minPrice,
+        maxPrice: ticket.maxPrice
+      });
+    }
     if (resalePrice < ticket.minPrice || resalePrice > ticket.maxPrice) {
       throw httpError(422, "PRICE_OUT_OF_POLICY", "가격 정책 범위를 벗어났습니다.", {
         minPrice: ticket.minPrice,

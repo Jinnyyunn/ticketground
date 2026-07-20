@@ -794,13 +794,18 @@ function adminWorkspace(db, workspace, actor, options = {}) {
   throw httpError(404, "ADMIN_WORKSPACE_NOT_FOUND", "요청한 운영 작업공간이 없습니다.");
 }
 
-function updateUserStatus(db, { userId, status, reason }) {
+function assertUserStatusUpdate(db, { userId, status }, index = null) {
   const allowed = ["ACTIVE", "WATCHLIST", "BANNED"];
+  const detail = index === null ? { userId } : { userId, index };
   if (!allowed.includes(status)) {
-    throw httpError(422, "INVALID_USER_STATUS", "지원하지 않는 계정 상태입니다.");
+    throw httpError(422, "INVALID_USER_STATUS", "지원하지 않는 계정 상태입니다.", detail);
   }
   const user = db.users.find((item) => item.id === userId);
-  if (!user) throw httpError(404, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.");
+  if (!user) throw httpError(404, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.", detail);
+  return { user, status };
+}
+
+function applyUserStatusUpdate(db, { user, status, reason }) {
   user.status = status;
   if (status === "WATCHLIST") user.trustScore = Math.min(user.trustScore, 39);
   if (status === "BANNED") user.trustScore = Math.min(user.trustScore, 10);
@@ -818,13 +823,20 @@ function updateUserStatus(db, { userId, status, reason }) {
   return user;
 }
 
+function updateUserStatus(db, payload) {
+  return applyUserStatusUpdate(db, {
+    ...assertUserStatusUpdate(db, payload),
+    reason: payload.reason
+  });
+}
+
 function updateUserStatuses(db, { updates, reason }) {
   if (!Array.isArray(updates) || !updates.length) {
     throw httpError(400, "MISSING_FIELD", "수정할 계정 상태를 선택해주세요.");
   }
-  return updates.map((item) => updateUserStatus(db, {
-    userId: item.userId,
-    status: item.status,
+  const validated = updates.map((item, index) => assertUserStatusUpdate(db, item, index));
+  return validated.map((item) => applyUserStatusUpdate(db, {
+    ...item,
     reason: reason || "운영 콘솔 일괄 상태 변경"
   }));
 }

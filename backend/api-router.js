@@ -208,7 +208,8 @@ async function handleApi(req, res, db, surface) {
       ticketId: body.ticketId,
       userId: body.userId,
       paymentKey: String(body.paymentMethod || "").toUpperCase(),
-      receiptId: body.receiptId
+      receiptId: body.receiptId,
+      expectedAmount: purchasable.ticket.faceValue
     });
     let result;
     try {
