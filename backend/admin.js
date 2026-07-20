@@ -465,11 +465,12 @@ function updateAdminAccount(db, payload, actor) {
   } catch (error) {
     throw httpError(422, "INVALID_ADMIN_IP_ACL", error.message);
   }
+  const passwordUpdated = Object.hasOwn(payload, "password") && String(payload.password || "").length > 0;
+  const nextPassword = passwordUpdated ? passwordRecord(payload.password) : null;
   account.roleKeys = roleKeys;
   account.ipAllowlist = ipAllowlist;
   account.active = payload.active !== false;
-  const passwordUpdated = Object.hasOwn(payload, "password") && String(payload.password || "").length > 0;
-  if (passwordUpdated) Object.assign(account, passwordRecord(payload.password));
+  if (nextPassword) Object.assign(account, nextPassword);
   account.updatedAt = now();
   appendLedger(db, "ADMIN", "ADMIN_ACCOUNT_UPDATED", { adminId: account.id, roleKeys: account.roleKeys, ipAllowlist: account.ipAllowlist, active: account.active, passwordUpdated });
   return adminAccountDto(account);
@@ -533,6 +534,7 @@ async function updateEventSale(db, payload) {
     : [{ id: stableId("perf", event.id, input.startsAt), startsAt: input.startsAt, label: "1회차" }]);
   assertInventorySize(nextZones, nextDates);
   assertTicketsCanUseInventory(db, event, nextZones, nextDates);
+  const nextImage = payload.imageDataUrl ? await storeEventImage(payload.imageDataUrl) : null;
 
   event.title = input.title;
   event.category = input.category;
@@ -541,7 +543,7 @@ async function updateEventSale(db, payload) {
   event.discountRate = input.discountRate;
   event.venueId = venue.id;
   event.venue = venue.name;
-  if (payload.imageDataUrl) event.image = await storeEventImage(payload.imageDataUrl);
+  if (nextImage) event.image = nextImage;
   Object.assign(event, content);
   if (!content.date) event.date = input.startsAt;
   if (!content.dates) {
