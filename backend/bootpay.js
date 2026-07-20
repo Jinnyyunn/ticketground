@@ -11,6 +11,7 @@ const bootpayMethodByPaymentKey = {
 export function createBootpayBackend({ hash, httpError, now }) {
   const applicationId = process.env.TIG_BOOTPAY_APPLICATION_ID || "";
   const privateKey = process.env.TIG_BOOTPAY_PRIVATE_KEY || "";
+  const mockConfirmDelayMs = Math.max(0, Number.parseInt(process.env.TIG_BOOTPAY_MOCK_CONFIRM_DELAY_MS || "0", 10) || 0);
 
   function isBootpayConfigured() {
     return Boolean(applicationId && privateKey);
@@ -55,11 +56,24 @@ export function createBootpayBackend({ hash, httpError, now }) {
     };
   }
 
-  async function confirmBootpayPayment(db, { ticketId, userId, paymentKey, receiptId }) {
-    if (isBootpayConfigured() && receiptId) {
+  async function confirmBootpayPayment(db, { ticketId, userId, paymentKey, receiptId, expectedAmount }) {
+    if (isBootpayConfigured()) {
+      if (!receiptId) {
+        throw httpError(400, "BOOTPAY_RECEIPT_REQUIRED", "BootPay 결제 승인 영수증이 필요합니다.");
+      }
       const verified = await verifyBootpayReceipt(receiptId);
-      return { receiptId: verified.receiptId, method: verified.method, mock: false };
+      const verifiedAmount = Number(verified.amount);
+      const requiredAmount = Number(expectedAmount);
+      if (Number.isFinite(requiredAmount) && (!Number.isFinite(verifiedAmount) || verifiedAmount !== requiredAmount)) {
+        throw httpError(409, "BOOTPAY_AMOUNT_MISMATCH", "BootPay 승인 금액이 티켓 금액과 일치하지 않습니다.", {
+          receiptId: verified.receiptId,
+          expectedAmount: requiredAmount,
+          actualAmount: Number.isFinite(verifiedAmount) ? verifiedAmount : null
+        });
+      }
+      return { receiptId: verified.receiptId, method: verified.method, amount: verifiedAmount, mock: false };
     }
+    await new Promise((resolve) => setTimeout(resolve, mockConfirmDelayMs));
     const receipt = mockBootpayReceipt({ ticketId, userId, paymentKey });
     return { receiptId: receipt.receiptId, method: receipt.method, mock: true };
   }

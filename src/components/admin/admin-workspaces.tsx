@@ -66,7 +66,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
   if (!data) return <WorkspacePanel><p aria-live="polite" className="text-sm font-bold text-ticketground">작업공간 데이터를 불러오지 못했습니다.</p></WorkspacePanel>;
   if (workspace === "overview" && "stats" in data) return <OverviewWorkspace data={data} />;
   if (workspace === "catalog" && hasEvents(data)) return <CatalogWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
-  if (workspace === "sales" && hasEvents(data)) return <SalesWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} onSelectEvent={onSelectEvent} />;
+  if (workspace === "sales" && hasEvents(data)) return <SalesWorkspace data={data} feedback={feedback} key={data.events[0]?.id} mutate={mutate} onLocalError={onLocalError} onSelectEvent={onSelectEvent} />;
   if (workspace === "inventory" && hasTickets(data)) return <InventoryWorkspace data={data} feedback={feedback} mutate={mutate} onInventoryFilterChange={onInventoryFilterChange} />;
   if (workspace === "accounts" && hasUsers(data)) return <AccountsWorkspace data={data} feedback={feedback} mutate={mutate} onAccountFilterChange={onAccountFilterChange} />;
   if (workspace === "support" && hasSupportThreads(data)) return <SupportWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} onSupportFilterChange={onSupportFilterChange} />;
@@ -574,7 +574,7 @@ function AccountsWorkspace({
                   )) : <p className="rounded-lg border border-line p-3 text-sm font-bold text-ink-3">제재 이력이 없습니다.</p>}
                 </div>
               </section>
-              <form className="mt-4 grid gap-3 border-t border-line pt-4 md:grid-cols-3" onSubmit={submitSingle}>
+              <form className="mt-4 grid gap-3 border-t border-line pt-4 md:grid-cols-3" key={selectedUser.id} onSubmit={submitSingle}>
                 <SelectField label="상태" name="status" defaultValue={selectedUser.status} options={userStatuses.map((value) => ({ label: operatorLabel(value), value }))} />
                 <Field label="사유" name="reason" defaultValue="운영 콘솔 검토" />
                 <button className="h-10 self-end rounded-lg bg-ink px-4 text-sm font-black text-on-ink" type="submit">변경 확인</button>
@@ -677,7 +677,7 @@ function SupportWorkspace({
                   </article>
                 ))}
               </div>
-              <form className="mt-4 grid gap-3 border-t border-line pt-4 md:grid-cols-2" noValidate onSubmit={submit}>
+              <form className="mt-4 grid gap-3 border-t border-line pt-4 md:grid-cols-2" key={thread.id} noValidate onSubmit={submit}>
                 <TextareaField label="답변" name="message" defaultValue="운영자 확인 후 처리했습니다." rows={3} />
                 <SelectField label="처리 상태" name="status" defaultValue="ANSWERED" options={supportStatuses.map((value) => ({ label: operatorLabel(value), value }))} />
                 <button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">문의 답변 등록</button>

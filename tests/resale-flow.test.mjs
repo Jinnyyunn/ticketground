@@ -61,7 +61,7 @@ test("backend resale purchase joins and immediately matches clicked buyer", asyn
   const previousWaiterTickets = await api(baseUrl, "/api/users/user_scalper/tickets");
   assert.deepEqual(previousWaiterTickets.data, []);
 
-  const admin = await adminApi(server, "/api/admin/summary");
+  const admin = await adminApi(server, "/api/admin/workspaces/resale");
   const matchedPool = admin.data.resalePools.find((item) => item.id === pool.data.id);
   assert.equal(matchedPool.winnerId, "user_fan_b");
 });
@@ -109,7 +109,7 @@ test("backend resale draw applies official fee policy and settlement fields", as
   assert.equal(draw.data.payment.status, "PAID");
   assert.equal(draw.data.ticket.status, "OWNED");
 
-  const admin = await adminApi(server, "/api/admin/summary");
+  const admin = await adminApi(server, "/api/admin/workspaces/audit?action=RANDOM_RESALE_MATCHED");
   const match = admin.data.ledger.find((entry) => entry.action === "RANDOM_RESALE_MATCHED");
   assert.equal(match.payload.buyerFee, expectedFee);
   assert.equal(match.payload.buyerTotal, price + expectedFee);
@@ -134,9 +134,10 @@ test("backend rejects removed balance payment method without mutating resale poo
   }, 422);
   assert.equal(rejected.error.code, "UNSUPPORTED_PAYMENT_METHOD");
 
-  const admin = await adminApi(server, "/api/admin/summary");
+  const admin = await adminApi(server, "/api/admin/workspaces/resale");
+  const inventory = await adminApi(server, `/api/admin/workspaces/inventory?eventId=${ticket.eventId}&limit=100`);
   const poolState = admin.data.resalePools.find((item) => item.id === pool.data.id);
-  const ticketState = admin.data.tickets.find((item) => item.id === ticket.id);
+  const ticketState = inventory.data.tickets.find((item) => item.id === ticket.id);
   assert.equal(poolState.status, "OPEN");
   assert.deepEqual(poolState.buyers, []);
   assert.equal(ticketState.status, "IN_RESALE_POOL");

@@ -51,6 +51,7 @@ export function createAdmissionBackend({
       };
       db.admissionCredentials.push(credential);
     } else {
+      const ownerChanged = credential.userId !== user.id;
       credential.userId = user.id;
       credential.eventId = event.id;
       credential.performanceDateId = performanceDate.id;
@@ -58,6 +59,11 @@ export function createAdmissionBackend({
       credential.activeAt = qrActiveAt(performanceDate);
       credential.riskStatus = isRiskUser(user) ? "OTP_REQUIRED" : "NORMAL";
       credential.status = credential.status === "USED" ? "USED" : "VIRTUAL_READY";
+      if (ownerChanged) {
+        credential.adminHold = false;
+        credential.adminHoldReason = null;
+        credential.adminHoldUpdatedAt = null;
+      }
       credential.updatedAt = now();
     }
     ticket.admissionCredentialId = credential.id;

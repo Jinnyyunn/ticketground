@@ -157,7 +157,9 @@ test("browser admin session uses HttpOnly cookie, csrf, ACL, and create-event mu
   assert.ok(after.data.tickets.some((ticket) => ticket.eventId === create.json.data.event.id));
 
   const tokenSummary = await adminApi(server, "/api/admin/summary");
-  assert.ok(tokenSummary.data.events || tokenSummary.data.stats.totalTickets >= after.data.tickets.length);
+  assert.ok(tokenSummary.data.stats.totalTickets >= after.data.tickets.length);
+  assert.equal(tokenSummary.data.events, undefined);
+  assert.equal(tokenSummary.data.tickets, undefined);
   const tokenAcl = await adminApi(server, "/api/admin/workspaces/acl");
   assert.equal(tokenAcl.data.adminAccounts.some((account) => account.username === "admin" && account.bootstrap), true);
 });
@@ -720,9 +722,10 @@ test("account, support, watchlist, and seat-map APIs remain observable", async (
   assert.ok(seatMap.data.labels.length > 0);
 
   const admin = await adminApi(server, "/api/admin/summary");
+  const accounts = await adminApi(server, "/api/admin/workspaces/accounts?search=user_fan_b");
   assert.ok(admin.data.stats.watchlistEntries >= 1);
   assert.ok(admin.data.stats.supportOpen >= 1);
-  assert.ok(admin.data.users.some((user) => user.id === "user_fan_b" && user.status === "WATCHLIST"));
+  assert.ok(accounts.data.users.some((user) => user.id === "user_fan_b" && user.status === "WATCHLIST"));
 });
 
 test("admin inventory workspace filters, paginates, and summarizes selected event zones", async (t) => {
@@ -910,10 +913,12 @@ test("admin can force cancel another seller resale pool with an audit reason", a
 
   // Then: the pool closes, the ticket returns to owned, and the ledger records the admin action.
   assert.equal(canceled.data.status, "CANCELED");
-  const admin = await adminApi(server, "/api/admin/summary");
-  assert.equal(admin.data.resalePools.find((item) => item.id === pool.data.id).cancelReason, "판매자 응답 없음");
-  assert.equal(admin.data.tickets.find((item) => item.id === ticket.id).status, "OWNED");
-  assert.ok(admin.data.ledger.some((entry) => entry.action === "ADMIN_RESALE_POOL_CANCELED" && entry.payload.poolId === pool.data.id));
+  const resale = await adminApi(server, "/api/admin/workspaces/resale");
+  const inventory = await adminApi(server, `/api/admin/workspaces/inventory?eventId=${ticket.eventId}&limit=100`);
+  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=ADMIN_RESALE_POOL_CANCELED");
+  assert.equal(resale.data.resalePools.find((item) => item.id === pool.data.id).cancelReason, "판매자 응답 없음");
+  assert.equal(inventory.data.tickets.find((item) => item.id === ticket.id).status, "OWNED");
+  assert.ok(audit.data.ledger.some((entry) => entry.action === "ADMIN_RESALE_POOL_CANCELED" && entry.payload.poolId === pool.data.id));
 });
 
 test("admin alert acknowledgement reduces overview unread count", async (t) => {

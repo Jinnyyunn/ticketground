@@ -5,7 +5,9 @@ export function createCatalogPersistence({
   ensureAdmissionCredential,
   ensureTicketsForEvent,
   eventBlueprints,
+  now,
   primaryDate,
+  stableId,
   syncEventVenue,
   venueBlueprints
 }) {

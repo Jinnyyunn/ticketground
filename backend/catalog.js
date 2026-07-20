@@ -147,7 +147,9 @@ function syncEventVenue(db, event) {
     ensureTicketsForEvent,
     eventBlueprints,
     eventZone,
+    now,
     primaryDate,
+    stableId,
     syncEventVenue,
     venueBlueprints
   });

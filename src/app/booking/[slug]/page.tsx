@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { BookingPanel } from "@/components/ticketing/booking-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
@@ -16,6 +16,7 @@ export default async function BookingPage({
   const query = await searchParams;
   const show = await getShowBySlug(slug);
   if (!show) notFound();
+  if (!show.sale.bookable) redirect(`/goods/${show.slug}`);
   const timerQuery = queryParam(query.timer);
   const timerParam = Number(timerQuery);
   const initialTimerSeconds = timerQuery && Number.isFinite(timerParam) ? Math.max(0, Math.min(7 * 60, Math.floor(timerParam))) : undefined;

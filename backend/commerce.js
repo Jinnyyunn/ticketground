@@ -18,11 +18,8 @@ export function createCommerceBackend({
 }) {
   const OFFICIAL_RESALE_FEE_RATE = 0.05;
 
-  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId }) {
-    const user = findUser(db, userId);
-    ensureIdentityVerified(db, user.id);
+  function assertTicketPurchasable(db, ticketId) {
     const ticket = db.tickets.find((item) => item.id === ticketId);
-    const payment = resolvePaymentMethod(paymentMethod);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
     if (ticket.status !== "ON_SALE") throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
     const { event, zone } = eventZone(db, ticket.eventId, ticket.zoneId);
@@ -30,6 +27,14 @@ export function createCommerceBackend({
       throw httpError(409, "EVENT_NOT_ON_SALE", `${saleSummary(event).label} 티켓은 아직 예매할 수 없습니다.`);
     }
     const performanceDate = eventDate(event, ticket.performanceDateId);
+    return { ticket, event, zone, performanceDate };
+  }
+
+  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId }) {
+    const user = findUser(db, userId);
+    ensureIdentityVerified(db, user.id);
+    const payment = resolvePaymentMethod(paymentMethod);
+    const { ticket, event, zone, performanceDate } = assertTicketPurchasable(db, ticketId);
 
     ticket.ownerId = user.id;
     ticket.status = "OWNED";
@@ -77,6 +82,12 @@ export function createCommerceBackend({
     }
 
     const resalePrice = money(price);
+    if (!Number.isFinite(resalePrice)) {
+      throw httpError(422, "INVALID_RESALE_PRICE", "재판매 가격을 확인해주세요.", {
+        minPrice: ticket.minPrice,
+        maxPrice: ticket.maxPrice
+      });
+    }
     if (resalePrice < ticket.minPrice || resalePrice > ticket.maxPrice) {
       throw httpError(422, "PRICE_OUT_OF_POLICY", "가격 정책 범위를 벗어났습니다.", {
         minPrice: ticket.minPrice,
@@ -255,6 +266,12 @@ export function createCommerceBackend({
     const actor = findUser(db, actorId);
     const ticket = db.tickets.find((item) => item.id === ticketId);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
+    if (ticket.ownerId !== actor.id) {
+      throw httpError(403, "TICKET_OWNER_MISMATCH", "본인이 소유한 티켓에 대해서만 직접 양도 검증을 요청할 수 있습니다.", {
+        actorId: actor.id,
+        ticketId: ticket.id
+      });
+    }
 
     actor.trustScore = Math.max(0, actor.trustScore - 18);
     actor.status = actor.trustScore < 40 ? "WATCHLIST" : actor.status;
@@ -273,5 +290,5 @@ export function createCommerceBackend({
     return { blocked: true, user: actor, ticket };
   }
 
-  return { buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, joinPool, listForResale, purchaseResale };
+  return { assertTicketPurchasable, buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, joinPool, listForResale, purchaseResale };
 }

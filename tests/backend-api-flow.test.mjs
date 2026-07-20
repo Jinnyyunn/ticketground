@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, startServer } from "./backend-test-utils.mjs";
+import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 test("public server serves the Next frontend and backend API on one port", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -55,6 +55,34 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   assert.ok(admin.data.stats.notificationJobs >= 3);
 });
 
+test("admin summary has the same overview shape for token and browser-session auth", async (t) => {
+  // Given: an authenticated browser-session admin and the token admin surface.
+  const server = await startServer(t);
+  const loginResponse = await fetch(`${server.adminUrl}/api/admin/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: "admin", password: bootstrapAdminPassword })
+  });
+  await loginResponse.json();
+  assert.equal(loginResponse.status, 200);
+  const cookie = loginResponse.headers.get("set-cookie").split(";")[0];
+
+  // When: both auth modes request the legacy summary route.
+  const sessionResponse = await fetch(`${server.adminUrl}/api/admin/summary`, {
+    headers: { Cookie: cookie }
+  });
+  const token = await adminApi(server, "/api/admin/summary");
+  const session = await sessionResponse.json();
+
+  // Then: both receive the normalized overview-only payload, not raw users/tickets/event arrays.
+  assert.equal(sessionResponse.status, 200);
+  assert.deepEqual(token.data, session.data);
+  assert.ok(token.data.stats.totalTickets > 0);
+  assert.equal(token.data.event, undefined);
+  assert.equal(token.data.users, undefined);
+  assert.equal(token.data.tickets, undefined);
+});
+
 test("seat-map API rejects an explicit missing event id", async (t) => {
   // Given: a running backend with seeded events.
   const { baseUrl } = await startServer(t);
@@ -95,6 +123,70 @@ test("public demo session supports login profile lookup and nickname update with
     name: "1234567890123"
   }, 422);
   assert.equal(longName.error.code, "INVALID_PROFILE_NAME");
+});
+
+test("direct transfer attempt rejects spoofed actors without penalizing the victim", async (t) => {
+  // Given: the demo owner has a ticket and another existing user starts with a clean trust profile.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  const before = await adminApi(server, "/api/admin/workspaces/accounts?search=user_fan_b");
+  const victimBefore = before.data.users.find((user) => user.id === "user_fan_b");
+  assert.equal(victimBefore.trustScore, 88);
+  assert.equal(victimBefore.sanctions.length, 0);
+
+  // When: a caller tries to put that other user's id into the actor field.
+  const rejected = await api(server.baseUrl, "/api/security/direct-transfer-attempt", {
+    actorId: "user_fan_b",
+    ticketId: ticket.id,
+    targetUserId: "user_fan_a",
+    offeredPrice: 2000
+  }, 403);
+
+  // Then: the endpoint rejects the spoof and leaves the victim's reputation untouched.
+  assert.equal(rejected.error.code, "TICKET_OWNER_MISMATCH");
+  const after = await adminApi(server, "/api/admin/workspaces/accounts?search=user_fan_b");
+  const victimAfter = after.data.users.find((user) => user.id === "user_fan_b");
+  assert.equal(victimAfter.trustScore, 88);
+  assert.equal(victimAfter.status, "ACTIVE");
+  assert.equal(victimAfter.sanctions.length, 0);
+});
+
+test("bootpay purchase records a manual-refund ledger entry when capture wins but allocation loses", async (t) => {
+  // Given: two verified users race to buy the final same ticket through the BootPay route.
+  const server = await startServer(t, { env: { TIG_BOOTPAY_MOCK_CONFIRM_DELAY_MS: "50" } });
+  await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
+  await verifyIdentity(server.baseUrl, "user_fan_b", "010-9000-0002");
+  const state = await api(server.baseUrl, "/api/state");
+  const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
+  assert.ok(ticket);
+
+  // When: both requests pass the pre-confirmation availability check before one allocation wins.
+  const responses = await Promise.all([
+    fetch(`${server.baseUrl}/api/payments/bootpay/purchase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: "user_fan_a", ticketId: ticket.id, paymentMethod: "CREDIT_CARD" })
+    }),
+    fetch(`${server.baseUrl}/api/payments/bootpay/purchase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: "user_fan_b", ticketId: ticket.id, paymentMethod: "CREDIT_CARD" })
+    })
+  ]);
+  const payloads = await Promise.all(responses.map((response) => response.json()));
+  const success = payloads.find((payload) => payload.ok);
+  const failed = payloads.find((payload) => !payload.ok);
+
+  // Then: one purchase succeeds and the captured loser gets an explicit refund-needed error plus ledger trail.
+  assert.ok(success);
+  assert.equal(success.data.ticket.id, ticket.id);
+  assert.equal(failed.error.code, "PAYMENT_CAPTURED_ALLOCATION_FAILED");
+  assert.ok(failed.error.detail.receiptId);
+  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=BOOTPAY_PAYMENT_NEEDS_REFUND");
+  assert.equal(audit.data.ledger.length, 1);
+  assert.equal(audit.data.ledger[0].payload.ticketId, ticket.id);
+  assert.equal(audit.data.ledger[0].payload.receiptId, failed.error.detail.receiptId);
+  assert.equal(audit.data.ledger[0].payload.reason, "TICKET_NOT_AVAILABLE");
 });
 
 test("public validation rejects malformed watchlist and support requests", async (t) => {

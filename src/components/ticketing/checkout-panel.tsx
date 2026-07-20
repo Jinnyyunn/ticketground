@@ -17,7 +17,7 @@ import {
   TicketgroundApiError,
   type ApiIdentityStatus,
 } from "@/lib/ticketground-api";
-import type { Reservation, TicketShow } from "@/types";
+import type { TicketShow } from "@/types";
 
 const paymentMethods = [
   { id: "credit", label: "신용카드", note: "카드사 할인 적용", bootpayKey: "CREDIT_CARD" },
@@ -79,11 +79,9 @@ declare global {
 
 export function CheckoutPanel({
   show,
-  reservation,
   selection,
 }: {
   show: TicketShow;
-  reservation: Reservation;
   selection: CheckoutSelection;
 }) {
   const router = useRouter();
@@ -304,7 +302,7 @@ export function CheckoutPanel({
         ticketId: purchase.ticket.id,
       });
       setStatus(`${purchase.payment.label} ${purchase.payment.status} · BootPay ${purchase.bootpay.receiptId}`);
-      router.push(`/reservation/${reservation.id}?${params.toString()}`);
+      router.push(`/reservation/${purchase.ticket.id}?${params.toString()}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "결제 처리에 실패했습니다.");
     } finally {
