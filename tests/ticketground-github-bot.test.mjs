@@ -49,12 +49,15 @@ test("classifyPullRequestFiles covers the repository backend and protected login
     "backend/social-oauth.js",
     "backend/social-oauth-config.js",
     "tests/auth-preview-host-boundary.test.mjs",
+    "tests/google-auth-login.test.mjs",
+    "tests/social-login-page-flow.test.mjs",
   ];
   const result = classifyPullRequestFiles(["backend/catalog.js", ...protectedFiles]);
 
   assert.deepEqual(result.protectedAuthFiles, protectedFiles);
   assert.ok(result.labels.includes("area: backend"));
   assert.ok(result.labels.includes("area: auth"));
+  assert.ok(!classifyPullRequestFiles(["src/app/auth/social-config/route.ts"]).labels.includes("area: frontend"));
 });
 
 test("classifyIssue uses ASCII keyword boundaries and recognizes automation", () => {
@@ -116,6 +119,8 @@ test("workflow targets main with least-privilege write permissions", () => {
 });
 
 test("bot never overwrites a user-authored marker comment", async () => {
+  const issueLabels = new Set(["status: triage", "bug"]);
+  const removedLabels = [];
   const comments = [
     {
       id: 1,
@@ -130,9 +135,15 @@ test("bot never overwrites a user-authored marker comment", async () => {
       return { data: {} };
     },
     async listLabelsOnIssue() {
-      return { data: [] };
+      return { data: [...issueLabels].map((name) => ({ name })) };
     },
-    async addLabels() {},
+    async removeLabel({ name }) {
+      issueLabels.delete(name);
+      removedLabels.push(name);
+    },
+    async addLabels({ labels }) {
+      labels.forEach((label) => issueLabels.add(label));
+    },
     async listComments() {
       return { data: comments };
     },
@@ -167,6 +178,7 @@ test("bot never overwrites a user-authored marker comment", async () => {
   assert.equal(comments.length, 2);
   assert.equal(comments[0].body, "<!-- ticketground-bot:issue-triage --> user content");
   assert.deepEqual(updatedCommentIds, [2]);
+  assert.deepEqual(removedLabels, []);
 });
 
 test("pull request synchronization replaces only stale bot-managed labels", async () => {
@@ -180,6 +192,7 @@ test("pull request synchronization replaces only stale bot-managed labels", asyn
     "keep-me",
   ]);
   const removedLabels = [];
+  const comments = [];
   const issues = {
     async getLabel() {
       return { data: {} };
@@ -197,11 +210,15 @@ test("pull request synchronization replaces only stale bot-managed labels", asyn
     async listComments() {
       return { data: [] };
     },
-    async createComment() {},
+    async createComment({ body }) {
+      comments.push(body);
+    },
   };
   const pulls = {
     async listFiles() {
-      return { data: [{ filename: "docs/bot.md" }] };
+      return {
+        data: [{ filename: "docs/bot.md", previous_filename: "backend/social-oauth.js" }],
+      };
     },
   };
   const github = {
@@ -222,6 +239,8 @@ test("pull request synchronization replaces only stale bot-managed labels", asyn
 
   assert.deepEqual(removedLabels.sort(), ["area: frontend", "status: triage"]);
   assert.deepEqual([...issueLabels].sort(), [
+    "area: auth",
+    "area: backend",
     "area: docs",
     "bug",
     "documentation",
@@ -230,4 +249,5 @@ test("pull request synchronization replaces only stale bot-managed labels", asyn
     "status: in-progress",
     "status: qa-needed",
   ]);
+  assert.match(comments[0], /backend\/social-oauth\.js/);
 });

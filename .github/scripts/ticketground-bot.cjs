@@ -83,12 +83,12 @@ function isProtectedAuthFile(filename) {
 
 function classifyPullRequestFiles(files = []) {
   const labels = ["status: qa-needed"];
-  const protectedAuthFiles = files.filter(isProtectedAuthFile);
+  const protectedAuthFiles = unique(files.filter(isProtectedAuthFile));
 
   if (
     files.some(
       (filename) =>
-        /^(?:src\/components\/|src\/app\/(?!api\/)|src\/data\/|public\/)/.test(filename) ||
+        /^(?:src\/components\/|src\/app\/(?!api\/|auth\/)|src\/data\/|public\/)/.test(filename) ||
         /\.(?:css|scss)$/.test(filename),
     )
   ) {
@@ -185,9 +185,7 @@ async function replaceManagedLabels({
     issue_number: issueNumber,
     per_page: 100,
   });
-  const expectedManagedLabels = new Set(
-    labels.filter((label) => label.startsWith("status: ") || label.startsWith("area: ")),
-  );
+  const expectedManagedLabels = new Set(labels.filter((label) => managedLabels.has(label)));
 
   for (const label of current) {
     if (managedLabels.has(label.name) && !expectedManagedLabels.has(label.name)) {
@@ -243,7 +241,8 @@ async function handlePullRequest({ github, context }) {
     pull_number: pullRequest.number,
     per_page: 100,
   });
-  const classification = classifyPullRequestFiles(files.map((file) => file.filename));
+  const changedPaths = files.flatMap((file) => [file.filename, file.previous_filename]).filter(Boolean);
+  const classification = classifyPullRequestFiles(changedPaths);
   const linkedIssues = extractLinkedIssues(pullRequest.body || "");
   const state = pullRequest.merged ? "merged" : pullRequest.state === "closed" ? "closed" : "open";
   const labels = classification.labels.filter((label) => !label.startsWith("status: "));
