@@ -174,6 +174,8 @@ test("pull request synchronization replaces only stale bot-managed labels", asyn
     "status: in-progress",
     "area: frontend",
     "bug",
+    "enhancement",
+    "documentation",
     "keep-me",
   ]);
   const removedLabels = [];
@@ -217,9 +219,12 @@ test("pull request synchronization replaces only stale bot-managed labels", asyn
 
   await bot({ github, context });
 
-  assert.deepEqual(removedLabels.sort(), ["area: frontend", "bug", "status: triage"]);
+  assert.deepEqual(removedLabels.sort(), ["area: frontend", "status: triage"]);
   assert.deepEqual([...issueLabels].sort(), [
     "area: docs",
+    "bug",
+    "documentation",
+    "enhancement",
     "keep-me",
     "status: in-progress",
     "status: qa-needed",

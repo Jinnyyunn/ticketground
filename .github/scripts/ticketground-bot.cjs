@@ -30,6 +30,7 @@ const BOT_MANAGED_LABELS = new Set([
   "enhancement",
   "documentation",
 ]);
+const PR_MANAGED_LABELS = new Set(Object.keys(LABEL_DEFINITIONS));
 
 function unique(values) {
   return [...new Set(values)];
@@ -170,7 +171,14 @@ async function ensureLabels({ github, owner, repo, labels }) {
   }
 }
 
-async function replaceManagedLabels({ github, owner, repo, issueNumber, labels }) {
+async function replaceManagedLabels({
+  github,
+  owner,
+  repo,
+  issueNumber,
+  labels,
+  managedLabels = BOT_MANAGED_LABELS,
+}) {
   const current = await github.paginate(github.rest.issues.listLabelsOnIssue, {
     owner,
     repo,
@@ -182,7 +190,7 @@ async function replaceManagedLabels({ github, owner, repo, issueNumber, labels }
   );
 
   for (const label of current) {
-    if (BOT_MANAGED_LABELS.has(label.name) && !expectedManagedLabels.has(label.name)) {
+    if (managedLabels.has(label.name) && !expectedManagedLabels.has(label.name)) {
       await github.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: label.name });
     }
   }
@@ -242,7 +250,14 @@ async function handlePullRequest({ github, context }) {
   labels.unshift(state === "merged" ? "status: merged" : state === "closed" ? "status: closed" : "status: qa-needed");
 
   await ensureLabels({ github, owner, repo, labels });
-  await replaceManagedLabels({ github, owner, repo, issueNumber: pullRequest.number, labels });
+  await replaceManagedLabels({
+    github,
+    owner,
+    repo,
+    issueNumber: pullRequest.number,
+    labels,
+    managedLabels: PR_MANAGED_LABELS,
+  });
   await upsertComment({
     github,
     owner,
