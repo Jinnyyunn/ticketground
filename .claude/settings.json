@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *\"/src/app/\"*|*\"/src/components/\"*) notice=$(cat \"/Users/jinny/Downloads/claude(Ticketground_User)/repo/PORTS.md\" 2>/dev/null); if [ -n \"$notice\" ]; then jq -n --arg ctx \"$notice\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:(\"페이지 수정 전 PORTS.md 확인 (자동 주입):\n\n\" + $ctx)}}'; fi ;; esac; } 2>/dev/null || true",
+            "statusMessage": "PORTS.md 확인 중..."
+          }
+        ]
+      }
+    ]
+  }
+}
