@@ -6,7 +6,7 @@ Ticketground의 이슈와 Pull Request를 일관된 기준으로 분류하고, �
 
 ## Chosen approach
 
-첫 버전은 GitHub Actions의 기본 `GITHUB_TOKEN`을 사용하는 `github-actions[bot]`으로 운영한다. 별도 봇 계정, 비밀번호, 개인 액세스 토큰은 저장하지 않는다. 토큰 권한은 각 작업에 필요한 `contents: read`, `issues: write`, `pull-requests: write`로 제한한다.
+첫 버전은 GitHub Actions의 기본 `GITHUB_TOKEN`을 사용하는 `github-actions[bot]`으로 운영한다. 별도 봇 계정, 비밀번호, 개인 액세스 토큰은 저장하지 않는다. 이슈 작업은 `contents: read`와 `issues: write`, PR 작업은 `contents: read`, `issues: write`, `pull-requests: read`로 제한해 병합 권한을 부여하지 않는다.
 
 GitHub App은 여러 저장소와 프로젝트 보드를 함께 운영하거나 카카오톡 같은 외부 알림 채널을 붙이는 단계에서 도입한다.
 
@@ -16,7 +16,7 @@ GitHub App은 여러 저장소와 프로젝트 보드를 함께 운영하거나 
 
 - 새 이슈와 다시 열린 이슈에 `status: triage`를 붙인다.
 - 제목과 본문을 기준으로 `bug`, `enhancement`, `documentation` 및 `area:*` 라벨을 붙인다.
-- 같은 접수 댓글을 중복 작성하지 않고 기존 봇 댓글을 갱신한다.
+- 같은 접수 댓글을 중복 작성하지 않고 `github-actions[bot]`이 작성한 기존 댓글만 갱신한다.
 
 ### Pull requests
 
@@ -37,7 +37,9 @@ GitHub App은 여러 저장소와 프로젝트 보드를 함께 운영하거나 
 
 - `pull_request_target`에서는 PR 브랜치 코드를 실행하지 않는다.
 - 봇 스크립트는 항상 기본 브랜치에서 checkout한다.
+- GitHub Actions는 검증된 릴리스 태그의 커밋 SHA로 고정한다.
 - 외부 저장소의 PR 내용은 API 메타데이터와 변경 파일 목록으로만 읽는다.
+- 댓글에 표시하는 변경 파일명은 Markdown 주입을 막도록 이스케이프한다.
 - 자동 승인, 자동 병합, 관리자 권한 변경은 하지 않는다.
 
 ## Verification

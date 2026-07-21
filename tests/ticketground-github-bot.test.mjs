@@ -81,6 +81,19 @@ test("buildPullRequestComment includes manual QA and auth protection guidance", 
   assert.match(comment, /간편로그인 보호 파일/);
 });
 
+test("buildPullRequestComment neutralizes Markdown in untrusted filenames", () => {
+  const comment = buildPullRequestComment({
+    labels: ["status: qa-needed", "area: auth"],
+    linkedIssues: [],
+    protectedAuthFiles: ["src/app/api/auth/`\n@everyone<script>"],
+  });
+
+  assert.doesNotMatch(comment, /\n@everyone/);
+  assert.doesNotMatch(comment, /<script>/);
+  assert.match(comment, /&lt;script&gt;/);
+  assert.match(comment, /\\n@everyone/);
+});
+
 test("workflow targets main with least-privilege write permissions", () => {
   const root = path.resolve(import.meta.dirname, "..");
   const botWorkflow = fs.readFileSync(path.join(root, ".github/workflows/ticketground-bot.yml"), "utf8");
@@ -89,9 +102,13 @@ test("workflow targets main with least-privilege write permissions", () => {
   assert.match(botWorkflow, /pull_request_target:/);
   assert.match(botWorkflow, /contents: read/);
   assert.match(botWorkflow, /issues: write/);
-  assert.match(botWorkflow, /pull-requests: write/);
   const pullRequestJob = botWorkflow.split("pull-request-triage:")[1];
-  assert.doesNotMatch(pullRequestJob, /issues: write/);
+  assert.match(pullRequestJob, /issues: write/);
+  assert.match(pullRequestJob, /pull-requests: read/);
+  assert.doesNotMatch(pullRequestJob, /pull-requests: write/);
+  assert.match(botWorkflow, /actions\/checkout@d23441a48e516b6c34aea4fa41551a30e30af803/);
+  assert.match(botWorkflow, /actions\/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd/);
+  assert.match(ciWorkflow, /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
   assert.doesNotMatch(botWorkflow, /pull_request\.head\.sha/);
   assert.match(ciWorkflow, /branches:\s*\n\s*- main/);
   assert.doesNotMatch(ciWorkflow, /- master/);

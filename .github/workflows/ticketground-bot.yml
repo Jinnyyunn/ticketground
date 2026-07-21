@@ -20,12 +20,12 @@ jobs:
       issues: write
     steps:
       - name: Checkout trusted bot code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.repository.default_branch }}
 
       - name: Classify issue
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const run = require('./.github/scripts/ticketground-bot.cjs');
@@ -37,16 +37,17 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: write
+      issues: write
+      pull-requests: read
     steps:
       # Security invariant: never checkout or execute pull_request.head code here.
       - name: Checkout trusted bot code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event.repository.default_branch }}
 
       - name: Classify pull request
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const run = require('./.github/scripts/ticketground-bot.cjs');

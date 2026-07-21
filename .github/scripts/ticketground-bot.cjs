@@ -35,6 +35,12 @@ function unique(values) {
   return [...new Set(values)];
 }
 
+function formatInlineCode(value) {
+  const normalized = String(value).replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/\t/g, "\\t");
+  const escaped = normalized.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<code>${escaped}</code>`;
+}
+
 function hasKeyword(text, keywords) {
   return keywords.some((keyword) => {
     if (!/^[\x00-\x7F]+$/.test(keyword)) return text.includes(keyword);
@@ -114,7 +120,7 @@ function buildPullRequestComment({ labels, linkedIssues, protectedAuthFiles, sta
   const issueText = linkedIssues.length > 0 ? linkedIssues.map((number) => `#${number}`).join(", ") : "연결 없음";
   const authWarning =
     protectedAuthFiles.length > 0
-      ? `\n> [!WARNING]\n> 간편로그인 보호 파일이 변경되었습니다. 사용자 요청이 명시된 변경인지 반드시 확인하세요.\n> ${protectedAuthFiles.map((file) => `\`${file}\``).join("<br>")}\n`
+      ? `\n> [!WARNING]\n> 간편로그인 보호 파일이 변경되었습니다. 사용자 요청이 명시된 변경인지 반드시 확인하세요.\n> ${protectedAuthFiles.map(formatInlineCode).join("<br>")}\n`
       : "";
   const resultText = state === "merged" ? "병합 완료" : state === "closed" ? "병합 없이 닫힘" : "검증 대기";
 
