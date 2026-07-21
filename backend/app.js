@@ -6,6 +6,7 @@ import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
 import { createEngagementBackend } from "./engagement.js";
+import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
 import { createPersistence } from "./persistence.js";
@@ -33,6 +34,7 @@ export async function createTicketgroundApp(options) {
     saleSummary: catalog.saleSummary,
     verifyLedger: persistence.verifyLedger
   });
+  let groupBooking;
   const admin = createAdminBackend({
     adminTicket: dtos.adminTicket,
     appendLedger: persistence.appendLedger,
@@ -40,6 +42,7 @@ export async function createTicketgroundApp(options) {
     ensureTicketsForEvent: catalog.ensureTicketsForEvent,
     httpError: runtime.httpError,
     id: runtime.id,
+    listGroupBookingRequests: (...args) => groupBooking.listGroupBookingRequests(...args),
     mediaDir: options.mediaDir,
     money: runtime.money,
     now: runtime.now,
@@ -107,6 +110,18 @@ export async function createTicketgroundApp(options) {
     resolvePaymentMethod: runtime.resolvePaymentMethod,
     saleSummary: catalog.saleSummary
   });
+  groupBooking = createGroupBookingBackend({
+    appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
+    ensureAdmissionCredential,
+    findUser: runtime.findUser,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    isEventBookable: catalog.isEventBookable,
+    money: runtime.money,
+    now: runtime.now,
+    saleSummary: catalog.saleSummary
+  });
   const bootpay = createBootpayBackend({
     hash: runtime.hash,
     httpError: runtime.httpError,
@@ -116,6 +131,7 @@ export async function createTicketgroundApp(options) {
     ...admin,
     ...commerce,
     ...engagement,
+    ...groupBooking,
     ...identity,
     ...session,
     appendLedger: persistence.appendLedger,

@@ -27,6 +27,8 @@ function adminTicket(ticket) {
     ...publicTicket(ticket),
     ownerId: ticket.ownerId,
     admissionCredentialId: ticket.admissionCredentialId || null,
+    institutional: ticket.institutional === true,
+    groupBookingRequestId: ticket.groupBookingRequestId || null,
     currentQr: ticket.currentQr ? {
       type: ticket.currentQr.type,
       issuedAt: ticket.currentQr.issuedAt,
@@ -152,6 +154,7 @@ function publicCatalog(db) {
       casts: event.casts,
       notices: event.notices,
       prices: event.prices,
+      zones: (event.zones || []).map(({ id, name, faceValue, seatCount }) => ({ id, name, faceValue, seatCount })),
       saleState: event.saleState,
       saleNote: event.saleNote,
       pinnedRank: event.pinnedRank ?? null,

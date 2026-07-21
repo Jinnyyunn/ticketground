@@ -164,4 +164,10 @@ export const footerColumnLinks = [
       { label: "공지사항", href: "/contents/notice" },
     ],
   },
+  {
+    title: "기업/기관",
+    links: [
+      { label: "단체/기관 예매", href: "/group-booking" },
+    ],
+  },
 ] as const;

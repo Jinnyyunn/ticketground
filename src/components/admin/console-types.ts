@@ -1,6 +1,7 @@
 import {
   BadgeCheck,
   Banknote,
+  Building2,
   ClipboardCheck,
   LifeBuoy,
   PackagePlus,
@@ -212,7 +213,44 @@ export type AdminAccount = {
   readonly bootstrap?: boolean;
 };
 export type AclWorkspaceData = { readonly adminAccounts: readonly AdminAccount[] };
-export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData;
+export type GroupBookingOrgType = "SCHOOL" | "ACADEMY" | "WELFARE" | "COMPANY" | "GOVERNMENT" | "OTHER";
+export type GroupBookingPaymentMethod = "CARD" | "TAX_INVOICE" | "BANK_TRANSFER";
+export type GroupBookingStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type GroupBookingRequestSummary = {
+  readonly id: string;
+  readonly orgName: string;
+  readonly orgType: GroupBookingOrgType;
+  readonly contactName: string;
+  readonly contactPhone: string;
+  readonly contactEmail: string;
+  readonly businessRegistrationFileUrl: string;
+  readonly eventId: string;
+  readonly eventTitle: string;
+  readonly venue: string;
+  readonly performanceDateId: string;
+  readonly dateLabel: string;
+  readonly zoneId: string;
+  readonly zoneName: string;
+  readonly expectedHeadcount: number;
+  readonly paymentMethod: GroupBookingPaymentMethod;
+  readonly requestNote?: string;
+  readonly status: GroupBookingStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly reviewedBy: string | null;
+  readonly reviewNote: string | null;
+  readonly reviewedAt: string | null;
+  readonly assignedCount: number | null;
+  readonly assignedTicketIds: readonly string[];
+  readonly buyerUserId: string | null;
+};
+export type GroupBookingWorkspace = {
+  readonly requests: readonly GroupBookingRequestSummary[];
+  readonly page: PageInfo;
+  readonly eventSummaries: readonly AdminEventSummary[];
+  readonly filters: { readonly status: string | null };
+};
+export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace;
 export type Feedback = { readonly tone: "error" | "success"; readonly message: string } | null;
 export type Mutation = (path: string, body: Record<string, unknown>, success: string) => Promise<boolean>;
 
@@ -236,6 +274,7 @@ export const workspaceDefinitions = {
   admission: { label: "입장/QR", heading: "입장/QR", description: "입장 자격과 현장 리스크 상태를 확인합니다.", permission: "admission.manage", Icon: QrCode },
   audit: { label: "감사 원장", heading: "감사 원장", description: "최근 감사 원장과 체인 검증 상태를 확인합니다.", permission: "security.manage", Icon: BadgeCheck },
   acl: { label: "관리자/ACL", heading: "관리자/ACL", description: "관리자 계정, 역할, 접근 허용 IP를 관리합니다.", permission: "acl.read", Icon: ShieldCheck },
+  "group-booking": { label: "단체/기관 예매", heading: "단체/기관 예매", description: "학교·기업·기관의 단체 예매 신청을 검토하고 승인합니다.", permission: "groupBooking.manage", Icon: Building2 },
 } satisfies Record<WorkspaceKey, WorkspaceDefinition>;
 
 export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"] as const;
@@ -243,6 +282,9 @@ export const userStatuses = ["ACTIVE", "WATCHLIST", "BANNED"] as const;
 export const ticketStatuses = ["ON_SALE", "ADMIN_HOLD"] as const;
 export const supportStatuses = ["OPEN", "ANSWERED", "CLOSED"] as const;
 export const supportCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"] as const;
+export const groupBookingStatuses = ["PENDING", "APPROVED", "REJECTED"] as const;
+export const groupBookingOrgTypes = ["SCHOOL", "ACADEMY", "WELFARE", "COMPANY", "GOVERNMENT", "OTHER"] as const;
+export const groupBookingPaymentMethods = ["CARD", "TAX_INVOICE", "BANK_TRANSFER"] as const;
 
 const operatorLabels: Record<string, string> = {
   ACTIVE: "활성",
@@ -271,7 +313,18 @@ const operatorLabels: Record<string, string> = {
   TICKET_QR: "티켓/QR",
   theater: "연극",
   URGENT: "긴급",
-  WATCHLIST: "주의 관찰"
+  WATCHLIST: "주의 관찰",
+  PENDING: "검토 대기",
+  APPROVED: "승인 완료",
+  REJECTED: "반려",
+  SCHOOL: "학교",
+  ACADEMY: "학원",
+  WELFARE: "복지기관",
+  COMPANY: "기업",
+  GOVERNMENT: "지자체",
+  OTHER: "기타",
+  TAX_INVOICE: "세금계산서",
+  CARD: "카드"
 };
 
 export function operatorLabel(value: string): string {

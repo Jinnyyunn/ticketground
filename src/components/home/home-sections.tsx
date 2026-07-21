@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarClock, Crown, MapPin, QrCode, RefreshCcw, ShieldCheck, Theater, TicketCheck, Workflow, Zap } from "lucide-react";
+import { Building2, CalendarClock, ChevronRight, Crown, MapPin, QrCode, RefreshCcw, ShieldCheck, Theater, TicketCheck, Workflow, Zap } from "lucide-react";
 import { CarouselRow } from "@/components/carousel-row";
 import { TicketgroundTag } from "@/components/ticketground/primitives";
 import { cn } from "@/lib/utils";
@@ -312,6 +312,31 @@ export function ShortcutsSection() {
           <ShortcutCard key={shortcut.label} shortcut={shortcut} />
         ))}
       </div>
+    </section>
+  );
+}
+
+export function GroupBookingBanner() {
+  return (
+    <section data-section="group-booking" className="ticketground-container mt-16">
+      <Link
+        href="/group-booking"
+        className="group flex items-center justify-between gap-4 rounded-lg border border-line bg-card px-5 py-4 shadow-ticket-1 transition-colors hover:border-ink focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-6 sm:py-5"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ink text-on-ink">
+            <Building2 aria-hidden className="size-5" />
+          </span>
+          <span className="min-w-0">
+            <strong className="block text-sm font-black text-ink sm:text-base">단체/기관 예매</strong>
+            <span className="mt-0.5 block truncate text-xs font-bold text-ink-3 sm:text-sm">학교·학원·기업·지자체 등 단체 예매는 신청서로 접수해드립니다</span>
+          </span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-sm font-black text-ink-3 group-hover:text-ticketground">
+          신청하기
+          <ChevronRight aria-hidden className="size-4" />
+        </span>
+      </Link>
     </section>
   );
 }

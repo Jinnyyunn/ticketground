@@ -13,6 +13,7 @@ export function createAdminBackend({
   ensureTicketsForEvent,
   httpError,
   id,
+  listGroupBookingRequests,
   mediaDir,
   money,
   now,
@@ -159,13 +160,13 @@ function ticketEventMaps(db) {
 }
 
 function paymentTransactionDto(transaction, maps) {
-  const ticket = maps.ticketsById.get(transaction.ticketId);
+  const ticket = maps.ticketsById.get(transaction.ticketId ?? transaction.ticketIds?.[0]);
   const event = ticket ? maps.eventsById.get(ticket.eventId) : null;
   return {
     ...transaction,
     eventId: event?.id || null,
     eventTitle: event?.title || null,
-    seatLabel: ticket?.seatLabel || null,
+    seatLabel: transaction.ticketIds?.length > 1 ? `${ticket?.seatLabel || ""} 외 ${transaction.ticketIds.length - 1}건`.trim() : ticket?.seatLabel || null,
     platformFee: transaction.platformFee || 0,
     transferAmount: transaction.transferAmount || 0
   };
@@ -761,6 +762,9 @@ function adminWorkspace(db, workspace, actor, options = {}) {
       notificationJobs: clone(db.notificationJobs),
       operatorAlerts: clone(db.operatorAlerts)
     };
+  }
+  if (workspace === "group-booking") {
+    return listGroupBookingRequests(db, options);
   }
   if (workspace === "admission") {
     const paged = pageSlice(db.qrIssueLogs.map(qrIssueLogDto).reverse(), options);

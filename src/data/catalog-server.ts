@@ -125,6 +125,39 @@ export async function getTicketById(ticketId: string): Promise<{ readonly ticket
   return { ticket, show };
 }
 
+export interface GroupBookingCatalogEvent {
+  readonly id: string;
+  readonly title: string;
+  readonly venue: string;
+  readonly dates: readonly { readonly id: string; readonly startsAt: string; readonly label: string }[];
+  readonly zones: readonly { readonly id: string; readonly name: string; readonly faceValue: number }[];
+}
+
+interface ApiCatalogEventWithZones extends ApiCatalogEvent {
+  readonly dates?: readonly { readonly id: string; readonly startsAt: string; readonly label: string }[];
+  readonly zones?: readonly { readonly id: string; readonly name: string; readonly faceValue: number }[];
+}
+
+// Separate from getTicketShows/TicketShow on purpose: the group-booking form
+// needs raw zoneId/performanceDateId values that the public TicketShow shape
+// intentionally drops, and this keeps that shared type untouched.
+export async function getGroupBookingCatalogEvents(): Promise<GroupBookingCatalogEvent[]> {
+  const base = await catalogBaseUrl();
+  const response = await fetch(`${base}/api/catalog`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`Failed to load catalog: ${response.status}`);
+  const payload = (await response.json()) as { readonly ok: boolean; readonly data?: { readonly events: readonly ApiCatalogEventWithZones[] } };
+  if (!payload.ok || !payload.data) throw new Error("Catalog response was not ok");
+  return payload.data.events
+    .filter((event) => (event.dates?.length ?? 0) > 0 && (event.zones?.length ?? 0) > 0)
+    .map((event) => ({
+      id: event.id,
+      title: event.title,
+      venue: event.venue,
+      dates: event.dates ?? [],
+      zones: event.zones ?? [],
+    }));
+}
+
 export async function searchShowsAsync(query: string): Promise<TicketShow[]> {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
