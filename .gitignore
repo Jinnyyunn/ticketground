@@ -57,3 +57,4 @@ public/uploads/admin/*
 .omo/
 .omx/
 .codegraph
+.env.production
