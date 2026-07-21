@@ -108,8 +108,7 @@ test("workflow targets main with least-privilege write permissions", () => {
   assert.match(botWorkflow, /issues: write/);
   const pullRequestJob = botWorkflow.split("pull-request-triage:")[1];
   assert.match(pullRequestJob, /issues: write/);
-  assert.match(pullRequestJob, /pull-requests: read/);
-  assert.doesNotMatch(pullRequestJob, /pull-requests: write/);
+  assert.match(pullRequestJob, /pull-requests: write/);
   assert.match(botWorkflow, /actions\/checkout@d23441a48e516b6c34aea4fa41551a30e30af803/);
   assert.match(botWorkflow, /actions\/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd/);
   assert.match(ciWorkflow, /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);

@@ -38,7 +38,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     steps:
       # Security invariant: never checkout or execute pull_request.head code here.
       - name: Checkout trusted bot code
