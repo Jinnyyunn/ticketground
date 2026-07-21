@@ -67,3 +67,57 @@ test("workflow targets main with least-privilege write permissions", () => {
   assert.match(ciWorkflow, /branches:\s*\n\s*- main/);
   assert.doesNotMatch(ciWorkflow, /- master/);
 });
+
+test("bot never overwrites a user-authored marker comment", async () => {
+  const comments = [
+    {
+      id: 1,
+      body: "<!-- ticketground-bot:issue-triage --> user content",
+      user: { login: "contributor", type: "User" },
+    },
+  ];
+  const updatedCommentIds = [];
+
+  const issues = {
+    async getLabel() {
+      return { data: {} };
+    },
+    async listLabelsOnIssue() {
+      return { data: [] };
+    },
+    async addLabels() {},
+    async listComments() {
+      return { data: comments };
+    },
+    async updateComment({ comment_id }) {
+      updatedCommentIds.push(comment_id);
+    },
+    async createComment({ body }) {
+      comments.push({
+        id: 2,
+        body,
+        user: { login: "github-actions[bot]", type: "Bot" },
+      });
+    },
+  };
+  const github = {
+    rest: { issues },
+    async paginate(method, args) {
+      return (await method(args)).data;
+    },
+  };
+  const context = {
+    eventName: "issues",
+    repo: { owner: "Jinnyyunn", repo: "ticketground" },
+    payload: {
+      issue: { number: 77, title: "모바일 버튼 오류", body: "화면에서 작동하지 않습니다." },
+    },
+  };
+
+  await bot({ github, context });
+  await bot({ github, context });
+
+  assert.equal(comments.length, 2);
+  assert.equal(comments[0].body, "<!-- ticketground-bot:issue-triage --> user content");
+  assert.deepEqual(updatedCommentIds, [2]);
+});

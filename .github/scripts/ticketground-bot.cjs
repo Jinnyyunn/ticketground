@@ -172,7 +172,9 @@ async function upsertComment({ github, owner, repo, issueNumber, marker, body })
     issue_number: issueNumber,
     per_page: 100,
   });
-  const existing = comments.find((comment) => comment.body?.includes(marker));
+  const existing = comments.find(
+    (comment) => comment.user?.login === "github-actions[bot]" && comment.body?.includes(marker),
+  );
 
   if (existing) {
     await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
