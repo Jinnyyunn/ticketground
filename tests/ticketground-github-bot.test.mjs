@@ -1,14 +1,15 @@
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const test = require("node:test");
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import bot from "../.github/scripts/ticketground-bot.cjs";
 
 const {
   buildPullRequestComment,
   classifyIssue,
   classifyPullRequestFiles,
   extractLinkedIssues,
-} = require("../.github/scripts/ticketground-bot.cjs");
+} = bot;
 
 test("classifyIssue labels a mobile UI failure as a frontend bug", () => {
   const labels = classifyIssue("[Bug] 모바일 버튼 오류", "화면에서 클릭이 안됩니다.");
@@ -54,7 +55,7 @@ test("buildPullRequestComment includes manual QA and auth protection guidance", 
 });
 
 test("workflow targets main with least-privilege write permissions", () => {
-  const root = path.resolve(__dirname, "..");
+  const root = path.resolve(import.meta.dirname, "..");
   const botWorkflow = fs.readFileSync(path.join(root, ".github/workflows/ticketground-bot.yml"), "utf8");
   const ciWorkflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
 

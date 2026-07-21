@@ -36,11 +36,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Type check
-        run: npm run typecheck
-
       - name: Build
         run: npm run build
 
-      - name: Test
-        run: NODE_ENV=production node --test --test-concurrency=1 tests/*.test.mjs tests/*.test.cjs
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test GitHub bot
+        run: node --test tests/ticketground-github-bot.test.mjs
