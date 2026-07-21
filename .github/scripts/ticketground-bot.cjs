@@ -17,17 +17,30 @@ const PROTECTED_AUTH_PATTERNS = [
   /^\.env(?:\.|$)/,
   /^간편로그인-수정금지-지침\.md$/,
   /^src\/app\/api\/auth\//,
-  /^src\/components\/ticketing\/(?:google-sign-in-card|login-panel|social-login-buttons)\.tsx$/,
+  /^src\/app\/auth\/(?:google-config|social-config)\/route\.ts$/,
+  /^src\/components\/ticketing\/(?:google-sign-in-card|login-panel|login-session-panel|social-login-buttons)\.tsx$/,
   /^src\/lib\/(?:auth|google|oauth|social-auth)/,
+  /^backend\/social-oauth(?:-config)?\.js$/,
   /^tests\/(?:google-auth|social-auth|social-login)/,
 ];
+
+const BOT_MANAGED_LABELS = new Set([
+  ...Object.keys(LABEL_DEFINITIONS),
+  "bug",
+  "enhancement",
+  "documentation",
+]);
 
 function unique(values) {
   return [...new Set(values)];
 }
 
 function hasKeyword(text, keywords) {
-  return keywords.some((keyword) => text.includes(keyword));
+  return keywords.some((keyword) => {
+    if (!/^[\x00-\x7F]+$/.test(keyword)) return text.includes(keyword);
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(text);
+  });
 }
 
 function classifyIssue(title = "", body = "") {
@@ -49,6 +62,9 @@ function classifyIssue(title = "", body = "") {
   }
   if (hasKeyword(text, ["로그인", "인증", "oauth", "google", "kakao", "naver", "카카오", "네이버"])) {
     labels.push("area: auth");
+  }
+  if (hasKeyword(text, ["ci", "workflow", "github actions", "automation", "자동화"])) {
+    labels.push("area: automation");
   }
 
   return unique(labels);
@@ -75,6 +91,7 @@ function classifyPullRequestFiles(files = []) {
     files.some(
       (filename) =>
         filename === "server.js" ||
+        /^backend\//.test(filename) ||
         /^src\/app\/api\//.test(filename) ||
         /^src\/(?:backend|server|services)\//.test(filename),
     )
@@ -159,8 +176,7 @@ async function replaceManagedLabels({ github, owner, repo, issueNumber, labels }
   );
 
   for (const label of current) {
-    const isManaged = label.name.startsWith("status: ") || label.name.startsWith("area: ");
-    if (isManaged && !expectedManagedLabels.has(label.name)) {
+    if (BOT_MANAGED_LABELS.has(label.name) && !expectedManagedLabels.has(label.name)) {
       await github.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: label.name });
     }
   }

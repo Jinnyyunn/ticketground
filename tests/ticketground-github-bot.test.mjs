@@ -37,6 +37,33 @@ test("classifyPullRequestFiles reports every changed area and protected auth fil
   assert.deepEqual(result.protectedAuthFiles, ["src/app/api/auth/kakao/callback/route.ts"]);
 });
 
+test("classifyPullRequestFiles covers the repository backend and protected login contract", () => {
+  const protectedFiles = [
+    "src/components/ticketing/social-login-buttons.tsx",
+    "src/components/ticketing/google-sign-in-card.tsx",
+    "src/components/ticketing/login-panel.tsx",
+    "src/components/ticketing/login-session-panel.tsx",
+    "src/app/auth/social-config/route.ts",
+    "src/app/auth/google-config/route.ts",
+    "src/lib/auth-preview-host.ts",
+    "backend/social-oauth.js",
+    "backend/social-oauth-config.js",
+  ];
+  const result = classifyPullRequestFiles(["backend/catalog.js", ...protectedFiles]);
+
+  assert.deepEqual(result.protectedAuthFiles, protectedFiles);
+  assert.ok(result.labels.includes("area: backend"));
+  assert.ok(result.labels.includes("area: auth"));
+});
+
+test("classifyIssue uses ASCII keyword boundaries and recognizes automation", () => {
+  assert.deepEqual(classifyIssue("Build fails in CI", "Linux test suite failure"), [
+    "status: triage",
+    "area: automation",
+  ]);
+  assert.deepEqual(classifyIssue("Feedback request", "General product feedback"), ["status: triage"]);
+});
+
 test("extractLinkedIssues returns unique issue numbers", () => {
   assert.deepEqual(extractLinkedIssues("Closes #12, fixes #12 and Resolves #31"), [12, 31]);
 });
@@ -124,8 +151,14 @@ test("bot never overwrites a user-authored marker comment", async () => {
   assert.deepEqual(updatedCommentIds, [2]);
 });
 
-test("pull request synchronization removes stale managed area labels", async () => {
-  const issueLabels = new Set(["status: triage", "area: frontend", "keep-me"]);
+test("pull request synchronization replaces only stale bot-managed labels", async () => {
+  const issueLabels = new Set([
+    "status: triage",
+    "status: in-progress",
+    "area: frontend",
+    "bug",
+    "keep-me",
+  ]);
   const removedLabels = [];
   const issues = {
     async getLabel() {
@@ -167,6 +200,11 @@ test("pull request synchronization removes stale managed area labels", async () 
 
   await bot({ github, context });
 
-  assert.deepEqual(removedLabels.sort(), ["area: frontend", "status: triage"]);
-  assert.deepEqual([...issueLabels].sort(), ["area: docs", "keep-me", "status: qa-needed"]);
+  assert.deepEqual(removedLabels.sort(), ["area: frontend", "bug", "status: triage"]);
+  assert.deepEqual([...issueLabels].sort(), [
+    "area: docs",
+    "keep-me",
+    "status: in-progress",
+    "status: qa-needed",
+  ]);
 });
