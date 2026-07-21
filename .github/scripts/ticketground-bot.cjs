@@ -147,17 +147,20 @@ async function ensureLabels({ github, owner, repo, labels }) {
   }
 }
 
-async function replaceStatusLabels({ github, owner, repo, issueNumber, labels }) {
+async function replaceManagedLabels({ github, owner, repo, issueNumber, labels }) {
   const current = await github.paginate(github.rest.issues.listLabelsOnIssue, {
     owner,
     repo,
     issue_number: issueNumber,
     per_page: 100,
   });
-  const expectedStatuses = new Set(labels.filter((label) => label.startsWith("status: ")));
+  const expectedManagedLabels = new Set(
+    labels.filter((label) => label.startsWith("status: ") || label.startsWith("area: ")),
+  );
 
   for (const label of current) {
-    if (label.name.startsWith("status: ") && !expectedStatuses.has(label.name)) {
+    const isManaged = label.name.startsWith("status: ") || label.name.startsWith("area: ");
+    if (isManaged && !expectedManagedLabels.has(label.name)) {
       await github.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: label.name });
     }
   }
@@ -190,7 +193,7 @@ async function handleIssue({ github, context }) {
   const labels = classifyIssue(issue.title, issue.body || "");
 
   await ensureLabels({ github, owner, repo, labels });
-  await replaceStatusLabels({ github, owner, repo, issueNumber: issue.number, labels });
+  await replaceManagedLabels({ github, owner, repo, issueNumber: issue.number, labels });
   await upsertComment({
     github,
     owner,
@@ -217,7 +220,7 @@ async function handlePullRequest({ github, context }) {
   labels.unshift(state === "merged" ? "status: merged" : state === "closed" ? "status: closed" : "status: qa-needed");
 
   await ensureLabels({ github, owner, repo, labels });
-  await replaceStatusLabels({ github, owner, repo, issueNumber: pullRequest.number, labels });
+  await replaceManagedLabels({ github, owner, repo, issueNumber: pullRequest.number, labels });
   await upsertComment({
     github,
     owner,

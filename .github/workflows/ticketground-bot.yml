@@ -37,7 +37,6 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      issues: write
       pull-requests: write
     steps:
       # Security invariant: never checkout or execute pull_request.head code here.

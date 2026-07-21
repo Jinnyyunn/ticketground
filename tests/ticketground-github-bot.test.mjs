@@ -63,6 +63,8 @@ test("workflow targets main with least-privilege write permissions", () => {
   assert.match(botWorkflow, /contents: read/);
   assert.match(botWorkflow, /issues: write/);
   assert.match(botWorkflow, /pull-requests: write/);
+  const pullRequestJob = botWorkflow.split("pull-request-triage:")[1];
+  assert.doesNotMatch(pullRequestJob, /issues: write/);
   assert.doesNotMatch(botWorkflow, /pull_request\.head\.sha/);
   assert.match(ciWorkflow, /branches:\s*\n\s*- main/);
   assert.doesNotMatch(ciWorkflow, /- master/);
@@ -120,4 +122,51 @@ test("bot never overwrites a user-authored marker comment", async () => {
   assert.equal(comments.length, 2);
   assert.equal(comments[0].body, "<!-- ticketground-bot:issue-triage --> user content");
   assert.deepEqual(updatedCommentIds, [2]);
+});
+
+test("pull request synchronization removes stale managed area labels", async () => {
+  const issueLabels = new Set(["status: triage", "area: frontend", "keep-me"]);
+  const removedLabels = [];
+  const issues = {
+    async getLabel() {
+      return { data: {} };
+    },
+    async listLabelsOnIssue() {
+      return { data: [...issueLabels].map((name) => ({ name })) };
+    },
+    async removeLabel({ name }) {
+      issueLabels.delete(name);
+      removedLabels.push(name);
+    },
+    async addLabels({ labels }) {
+      labels.forEach((label) => issueLabels.add(label));
+    },
+    async listComments() {
+      return { data: [] };
+    },
+    async createComment() {},
+  };
+  const pulls = {
+    async listFiles() {
+      return { data: [{ filename: "docs/bot.md" }] };
+    },
+  };
+  const github = {
+    rest: { issues, pulls },
+    async paginate(method, args) {
+      return (await method(args)).data;
+    },
+  };
+  const context = {
+    eventName: "pull_request_target",
+    repo: { owner: "Jinnyyunn", repo: "ticketground" },
+    payload: {
+      pull_request: { number: 78, title: "docs", body: "", state: "open", merged: false },
+    },
+  };
+
+  await bot({ github, context });
+
+  assert.deepEqual(removedLabels.sort(), ["area: frontend", "status: triage"]);
+  assert.deepEqual([...issueLabels].sort(), ["area: docs", "keep-me", "status: qa-needed"]);
 });
