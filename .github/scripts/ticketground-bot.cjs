@@ -21,7 +21,7 @@ const PROTECTED_AUTH_PATTERNS = [
   /^src\/components\/ticketing\/(?:google-sign-in-card|login-panel|login-session-panel|social-login-buttons)\.tsx$/,
   /^src\/lib\/(?:auth|google|oauth|social-auth)/,
   /^backend\/social-oauth(?:-config)?\.js$/,
-  /^tests\/(?:google-auth|social-auth|social-login)/,
+  /^tests\/(?:auth-preview-host-boundary|google-auth|social-auth|social-login)/,
 ];
 
 const BOT_MANAGED_LABELS = new Set([

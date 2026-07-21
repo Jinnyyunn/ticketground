@@ -48,6 +48,7 @@ test("classifyPullRequestFiles covers the repository backend and protected login
     "src/lib/auth-preview-host.ts",
     "backend/social-oauth.js",
     "backend/social-oauth-config.js",
+    "tests/auth-preview-host-boundary.test.mjs",
   ];
   const result = classifyPullRequestFiles(["backend/catalog.js", ...protectedFiles]);
 
