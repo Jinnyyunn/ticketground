@@ -1,6 +1,7 @@
 import {
   BadgeCheck,
   Banknote,
+  Building,
   ClipboardCheck,
   LifeBuoy,
   PackagePlus,
@@ -113,7 +114,20 @@ export type OverviewWorkspace = {
     readonly totalSettlements: number;
   };
 };
-export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly eventSummaries?: readonly AdminEventSummary[]; readonly venues: readonly Venue[] };
+export type SellerApplicationPrefill = {
+  readonly applicationId: string;
+  readonly title: string;
+  readonly category: string;
+  readonly venueName: string;
+  readonly period: string;
+  readonly summary: string;
+  readonly castNotes: string;
+  readonly noticesDraft: string;
+  readonly posterImageDataUrl: string;
+  readonly seatGrades: readonly { readonly gradeName: string; readonly price: number; readonly quantity: number }[];
+  readonly sessions: readonly { readonly label?: string; readonly date: string; readonly times: readonly string[] }[];
+};
+export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly eventSummaries?: readonly AdminEventSummary[]; readonly venues: readonly Venue[]; readonly sellerApplicationPrefill?: SellerApplicationPrefill };
 export type InventoryWorkspace = {
   readonly eventSummaries: readonly AdminEventSummary[];
   readonly events: readonly AdminEvent[];
@@ -212,7 +226,53 @@ export type AdminAccount = {
   readonly bootstrap?: boolean;
 };
 export type AclWorkspaceData = { readonly adminAccounts: readonly AdminAccount[] };
-export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData;
+export type SellerApplicationOrgType = "AGENCY" | "PRODUCTION" | "VENUE" | "FOUNDATION" | "SPORTS_CLUB" | "OTHER";
+export type SellerApplicationChannelType = "EXCLUSIVE" | "SHARED" | "SEAT_PRIORITY" | "PRESALE";
+export type SellerApplicationStatus = "PENDING" | "APPROVED" | "REJECTED" | "REGISTERED";
+export type SellerApplication = {
+  readonly id: string;
+  readonly organization: {
+    readonly legalName: string;
+    readonly orgType: SellerApplicationOrgType;
+    readonly bizRegistrationNumber: string;
+    readonly bizRegistrationDocDataUrl: string;
+    readonly representativeName: string;
+    readonly address?: string;
+    readonly website?: string;
+  };
+  readonly contact: { readonly name: string; readonly title?: string; readonly phone: string; readonly email: string };
+  readonly proposedEvent: {
+    readonly title: string;
+    readonly category: string;
+    readonly venueName: string;
+    readonly sessions: readonly { readonly label?: string; readonly date: string; readonly times: readonly string[] }[];
+    readonly seatGrades: readonly { readonly gradeName: string; readonly price: number; readonly quantity: number }[];
+    readonly desiredSaleOpenDate?: string;
+    readonly eventDateRange?: string;
+    readonly discountPolicyNotes?: string;
+    readonly posterImageDataUrl: string;
+    readonly castNotes?: string;
+    readonly summaryDraft?: string;
+    readonly noticesDraft?: string;
+  };
+  readonly saleTerms: {
+    readonly channelType: SellerApplicationChannelType;
+    readonly requestedCommissionNotes?: string;
+    readonly settlement: { readonly bankName: string; readonly accountNumber: string; readonly accountHolder: string };
+  };
+  readonly otherNotes?: string;
+  readonly status: SellerApplicationStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly review: {
+    readonly verificationChecklist: { readonly bizNumberVerified: boolean; readonly contactPhoneVerified: boolean; readonly eventAuthenticityChecked: boolean };
+    readonly log: readonly { readonly at: string; readonly by: string; readonly action: string; readonly note: string | null }[];
+    readonly rejectionReason: string | null;
+    readonly linkedEventId: string | null;
+  };
+};
+export type SellerApplicationsWorkspace = { readonly applications: readonly SellerApplication[]; readonly page: PageInfo };
+export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | SellerApplicationsWorkspace;
 export type Feedback = { readonly tone: "error" | "success"; readonly message: string } | null;
 export type Mutation = (path: string, body: Record<string, unknown>, success: string) => Promise<boolean>;
 
@@ -236,6 +296,7 @@ export const workspaceDefinitions = {
   admission: { label: "입장/QR", heading: "입장/QR", description: "입장 자격과 현장 리스크 상태를 확인합니다.", permission: "admission.manage", Icon: QrCode },
   audit: { label: "감사 원장", heading: "감사 원장", description: "최근 감사 원장과 체인 검증 상태를 확인합니다.", permission: "security.manage", Icon: BadgeCheck },
   acl: { label: "관리자/ACL", heading: "관리자/ACL", description: "관리자 계정, 역할, 접근 허용 IP를 관리합니다.", permission: "acl.read", Icon: ShieldCheck },
+  "seller-applications": { label: "기업 판매자 신청", heading: "기업 판매자 신청", description: "제작사·기획사·공연장·구단의 판매 등록 신청을 검토하고 승인합니다.", permission: "sellerApplications.manage", Icon: Building },
 } satisfies Record<WorkspaceKey, WorkspaceDefinition>;
 
 export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"] as const;
@@ -243,6 +304,7 @@ export const userStatuses = ["ACTIVE", "WATCHLIST", "BANNED"] as const;
 export const ticketStatuses = ["ON_SALE", "ADMIN_HOLD"] as const;
 export const supportStatuses = ["OPEN", "ANSWERED", "CLOSED"] as const;
 export const supportCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"] as const;
+export const sellerApplicationStatuses = ["PENDING", "APPROVED", "REJECTED", "REGISTERED"] as const;
 
 const operatorLabels: Record<string, string> = {
   ACTIVE: "활성",
@@ -271,7 +333,21 @@ const operatorLabels: Record<string, string> = {
   TICKET_QR: "티켓/QR",
   theater: "연극",
   URGENT: "긴급",
-  WATCHLIST: "주의 관찰"
+  WATCHLIST: "주의 관찰",
+  PENDING: "검토 대기",
+  APPROVED: "승인 완료",
+  REJECTED: "반려",
+  REGISTERED: "카탈로그 등록됨",
+  AGENCY: "기획사",
+  PRODUCTION: "제작사",
+  VENUE: "공연장",
+  FOUNDATION: "문화재단",
+  SPORTS_CLUB: "스포츠구단",
+  OTHER: "기타",
+  EXCLUSIVE: "전용판매",
+  SHARED: "공동판매",
+  SEAT_PRIORITY: "좌석우위판매",
+  PRESALE: "프리세일 참여"
 };
 
 export function operatorLabel(value: string): string {

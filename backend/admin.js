@@ -18,7 +18,8 @@ export function createAdminBackend({
   now,
   seatLayoutForVenue,
   stableId,
-  verifyLedger
+  verifyLedger,
+  listSellerApplications
 }) {
   const {
     assertInventorySize,
@@ -125,6 +126,22 @@ function normalizePageOptions(options) {
   const page = Math.max(1, Number.parseInt(String(options.page || "1"), 10) || 1);
   const limit = Math.min(100, Math.max(1, Number.parseInt(String(options.limit || "50"), 10) || 50));
   return { page, limit };
+}
+
+function sellerApplicationPrefillDto(application) {
+  return {
+    applicationId: application.id,
+    title: application.proposedEvent.title,
+    category: application.proposedEvent.category,
+    venueName: application.proposedEvent.venueName,
+    period: application.proposedEvent.eventDateRange || "",
+    summary: application.proposedEvent.summaryDraft || "",
+    castNotes: application.proposedEvent.castNotes || "",
+    noticesDraft: application.proposedEvent.noticesDraft || "",
+    posterImageDataUrl: application.proposedEvent.posterImageDataUrl,
+    seatGrades: application.proposedEvent.seatGrades,
+    sessions: application.proposedEvent.sessions
+  };
 }
 
 function withinDateRange(value, { from, to }) {
@@ -363,6 +380,20 @@ async function createEventDraft(db, payload) {
     venueId: venue.id,
     ticketsCreated
   });
+  if (payload.sourceApplicationId) {
+    const application = db.sellerApplications?.find((item) => item.id === payload.sourceApplicationId);
+    if (application && application.status === "APPROVED") {
+      const at = now();
+      application.status = "REGISTERED";
+      application.review.linkedEventId = event.id;
+      application.updatedAt = at;
+      application.review.log.push({ at, by: "ADMIN", action: "REGISTERED", note: `linked to event ${event.id}` });
+      appendLedger(db, "ADMIN", "SELLER_APPLICATION_REGISTERED", {
+        applicationId: application.id,
+        eventId: event.id
+      });
+    }
+  }
   return { event: clone(event), venue, ticketsCreated, seatMap: venueMapForEvent(db, event.id) };
 }
 
@@ -655,10 +686,14 @@ function adminWorkspace(db, workspace, actor, options = {}) {
   }
   if (workspace === "catalog" || workspace === "sales") {
     const event = firstEditableEvent(db, options.eventId);
+    const sourceApplication = workspace === "catalog" && options.sourceApplicationId
+      ? db.sellerApplications?.find((item) => item.id === options.sourceApplicationId && item.status === "APPROVED")
+      : null;
     return {
       eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
       events: event ? [clone(event)] : [],
-      venues: db.venues.map(adminVenueRecord)
+      venues: db.venues.map(adminVenueRecord),
+      ...(sourceApplication ? { sellerApplicationPrefill: sellerApplicationPrefillDto(sourceApplication) } : {})
     };
   }
   if (workspace === "inventory") {
@@ -738,6 +773,9 @@ function adminWorkspace(db, workspace, actor, options = {}) {
       },
       supportThreads: filteredSupportThreads(db, options)
     };
+  }
+  if (workspace === "seller-applications") {
+    return listSellerApplications(db, options);
   }
   if (workspace === "resale") {
     const usersById = new Map(db.users.map((user) => [user.id, user]));

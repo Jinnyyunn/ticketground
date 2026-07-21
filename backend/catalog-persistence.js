@@ -26,6 +26,7 @@ function normalizeDb(db) {
   db.qrIssueLogs ||= [];
   db.operatorAlerts ||= [];
   db.paymentTransactions ||= [];
+  db.sellerApplications ||= [];
   db.adminAccounts ||= [];
   db.ledger ||= [];
 
@@ -161,6 +162,7 @@ function seedDb() {
     qrIssueLogs: [],
     operatorAlerts: [],
     paymentTransactions: [],
+    sellerApplications: [],
     adminAccounts: [],
     ledger: []
   };

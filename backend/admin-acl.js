@@ -6,6 +6,7 @@ export const permissionCatalog = [
   { key: "security.manage", label: "보안 감사 관리", group: "보안" },
   { key: "admission.manage", label: "입장 관리", group: "입장" },
   { key: "finance.read", label: "정산 조회", group: "정산" },
+  { key: "sellerApplications.manage", label: "기업 판매자 신청 관리", group: "기업/판매자" },
   { key: "acl.read", label: "ACL", group: "권한" },
   { key: "acl.manage", label: "ACL 관리", group: "권한" }
 ];
@@ -20,6 +21,7 @@ export const roleCatalog = [
   { key: "security", name: "보안 감사", permissions: ["admin.dashboard.read", "security.manage", "accounts.manage", "acl.read"] },
   { key: "admission", name: "입장 관리자", permissions: ["admin.dashboard.read", "admission.manage", "security.manage"] },
   { key: "finance", name: "정산 조회", permissions: ["admin.dashboard.read", "finance.read"] },
+  { key: "sellerApplications", name: "기업 판매자 신청 담당", permissions: ["admin.dashboard.read", "sellerApplications.manage"] },
   { key: "readonly", name: "조회 전용", permissions: ["admin.dashboard.read", "acl.read"] }
 ];
 

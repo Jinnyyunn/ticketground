@@ -5,6 +5,7 @@ import type {
   CatalogWorkspace,
   Feedback,
   InventoryWorkspace,
+  SellerApplicationsWorkspace,
   SupportWorkspace,
   WorkspaceData,
 } from "./console-types";
@@ -36,6 +37,10 @@ export function hasUsers(data: WorkspaceData | null): data is AccountsWorkspace 
 
 export function hasSupportThreads(data: WorkspaceData | null): data is SupportWorkspace {
   return Boolean(data && "supportThreads" in data);
+}
+
+export function hasSellerApplications(data: WorkspaceData | null): data is SellerApplicationsWorkspace {
+  return Boolean(data && "applications" in data);
 }
 
 export function Notice({ feedback }: { readonly feedback: Feedback }) {
