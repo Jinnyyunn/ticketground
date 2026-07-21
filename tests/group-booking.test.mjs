@@ -167,6 +167,49 @@ test("approving a group-booking request assigns institutional tickets all at onc
   assert.equal(groupBookingTransaction.eventTitle, request.eventTitle);
 });
 
+test("approving two different group-booking requests never merges them into one shared buyer account", async (t) => {
+  const server = await startServer(t);
+  const admin = await groupBookingAdminSession(server);
+  const sharedPhone = "010-5555-7777";
+  const sharedEmail = "shared-staff-line@example.org";
+
+  // Two unrelated orgs whose staff happen to reuse the same contact phone
+  // (e.g. a shared front-desk line) must not be collapsed into one buyer
+  // account - each approval should mint its own dedicated buyer, or the
+  // second org's tickets/trust history would silently merge into the
+  // first org's synthetic account.
+  const first = await submitGroupBooking(server, {
+    orgName: "가나학교",
+    contactPhone: sharedPhone,
+    contactEmail: sharedEmail,
+    expectedHeadcount: 1
+  });
+  const firstApproved = await adminSessionRequest(server, `/api/admin/group-booking/requests/${first.data.id}/approve`, {
+    cookie: admin.cookie,
+    csrf: admin.csrf,
+    body: { assignedCount: 1, reviewNote: "1차 승인" }
+  });
+
+  const second = await submitGroupBooking(server, {
+    orgName: "다라기업",
+    contactPhone: sharedPhone,
+    contactEmail: sharedEmail,
+    expectedHeadcount: 1
+  });
+  const secondApproved = await adminSessionRequest(server, `/api/admin/group-booking/requests/${second.data.id}/approve`, {
+    cookie: admin.cookie,
+    csrf: admin.csrf,
+    body: { assignedCount: 1, reviewNote: "2차 승인" }
+  });
+
+  assert.notEqual(secondApproved.json.data.buyerUserId, firstApproved.json.data.buyerUserId);
+
+  const firstBuyerTickets = await api(server.baseUrl, `/api/users/${firstApproved.json.data.buyerUserId}/tickets`);
+  const secondBuyerTickets = await api(server.baseUrl, `/api/users/${secondApproved.json.data.buyerUserId}/tickets`);
+  assert.equal(firstBuyerTickets.data.length, 1, "first org's buyer keeps exactly its own ticket");
+  assert.equal(secondBuyerTickets.data.length, 1, "second org's buyer gets its own separate ticket, not merged into the first");
+});
+
 test("group-booking approval preserves inventory when requested count is unavailable", async (t) => {
   const server = await startServer(t);
   const state = await api(server.baseUrl, "/api/state");

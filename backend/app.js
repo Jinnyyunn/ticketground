@@ -114,7 +114,6 @@ export async function createTicketgroundApp(options) {
     appendLedger: persistence.appendLedger,
     clone: runtime.clone,
     ensureAdmissionCredential,
-    findUser: runtime.findUser,
     httpError: runtime.httpError,
     id: runtime.id,
     isEventBookable: catalog.isEventBookable,

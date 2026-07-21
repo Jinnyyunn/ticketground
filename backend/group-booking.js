@@ -8,7 +8,6 @@ export function createGroupBookingBackend({
   appendLedger,
   clone,
   ensureAdmissionCredential,
-  findUser,
   httpError,
   id,
   isEventBookable,
@@ -186,12 +185,13 @@ function normalizeAssignedCount(value, fallback) {
   return normalizeHeadcount(value);
 }
 
+// Deliberately never matches an existing account by phone/email: the
+// contact's phone/email is their own staff line, not a dedicated org
+// account, so matching risks silently attaching institutional tickets to
+// an unrelated real consumer's account (merging trust score, ticket list,
+// and support history). Each approved request gets its own dedicated,
+// clearly-marked institutional buyer instead.
 function findOrCreateBuyerUser(db, request) {
-  const buyer = db.users.find((user) => (
-    normalizePhoneNumber(user.phone || user.phoneNumber || "") === request.contactPhone
-    || cleanString(user.email).toLowerCase() === request.contactEmail.toLowerCase()
-  ));
-  if (buyer) return findUser(db, buyer.id);
   const created = {
     id: id("user"),
     name: request.orgName,
@@ -202,6 +202,8 @@ function findOrCreateBuyerUser(db, request) {
     trustScore: 90,
     sanctions: [],
     identityVerification: null,
+    institutionalBuyer: true,
+    groupBookingRequestId: request.id,
     createdAt: now(),
     updatedAt: now()
   };
