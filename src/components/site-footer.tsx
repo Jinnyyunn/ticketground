@@ -21,7 +21,7 @@ export function SiteFooter() {
             ))}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 md:gap-8">
+        <div className="grid min-w-0 grid-cols-4 gap-2 sm:gap-4 md:gap-8">
           {footerColumnLinks.map((column) => (
             <nav key={column.title} aria-label={column.title} className="min-w-0">
               <h2 className="truncate text-center text-sm font-black text-ink md:text-left md:text-sm">{column.title}</h2>
