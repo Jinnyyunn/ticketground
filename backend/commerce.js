@@ -77,6 +77,9 @@ export function createCommerceBackend({
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
     if (ticket.ownerId !== seller.id) throw httpError(403, "NOT_OWNER", "소유자만 재판매 등록할 수 있습니다.");
     if (ticket.status !== "OWNED") throw httpError(409, "INVALID_TICKET_STATE", "보유 중인 티켓만 등록할 수 있습니다.");
+    if (ticket.institutional) {
+      throw httpError(403, "INSTITUTIONAL_TICKET_RESALE_BLOCKED", "기관 예매로 배정된 티켓은 재판매 등록할 수 없습니다.");
+    }
     if (ticket.transferCount >= ticket.maxTransferCount) {
       throw httpError(409, "TRANSFER_LIMIT_REACHED", "양도 가능 횟수를 초과했습니다.");
     }

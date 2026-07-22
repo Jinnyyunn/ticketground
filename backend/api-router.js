@@ -36,9 +36,12 @@ export function createApiRouter({
   socialAuthCallback,
   socialAuthSession,
   socialAuthStart,
+  approveGroupBookingRequest,
   buyPrimary,
+  rejectGroupBookingRequest,
   seatMap,
   startPortOneDanalVerification,
+  submitGroupBookingRequest,
   supportThreadForUser,
   trustDevice,
   updateEventSale,
@@ -103,6 +106,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") return publicCatalog(db);
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
+  if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/callback") return socialAuthCallback(db, req, "kakao", url.searchParams);
@@ -315,6 +319,21 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/tickets/statuses") {
     requireBody(body, ["updates"]);
     return updateTicketStatuses(db, body);
+  }
+  const approveGroupBookingMatch = url.pathname.match(/^\/api\/admin\/group-booking\/requests\/([^/]+)\/approve$/);
+  if (req.method === "POST" && approveGroupBookingMatch) {
+    return approveGroupBookingRequest(db, {
+      requestId: decodeURIComponent(approveGroupBookingMatch[1]),
+      assignedCount: body.assignedCount,
+      reviewNote: body.reviewNote
+    }, req.admin);
+  }
+  const rejectGroupBookingMatch = url.pathname.match(/^\/api\/admin\/group-booking\/requests\/([^/]+)\/reject$/);
+  if (req.method === "POST" && rejectGroupBookingMatch) {
+    return rejectGroupBookingRequest(db, {
+      requestId: decodeURIComponent(rejectGroupBookingMatch[1]),
+      reviewNote: body.reviewNote
+    }, req.admin);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/admission/hold") {
     requireBody(body, ["credentialId", "hold"]);

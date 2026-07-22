@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Field,
   hasEvents,
+  hasGroupBookingRequests,
   hasSupportThreads,
   hasTickets,
   hasUsers,
@@ -17,6 +18,7 @@ import {
   WorkspacePanel,
 } from "./console-primitives";
 import {
+  groupBookingStatuses,
   saleStates,
   supportCategories,
   supportStatuses,
@@ -31,6 +33,7 @@ import {
   type CatalogWorkspace,
   type Feedback,
   type FinanceWorkspace,
+  type GroupBookingWorkspace,
   type InventoryWorkspace,
   type Mutation,
   type OverviewWorkspace,
@@ -53,6 +56,7 @@ type WorkspaceProps = {
   readonly onInventoryFilterChange: (filters: { readonly eventId?: string; readonly performanceDateId?: string; readonly zoneId?: string; readonly page?: number }) => void;
   readonly onSelectEvent: (eventId: string) => void;
   readonly onSupportFilterChange: (filters: { readonly category?: string; readonly status?: string }) => void;
+  readonly onGroupBookingFilterChange: (filters: { readonly status?: string; readonly page?: number }) => void;
   readonly onLocalError: (message: string) => void;
 };
 
@@ -62,7 +66,7 @@ function focusInput(form: HTMLFormElement, name: string): void {
 }
 
 export function WorkspaceContent(props: WorkspaceProps) {
-  const { workspace, data, feedback, mutate, session, onAccountFilterChange, onAuditFilterChange, onFinanceFilterChange, onInventoryFilterChange, onLocalError, onSelectEvent, onSupportFilterChange } = props;
+  const { workspace, data, feedback, mutate, session, onAccountFilterChange, onAuditFilterChange, onFinanceFilterChange, onGroupBookingFilterChange, onInventoryFilterChange, onLocalError, onSelectEvent, onSupportFilterChange } = props;
   if (!data) return <WorkspacePanel><p aria-live="polite" className="text-sm font-bold text-ticketground">작업공간 데이터를 불러오지 못했습니다.</p></WorkspacePanel>;
   if (workspace === "overview" && "stats" in data) return <OverviewWorkspace data={data} />;
   if (workspace === "catalog" && hasEvents(data)) return <CatalogWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
@@ -75,6 +79,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
   if (workspace === "admission" && "admissionCredentials" in data) return <AdmissionWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
   if (workspace === "audit" && "ledger" in data) return <AuditWorkspace data={data} onAuditFilterChange={onAuditFilterChange} />;
   if (workspace === "acl" && "adminAccounts" in data) return <AclWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} session={session} />;
+  if (workspace === "group-booking" && hasGroupBookingRequests(data)) return <GroupBookingWorkspace data={data} feedback={feedback} mutate={mutate} onGroupBookingFilterChange={onGroupBookingFilterChange} onLocalError={onLocalError} />;
   return <WorkspacePanel><p aria-live="polite" className="text-sm font-bold text-ticketground">작업공간 데이터를 표시할 수 없습니다.</p></WorkspacePanel>;
 }
 
@@ -1099,4 +1104,118 @@ function AclWorkspace({ data, feedback, mutate, onLocalError, session }: { reado
     void mutate("/api/admin/admin-accounts", { username, password: valueFromForm(form, "password"), roleKeys, ipAllowlist: ipAllowlistFromForm(form) }, "관리자 계정이 생성되었습니다.");
   };
   return <div className="grid gap-4">{canManage ? <WorkspacePanel><div className="flex items-center gap-2 border-b border-line pb-3"><UsersRound size={18} /><h2 className="text-base font-black">관리자 계정 추가</h2></div><form className="mt-4 grid gap-3 md:grid-cols-2" noValidate onSubmit={create}><Field label="관리자 아이디" name="username" required /><Field label="초기 비밀번호" name="password" required type="password" /><RoleFields roles={session.roles} /><label className="grid gap-1 text-sm font-bold text-ink-3">IP ACL<textarea className="min-h-24 rounded-lg border border-line bg-background p-3 text-sm font-bold text-ink" name="ipAllowlist" placeholder={"203.0.113.20\n198.51.100.0/24"} /></label><p className="-mt-1 text-xs font-bold text-ink-3 md:col-span-2">비워두면 모든 IP를 허용합니다. IPv4 주소 또는 CIDR을 줄바꿈이나 쉼표로 구분하세요.</p><button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">관리자 계정 생성</button></form></WorkspacePanel> : <WorkspacePanel><p className="text-sm font-bold text-ink-3">이 계정은 관리자와 ACL을 조회할 수 있지만 변경할 권한은 없습니다.</p></WorkspacePanel>}<WorkspacePanel><h2 className="text-base font-black">등록된 관리자</h2><div className="mt-4 grid gap-4">{data.adminAccounts.length ? data.adminAccounts.map((account) => account.bootstrap ? <div className="rounded-lg border border-ticketground p-4" key={account.id}><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-black text-ink">{account.username}</p><span className="rounded-full bg-ticketground px-2 py-1 text-xs font-black text-on-ink">환경변수 관리자</span></div><p className="mt-1 text-sm font-bold text-ink-3">{account.roleKeys.map((key) => session.roles.find((role) => role.key === key)?.name || key).join(", ")}</p><p className="mt-1 text-xs font-bold text-ink-3">로그인 계정은 서버 환경변수로 관리되며 이 화면에서 역할과 ACL을 수정할 수 없습니다.</p></div> : canManage ? <form className="grid gap-3 rounded-lg border border-line p-4 md:grid-cols-2" key={account.id} onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const roleKeys = valuesFromForm(form, "roleKeys"); if (!roleKeys.length) return onLocalError?.("관리자 역할을 하나 이상 선택해주세요."); if (!window.confirm(`${account.username} 계정/ACL 설정을 저장하시겠습니까?`)) return; const password = valueFromForm(form, "password"); void mutate("/api/admin/admin-accounts/update", { adminId: account.id, roleKeys, ipAllowlist: ipAllowlistFromForm(form), active: valueFromForm(form, "active") === "true", ...(password ? { password } : {}) }, "관리자 계정 설정이 저장되었습니다."); }}><div><p className="font-black text-ink">{account.username}</p><p className="mt-1 text-xs font-bold text-ink-3">{account.id}</p></div><SelectField defaultValue={String(account.active)} label="상태" name="active" options={[{ label: "활성", value: "true" }, { label: "비활성", value: "false" }]} /><RoleFields roles={session.roles} selected={account.roleKeys} /><Field label="새 비밀번호 (선택)" name="password" type="password" /><label className="grid gap-1 text-sm font-bold text-ink-3">IP ACL<textarea className="min-h-24 rounded-lg border border-line bg-background p-3 text-sm font-bold text-ink" defaultValue={account.ipAllowlist.join("\n")} name="ipAllowlist" /></label><button className="h-10 rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">계정/ACL 저장</button></form> : <div className="rounded-lg border border-line p-4" key={account.id}><p className="font-black text-ink">{account.username}</p><p className="mt-1 text-sm font-bold text-ink-3">{account.roleKeys.map((key) => session.roles.find((role) => role.key === key)?.name || key).join(", ")}</p><p className="mt-1 text-xs font-bold text-ink-3">{account.active ? "활성" : "비활성"} · {account.ipAllowlist.length ? account.ipAllowlist.join(", ") : "모든 IP 허용"}</p></div>) : <p className="text-sm font-bold text-ink-3">등록된 별도 관리자 계정이 없습니다.</p>}</div><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel></div>;
+}
+
+function GroupBookingWorkspace({
+  data,
+  feedback,
+  mutate,
+  onGroupBookingFilterChange,
+  onLocalError,
+}: { readonly data: GroupBookingWorkspace; readonly onGroupBookingFilterChange: (filters: { readonly status?: string; readonly page?: number }) => void } & MutableWorkspaceProps) {
+  const [selectedRequestId, setSelectedRequestId] = useState(data.requests[0]?.id ?? "");
+  const request = data.requests.find((item) => item.id === selectedRequestId) || data.requests[0];
+
+  const approve = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    if (!request) return;
+    const form = event.currentTarget;
+    const assignedCount = Number(valueFromForm(form, "assignedCount"));
+    if (!Number.isInteger(assignedCount) || assignedCount < 1) {
+      onLocalError?.("배정 수량을 확인해주세요.");
+      focusInput(form, "assignedCount");
+      return;
+    }
+    void mutate(`/api/admin/group-booking/requests/${request.id}/approve`, {
+      assignedCount,
+      reviewNote: valueFromForm(form, "reviewNote"),
+    }, "단체 예매 신청이 승인되고 티켓이 배정되었습니다.");
+  };
+
+  const reject = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    if (!request) return;
+    const form = event.currentTarget;
+    const reviewNote = valueFromForm(form, "reviewNote");
+    if (!reviewNote) {
+      onLocalError?.("반려 사유를 입력해주세요.");
+      focusInput(form, "reviewNote");
+      return;
+    }
+    void mutate(`/api/admin/group-booking/requests/${request.id}/reject`, { reviewNote }, "단체 예매 신청이 반려되었습니다.");
+  };
+
+  return (
+    <WorkspacePanel>
+      <div className="flex flex-col gap-3 border-b border-line pb-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-base font-black">단체/기관 예매 신청</h2>
+          <p className="mt-1 text-sm font-bold text-ink-3">{data.requests.length.toLocaleString("ko-KR")}건 표시</p>
+        </div>
+        <form className="grid gap-2 sm:grid-cols-[160px_auto]" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; onGroupBookingFilterChange({ status: valueFromForm(form, "status") || undefined }); }}>
+          <SelectField defaultValue={data.filters.status ?? ""} label="상태" name="status" options={[{ label: "전체 상태", value: "" }, ...groupBookingStatuses.map((value) => ({ label: operatorLabel(value), value }))]} />
+          <button className="h-10 self-end rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink" type="submit">필터 적용</button>
+        </form>
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(240px,360px)_minmax(0,1fr)]">
+        <div className="grid content-start gap-2">
+          {data.requests.map((item) => (
+            <button className={`rounded-lg border p-3 text-left ${request?.id === item.id ? "border-ink bg-surface" : "border-line bg-background"}`} key={item.id} onClick={() => setSelectedRequestId(item.id)} type="button">
+              <span className="flex items-center justify-between gap-2">
+                <span className="block text-sm font-black text-ink">{item.orgName}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-black ${item.status === "PENDING" ? "bg-ink text-on-ink" : item.status === "APPROVED" ? "text-ok" : "text-ticketground"}`}>{operatorLabel(item.status)}</span>
+              </span>
+              <span className="mt-1 block text-xs font-bold text-ink-3">{operatorLabel(item.orgType)} · {item.eventTitle}</span>
+              <span className="mt-1 block text-xs font-bold text-ink-3">예상 인원 {item.expectedHeadcount.toLocaleString("ko-KR")}명 · {item.createdAt.slice(0, 16).replace("T", " ")}</span>
+            </button>
+          ))}
+          {data.requests.length ? null : <p className="rounded-lg border border-line p-3 text-sm font-bold text-ink-3">조건에 맞는 신청이 없습니다.</p>}
+        </div>
+        <div className="min-w-0 rounded-lg border border-line p-4">
+          {request ? (
+            <>
+              <div className="border-b border-line pb-3">
+                <h3 className="text-base font-black text-ink">{request.orgName}</h3>
+                <p className="mt-1 text-sm font-bold text-ink-3">{operatorLabel(request.orgType)} · {operatorLabel(request.status)}</p>
+              </div>
+              <div className="mt-4 grid gap-2 text-sm font-bold text-ink-3 md:grid-cols-2">
+                <p>담당자: <span className="text-ink">{request.contactName}</span></p>
+                <p>연락처: <span className="text-ink">{request.contactPhone}</span></p>
+                <p>이메일: <span className="text-ink">{request.contactEmail}</span></p>
+                <p>결제 방식: <span className="text-ink">{operatorLabel(request.paymentMethod)}</span></p>
+                <p>희망 공연: <span className="text-ink">{request.eventTitle} · {request.venue}</span></p>
+                <p>희망 일정: <span className="text-ink">{request.dateLabel} · {request.zoneName}</span></p>
+                <p>예상 인원: <span className="text-ink">{request.expectedHeadcount.toLocaleString("ko-KR")}명</span></p>
+                <p>신청일: <span className="text-ink">{request.createdAt.slice(0, 16).replace("T", " ")}</span></p>
+              </div>
+              {request.requestNote ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm font-bold text-ink-3">요청사항: {request.requestNote}</p> : null}
+              <a className="mt-3 inline-block text-sm font-black text-ticketground underline" href={request.businessRegistrationFileUrl} rel="noreferrer" target="_blank">사업자등록증/고유번호증 확인</a>
+              {request.status === "PENDING" ? (
+                <div className="mt-4 grid gap-4 border-t border-line pt-4 md:grid-cols-2" key={request.id}>
+                  <form className="grid gap-3" noValidate onSubmit={approve}>
+                    <h4 className="text-sm font-black text-ink">승인 및 티켓 배정</h4>
+                    <Field defaultValue={request.expectedHeadcount} label="배정 수량" name="assignedCount" type="number" />
+                    <TextareaField label="검토 메모 (선택)" name="reviewNote" rows={2} />
+                    <button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink" type="submit">승인 및 배정</button>
+                  </form>
+                  <form className="grid gap-3" noValidate onSubmit={reject}>
+                    <h4 className="text-sm font-black text-ink">반려</h4>
+                    <TextareaField label="반려 사유" name="reviewNote" rows={2} />
+                    <button className="h-10 rounded-lg border border-ticketground px-4 text-sm font-black text-ticketground" type="submit">반려</button>
+                  </form>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm font-bold text-ink-3" key={request.id}>
+                  <p>검토자: {request.reviewedBy || "-"} · {request.reviewedAt?.slice(0, 16).replace("T", " ") || "-"}</p>
+                  {request.reviewNote ? <p className="mt-1">메모: {request.reviewNote}</p> : null}
+                  {request.status === "APPROVED" ? <p className="mt-1">배정 수량: {request.assignedCount?.toLocaleString("ko-KR")}명 · 티켓 {request.assignedTicketIds.length}건</p> : null}
+                </div>
+              )}
+            </>
+          ) : <p className="text-sm font-bold text-ink-3">검토할 신청이 없습니다.</p>}
+        </div>
+      </div>
+      <div className="mt-4"><Notice feedback={feedback} /></div>
+    </WorkspacePanel>
+  );
 }

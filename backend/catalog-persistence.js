@@ -28,6 +28,7 @@ function normalizeDb(db) {
   db.qrIssueLogs ||= [];
   db.operatorAlerts ||= [];
   db.paymentTransactions ||= [];
+  db.groupBookingRequests ||= [];
   db.adminAccounts ||= [];
   db.ledger ||= [];
 
@@ -168,6 +169,7 @@ function seedDb() {
     qrIssueLogs: [],
     operatorAlerts: [],
     paymentTransactions: [],
+    groupBookingRequests: [],
     adminAccounts: [],
     ledger: []
   };

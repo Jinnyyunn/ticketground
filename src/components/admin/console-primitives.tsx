@@ -4,6 +4,7 @@ import type {
   AdminTicket,
   CatalogWorkspace,
   Feedback,
+  GroupBookingWorkspace,
   InventoryWorkspace,
   SupportWorkspace,
   WorkspaceData,
@@ -36,6 +37,10 @@ export function hasUsers(data: WorkspaceData | null): data is AccountsWorkspace 
 
 export function hasSupportThreads(data: WorkspaceData | null): data is SupportWorkspace {
   return Boolean(data && "supportThreads" in data);
+}
+
+export function hasGroupBookingRequests(data: WorkspaceData | null): data is GroupBookingWorkspace {
+  return Boolean(data && "requests" in data);
 }
 
 export function Notice({ feedback }: { readonly feedback: Feedback }) {

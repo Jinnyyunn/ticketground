@@ -3,6 +3,7 @@ import type { RankingShow } from "@/components/home/home-content";
 import {
   EditorialEventsSection,
   GenreRecommendationsSection,
+  GroupBookingBanner,
   HomeHeroSection,
   OfficialResaleSection,
   RealtimeTop10Section,
@@ -44,6 +45,7 @@ export default async function Home() {
         <GenreRecommendationsSection />
         <EditorialEventsSection />
         <ShortcutsSection />
+        <GroupBookingBanner />
       </main>
       <SiteFooter />
       <FloatingSide />
