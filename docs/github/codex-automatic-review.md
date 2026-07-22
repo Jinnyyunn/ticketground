@@ -7,7 +7,9 @@ Ticketground uses the ChatGPT Codex GitHub connector to perform semantic code re
 ## Repository scope
 
 - Connector access is limited to `Jinnyyunn/ticketground`.
-- Automatic review runs when a pull request is opened or updated, according to the repository setting in Codex code review settings.
+- Automatic review is set to **all pull requests**, **every push**, with **thorough code review** enabled.
+- The Codex Cloud environment is named `Ticketground PR Review` and uses automatic dependency setup with internet access disabled after setup.
+- Credit overage is not enabled; reviews stop rather than consuming additional credits beyond the plan limit.
 - The reviewer follows the root `AGENTS.md`, especially `## Code Review Rules`.
 - Automatic review does not enable automatic merge or administrator overrides.
 
@@ -29,4 +31,4 @@ For every setup or settings change:
 
 ## Operations
 
-The connector and automatic-review trigger are managed in ChatGPT Codex settings, not with a repository API key. If automatic review stops appearing, check the connector installation, repository access, and code review toggle before changing workflow code.
+The connector, environment, and automatic-review trigger are managed in ChatGPT Codex settings, not with a repository API key. If automatic review stops appearing, check the connector installation, repository access, `Ticketground PR Review` environment, and code review toggle before changing workflow code.
