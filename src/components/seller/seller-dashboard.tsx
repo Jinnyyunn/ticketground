@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Field, money, Notice, SelectField, TextareaField, valueFromForm, WorkspacePanel } from "@/components/admin/console-primitives";
 import type { Feedback } from "@/components/admin/console-types";
+import { SellerSiteHeader } from "./seller-site-header";
 import {
   sellerEventCategoryOptions,
   sellerPublishStatusLabels,
@@ -52,6 +53,53 @@ function schedulesToText(schedules: readonly SellerEventSchedule[]): string {
 
 function pricesToText(prices: readonly SellerEventPrice[]): string {
   return prices.map((price) => [price.grade, price.seat, price.price, price.seatCount ?? 12].join(",")).join("\n");
+}
+
+function InlineLoginForm({ onLoggedIn }: { readonly onLoggedIn: (session: SellerSession) => void }) {
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const username = valueFromForm(form, "username");
+    const password = valueFromForm(form, "password");
+    if (!username || !password) {
+      setError("아이디와 비밀번호를 입력해주세요.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const sessionData = await sellerRequest<SellerSession>("/api/seller/login", { method: "POST", body: JSON.stringify({ username, password }) });
+      onLoggedIn(sessionData);
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "로그인에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="ticketground-container py-12">
+      <div className="mx-auto w-full max-w-md rounded-xl border border-line bg-card p-6 shadow-ticket-2">
+        <p className="text-sm font-black text-ticketground">기업 판매자 시스템</p>
+        <h1 className="balanced-title mt-2 text-2xl font-black leading-tight text-ink">판매자 로그인</h1>
+        <p className="mt-3 text-sm leading-relaxed text-ink-3">관리자로부터 발급받은 아이디와 임시 비밀번호로 로그인해 주세요.</p>
+        <form className="mt-6 grid gap-3" noValidate onSubmit={submit}>
+          <Field label="아이디" name="username" />
+          <Field label="비밀번호" name="password" type="password" />
+          {error ? <p aria-live="polite" className="text-sm font-bold text-ticketground">{error}</p> : null}
+          <button className="mt-2 h-11 rounded-lg bg-ink text-sm font-black text-on-ink disabled:bg-surface-3 disabled:text-ink-4" disabled={submitting} type="submit">
+            {submitting ? "로그인 중" : "로그인"}
+          </button>
+        </form>
+        <p className="mt-5 text-center text-sm font-bold text-ink-3">
+          아직 등록 신청을 안 하셨나요? <Link className="text-ticketground underline" href="/seller/apply">기업 판매자 등록 신청</Link>
+        </p>
+      </div>
+    </section>
+  );
 }
 
 function ChangePasswordForm({ onDone }: { readonly onDone: () => void }) {
@@ -232,24 +280,48 @@ export function SellerDashboard() {
     })();
   }, []);
 
-  if (loading) return <main className="grid min-h-[60vh] place-items-center text-sm font-black text-ink-3">확인하는 중입니다.</main>;
+  const handleLoggedOut = (): void => {
+    setSession(null);
+    setEvents([]);
+  };
+
+  if (loading) {
+    return (
+      <>
+        <SellerSiteHeader onLoggedOut={handleLoggedOut} session={null} />
+        <main className="grid min-h-[60vh] place-items-center text-sm font-black text-ink-3">확인하는 중입니다.</main>
+      </>
+    );
+  }
 
   if (!session) {
     return (
-      <section className="ticketground-container py-12 text-center">
-        <p className="text-sm font-bold text-ink-3">판매자 로그인이 필요합니다.</p>
-        <Link className="mt-4 inline-flex h-11 items-center rounded-lg bg-ink px-5 text-sm font-black text-on-ink" href="/seller/login">로그인하러 가기</Link>
-      </section>
+      <>
+        <SellerSiteHeader onLoggedOut={handleLoggedOut} session={null} />
+        <InlineLoginForm
+          onLoggedIn={(nextSession) => {
+            setSession(nextSession);
+            if (!nextSession.mustChangePassword) void loadDashboard();
+          }}
+        />
+      </>
     );
   }
 
   if (session.mustChangePassword) {
-    return <ChangePasswordForm onDone={() => { setSession(null); }} />;
+    return (
+      <>
+        <SellerSiteHeader onLoggedOut={handleLoggedOut} session={session} />
+        <ChangePasswordForm onDone={() => { setSession(null); }} />
+      </>
+    );
   }
 
   const selectedEvent = events.find((item) => item.id === selectedId) || null;
 
   return (
+    <>
+    <SellerSiteHeader onLoggedOut={handleLoggedOut} session={session} />
     <section className="ticketground-container py-8">
       <div className="flex flex-col gap-2 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -284,5 +356,6 @@ export function SellerDashboard() {
         />
       </div>
     </section>
+    </>
   );
 }

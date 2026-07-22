@@ -381,10 +381,10 @@ test("catalog browser upload publishes a poster-backed performance to the public
   assert.ok(event);
   t.after(() => rm(new URL(`../public${event.image}`, import.meta.url), { force: true }));
 
-  await page.goto(`${server.baseUrl}/`);
-  const publicCard = page.getByRole("link", { name: new RegExp(title) });
-  await publicCard.waitFor();
-  await publicCard.click();
+  // sell_corporation's "/" is the seller portal, not a consumer catalog
+  // page, so there is no home-page link to discover the new event through -
+  // go straight to its public detail page instead.
+  await page.goto(`${server.baseUrl}/goods/${event.slug}`);
   await page.getByRole("heading", { name: title }).waitFor();
   assert.equal(await page.getByRole("img", { name: `${title} 포스터` }).count(), 1);
 });

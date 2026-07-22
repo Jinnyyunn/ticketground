@@ -1,54 +1,16 @@
-import { FloatingSide } from "@/components/floating-side";
-import { AdminPublishedEventsSection } from "@/components/home/admin-published-events";
-import type { RankingShow } from "@/components/home/home-content";
-import {
-  EditorialEventsSection,
-  GenreRecommendationsSection,
-  HomeHeroSection,
-  OfficialResaleSection,
-  RealtimeTop10Section,
-  ShortcutsSection,
-  TicketOpenSection,
-} from "@/components/home/home-sections";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
-import { getGeneralSaleShows } from "@/data/catalog-server";
-import { rankShows } from "@/data/ranking";
-import type { TicketShow } from "@/types";
+import { SellerDashboard } from "@/components/seller/seller-dashboard";
 
-function toRankingShow(show: TicketShow, index: number): RankingShow {
-  return {
-    rank: index + 1,
-    title: show.shortTitle,
-    venue: show.venue,
-    date: show.period,
-    href: `/goods/${show.slug}`,
-    movement: "same",
-    delta: "-",
-    gradient: "g1",
-    poster: show.poster,
-  };
-}
-
-export default async function Home() {
-  const generalSaleShows = await getGeneralSaleShows();
-  const topRankings = rankShows(generalSaleShows).map(toRankingShow);
-
+// This branch/port (sell_corporation) is a dedicated corporate-seller
+// registration system, not a consumer storefront - landing on "/" here
+// goes straight into the seller login/dashboard experience instead of the
+// regular Ticketground homepage. The regular consumer routes (search,
+// genre pages, /goods/[slug], etc.) still exist in the codebase for the
+// published-event detail pages sellers' own listings link out to, but are
+// intentionally not the front door of this deployment.
+export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <SiteHeader />
-      <main className="flex-1">
-        <HomeHeroSection />
-        <AdminPublishedEventsSection />
-        <RealtimeTop10Section items={topRankings} />
-        <TicketOpenSection />
-        <OfficialResaleSection />
-        <GenreRecommendationsSection />
-        <EditorialEventsSection />
-        <ShortcutsSection />
-      </main>
-      <SiteFooter />
-      <FloatingSide />
+    <div className="min-h-screen bg-background text-ink">
+      <SellerDashboard />
     </div>
   );
 }

@@ -8,8 +8,9 @@ test("closed issue regressions stay fixed in the rendered frontend", async (t) =
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
 
-  await assertHomeDesktopResaleMenu(browser, baseUrl);
-  await assertHomeMobileIssueFixes(browser, baseUrl);
+  // assertHomeDesktopResaleMenu/assertHomeMobileIssueFixes intentionally
+  // removed: "/" on this branch is the seller portal, not the consumer
+  // homepage those checks depended on (resale menu, genre section, etc.).
   await assertOpenCalendarMobileSpacing(browser, baseUrl);
   await assertMypageOfficialResaleAction(browser, baseUrl);
   await assertQueueProgression(browser, baseUrl);
@@ -19,44 +20,6 @@ test("closed issue regressions stay fixed in the rendered frontend", async (t) =
 async function resolveBaseUrl(t) {
   if (process.env.TICKETGROUND_TEST_BASE_URL) return process.env.TICKETGROUND_TEST_BASE_URL;
   return (await startServer(t)).baseUrl;
-}
-
-async function assertHomeDesktopResaleMenu(browser, baseUrl) {
-  const page = await browser.newPage({ viewport: { width: 1293, height: 1043 }, deviceScaleFactor: 1 });
-  try {
-    await page.goto(baseUrl, { waitUntil: "networkidle" });
-
-    const resaleMenu = page.getByRole("link", { name: "CLEAN TICKET 재판매", exact: true });
-    await resaleMenu.waitFor({ timeout: 5000 });
-    assert.equal(await resaleMenu.count(), 1);
-    assert.match(await resaleMenu.first().getAttribute("href"), /\/resale$/);
-  } finally {
-    await page.close();
-  }
-}
-
-async function assertHomeMobileIssueFixes(browser, baseUrl) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
-  try {
-    await page.goto(baseUrl, { waitUntil: "networkidle" });
-
-    const resaleSection = page.locator('[data-section="official-resale"]');
-    await resaleSection.waitFor({ timeout: 5000 });
-    const resaleLink = resaleSection.getByRole("link", { name: "공식 재판매" });
-    await resaleLink.waitFor({ timeout: 5000 });
-    assert.match(await resaleLink.getAttribute("href"), /\/resale/);
-
-    const genreSubtitle = page.locator('[data-section="genre-recommendations"] [data-section-subtitle]');
-    await genreSubtitle.waitFor({ timeout: 5000 });
-    assert.equal((await genreSubtitle.textContent())?.trim(), "콘서트·뮤지컬·연극·클래식을 비교하세요.");
-    const genreBox = await genreSubtitle.boundingBox();
-    assert.ok(genreBox && genreBox.height <= 42, `genre subtitle wraps too tall: ${genreBox?.height}`);
-
-    const ticketOpenBox = await page.locator('[data-card="ticket-open"]').first().boundingBox();
-    assert.ok(ticketOpenBox && ticketOpenBox.height <= 190, `ticket-open card too tall: ${ticketOpenBox?.height}`);
-  } finally {
-    await page.close();
-  }
 }
 
 async function assertOpenCalendarMobileSpacing(browser, baseUrl) {
