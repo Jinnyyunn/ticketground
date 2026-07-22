@@ -130,8 +130,12 @@ function publicCatalog(db) {
   return {
     // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
     // catalog schema and never carry a prices[] array - they power internal
-    // ticket/resale-engine demos, not the public show listing.
-    events: db.events.filter((event) => Array.isArray(event.prices) && event.prices.length > 0).map((event) => ({
+    // ticket/resale-engine demos, not the public show listing. Events a
+    // corporate seller registered directly stay hidden until an admin
+    // reviews and publishes them (see backend/seller-events.js).
+    events: db.events.filter((event) => (
+      Array.isArray(event.prices) && event.prices.length > 0 && (event.publishStatus ?? "PUBLISHED") === "PUBLISHED"
+    )).map((event) => ({
       id: event.id,
       slug: event.slug,
       category: event.category,
@@ -170,7 +174,7 @@ function publicCatalog(db) {
 
 function publicState(db) {
   return {
-    events: db.events.map((event) => ({
+    events: db.events.filter((event) => (event.publishStatus ?? "PUBLISHED") === "PUBLISHED").map((event) => ({
       ...event,
       sale: saleSummary(event)
     })),

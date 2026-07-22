@@ -1,3 +1,11 @@
+import {
+  clearSellerSessionCookie,
+  createSellerSessionToken,
+  recordSellerLoginAttempt,
+  requireSellerSession,
+  sellerSessionCookie
+} from "./seller-session.js";
+
 export function createApiRouter({
   addSupportMessage,
   adminHoldAdmissionCredential,
@@ -8,21 +16,29 @@ export function createApiRouter({
   adminWorkspace,
   appendLedger,
   assertTicketPurchasable,
+  authenticateSellerAccount,
   bootpayConfig,
+  changeSellerPassword,
   confirmBootpayPayment,
   createAdminAccount,
   cancelResaleListing,
   createSupportThread,
   createEventDraft,
+  createSellerEvent,
+  currentTimeMs,
   demoSession,
   directTransferAttempt,
   drawPool,
   googleSession,
+  hmac,
   httpError,
+  isDev,
   confirmPortOneDanalVerification,
   issueQr,
+  issueSellerAccount,
   joinPool,
   listForResale,
+  listSellerEvents,
   notifyWatchlist,
   purchaseResale,
   publicCatalog,
@@ -35,6 +51,9 @@ export function createApiRouter({
   publicIdentityStatus,
   approveSellerApplication,
   rejectSellerApplication,
+  reviewSellerEvent,
+  sellerAccountDto,
+  sellerSession,
   submitSellerApplication,
   socialAuthCallback,
   socialAuthSession,
@@ -48,6 +67,7 @@ export function createApiRouter({
   updateEventVenue,
   updateAdminAccount,
   updateDemoProfile,
+  updateSellerEvent,
   updateSupportStatus,
   updateSellerApplicationChecklist,
   updateTicketStatus,
@@ -62,6 +82,20 @@ export function createApiRouter({
   verifyQr,
   virtualQr
 }) {
+function isSecureRequest(req) {
+  const protoHeader = req.headers["x-forwarded-proto"];
+  const proto = Array.isArray(protoHeader) ? protoHeader[0] : protoHeader;
+  return proto === "https" || req.socket?.encrypted === true;
+}
+
+function requestIp(req) {
+  const address = req.socket.remoteAddress || "";
+  return address.startsWith("::ffff:") ? address.slice(7) : address;
+}
+
+function setCookieHeaders(...cookies) {
+  return { "Set-Cookie": cookies.filter(Boolean) };
+}
 function requireBody(body, keys) {
   for (const key of keys) {
     if (body[key] === undefined || body[key] === "") {
@@ -93,8 +127,12 @@ async function handleApi(req, res, db, surface) {
   // The seller-application submission carries two independently-allowed
   // 5MB files (business registration doc + poster) as base64, which
   // inflates ~4/3x past the default cap - give that one route more room.
-  const maxBodyBytes = url.pathname === "/api/seller-applications" ? 16 * 1024 * 1024 : 8 * 1024 * 1024;
+  // The seller dashboard's own event create/update carries one 5MB poster,
+  // same reasoning.
+  const largeBodyRoutes = new Set(["/api/seller-applications", "/api/seller/events/create", "/api/seller/events/update"]);
+  const maxBodyBytes = largeBodyRoutes.has(url.pathname) ? 16 * 1024 * 1024 : 8 * 1024 * 1024;
   const body = req.method === "POST" ? await parseBody(req, maxBodyBytes) : {};
+  const sellerSessionResult = sellerSession(db, req);
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
   const userProfileMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/profile$/);
@@ -181,6 +219,53 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/seller-applications") {
     return submitSellerApplication(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/seller/login") {
+    const loginAttempt = recordSellerLoginAttempt(requestIp(req));
+    if (loginAttempt.limited) {
+      throw httpError(429, "RATE_LIMITED", "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.", { retryAfterSeconds: loginAttempt.retryAfterSeconds });
+    }
+    requireBody(body, ["username", "password"]);
+    const account = authenticateSellerAccount(db, body.username, body.password);
+    if (!account) throw httpError(401, "SELLER_LOGIN_FAILED", "아이디 또는 비밀번호가 일치하지 않습니다.");
+    const { token, csrf } = createSellerSessionToken({ hmac, currentTimeMs, sellerId: account.id });
+    return {
+      responseHeaders: setCookieHeaders(sellerSessionCookie(token, isSecureRequest(req) || !isDev)),
+      responseBody: { ...sellerAccountDto(account), csrf }
+    };
+  }
+  if (req.method === "POST" && url.pathname === "/api/seller/logout") {
+    return {
+      responseHeaders: setCookieHeaders(clearSellerSessionCookie(isSecureRequest(req) || !isDev)),
+      responseBody: { loggedOut: true }
+    };
+  }
+  if (req.method === "GET" && url.pathname === "/api/seller/session") {
+    requireSellerSession(sellerSessionResult, req, httpError);
+    return { ...sellerAccountDto(sellerSessionResult.account), csrf: sellerSessionResult.csrf };
+  }
+  if (req.method === "POST" && url.pathname === "/api/seller/change-password") {
+    const session = requireSellerSession(sellerSessionResult, req, httpError);
+    requireBody(body, ["currentPassword", "nextPassword"]);
+    return changeSellerPassword(db, {
+      sellerId: session.account.id,
+      currentPassword: body.currentPassword,
+      nextPassword: body.nextPassword
+    });
+  }
+  if (req.method === "GET" && url.pathname === "/api/seller/events") {
+    const session = requireSellerSession(sellerSessionResult, req, httpError);
+    return listSellerEvents(db, session.account.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/seller/events/create") {
+    const session = requireSellerSession(sellerSessionResult, req, httpError);
+    requireBody(body, ["title", "category", "startsAt", "venueId", "imageDataUrl"]);
+    return createSellerEvent(db, body, session.account);
+  }
+  if (req.method === "POST" && url.pathname === "/api/seller/events/update") {
+    const session = requireSellerSession(sellerSessionResult, req, httpError);
+    requireBody(body, ["eventId", "title", "category", "startsAt", "venueId"]);
+    return updateSellerEvent(db, body, session.account);
   }
   if (req.method === "POST" && url.pathname === "/api/auth/google") {
     requireBody(body, ["credential"]);
@@ -319,6 +404,16 @@ async function handleApi(req, res, db, surface) {
       return approveSellerApplication(db, { applicationId, reviewNote: body.reviewNote }, req.admin);
     }
     return rejectSellerApplication(db, { applicationId, reviewNote: body.reviewNote }, req.admin);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/seller-accounts/issue") {
+    requireBody(body, ["applicationId", "username"]);
+    return issueSellerAccount(db, body, req.admin);
+  }
+  const sellerEventReviewMatch = url.pathname.match(/^\/api\/admin\/seller-events\/([^/]+)\/(publish|reject)$/);
+  if (req.method === "POST" && sellerEventReviewMatch) {
+    const eventId = decodeURIComponent(sellerEventReviewMatch[1]);
+    const action = sellerEventReviewMatch[2];
+    return reviewSellerEvent(db, { eventId, action, reviewNote: body.reviewNote }, req.admin);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/admin-accounts") {
     requireBody(body, ["username", "password", "roleKeys"]);

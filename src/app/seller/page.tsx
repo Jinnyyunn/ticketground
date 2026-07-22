@@ -23,6 +23,7 @@ export default function SellerPage() {
       description="Ticketground에서 공연 티켓을 판매하려는 주최자와 판매자를 위한 기본 절차를 안내합니다. 제작사, 기획사, 공연장, 문화재단, 구단 등 권리자는 아래 신청서로 판매 등록을 요청할 수 있습니다."
       sections={sections}
       cta={{ label: "기업 판매자 등록 신청", href: "/seller/apply" }}
+      secondaryCta={{ label: "이미 승인된 기업이신가요? 로그인", href: "/seller/login" }}
     />
   );
 }
