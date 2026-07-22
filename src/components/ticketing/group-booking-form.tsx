@@ -118,73 +118,73 @@ export function GroupBookingForm({ events }: { readonly events: readonly GroupBo
   }
 
   return (
-    <form className="grid gap-4" noValidate onSubmit={submit}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="grid gap-1 text-sm font-bold text-ink-3">
+    <form className="grid min-w-0 gap-4" noValidate onSubmit={submit}>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
           기관명
-          <input className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="orgName" required />
+          <input className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="orgName" required />
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
           기관 유형
-          <select className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={orgTypeOptions[0].value} name="orgType">
+          <select className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={orgTypeOptions[0].value} name="orgType">
             {orgTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
           담당자명
-          <input className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="contactName" required />
+          <input className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="contactName" required />
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
           담당자 휴대폰 번호
-          <input className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="contactPhone" placeholder="01012345678" required type="tel" />
+          <input className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="contactPhone" placeholder="01012345678" required type="tel" />
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3 sm:col-span-2">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3 sm:col-span-2">
           기관 이메일
-          <input className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="contactEmail" required type="email" />
+          <input className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="contactEmail" required type="email" />
         </label>
       </div>
 
-      <label className="grid gap-1 text-sm font-bold text-ink-3">
+      <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
         사업자등록증/고유번호증 첨부
         <input accept="image/jpeg,image/png,image/webp,application/pdf" className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" name="businessRegistrationFile" onChange={handleFileChange} required type="file" />
         <span className="text-xs font-bold text-ink-4">PNG, JPEG, WebP, PDF · 최대 10MB{fileName ? ` · 선택됨: ${fileName}` : ""}</span>
         {fileError ? <span className="text-xs font-bold text-ticketground">{fileError}</span> : null}
       </label>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="grid gap-1 text-sm font-bold text-ink-3">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
           희망 공연
-          <select className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" onChange={(event) => setSelectedEventId(event.currentTarget.value)} value={selectedEventId}>
+          <select className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" onChange={(event) => setSelectedEventId(event.currentTarget.value)} value={selectedEventId}>
             {events.map((event) => <option key={event.id} value={event.id}>{event.title} · {event.venue}</option>)}
           </select>
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
           예상 인원
-          <input className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" min={1} name="expectedHeadcount" required type="number" />
+          <input className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" min={1} name="expectedHeadcount" required type="number" />
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3" key={`dates-${selectedEvent?.id}`}>
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3" key={`dates-${selectedEvent?.id}`}>
           희망 날짜/회차
-          <select className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="performanceDateId">
+          <select className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="performanceDateId">
             {selectedEvent?.dates.map((date) => <option key={date.id} value={date.id}>{date.label} · {date.startsAt.slice(0, 16).replace("T", " ")}</option>)}
           </select>
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3" key={`zones-${selectedEvent?.id}`}>
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3" key={`zones-${selectedEvent?.id}`}>
           희망 좌석등급
-          <select className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="zoneId">
+          <select className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" name="zoneId">
             {selectedEvent?.zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name} · {zone.faceValue.toLocaleString("ko-KR")}원</option>)}
           </select>
         </label>
-        <label className="grid gap-1 text-sm font-bold text-ink-3">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
           결제 방식
-          <select className="h-11 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={paymentMethodOptions[0].value} name="paymentMethod">
+          <select className="h-11 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={paymentMethodOptions[0].value} name="paymentMethod">
             {paymentMethodOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
       </div>
 
-      <label className="grid gap-1 text-sm font-bold text-ink-3">
+      <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3">
         요청사항 (선택)
-        <textarea className="min-h-24 rounded-lg border border-line bg-background p-3 text-sm font-bold text-ink" name="requestNote" rows={3} />
+        <textarea className="min-h-24 min-w-0 rounded-lg border border-line bg-background p-3 text-sm font-bold text-ink" name="requestNote" rows={3} />
       </label>
 
       {submitState.status === "error" ? <p aria-live="polite" className="text-sm font-bold text-ticketground">{submitState.message}</p> : null}

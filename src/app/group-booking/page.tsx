@@ -18,7 +18,7 @@ export default async function GroupBookingPage() {
           희망 공연의 좌석 확보 상황에 맞춰 배정 결과를 안내해드립니다. 단체 예매 티켓은 개인 재판매 및 공식
           재판매 풀 등록이 제한됩니다.
         </p>
-        <div className="mt-8 max-w-2xl">
+        <div className="mt-8 min-w-0 max-w-2xl">
           <GroupBookingForm events={events} />
         </div>
       </section>
