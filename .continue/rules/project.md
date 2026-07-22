@@ -37,6 +37,14 @@ A reusable template for reverse-engineering any website into a clean, modern Nex
 - 2-space indentation
 - Responsive: mobile-first
 
+## Code Review Rules
+- Report only actionable defects, regressions, security risks, data-integrity issues, and missing high-value tests. Leave formatting and style-only feedback to CI.
+- Prioritize P0/P1 findings. For each finding, cite the affected file and explain the user-visible or operational impact.
+- For frontend changes, verify that links, buttons, forms, loading states, and error states reach the intended destination or action. Check mobile, tablet, and desktop behavior when the changed surface is responsive.
+- Treat the files matched by `PROTECTED_AUTH_PATTERNS` in `.github/scripts/ticketground-bot.cjs` as a protected simple-login boundary. Flag any change to that boundary unless the PR explicitly documents that the user requested it and includes focused authentication tests.
+- Review backend and checkout changes for authorization, idempotency, duplicate payment, inventory races, stale-state handling, and accidental exposure of secrets or personal data.
+- Do not approve, merge, or suggest unrelated product changes. If no consequential issue is found, say so instead of inventing low-value feedback.
+
 ## Design Principles
 - **Pixel-perfect emulation** — match the target's spacing, colors, typography exactly
 - **No personal aesthetic changes during emulation phase** — match 1:1 first, customize later
