@@ -1,5 +1,4 @@
 import { FloatingSide } from "@/components/floating-side";
-import { AdminPublishedEventsSection } from "@/components/home/admin-published-events";
 import type { RankingShow } from "@/components/home/home-content";
 import {
   EditorialEventsSection,
@@ -39,7 +38,6 @@ export default async function Home() {
       <SiteHeader />
       <main className="flex-1">
         <HomeHeroSection />
-        <AdminPublishedEventsSection />
         <RealtimeTop10Section items={topRankings} />
         <TicketOpenSection />
         <OfficialResaleSection />

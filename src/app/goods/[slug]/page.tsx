@@ -85,7 +85,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
             </section>
           </section>
 
-          <DetailBookingPanel bookable={show.sale.bookable} lowestPriceLabel={lowestPriceLabel} originalPriceLabel={originalPriceLabel} saleLabel={show.sale.label} saleNote={show.sale.note} schedules={show.schedules} slug={show.slug} title={show.title} venueHref={venueHref} />
+          <DetailBookingPanel bookable={show.sale.bookable} checkoutNotice={show.checkoutNotice} lowestPriceLabel={lowestPriceLabel} originalPriceLabel={originalPriceLabel} saleLabel={show.sale.label} schedules={show.schedules} slug={show.slug} title={show.title} venueHref={venueHref} />
 
           <nav className="no-scrollbar sticky top-0 z-20 overflow-x-auto border-b border-line bg-background py-3 shadow-sm lg:col-span-2" aria-label="상세 정보 바로가기">
             <div className="mx-auto flex w-max gap-3">

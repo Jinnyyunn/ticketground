@@ -80,6 +80,7 @@ export interface TicketShow {
     readonly basePrice: number;
     readonly discountRate: number;
   };
+  readonly checkoutNotice: string;
   readonly badge?: string;
   readonly artistSlug?: string;
   readonly prices: readonly TicketPrice[];

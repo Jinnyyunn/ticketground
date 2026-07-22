@@ -308,6 +308,7 @@ test("readonly browser admin session renders dashboard without privileged API fa
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (dialog) => void dialog.accept());
   const privilegedResponses = [];
   page.on("response", (response) => {
     const url = new URL(response.url());
@@ -335,6 +336,7 @@ test("catalog workspace validates a missing performance title without submitting
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (dialog) => void dialog.accept());
 
   await page.goto(`${server.adminUrl}/console/catalog`);
   await page.locator('input[name="username"]').fill("admin");
@@ -360,6 +362,7 @@ test("catalog browser upload publishes a poster-backed performance to the public
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (dialog) => void dialog.accept());
   const title = "브라우저 업로드 공개 공연";
 
   await page.goto(`${server.adminUrl}/console/catalog`);
@@ -381,10 +384,12 @@ test("catalog browser upload publishes a poster-backed performance to the public
   assert.ok(event);
   t.after(() => rm(new URL(`../public${event.image}`, import.meta.url), { force: true }));
 
-  await page.goto(`${server.baseUrl}/`);
-  const publicCard = page.getByRole("link", { name: new RegExp(title) });
-  await publicCard.waitFor();
-  await publicCard.click();
+  // Navigate straight to the detail page by slug rather than discovering it
+  // through a home page section - the admin-published "새로 등록된 공연"
+  // section this test used to rely on was intentionally removed from the
+  // home page, so a freshly-created event's publicly-reachable proof is its
+  // own detail page now, not a home page card.
+  await page.goto(`${server.baseUrl}/goods/${event.slug}`);
   await page.getByRole("heading", { name: title }).waitFor();
   assert.equal(await page.getByRole("img", { name: `${title} 포스터` }).count(), 1);
 });
@@ -399,6 +404,7 @@ test("browser console menus load focused workspaces and save support status", as
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (dialog) => void dialog.accept());
   const statusRequests = [];
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/admin/support/status") {
@@ -459,6 +465,7 @@ test("admin support workspace filters threads and browser shows message history 
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (dialog) => void dialog.accept());
   await page.goto(`${server.adminUrl}/console/support`);
   await page.locator('input[name="username"]').fill("admin");
   await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
@@ -491,6 +498,7 @@ test("browser account workspace searches users, shows sanctions, confirms single
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (dialog) => void dialog.accept());
   const singleRequests = [];
   const bulkRequests = [];
   page.on("request", (request) => {
@@ -552,6 +560,7 @@ test("browser admin inventory and resale operations work through changed control
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (dialog) => void dialog.accept());
   const bulkRequests = [];
   const cancelRequests = [];
   const ackRequests = [];
@@ -919,6 +928,63 @@ test("admin can force cancel another seller resale pool with an audit reason", a
   assert.equal(resale.data.resalePools.find((item) => item.id === pool.data.id).cancelReason, "판매자 응답 없음");
   assert.equal(inventory.data.tickets.find((item) => item.id === ticket.id).status, "OWNED");
   assert.ok(audit.data.ledger.some((entry) => entry.action === "ADMIN_RESALE_POOL_CANCELED" && entry.payload.poolId === pool.data.id));
+});
+
+test("admin can force cancel an already-matched resale pool and unwind the completed transaction", async (t) => {
+  // Given: a resale pool that has already matched a real buyer - the seller
+  // was credited and the buyer now owns the ticket, not just an open listing.
+  const server = await startServer(t);
+  const { ticket } = await buyFirstTicket(server.baseUrl);
+  await verifyIdentity(server.baseUrl, "user_fan_b", "010-9000-0002");
+  const price = ticket.faceValue;
+  const expectedFee = Math.ceil(price * 0.05);
+
+  const pool = await api(server.baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price
+  });
+  const purchase = await api(server.baseUrl, "/api/resale/purchase", {
+    buyerId: "user_fan_b",
+    poolId: pool.data.id,
+    paymentMethod: "CREDIT_CARD"
+  });
+  assert.equal(purchase.data.pool.status, "MATCHED");
+
+  // When: admin force-cancels the already-matched pool.
+  const canceled = await adminApi(server, "/api/admin/resale/cancel", {
+    poolId: pool.data.id,
+    reason: "매칭 후 분쟁 발생"
+  });
+  assert.equal(canceled.data.status, "CANCELED");
+
+  // Then: ownership reverts to the original seller, not left with the buyer.
+  const sellerTickets = await api(server.baseUrl, "/api/users/user_fan_a/tickets");
+  assert.deepEqual(sellerTickets.data.map((item) => item.id), [ticket.id]);
+  assert.equal(sellerTickets.data[0].status, "OWNED");
+  const buyerTickets = await api(server.baseUrl, "/api/users/user_fan_b/tickets");
+  assert.deepEqual(buyerTickets.data.map((item) => item.id), []);
+
+  // And: a refund transaction reverses exactly what the original match paid out.
+  const finance = await adminApi(server, `/api/admin/workspaces/finance?eventId=${ticket.eventId}&limit=100`);
+  const refund = finance.data.transactions.find((item) => item.ticketId === ticket.id && item.type === "REFUND");
+  assert.ok(refund, "a REFUND transaction was recorded");
+  assert.equal(refund.transferAmount, -price);
+  assert.equal(refund.amount, price + expectedFee);
+
+  // And: re-listing the ticket for resale works again (transferCount was undone).
+  const relisted = await api(server.baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price
+  });
+  assert.equal(relisted.data.status, "OPEN");
+
+  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=ADMIN_RESALE_MATCH_REVERSED");
+  const reversalEntry = audit.data.ledger.find((entry) => entry.payload.poolId === pool.data.id);
+  assert.ok(reversalEntry, "reversal is recorded in the audit ledger");
+  assert.equal(reversalEntry.payload.buyerId, "user_fan_b");
+  assert.equal(reversalEntry.payload.sellerId, "user_fan_a");
 });
 
 test("admin alert acknowledgement reduces overview unread count", async (t) => {

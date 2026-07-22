@@ -63,6 +63,7 @@ export type AdminEvent = {
   readonly pinnedRank?: number | null;
   readonly saleState: string;
   readonly saleNote?: string;
+  readonly checkoutNotice?: string;
   readonly discountRate?: number;
   readonly image?: string;
   readonly zones: readonly { readonly id: string; readonly name: string; readonly faceValue: number; readonly seatCount?: number }[];
@@ -267,6 +268,10 @@ const operatorLabels: Record<string, string> = {
   PAYMENT: "결제",
   PRIMARY: "일반 예매",
   RESALE: "공식 재판매",
+  REFUND: "환불",
+  REFUNDED: "환불 완료",
+  MATCHED: "거래 완료",
+  CANCELED: "취소됨",
   sports: "스포츠",
   TICKET_QR: "티켓/QR",
   theater: "연극",

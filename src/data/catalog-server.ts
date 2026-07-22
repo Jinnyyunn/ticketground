@@ -31,6 +31,7 @@ interface ApiCatalogEvent {
     readonly basePrice: number;
     readonly discountRate: number;
   };
+  readonly checkoutNotice: string;
   readonly pinnedRank: number | null;
   readonly soldCount: number;
 }
@@ -76,6 +77,7 @@ function toTicketShow(event: ApiCatalogEvent): TicketShow {
     soldCount: event.soldCount,
     saleState: event.saleState,
     sale: event.sale,
+    checkoutNotice: event.checkoutNotice,
     badge: event.badge,
     artistSlug: event.artistSlug,
     prices: event.prices,

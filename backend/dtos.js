@@ -1,4 +1,6 @@
 // Public and admin response DTOs.
+import { defaultCheckoutNotice } from "./admin-event-content.js";
+
 export function createDtoBackend({ saleSummary, verifyLedger }) {
 function publicTicket(ticket) {
   return {
@@ -154,6 +156,7 @@ function publicCatalog(db) {
       prices: event.prices,
       saleState: event.saleState,
       saleNote: event.saleNote,
+      checkoutNotice: event.checkoutNotice || defaultCheckoutNotice,
       pinnedRank: event.pinnedRank ?? null,
       soldCount: soldCounts.get(event.id) || 0,
       sale: saleSummary(event)

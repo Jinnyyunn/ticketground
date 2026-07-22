@@ -178,7 +178,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             </div>
           ) : null}
           <div data-testid="booking-identity-notice" className="rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3">
-            티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다. 이미 다른 계정에서 인증된 휴대폰 번호는 다시 사용할 수 없습니다.
+            {show.checkoutNotice} 이미 다른 계정에서 인증된 휴대폰 번호는 다시 사용할 수 없습니다.
           </div>
 
           {step === "schedule" && (

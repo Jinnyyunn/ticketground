@@ -1,4 +1,6 @@
 // JSON DB normalization and seed construction for catalog data.
+import { defaultCheckoutNotice } from "./admin-event-content.js";
+
 export function createCatalogPersistence({
   appendLedger,
   clone,
@@ -84,6 +86,7 @@ function normalizeDb(db) {
   for (const event of db.events) {
     const before = JSON.stringify(event);
     event.slug ||= `event-${event.id}`;
+    event.checkoutNotice ||= defaultCheckoutNotice;
     primaryDate(event);
     syncEventVenue(db, event);
     if (JSON.stringify(event) !== before) changed = true;

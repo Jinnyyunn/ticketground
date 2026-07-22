@@ -349,6 +349,7 @@ async function createEventDraft(db, payload) {
     image,
     saleState: input.saleState,
     saleNote: input.saleNote || "관리자 초안",
+    checkoutNotice: input.checkoutNotice,
     discountRate: input.discountRate,
     rating: "0.0",
     ...content
@@ -540,6 +541,7 @@ async function updateEventSale(db, payload) {
   event.category = input.category;
   event.saleState = input.saleState;
   event.saleNote = input.saleNote;
+  event.checkoutNotice = input.checkoutNotice;
   event.discountRate = input.discountRate;
   event.venueId = venue.id;
   event.venue = venue.name;
@@ -908,20 +910,79 @@ function updateTicketStatuses(db, { updates }) {
 function adminCancelResalePool(db, { poolId, reason }) {
   const pool = db.resalePools.find((item) => item.id === poolId);
   if (!pool) throw httpError(404, "POOL_NOT_FOUND", "재판매 풀을 찾을 수 없습니다.", { poolId });
-  if (pool.status !== "OPEN") throw httpError(409, "POOL_CLOSED", "이미 종료된 풀입니다.", { poolId });
+  if (pool.status === "CANCELED") throw httpError(409, "POOL_ALREADY_CANCELED", "이미 취소된 풀입니다.", { poolId });
+  if (!["OPEN", "MATCHED"].includes(pool.status)) {
+    throw httpError(409, "POOL_CLOSED", "취소할 수 없는 상태의 풀입니다.", { poolId, status: pool.status });
+  }
   const ticket = db.tickets.find((item) => item.id === pool.ticketId);
   if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.", { ticketId: pool.ticketId, poolId });
 
   const cancelReason = String(reason || "").trim() || "관리자 강제 취소";
-  ticket.status = "OWNED";
+  const canceledAt = now();
+
+  if (pool.status === "MATCHED") {
+    // A matched pool already moved real money and ownership: the seller
+    // was credited, the buyer paid and owns the ticket now. Force-cancelling
+    // this (not just an OPEN listing) has to unwind all of that, not merely
+    // flip a status flag, or the seller keeps money for a sale the admin
+    // just voided and the buyer is left holding a ticket with no record of
+    // ever having paid for it.
+    const seller = db.users.find((item) => item.id === pool.sellerId);
+    if (!seller) throw httpError(404, "USER_NOT_FOUND", "판매자를 찾을 수 없습니다.", { sellerId: pool.sellerId, poolId });
+    const clawbackAmount = pool.sellerSettlement ?? pool.price;
+    const refundAmount = pool.buyerTotal ?? pool.price;
+
+    seller.balance -= clawbackAmount;
+    ticket.ownerId = seller.id;
+    ticket.transferCount = Math.max(0, (ticket.transferCount || 0) - 1);
+    ticket.status = "OWNED";
+    ticket.currentQr = null;
+
+    const credential = db.admissionCredentials.find((item) => item.ticketId === ticket.id);
+    if (credential) {
+      credential.userId = seller.id;
+      credential.adminHold = false;
+      credential.adminHoldReason = null;
+      credential.updatedAt = canceledAt;
+    }
+
+    db.paymentTransactions.push({
+      id: id("pay"),
+      ticketId: ticket.id,
+      userId: pool.winnerId,
+      sellerId: seller.id,
+      type: "REFUND",
+      amount: refundAmount,
+      transferAmount: -clawbackAmount,
+      platformFee: 0,
+      method: pool.paymentMethod || "CREDIT_CARD",
+      status: "REFUNDED",
+      pgTransactionId: id("refund"),
+      createdAt: canceledAt
+    });
+
+    appendLedger(db, "ADMIN", "ADMIN_RESALE_MATCH_REVERSED", {
+      poolId: pool.id,
+      ticketId: ticket.id,
+      sellerId: seller.id,
+      buyerId: pool.winnerId,
+      clawbackAmount,
+      refundAmount,
+      reason: cancelReason,
+      policy: "admin-force-cancel-matched-resale-pool"
+    });
+  } else {
+    ticket.status = "OWNED";
+  }
+
   pool.status = "CANCELED";
-  pool.canceledAt = now();
+  pool.canceledAt = canceledAt;
   pool.cancelReason = cancelReason;
   appendLedger(db, "ADMIN", "ADMIN_RESALE_POOL_CANCELED", {
     poolId: pool.id,
     ticketId: ticket.id,
     reason: cancelReason,
-    policy: "admin-force-cancel-open-resale-pool"
+    policy: "admin-force-cancel-resale-pool"
   });
   return pool;
 }

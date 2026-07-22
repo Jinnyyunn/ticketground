@@ -19,11 +19,11 @@ type DetailBookingPanelProps = {
   readonly lowestPriceLabel: string;
   readonly originalPriceLabel?: string;
   readonly saleLabel: string;
-  readonly saleNote: string;
+  readonly checkoutNotice: string;
   readonly bookable: boolean;
 };
 
-export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPriceLabel, originalPriceLabel, saleLabel, saleNote, bookable }: DetailBookingPanelProps) {
+export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPriceLabel, originalPriceLabel, saleLabel, checkoutNotice, bookable }: DetailBookingPanelProps) {
   const [selectedDate, setSelectedDate] = useState(schedules[0]?.date ?? "");
   const selectedSchedule = schedules.find((schedule) => schedule.date === selectedDate) ?? schedules[0];
   const [selectedTime, setSelectedTime] = useState(selectedSchedule?.times[0] ?? "");
@@ -121,7 +121,7 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPr
         {originalPriceLabel ? <span className="ml-2 text-xs text-ink-4 line-through">{originalPriceLabel}</span> : null}
       </p>
       <p className="mt-2 rounded-sm border border-line bg-surface px-3 py-2 text-xs font-bold leading-relaxed text-ink-3">
-        {bookable ? "티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다." : saleNote}
+        {checkoutNotice}
       </p>
       {bookable ? (
         <Link

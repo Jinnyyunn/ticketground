@@ -20,6 +20,7 @@ const defaultZones = [
   { id: "zone_s", name: "S석", faceValue: 99000, resaleFeeRate: 0.06, maxTransferCount: 1, seatCount: 12 }
 ];
 const clearableTextKeys = ["shortTitle", "period", "runtime", "artistSlug", "summary"];
+export const defaultCheckoutNotice = "티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다.";
 
 export function createAdminEventContentBackend({ httpError, money, stableId }) {
   function hasOwn(payload, key) {
@@ -93,6 +94,7 @@ export function createAdminEventContentBackend({ httpError, money, stableId }) {
     const title = requiredText(payload.title ?? fallback.title, "MISSING_FIELD", "행사명을 입력해주세요.");
     return {
       category: normalizeCategory(payload.category ?? fallback.category),
+      checkoutNotice: cleanText(payload.checkoutNotice ?? fallback.checkoutNotice ?? "", 200) || defaultCheckoutNotice,
       discountRate: normalizeDiscountRate(payload.discountRate ?? fallback.discountRate),
       organizer: cleanText(payload.organizer ?? fallback.organizer ?? "Ticketground Admin", 80) || "Ticketground Admin",
       saleNote: cleanText(payload.saleNote ?? fallback.saleNote ?? "", 80),
@@ -355,7 +357,7 @@ export function createAdminEventContentBackend({ httpError, money, stableId }) {
       if (hasOwn(payload, key)) content[key] = value;
     }
 
-    content.badge = hasOwn(payload, "badge") ? cleanText(payload.badge, 40) || "관리자 등록" : event?.badge || "관리자 등록";
+    content.badge = hasOwn(payload, "badge") ? cleanText(payload.badge, 40) || undefined : event?.badge || undefined;
     content.ageLimit = hasOwn(payload, "ageLimit") ? cleanText(payload.ageLimit, 60) || "전체 관람" : event?.ageLimit || "전체 관람";
     if (hasOwn(payload, "runtime")) {
       content.durationMinutes = durationMinutesFromRuntime(content.runtime, event?.durationMinutes || 120);
