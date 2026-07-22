@@ -208,6 +208,7 @@ export type ApiSession = {
   readonly name: string;
   readonly status: string;
   readonly trustScore: number;
+  readonly profileConfirmed: boolean;
 };
 
 export type ApiNotificationJob = {

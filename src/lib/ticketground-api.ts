@@ -30,12 +30,15 @@ export {
   DEMO_AUTH_STORAGE_KEY,
   DEMO_USER_ID,
   hasStoredSessionUser,
+  lastLoginProvider,
+  rememberLastLoginProvider,
   rememberSessionUser,
   SESSION_USER_CHANGED_EVENT,
   SESSION_USER_STORAGE_KEY,
   SIGNED_OUT_VALUE,
   storedSessionUserId,
 } from "./ticketground-session-storage";
+export type { LastLoginProvider } from "./ticketground-session-storage";
 
 export type {
   ApiBootpayConfig,

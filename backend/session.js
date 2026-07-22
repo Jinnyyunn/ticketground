@@ -11,7 +11,8 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       id: user.id,
       name: user.name,
       status: user.status,
-      trustScore: user.trustScore
+      trustScore: user.trustScore,
+      profileConfirmed: Boolean(user.profileConfirmedAt)
     };
   }
 
@@ -45,7 +46,6 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     const id = claims.ticketgroundUserId || stableId("google_user", subject);
     const existingUser = db.users.find((user) => user.id === id);
     if (existingUser) {
-      existingUser.name = name;
       return existingUser;
     }
 
@@ -110,6 +110,7 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     }
     const previousName = user.name;
     user.name = nextName;
+    user.profileConfirmedAt = now();
     appendLedger(db, user.id, "DEMO_PROFILE_UPDATED", {
       previousName,
       nextName,

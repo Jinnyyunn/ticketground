@@ -241,7 +241,17 @@ test("successful social callback clears the one-time provider query before refre
   const storedUserId = await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id"));
   assert.match(String(storedUserId), /^provider_user_/);
 
+  // Profile not yet confirmed: reloading must not bounce the user home before they save a nickname.
   await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+  assert.equal(new URL(page.url()).pathname, "/login");
+  assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), storedUserId);
+
+  await page.getByRole("button", { name: "프로필 저장", exact: true }).click();
+  await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
+
+  // Profile confirmed: a later reload of the login page redirects straight home.
+  await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
   await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
   assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), storedUserId);
 });

@@ -51,6 +51,30 @@ test("Google auth endpoint accepts deterministic test credential only in test mo
   assert.equal(malformed.error.code, "GOOGLE_AUTH_INVALID");
 });
 
+test("Google returning user keeps a manually saved nickname across later Google logins", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t);
+
+  const firstSession = await api(server.baseUrl, "/api/auth/google", {
+    credential: GOOGLE_AUTH_TEST_CREDENTIAL
+  });
+  assert.equal(firstSession.data.name, "Google 테스트 사용자");
+  assert.equal(firstSession.data.profileConfirmed, false);
+
+  const updatedProfile = await api(server.baseUrl, `/api/users/${firstSession.data.id}/profile`, {
+    name: "내가 정한 닉네임"
+  });
+  assert.equal(updatedProfile.data.name, "내가 정한 닉네임");
+  assert.equal(updatedProfile.data.profileConfirmed, true);
+
+  const secondSession = await api(server.baseUrl, "/api/auth/google", {
+    credential: GOOGLE_AUTH_TEST_CREDENTIAL
+  });
+  assert.equal(secondSession.data.id, firstSession.data.id);
+  assert.equal(secondSession.data.name, "내가 정한 닉네임");
+  assert.equal(secondSession.data.profileConfirmed, true);
+});
+
 test("Google button prefers the real Identity Services flow over QA mock when a client id is configured, even on a private preview host", async (t) => {
   configureGoogleEnv(t, false);
   const { baseUrl } = await startServer(t);

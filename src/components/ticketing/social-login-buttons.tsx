@@ -55,9 +55,10 @@ const SOCIAL_CONFIG_URL = "/auth/social-config";
 type SocialLoginButtonsProps = {
   readonly onAuthenticated: (session: ApiSession, provider: SocialProviderId) => void;
   readonly onStatusChange: (message: string) => void;
+  readonly highlightProviderId?: SocialProviderId | null;
 };
 
-export function SocialLoginButtons({ onAuthenticated, onStatusChange }: SocialLoginButtonsProps) {
+export function SocialLoginButtons({ onAuthenticated, onStatusChange, highlightProviderId = null }: SocialLoginButtonsProps) {
   const [config, setConfig] = useState<SocialConfig | null>(null);
 
   useEffect(() => {
@@ -98,34 +99,47 @@ export function SocialLoginButtons({ onAuthenticated, onStatusChange }: SocialLo
         const className = `flex h-12 items-center justify-center gap-2 rounded-sm border px-4 text-base font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 ${provider.tone}`;
         const configured = config !== null && (provider.id === "kakao" ? config.kakaoConfigured : config.naverConfigured);
         const useMock = config !== null && (config.preferMock || (!configured && config.mockEnabled));
+        const highlighted = highlightProviderId === provider.id;
 
         if (useMock) {
           return (
-            <button
-              key={provider.id}
-              type="button"
-              onClick={() => handleMockLogin(provider.id, provider.name)}
-              className={className}
-              data-social-provider={provider.id}
-              data-social-ready="mock"
-            >
-              <Icon />
-              {provider.label}
-            </button>
+            <div key={provider.id} className="relative">
+              {highlighted && (
+                <span className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink px-2 py-0.5 text-[10px] font-black text-on-ink shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
+                  최근 로그인
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => handleMockLogin(provider.id, provider.name)}
+                className={className}
+                data-social-provider={provider.id}
+                data-social-ready="mock"
+              >
+                <Icon />
+                {provider.label}
+              </button>
+            </div>
           );
         }
 
         return (
-          <a
-            key={provider.id}
-            href={provider.href}
-            className={className}
-            data-social-provider={provider.id}
-            data-social-ready={configured ? "true" : "false"}
-          >
-            <Icon />
-            {provider.label}
-          </a>
+          <div key={provider.id} className="relative">
+            {highlighted && (
+              <span className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink px-2 py-0.5 text-[10px] font-black text-on-ink shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
+                최근 로그인
+              </span>
+            )}
+            <a
+              href={provider.href}
+              className={className}
+              data-social-provider={provider.id}
+              data-social-ready={configured ? "true" : "false"}
+            >
+              <Icon />
+              {provider.label}
+            </a>
+          </div>
         );
       })}
     </>

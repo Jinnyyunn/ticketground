@@ -5,6 +5,20 @@ export const SESSION_USER_STORAGE_KEY = "ticketground:session-user-id";
 export const DEMO_AUTH_STORAGE_KEY = "ticketground:demo-auth-state";
 export const SIGNED_OUT_VALUE = "signed-out";
 export const SESSION_USER_CHANGED_EVENT = "ticketground:session-user-changed";
+export const LAST_LOGIN_PROVIDER_STORAGE_KEY = "ticketground:last-login-provider";
+
+export type LastLoginProvider = "google" | "kakao" | "naver";
+
+export function rememberLastLoginProvider(provider: LastLoginProvider) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LAST_LOGIN_PROVIDER_STORAGE_KEY, provider);
+}
+
+export function lastLoginProvider(): LastLoginProvider | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(LAST_LOGIN_PROVIDER_STORAGE_KEY);
+  return stored === "google" || stored === "kakao" || stored === "naver" ? stored : null;
+}
 
 export function currentSessionUserId() {
   if (typeof window === "undefined") return DEMO_USER_ID;

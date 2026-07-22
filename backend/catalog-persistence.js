@@ -122,6 +122,10 @@ function normalizeDb(db) {
     const before = JSON.stringify(user.identityVerification || null);
     user.identityVerification ||= null;
     if (JSON.stringify(user.identityVerification) !== before) changed = true;
+    if (!user.profileConfirmedAt) {
+      user.profileConfirmedAt = now();
+      changed = true;
+    }
   }
 
   for (const pool of db.resalePools) {
@@ -146,10 +150,10 @@ function normalizeDb(db) {
 function seedDb() {
   const db = {
     users: [
-      { id: "user_fan_a", name: "민서", balance: 180000, status: "ACTIVE", trustScore: 92, sanctions: [] },
-      { id: "user_fan_b", name: "지후", balance: 135000, status: "ACTIVE", trustScore: 88, sanctions: [] },
-      { id: "user_seller", name: "하린", balance: 30000, status: "ACTIVE", trustScore: 95, sanctions: [] },
-      { id: "user_scalper", name: "의심 계정", balance: 500000, status: "WATCHLIST", trustScore: 34, sanctions: [] }
+      { id: "user_fan_a", name: "민서", balance: 180000, status: "ACTIVE", trustScore: 92, sanctions: [], profileConfirmedAt: now() },
+      { id: "user_fan_b", name: "지후", balance: 135000, status: "ACTIVE", trustScore: 88, sanctions: [], profileConfirmedAt: now() },
+      { id: "user_seller", name: "하린", balance: 30000, status: "ACTIVE", trustScore: 95, sanctions: [], profileConfirmedAt: now() },
+      { id: "user_scalper", name: "의심 계정", balance: 500000, status: "WATCHLIST", trustScore: 34, sanctions: [], profileConfirmedAt: now() }
     ],
     venues: venueBlueprints(),
     events: eventBlueprints(),

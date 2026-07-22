@@ -56,8 +56,8 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
           <h1 className="balanced-title mt-2 text-[32px] font-black leading-tight text-ink sm:text-5xl">2026년 7월 월별 캘린더</h1>
           <p className="mt-3 text-sm text-ink-3">장르 색상과 오픈 임박 리스트로 공식 예매 시간을 확인합니다.</p>
         </div>
-        <Link href="/watchlist" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-ticketground px-4 text-sm font-black text-white whitespace-nowrap transition-colors hover:bg-ink hover:text-on-ink focus-visible:ring-3 focus-visible:ring-ring/50">
-          <BellRing className="size-4" aria-hidden />
+        <Link href="/watchlist" className="group inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-ink px-5 text-sm font-black text-on-ink shadow-[0_6px_20px_-6px_rgba(0,0,0,0.45)] transition-all hover:-translate-y-0.5 hover:bg-ticketground hover:shadow-[0_10px_24px_-8px_rgba(255,45,63,0.5)] focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0">
+          <BellRing className="size-4 transition-transform group-hover:rotate-12" aria-hidden />
           관심공연 알림
         </Link>
       </div>
@@ -87,24 +87,24 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
               );
             })}
           </div>
-          <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-card">
+          <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-ink">
             <div data-open-calendar-grid className="grid grid-cols-7 overflow-hidden md:min-w-[720px]">
               {["월", "화", "수", "목", "금", "토", "일"].map((day) => (
-                <div key={day} className="border-b border-line bg-surface px-1.5 py-2 text-center text-xs font-black text-ink-3 sm:px-3 sm:text-sm">
+                <div key={day} className="border-b border-white/10 bg-black/20 px-1.5 py-2 text-center text-xs font-black text-on-ink/60 sm:px-3 sm:text-sm">
                   {day}
                 </div>
               ))}
               {days.map((day) => {
                 const show = showForDay(shows, day, hiddenGenres);
                 return (
-                  <div key={day} data-open-day={day} className="min-h-[88px] min-w-0 border-b border-r border-line p-1.5 sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3 last:border-r-0">
-                    <time className="text-sm font-black text-ink">{day}</time>
+                  <div key={day} data-open-day={day} className="min-h-[88px] min-w-0 border-b border-r border-white/10 p-1.5 transition-colors last:border-r-0 hover:bg-white/5 sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3">
+                    <time className="text-sm font-black text-on-ink">{day}</time>
                     {show && (
                       <Link
                         href={`/goods/${show.slug}`}
                         data-allow-wrap="true"
                         data-open-show-category={show.category}
-                        className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}
+                        className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight shadow-[0_1px_8px_rgba(0,0,0,0.35)] sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}
                       >
                         {show.shortTitle}
                       </Link>
@@ -120,11 +120,11 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
           <h2 className="text-2xl font-black text-ink">오픈 임박</h2>
           <div className="mt-4 grid gap-2 sm:gap-3">
             {imminent.map((show, index) => (
-              <div key={show.slug} data-open-imminent-card className="grid min-w-0 grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-surface p-2 sm:grid-cols-[84px_minmax(0,1fr)_auto] sm:gap-3 sm:p-3">
+              <div key={show.slug} data-open-imminent-card className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 rounded-lg bg-surface p-3 sm:grid-cols-[76px_minmax(0,1fr)_auto] sm:items-center sm:gap-x-3">
                 <time className="whitespace-nowrap text-[11px] font-black text-ticketground sm:text-xs">D-{index + 1} 14:00</time>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-black text-ink">{show.shortTitle}</h3>
-                  <p className="clamp-1 text-sm text-ink-3">{show.venue}</p>
+                  <h3 className="break-keep text-sm font-black leading-snug text-ink">{show.shortTitle}</h3>
+                  <p className="mt-0.5 break-keep text-xs leading-snug text-ink-3 sm:text-sm">{show.venue}</p>
                 </div>
                 <OpenAlertButton />
               </div>

@@ -6,10 +6,13 @@ import {
   clearSessionUser,
   completeSocialLogin,
   getSession,
+  lastLoginProvider,
+  rememberLastLoginProvider,
   rememberSessionUser,
   storedSessionUserId,
   TicketgroundApiError,
   type ApiSession,
+  type LastLoginProvider,
   type SocialLoginProvider,
   updateProfile,
 } from "@/lib/ticketground-api";
@@ -29,6 +32,14 @@ function isSocialLoginProvider(value: string | null): value is SocialLoginProvid
   return value === "kakao" || value === "naver";
 }
 
+function LastUsedBadge() {
+  return (
+    <span className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink px-2 py-0.5 text-[10px] font-black text-on-ink shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
+      최근 로그인
+    </span>
+  );
+}
+
 export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: LoginMode }) {
   const router = useRouter();
   const socialStatusLockRef = useRef(false);
@@ -37,11 +48,17 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
   const [profileName, setProfileName] = useState("");
   const [status, setStatus] = useState("로그인 또는 회원가입을 진행해 주세요");
   const [saving, setSaving] = useState(false);
+  const [lastProvider, setLastProvider] = useState<LastLoginProvider | null>(null);
+  const navigationLocked = session !== null && !session.profileConfirmed;
 
   const applySession = useCallback((nextSession: ApiSession, message: string) => {
     setSession(nextSession);
     setProfileName(nextSession.name);
     setStatus(message);
+  }, []);
+
+  useEffect(() => {
+    setLastProvider(lastLoginProvider());
   }, []);
 
   useEffect(() => {
@@ -65,8 +82,14 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           const nextSession = await completeSocialLogin(socialProvider);
           if (!mounted) return;
           rememberSessionUser(nextSession);
-          applySession(nextSession, `${nextSession.name} ${socialProvider} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
+          rememberLastLoginProvider(socialProvider);
+          setLastProvider(socialProvider);
           window.history.replaceState(null, "", window.location.pathname);
+          if (nextSession.profileConfirmed) {
+            router.replace("/");
+            return;
+          }
+          applySession(nextSession, `${nextSession.name} ${socialProvider} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
           return;
         } catch (error: unknown) {
           if (!mounted) return;
@@ -93,6 +116,10 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           const nextSession = await getSession(storedUserId);
           if (!mounted) return;
           rememberSessionUser(nextSession);
+          if (!nextSession.profileConfirmed) {
+            applySession(nextSession, `${nextSession.name} 님, 닉네임을 확인하고 프로필을 저장해 주세요`);
+            return;
+          }
           router.replace("/");
           return;
         } catch (error: unknown) {
@@ -131,8 +158,14 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   const handleGoogleSession = useCallback((nextSession: ApiSession) => {
     rememberSessionUser(nextSession);
+    rememberLastLoginProvider("google");
+    setLastProvider("google");
+    if (nextSession.profileConfirmed) {
+      router.push("/");
+      return;
+    }
     applySession(nextSession, `${nextSession.name} Google 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
-  }, [applySession]);
+  }, [applySession, router]);
 
   const handleGoogleStatusChange = useCallback((message: string) => {
     if (socialStatusLockRef.current) return;
@@ -141,8 +174,14 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   const handleSocialMockSession = useCallback((nextSession: ApiSession, provider: "kakao" | "naver") => {
     rememberSessionUser(nextSession);
+    rememberLastLoginProvider(provider);
+    setLastProvider(provider);
+    if (nextSession.profileConfirmed) {
+      router.push("/");
+      return;
+    }
     applySession(nextSession, `${nextSession.name} ${provider} 세션 연결됨 · 신뢰점수 ${nextSession.trustScore}`);
-  }, [applySession]);
+  }, [applySession, router]);
 
   const handleSocialStatusChange = useCallback((message: string) => {
     if (socialStatusLockRef.current) return;
@@ -151,8 +190,14 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
   return (
     <section className="ticketground-container py-10">
-      <div className="mb-3 flex justify-end">
-        <LoginHomeLink />
+      <div className="mb-3 flex items-center justify-end gap-2">
+        {navigationLocked ? (
+          <p role="status" aria-live="polite" className="text-xs font-bold text-ink-3">
+            닉네임을 확인하고 프로필을 저장해야 다른 화면으로 이동할 수 있어요
+          </p>
+        ) : (
+          <LoginHomeLink />
+        )}
       </div>
 
       <div className="grid overflow-hidden rounded-xl border border-line bg-card shadow-ticket-2 lg:grid-cols-[0.92fr_1.08fr]">
@@ -181,8 +226,15 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
           />
 
           <div className="mx-auto mt-7 grid w-full max-w-[400px] gap-3">
-            <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={handleGoogleStatusChange} />
-            <SocialLoginButtons onAuthenticated={handleSocialMockSession} onStatusChange={handleSocialStatusChange} />
+            <div className="relative">
+              {lastProvider === "google" && <LastUsedBadge />}
+              <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={handleGoogleStatusChange} />
+            </div>
+            <SocialLoginButtons
+              onAuthenticated={handleSocialMockSession}
+              onStatusChange={handleSocialStatusChange}
+              highlightProviderId={lastProvider === "kakao" || lastProvider === "naver" ? lastProvider : null}
+            />
           </div>
         </div>
       </div>
