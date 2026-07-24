@@ -20,6 +20,10 @@ final class LoadingMediaUITests: XCTestCase {
         XCTAssertTrue(emptyRetry.waitForExistence(timeout: 10))
         XCTAssertEqual(emptyRetry.label, "다시 시도")
         XCTAssertTrue(emptyRetry.isEnabled)
+        let retryCount = anyElement(emptyApp, identifier: "fixture-retry-count")
+        XCTAssertEqual(retryCount.label, "재시도 요청 0회")
+        emptyRetry.tap()
+        XCTAssertTrue(waitForLabel("재시도 요청 1회", on: retryCount))
         emptyApp.terminate()
 
         let errorApp = UITestBootstrap.fixtureApp(scenario: .offline)
@@ -55,7 +59,36 @@ final class LoadingMediaUITests: XCTestCase {
         add(attachment)
     }
 
+    func testSVGSeatMapRendersAndCorruptedSVGUsesFallback() {
+        let validApp = UITestBootstrap.fixtureApp(scenario: .svgSeatMap)
+        validApp.launch()
+        XCTAssertTrue(anyElement(validApp, identifier: "media-seat-map").waitForExistence(timeout: 15))
+
+        let renderedAttachment = XCTAttachment(screenshot: validApp.screenshot())
+        renderedAttachment.name = "valid-svg-seat-map-rendered"
+        renderedAttachment.lifetime = .keepAlways
+        add(renderedAttachment)
+        validApp.terminate()
+
+        let corruptApp = UITestBootstrap.fixtureApp(scenario: .corruptSVGSeatMap)
+        corruptApp.launch()
+        let fallback = anyElement(corruptApp, identifier: "media-fallback-seat-map")
+        XCTAssertTrue(fallback.waitForExistence(timeout: 15))
+        XCTAssertTrue(fallback.label.contains("좌석 배치도 없음"))
+
+        let attachment = XCTAttachment(screenshot: corruptApp.screenshot())
+        attachment.name = "corrupt-svg-seat-map-fallback"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func anyElement(_ app: XCUIApplication, identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    private func waitForLabel(_ expected: String, on element: XCUIElement) -> Bool {
+        let predicate = NSPredicate(format: "label == %@", expected)
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: 10) == .completed
     }
 }

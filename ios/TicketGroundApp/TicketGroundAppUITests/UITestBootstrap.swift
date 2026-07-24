@@ -8,6 +8,8 @@ enum FixtureUIScenario: String {
     case unauthorized
     case empty
     case mediaFallback
+    case svgSeatMap
+    case corruptSVGSeatMap
 
     var statusText: String {
         switch self {
@@ -18,6 +20,8 @@ enum FixtureUIScenario: String {
         case .unauthorized: return "상태: 인증 필요"
         case .empty: return "상태: 데이터 없음"
         case .mediaFallback: return "상태: 미디어 없음"
+        case .svgSeatMap: return "상태: SVG 좌석 배치도"
+        case .corruptSVGSeatMap: return "상태: 손상된 SVG 좌석 배치도"
         }
     }
 }

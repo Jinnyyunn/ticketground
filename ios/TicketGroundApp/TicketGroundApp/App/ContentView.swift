@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var selectedTab: TicketgroundTab = .home
     @State private var discoveryContent: DiscoveryContent?
     @State private var discoveryLoadFailed = false
+    @State private var fixtureRetryCount = 0
 
     var body: some View {
         @Bindable var container = container
@@ -51,6 +52,12 @@ struct ContentView: View {
                                     .accessibilityIdentifier("fixture-state-\(scenario.rawValue)")
                             }
                             stateSurface(for: scenario)
+                            if scenario == .empty || scenario == .offline {
+                                Text("재시도 요청 \(fixtureRetryCount)회")
+                                    .font(.caption)
+                                    .foregroundStyle(TicketgroundColor.inkMuted)
+                                    .accessibilityIdentifier("fixture-retry-count")
+                            }
                             if scenario == .empty {
                                 DiscoveryEmptyCalendarView(action: { container.navigationPath.removeAll() })
                             }
@@ -118,7 +125,7 @@ struct ContentView: View {
                 title: "데이터 없음",
                 message: "표시할 공연이 없습니다.",
                 actionTitle: "다시 시도",
-                action: {}
+                action: { fixtureRetryCount += 1 }
             )
         case .malformed:
             TicketgroundErrorSurface(
@@ -132,7 +139,7 @@ struct ContentView: View {
                 title: "오프라인",
                 message: "네트워크 연결을 확인해 주세요.",
                 actionTitle: "다시 시도",
-                action: {}
+                action: { fixtureRetryCount += 1 }
             )
         case .unauthorized:
             TicketgroundErrorSurface(
@@ -150,7 +157,23 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 240)
             .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+        case .svgSeatMap:
+            fixtureSeatMap(resource: "seat-map-valid.svg")
+        case .corruptSVGSeatMap:
+            fixtureSeatMap(resource: "seat-map-corrupt.svg")
         }
+    }
+
+    private func fixtureSeatMap(resource: String) -> some View {
+        TicketgroundMediaImage(
+            resource: resource,
+            role: .seatMap,
+            accessibilityLabel: "공연장 좌석 배치도",
+            contentMode: .fit
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: 260)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
     }
 }
 
