@@ -222,11 +222,80 @@ final class DisabledLiveAPIClient: APIClient {
     }
 }
 
+private enum AuthenticatedRequestOwnerValidator {
+    static func matches(_ userID: String, url: URL) -> Bool {
+        guard !userID.isEmpty,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let pathSegments = decodedPathSegments(components.percentEncodedPath),
+              let queryItems = decodedQueryItems(components.percentEncodedQuery) else {
+            return false
+        }
+
+        var foundOwner = false
+        for index in pathSegments.indices where pathSegments[index] == "users" {
+            let ownerIndex = index + 1
+            guard pathSegments.indices.contains(ownerIndex),
+                  !pathSegments[ownerIndex].isEmpty,
+                  pathSegments[ownerIndex] == userID else {
+                return false
+            }
+            foundOwner = true
+        }
+
+        for item in queryItems where item.name == "userId" {
+            guard let value = item.value, !value.isEmpty, value == userID else {
+                return false
+            }
+            foundOwner = true
+        }
+        return foundOwner
+    }
+
+    private static func decodedPathSegments(_ percentEncodedPath: String) -> [String]? {
+        let segments = percentEncodedPath.split(separator: "/", omittingEmptySubsequences: false)
+        var decoded: [String] = []
+        decoded.reserveCapacity(segments.count)
+        for segment in segments {
+            guard let value = String(segment).removingPercentEncoding else {
+                return nil
+            }
+            decoded.append(value)
+        }
+        return decoded
+    }
+
+    private static func decodedQueryItems(
+        _ percentEncodedQuery: String?
+    ) -> [(name: String, value: String?)]? {
+        guard let percentEncodedQuery else { return [] }
+        var decoded: [(name: String, value: String?)] = []
+        for item in percentEncodedQuery.split(separator: "&", omittingEmptySubsequences: false) {
+            let parts = item.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard let name = String(parts[0]).removingPercentEncoding else {
+                return nil
+            }
+            let value: String?
+            if parts.count == 2 {
+                guard let decodedValue = String(parts[1]).removingPercentEncoding else {
+                    return nil
+                }
+                value = decodedValue
+            } else {
+                value = nil
+            }
+            decoded.append((name, value))
+        }
+        return decoded
+    }
+}
+
 final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
     private let originalRequest: URLRequest
+    private let userID: String
 
-    init(originalRequest: URLRequest) {
+    init(originalRequest: URLRequest, userID: String) {
         self.originalRequest = originalRequest
+        self.userID = userID
     }
 
     func urlSession(
@@ -241,7 +310,8 @@ final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
               redirectURL.scheme?.lowercased() == "https",
               originalURL.scheme?.caseInsensitiveCompare(redirectURL.scheme ?? "") == .orderedSame,
               originalURL.host?.caseInsensitiveCompare(redirectURL.host ?? "") == .orderedSame,
-              effectivePort(for: originalURL) == effectivePort(for: redirectURL) else {
+              effectivePort(for: originalURL) == effectivePort(for: redirectURL),
+              AuthenticatedRequestOwnerValidator.matches(userID, url: redirectURL) else {
             completionHandler(nil)
             return
         }
@@ -290,8 +360,11 @@ final class LiveAPIClient: APIClient {
             switch apiRequest.authentication {
             case .none:
                 result = try await session.data(for: request)
-            case .required:
-                let redirectDelegate = AuthenticatedRedirectDelegate(originalRequest: request)
+            case .required(let userID):
+                let redirectDelegate = AuthenticatedRedirectDelegate(
+                    originalRequest: request,
+                    userID: userID
+                )
                 result = try await session.data(for: request, delegate: redirectDelegate)
             }
             let (data, response) = result
@@ -355,7 +428,7 @@ final class LiveAPIClient: APIClient {
             guard url.scheme?.lowercased() == "https" else {
                 throw APIClientError.insecureCredentialTransport
             }
-            guard authenticatedOwnerIDs(in: components).allSatisfy({ $0 == userID }) else {
+            guard AuthenticatedRequestOwnerValidator.matches(userID, url: url) else {
                 throw APIClientError.credentialOwnerMismatch
             }
             guard let storedCredential = credentialStore.read(),
@@ -369,22 +442,6 @@ final class LiveAPIClient: APIClient {
             request.setValue("Bearer \(storedCredential.credential)", forHTTPHeaderField: "Authorization")
         }
         return request
-    }
-
-    private func authenticatedOwnerIDs(in components: URLComponents) -> [String] {
-        let pathSegments = components.percentEncodedPath
-            .split(separator: "/", omittingEmptySubsequences: true)
-            .map(String.init)
-        var ownerIDs: [String] = []
-        if let usersIndex = pathSegments.firstIndex(of: "users"),
-           pathSegments.indices.contains(usersIndex + 1),
-           let pathOwner = pathSegments[usersIndex + 1].removingPercentEncoding {
-            ownerIDs.append(pathOwner)
-        }
-        ownerIDs.append(contentsOf: (components.queryItems ?? []).compactMap { item in
-            item.name == "userId" ? item.value : nil
-        })
-        return ownerIDs
     }
 
     func resolveResource(_ reference: String?) -> String? {

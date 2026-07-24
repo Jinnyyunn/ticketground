@@ -25,6 +25,96 @@ private final class LiveAPIURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+private final class RedirectingLiveAPIURLProtocol: URLProtocol {
+    private static let lock = NSLock()
+    private static var redirectIssued = false
+    private static var redirectURL: URL?
+    private static var requests: [URLRequest] = []
+
+    private let stateLock = NSLock()
+    private var stopped = false
+
+    static func reset(redirectURL: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.redirectURL = redirectURL
+        redirectIssued = false
+        requests = []
+    }
+
+    static func capturedRequests() -> [URLRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let redirect = Self.record(request)
+        guard redirect.shouldRedirect, let redirectURL = redirect.url else {
+            respondWithSuccess()
+            return
+        }
+        guard let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://ticketground.test")!,
+            statusCode: 307,
+            httpVersion: nil,
+            headerFields: ["Location": redirectURL.absoluteString]
+        ) else { return }
+
+        var proposedRequest = URLRequest(url: redirectURL)
+        proposedRequest.httpMethod = request.httpMethod
+        proposedRequest.setValue(request.value(forHTTPHeaderField: "Accept"), forHTTPHeaderField: "Accept")
+        client?.urlProtocol(self, wasRedirectedTo: proposedRequest, redirectResponse: response)
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.finishRejectedRedirect(with: response)
+        }
+    }
+
+    override func stopLoading() {
+        stateLock.lock()
+        stopped = true
+        stateLock.unlock()
+    }
+
+    private static func record(_ request: URLRequest) -> (shouldRedirect: Bool, url: URL?) {
+        lock.lock()
+        defer { lock.unlock() }
+        requests.append(request)
+        guard !redirectIssued else { return (false, redirectURL) }
+        redirectIssued = true
+        return (true, redirectURL)
+    }
+
+    private func finishRejectedRedirect(with response: HTTPURLResponse) {
+        stateLock.lock()
+        guard !stopped else {
+            stateLock.unlock()
+            return
+        }
+        stopped = true
+        stateLock.unlock()
+
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    private func respondWithSuccess() {
+        guard let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://ticketground.test")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        ) else { return }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"ok":true,"data":{"id":"server-user-42"}}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
 final class AppEnvironmentTests: XCTestCase {
     func testColdStartAndRouteRestore() {
         let credentials = InMemoryCredentialStore()
@@ -238,20 +328,64 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
     }
 
-    func testLiveAPIClientDoesNotFollowAuthenticatedRedirectToHTTP() throws {
-        let redirectedRequest = try authenticatedRedirectResult(
-            to: URL(string: "http://ticketground.test/api/users/server-user-42/session")!
-        )
+    func testLiveAPIClientFollowsAuthenticatedRedirectOnlyForSameOriginMatchingOwner() async throws {
+        let redirectURL = URL(string: "https://ticketground.test/api/users/server-user-42/tickets")!
+        let client = authenticatedRedirectClient(to: redirectURL)
 
-        XCTAssertNil(redirectedRequest)
+        _ = try await client.data(for: authenticatedSessionRequest())
+        let requests = RedirectingLiveAPIURLProtocol.capturedRequests()
+
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests.last?.url, redirectURL)
+        XCTAssertEqual(requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
     }
 
-    func testLiveAPIClientDoesNotFollowAuthenticatedRedirectToAnotherOrigin() throws {
-        let redirectedRequest = try authenticatedRedirectResult(
+    func testLiveAPIClientRejectsSameOriginRedirectToAnotherPathOwner() async {
+        await assertAuthenticatedRedirectRejected(
+            to: URL(string: "https://ticketground.test/api/users/another-user/session")!
+        )
+    }
+
+    func testLiveAPIClientDoesNotFollowAuthenticatedRedirectToHTTP() async {
+        await assertAuthenticatedRedirectRejected(
+            to: URL(string: "http://ticketground.test/api/users/server-user-42/session")!
+        )
+    }
+
+    func testLiveAPIClientDoesNotFollowAuthenticatedRedirectToAnotherOrigin() async {
+        await assertAuthenticatedRedirectRejected(
             to: URL(string: "https://credential-capture.test/api/users/server-user-42/session")!
         )
+    }
 
-        XCTAssertNil(redirectedRequest)
+    func testLiveAPIClientRejectsAuthenticatedRedirectToDifferentPort() async {
+        await assertAuthenticatedRedirectRejected(
+            to: URL(string: "https://ticketground.test:8443/api/users/server-user-42/session")!
+        )
+    }
+
+    func testLiveAPIClientRejectsRedirectWithEncodedUserRouteOwnerMismatch() async {
+        await assertAuthenticatedRedirectRejected(
+            to: URL(string: "https://ticketground.test/api/%75sers/another-user/session")!
+        )
+    }
+
+    func testLiveAPIClientRejectsRedirectWithMalformedPathOwner() async {
+        await assertAuthenticatedRedirectRejected(
+            to: URL(string: "https://ticketground.test/api/users/%FF/session")!
+        )
+    }
+
+    func testLiveAPIClientRejectsRedirectWithQueryOwnerMismatch() async {
+        await assertAuthenticatedRedirectRejected(
+            to: URL(string: "https://ticketground.test/api/support/threads?userId=another-user")!
+        )
+    }
+
+    func testLiveAPIClientRejectsRedirectWithMissingQueryOwner() async {
+        await assertAuthenticatedRedirectRejected(
+            to: URL(string: "https://ticketground.test/api/support/threads?userId")!
+        )
     }
 
     func testLiveAPIClientRejectsCredentialOwnerMismatchBeforeSending() async {
@@ -356,38 +490,54 @@ final class AppEnvironmentTests: XCTestCase {
         }
     }
 
-    private func authenticatedRedirectResult(to redirectURL: URL) throws -> URLRequest? {
-        var originalRequest = URLRequest(
-            url: URL(string: "https://ticketground.test/api/users/server-user-42/session")!
+    private func authenticatedRedirectClient(to redirectURL: URL) -> LiveAPIClient {
+        RedirectingLiveAPIURLProtocol.reset(redirectURL: redirectURL)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RedirectingLiveAPIURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user-42"))
+        return LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
         )
-        originalRequest.setValue("Bearer native-credential", forHTTPHeaderField: "Authorization")
-        var proposedRequest = originalRequest
-        proposedRequest.url = redirectURL
+    }
 
-        let session = URLSession(configuration: .ephemeral)
-        let task = session.dataTask(with: originalRequest)
-        let response = try XCTUnwrap(HTTPURLResponse(
-            url: originalRequest.url!,
-            statusCode: 307,
-            httpVersion: nil,
-            headerFields: ["Location": redirectURL.absoluteString]
-        ))
-        let delegate = AuthenticatedRedirectDelegate(originalRequest: originalRequest)
-        var completed = false
-        var result: URLRequest?
+    private func authenticatedSessionRequest() -> APIRequest {
+        APIRequest(
+            path: "/api/users/server-user-42/session",
+            authentication: .required(userID: "server-user-42")
+        )
+    }
 
-        delegate.urlSession(
-            session,
-            task: task,
-            willPerformHTTPRedirection: response,
-            newRequest: proposedRequest
-        ) {
-            completed = true
-            result = $0
+    private func assertAuthenticatedRedirectRejected(
+        to redirectURL: URL,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let client = authenticatedRedirectClient(to: redirectURL)
+        do {
+            _ = try await client.data(for: authenticatedSessionRequest())
+            XCTFail("Expected authenticated redirect to be rejected", file: file, line: line)
+        } catch let error as APIClientError {
+            guard case .server(let status, _, _) = error else {
+                XCTFail("Unexpected API error: \(error)", file: file, line: line)
+                return
+            }
+            XCTAssertEqual(status, 307, file: file, line: line)
+        } catch {
+            XCTFail("Unexpected error: \(error)", file: file, line: line)
         }
 
-        XCTAssertTrue(completed)
-        return result
+        let requests = RedirectingLiveAPIURLProtocol.capturedRequests()
+        XCTAssertEqual(requests.count, 1, file: file, line: line)
+        XCTAssertEqual(
+            requests.first?.value(forHTTPHeaderField: "Authorization"),
+            "Bearer native-credential",
+            file: file,
+            line: line
+        )
     }
 }
 
