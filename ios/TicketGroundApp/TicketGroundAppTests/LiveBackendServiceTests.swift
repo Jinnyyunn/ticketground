@@ -60,7 +60,7 @@ final class LiveBackendServiceTests: XCTestCase {
             credentialStore: credentials,
             session: URLSession(configuration: configuration)
         )
-        let service = LiveBackendService(apiClient: client)
+        let service = compatibleService(for: client)
 
         let state = try await service.getState()
         let catalog = try await service.getCatalog()
@@ -108,7 +108,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         do {
-            _ = try await LiveBackendService(apiClient: client).getState()
+            _ = try await compatibleService(for: client).getState()
             XCTFail("Expected backend error")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .server(status: 200, code: "BACKEND_DOWN", message: "Backend unavailable"))
@@ -130,7 +130,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         do {
-            _ = try await LiveBackendService(apiClient: client).getState()
+            _ = try await compatibleService(for: client).getState()
             XCTFail("Expected invalid response")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .invalidResponse)
@@ -153,7 +153,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         do {
-            _ = try await LiveBackendService(apiClient: client).getState()
+            _ = try await compatibleService(for: client).getState()
             XCTFail("Expected unauthorized response")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .server(status: 401, code: "UNAUTHORIZED", message: "Authentication required"))
@@ -176,7 +176,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         do {
-            _ = try await LiveBackendService(apiClient: client).getState()
+            _ = try await compatibleService(for: client).getState()
             XCTFail("Expected forbidden response")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .server(status: 403, code: "FORBIDDEN", message: "Access denied"))
@@ -200,7 +200,7 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        _ = try await LiveBackendService(apiClient: client).getSession(userID: userID)
+        _ = try await compatibleService(for: client).getSession(userID: userID)
         let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
         let components = try XCTUnwrap(request.url.flatMap {
             URLComponents(url: $0, resolvingAgainstBaseURL: false)
@@ -231,7 +231,7 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        _ = try await LiveBackendService(apiClient: client).getState()
+        _ = try await compatibleService(for: client).getState()
 
         let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
@@ -266,6 +266,72 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
+    func testMutationContractMatchesDeployedRouterPaths() {
+        XCTAssertEqual(LiveAPIEndpoint.supportMessages.method, .post)
+        XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/support/messages")
+        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.method, .post)
+        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.pathTemplate, "/api/watchlist")
+        XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.method, .post)
+        XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.pathTemplate, "/api/tickets/buy")
+    }
+
+    func testServiceRejectsUnknownIncompatibleAndBlockedCapabilitiesBeforeDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://132.145.109.87:4174/")!,
+            assetBaseURL: URL(string: "http://132.145.109.87:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let contract = LiveAPIContract.deployed
+        let maps = [
+            contract.capabilityMap(
+                for: URL(string: "http://132.145.109.87:4174/")!,
+                observedResponseVersion: nil
+            ),
+            contract.capabilityMap(
+                for: URL(string: "http://132.145.109.87:4174/")!,
+                observedResponseVersion: "future-contract"
+            )
+        ]
+
+        for map in maps {
+            LiveBackendServiceURLProtocol.requests = []
+            let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+            do {
+                _ = try await service.getState()
+                XCTFail("Expected capability dispatch rejection for \(map.state(for: .state))")
+            } catch let error as APIClientError {
+                XCTAssertEqual(error, .capabilityUnavailable(endpoint: .state, state: map.state(for: .state)))
+                XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+
+        let blockedMap = contract.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: contract.expectedResponseVersion
+        )
+        let blockedService = LiveBackendService(apiClient: client, initialCapabilityMap: blockedMap)
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await blockedService.getSession(userID: "server-user-42")
+            XCTFail("Expected HTTPS capability dispatch rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(
+                error,
+                .capabilityUnavailable(endpoint: .session, state: .blocked(.requiresHTTPS))
+            )
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testContractProbeReportsVersionAndBlocksHTTPAuthenticatedAndMutationRoutes() async throws {
         LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-24T06:53:18.703Z","version":"78b3c7c"}}"#.utf8)
 
@@ -287,6 +353,16 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.first?.value(forHTTPHeaderField: "Authorization"),
             nil
+        )
+    }
+
+    private func compatibleService(for client: LiveAPIClient) -> LiveBackendService {
+        LiveBackendService(
+            apiClient: client,
+            initialCapabilityMap: LiveAPIContract.deployed.capabilityMap(
+                for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
+                observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion
+            )
         )
     }
 }

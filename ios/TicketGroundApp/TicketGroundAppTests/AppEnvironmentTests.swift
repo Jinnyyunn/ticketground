@@ -490,6 +490,24 @@ final class AppEnvironmentTests: XCTestCase {
         }
     }
 
+    func testLiveAPIClientRejectsCallerSuppliedProxyAuthorizationHeaderCaseInsensitively() {
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            credentialStore: InMemoryCredentialStore()
+        )
+
+        for headerName in ["proxy-authorization", "PROXY-AUTHORIZATION"] {
+            XCTAssertThrowsError(try client.urlRequest(for: APIRequest(
+                method: .get,
+                path: "/api/catalog",
+                headers: [APIRequestHeader(name: headerName, value: "Bearer injected")]
+            ))) { error in
+                XCTAssertEqual(error as? APIClientError, .reservedRequestHeader(headerName))
+            }
+        }
+    }
+
     private func authenticatedRedirectClient(to redirectURL: URL) -> LiveAPIClient {
         RedirectingLiveAPIURLProtocol.reset(redirectURL: redirectURL)
         let configuration = URLSessionConfiguration.ephemeral

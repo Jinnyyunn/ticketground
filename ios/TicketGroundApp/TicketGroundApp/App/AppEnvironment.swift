@@ -182,6 +182,7 @@ enum APIClientError: Error, Equatable, LocalizedError {
     case insecureCredentialTransport
     case missingCredential
     case credentialOwnerMismatch
+    case capabilityUnavailable(endpoint: LiveAPIEndpoint, state: LiveCapabilityState)
     case reservedRequestHeader(String)
     case server(status: Int, code: String, message: String)
     case requestFailed(code: Int)
@@ -194,6 +195,7 @@ enum APIClientError: Error, Equatable, LocalizedError {
         case .insecureCredentialTransport: return "보안 인증 정보는 HTTPS 연결에서만 전송할 수 있습니다."
         case .missingCredential: return "로그인이 필요한 요청입니다."
         case .credentialOwnerMismatch: return "현재 로그인 사용자와 요청 대상이 일치하지 않습니다."
+        case .capabilityUnavailable(let endpoint, let state): return "API 기능을 사용할 수 없습니다: \(endpoint.pathTemplate) (\(state))"
         case .reservedRequestHeader(let name): return "보안 헤더는 요청에서 직접 설정할 수 없습니다: \(name)"
         case .server(_, _, let message): return message
         case .requestFailed(let code): return "네트워크 요청에 실패했습니다. (\(code))"
@@ -406,6 +408,7 @@ final class LiveAPIClient: APIClient {
 
         if let reservedHeader = apiRequest.headers.first(where: {
             $0.name.caseInsensitiveCompare("Authorization") == .orderedSame
+                || $0.name.caseInsensitiveCompare("Proxy-Authorization") == .orderedSame
         }) {
             throw APIClientError.reservedRequestHeader(reservedHeader.name)
         }

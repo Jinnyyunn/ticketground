@@ -55,9 +55,9 @@ enum LiveAPIEndpoint: Hashable {
         case .tickets: return "/api/users/{userId}/tickets"
         case .watchlist: return "/api/users/{userId}/watchlist"
         case .supportThreads: return "/api/support/threads?userId={userId}"
-        case .supportMessages: return "/api/support/threads/{threadId}/messages"
-        case .watchlistMutation: return "/api/users/{userId}/watchlist"
-        case .ticketPurchase: return "/api/tickets/purchase"
+        case .supportMessages: return "/api/support/messages"
+        case .watchlistMutation: return "/api/watchlist"
+        case .ticketPurchase: return "/api/tickets/buy"
         case .unknown(_, let path): return path
         }
     }
