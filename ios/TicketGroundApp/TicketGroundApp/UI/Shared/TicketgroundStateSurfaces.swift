@@ -4,15 +4,15 @@ struct TicketgroundLoadingSurface: View {
     let title: String
 
     var body: some View {
-        TicketgroundSurface(tone: .muted) {
-            HStack(spacing: TicketgroundSpacing.md) {
-                ProgressView()
-                    .accessibilityLabel("불러오는 중")
-                Text(title)
-                    .font(.body)
-                    .foregroundStyle(TicketgroundColor.inkSecondary)
-            }
+        ZStack {
+            ProgressView()
+                .controlSize(.large)
+                .tint(TicketgroundColor.accent)
+                .accessibilityLabel(title)
+                .accessibilityIdentifier("state-loading-progress")
         }
+        .frame(maxWidth: .infinity, minHeight: 240, alignment: .center)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("state-loading")
     }
 }
@@ -40,6 +40,7 @@ struct TicketgroundEmptySurface: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("state-empty")
     }
 }

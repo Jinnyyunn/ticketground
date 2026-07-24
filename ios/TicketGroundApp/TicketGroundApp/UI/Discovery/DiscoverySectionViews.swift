@@ -74,75 +74,13 @@ struct DiscoveryRankingPoster: View {
     let title: String
 
     var body: some View {
-        Group {
-            if let imageResource, let remoteURL = URL(string: imageResource), remoteURL.scheme != nil {
-                AsyncImage(url: remoteURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        rankingImageOrPlaceholder(imageResource)
-                    }
-                }
-            } else if let imageResource,
-               let imageURL = imageURL(for: imageResource),
-               let image = UIImage(contentsOfFile: imageURL.path) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ZStack {
-                    TicketgroundColor.surfaceRaised
-                    Image(systemName: "ticket.fill")
-                        .font(.title2)
-                        .foregroundStyle(TicketgroundColor.accent)
-                }
-            }
-        }
+        TicketgroundMediaImage(
+            resource: imageResource,
+            role: .poster,
+            accessibilityLabel: "\(title) 포스터"
+        )
         .frame(width: 148, height: 190)
-        .clipped()
         .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-        .accessibilityLabel(title)
-    }
-
-    @ViewBuilder
-    private func rankingImageOrPlaceholder(_ resource: String) -> some View {
-        if let path = localImagePath(for: resource), let image = UIImage(contentsOfFile: path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-        } else {
-            rankingPlaceholder
-        }
-    }
-
-    private func localImagePath(for resource: String) -> String? {
-        let name = URL(string: resource)?.deletingPathExtension().lastPathComponent ?? resource
-        for fileExtension in ["jpg", "png", "gif"] {
-            if let path = Bundle.main.path(forResource: name, ofType: fileExtension) {
-                return path
-            }
-        }
-        return nil
-    }
-
-    private var rankingPlaceholder: some View {
-        ZStack {
-            TicketgroundColor.surfaceRaised
-            Image(systemName: "ticket.fill")
-                .font(.title2)
-                .foregroundStyle(TicketgroundColor.accent)
-        }
-    }
-
-    private func imageURL(for resource: String) -> URL? {
-        for fileExtension in ["jpg", "png"] {
-            if let path = Bundle.main.path(forResource: resource, ofType: fileExtension) {
-                return URL(fileURLWithPath: path)
-            }
-        }
-        return nil
     }
 }
 

@@ -336,7 +336,7 @@ final class LiveAPIClient: APIClient {
     let mode: APIDataMode = .live
 
     private let baseURL: URL
-    private let assetBaseURL: URL
+    private let mediaResolver: MediaResourceResolver
     private let credentialStore: CredentialStore
     private let session: URLSession
 
@@ -347,7 +347,7 @@ final class LiveAPIClient: APIClient {
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL
-        self.assetBaseURL = assetBaseURL
+        self.mediaResolver = MediaResourceResolver(baseURL: assetBaseURL)
         self.credentialStore = credentialStore
         self.session = session
     }
@@ -445,11 +445,7 @@ final class LiveAPIClient: APIClient {
     }
 
     func resolveResource(_ reference: String?) -> String? {
-        guard let reference, !reference.isEmpty else { return nil }
-        if let absolute = URL(string: reference), absolute.scheme != nil {
-            return absolute.absoluteString
-        }
-        return URL(string: reference, relativeTo: assetBaseURL)?.absoluteURL.absoluteString
+        mediaResolver.resolve(reference)?.absoluteString
     }
 
     private func unwrap(_ data: Data) throws -> Data {

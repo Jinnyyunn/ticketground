@@ -44,10 +44,12 @@ struct ContentView: View {
                             Text("데이터 모드: \(container.environment.mode.rawValue)")
                                 .font(.caption)
                                 .foregroundStyle(TicketgroundColor.inkMuted)
-                            Text(scenario.statusText)
-                                .font(.headline)
-                                .foregroundStyle(TicketgroundColor.ink)
-                                .accessibilityIdentifier("fixture-state-\(scenario.rawValue)")
+                            if scenario != .loading {
+                                Text(scenario.statusText)
+                                    .font(.headline)
+                                    .foregroundStyle(TicketgroundColor.ink)
+                                    .accessibilityIdentifier("fixture-state-\(scenario.rawValue)")
+                            }
                             stateSurface(for: scenario)
                             if scenario == .empty {
                                 DiscoveryEmptyCalendarView(action: { container.navigationPath.removeAll() })
@@ -109,6 +111,8 @@ struct ContentView: View {
                     .foregroundStyle(TicketgroundColor.inkSecondary)
             }
             .accessibilityIdentifier("state-ready")
+        case .loading:
+            TicketgroundLoadingSurface(title: "공연 콘텐츠를 불러오는 중")
         case .empty:
             TicketgroundEmptySurface(
                 title: "데이터 없음",
@@ -137,6 +141,15 @@ struct ContentView: View {
                 actionTitle: "로그인",
                 action: {}
             )
+        case .mediaFallback:
+            TicketgroundMediaImage(
+                resource: "https://127.0.0.1:1/unreachable-poster.png",
+                role: .poster,
+                accessibilityLabel: "공연 포스터"
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 240)
+            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
         }
     }
 }

@@ -646,6 +646,7 @@ private struct LiveDiscoveryRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveCatalogRouteState = .loading
     @State private var searchQuery = ""
+    @State private var reloadID = 0
 
     var body: some View {
         switch route {
@@ -673,30 +674,24 @@ private struct LiveDiscoveryRouteView: View {
         Group {
             switch state {
             case .loading:
-                LiveRouteMessageView(
-                    title: routeTitle,
-                    message: "공개 catalog를 불러오는 중입니다.",
-                    identifier: "live-route-state"
-                )
+                TicketgroundLoadingSurface(title: "\(routeTitle) 불러오는 중")
+                    .accessibilityIdentifier("live-route-state")
             case .loaded(let catalog):
                 catalogView(catalog)
             case .failed(let message):
-                LiveRouteMessageView(
-                    title: routeTitle,
+                TicketgroundErrorSurface(
+                    title: "\(routeTitle) 표시 불가",
                     message: message,
-                    identifier: "live-route-state"
+                    actionTitle: "다시 시도",
+                    action: retry
                 )
+                .accessibilityIdentifier("live-route-state")
             }
         }
         .navigationTitle(routeTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            guard case .loading = state else { return }
-            do {
-                state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog())
-            } catch {
-                state = .failed("GET /api/catalog 요청에 실패했습니다: \(error.localizedDescription)")
-            }
+        .task(id: reloadID) {
+            await loadCatalog()
         }
     }
 
@@ -720,23 +715,29 @@ private struct LiveDiscoveryRouteView: View {
                 if isDetailRoute, let event = events.first {
                     LiveCatalogDetailView(event: event)
                 } else if isDetailRoute {
-                    LiveRouteMessageView(
+                    TicketgroundEmptySurface(
                         title: routeTitle,
                         message: "요청한 공연을 GET /api/catalog 결과에서 찾을 수 없습니다.",
-                        identifier: "live-catalog-not-found"
+                        actionTitle: "다시 시도",
+                        action: retry
                     )
+                    .accessibilityIdentifier("live-catalog-not-found")
                 } else if route == .search && !normalizedSearchQuery.isEmpty && events.isEmpty {
-                    LiveRouteMessageView(
+                    TicketgroundEmptySurface(
                         title: "검색 결과가 없습니다",
                         message: "\"\(searchQuery.trimmingCharacters(in: .whitespacesAndNewlines))\"에 해당하는 공연명, 공연장, 장르를 찾지 못했습니다.",
-                        identifier: "live-search-empty"
+                        actionTitle: "검색어 지우기",
+                        action: { searchQuery = "" }
                     )
+                    .accessibilityIdentifier("live-search-empty")
                 } else if events.isEmpty {
-                    LiveRouteMessageView(
+                    TicketgroundEmptySurface(
                         title: routeTitle,
                         message: "GET /api/catalog 결과에 표시할 공연이 없습니다.",
-                        identifier: "live-catalog-empty"
+                        actionTitle: "다시 시도",
+                        action: retry
                     )
+                    .accessibilityIdentifier("live-catalog-empty")
                 } else {
                     VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                         Text("LIVE catalog · \(events.count)개")
@@ -757,6 +758,20 @@ private struct LiveDiscoveryRouteView: View {
         case .event, .goods: return true
         default: return false
         }
+    }
+
+    private func loadCatalog() async {
+        guard case .loading = state else { return }
+        do {
+            state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog())
+        } catch {
+            state = .failed("GET /api/catalog 요청에 실패했습니다: \(error.localizedDescription)")
+        }
+    }
+
+    private func retry() {
+        state = .loading
+        reloadID += 1
     }
 
     private var normalizedSearchQuery: String {
@@ -1007,9 +1022,19 @@ private struct LiveMenuRouteView: View {
 
 private struct LiveCatalogDetailView: View {
     let event: LiveBackendCatalogEvent
+    @Environment(AppContainer.self) private var container
 
     var body: some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+            TicketgroundMediaImage(
+                resource: container.environment.apiClient.resolveResource(event.image),
+                role: .poster,
+                accessibilityLabel: "\(event.title) 포스터"
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 320)
+            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+
             VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                 Text(event.title)
                     .font(.title.weight(.black))
@@ -1049,20 +1074,32 @@ private struct LiveCatalogDetailView: View {
 
 private struct LiveCatalogEventRow: View {
     let event: LiveBackendCatalogEvent
+    @Environment(AppContainer.self) private var container
 
     var body: some View {
         NavigationLink(value: AppRoute.queue(slug: event.slug ?? event.id)) {
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                Text(event.title)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(TicketgroundColor.ink)
-                    .accessibilityIdentifier("live-catalog-event")
-                Text(event.venue)
-                    .font(.subheadline)
-                    .foregroundStyle(TicketgroundColor.inkMuted)
-                Text(event.period ?? event.date ?? "일정 미정")
-                    .font(.caption)
-                    .foregroundStyle(TicketgroundColor.inkMuted)
+            HStack(alignment: .top, spacing: TicketgroundSpacing.md) {
+                TicketgroundMediaImage(
+                    resource: container.environment.apiClient.resolveResource(event.image),
+                    role: .poster,
+                    accessibilityLabel: "\(event.title) 포스터"
+                )
+                .frame(width: 76, height: 104)
+                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                    Text(event.title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(TicketgroundColor.ink)
+                        .accessibilityIdentifier("live-catalog-event")
+                    Text(event.venue)
+                        .font(.subheadline)
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                    Text(event.period ?? event.date ?? "일정 미정")
+                        .font(.caption)
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(TicketgroundSpacing.md)
@@ -1085,38 +1122,30 @@ private struct LiveSeatMapRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var catalogState: LiveCatalogRouteState = .loading
     @State private var seatMapState: LiveSeatMapRouteState = .loading
+    @State private var reloadID = 0
 
     var body: some View {
         Group {
             switch catalogState {
             case .loading:
-                LiveRouteMessageView(title: "좌석 현황", message: "GET /api/catalog으로 공연을 확인하는 중입니다.", identifier: "live-route-state")
+                TicketgroundLoadingSurface(title: "좌석 공연 정보 불러오는 중")
+                    .accessibilityIdentifier("live-route-state")
             case .failed(let message):
-                LiveRouteMessageView(title: "좌석 현황", message: "GET /api/catalog 요청에 실패했습니다: \(message)", identifier: "live-route-state")
+                TicketgroundErrorSurface(
+                    title: "좌석 현황을 표시할 수 없습니다",
+                    message: "GET /api/catalog 요청에 실패했습니다: \(message)",
+                    actionTitle: "다시 시도",
+                    action: retry
+                )
+                .accessibilityIdentifier("live-route-state")
             case .loaded(let catalog):
                 seatMapBody(for: catalog)
             }
         }
         .navigationTitle("좌석 현황")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            guard case .loading = catalogState else { return }
-            do {
-                let catalog = try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog()
-                catalogState = .loaded(catalog)
-                guard let event = event(in: catalog) else {
-                    seatMapState = .failed("요청한 공연이 GET /api/catalog 결과에 없습니다.")
-                    return
-                }
-                seatMapState = .loading
-                seatMapState = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getSeatMap(eventID: event.id))
-            } catch {
-                if case .loaded = catalogState {
-                    seatMapState = .failed("GET /api/seat-map?eventId=... 요청에 실패했습니다: \(error.localizedDescription)")
-                } else {
-                    catalogState = .failed(error.localizedDescription)
-                }
-            }
+        .task(id: reloadID) {
+            await loadSeatMap()
         }
     }
 
@@ -1130,9 +1159,16 @@ private struct LiveSeatMapRouteView: View {
                     .accessibilityIdentifier("live-route-state")
                 switch seatMapState {
                 case .loading:
-                    LiveRouteMessageView(title: "좌석 현황", message: "GET /api/seat-map으로 구역과 잔여 좌석을 확인하는 중입니다.", identifier: "live-seat-map-loading")
+                    TicketgroundLoadingSurface(title: "좌석 현황 불러오는 중")
+                        .accessibilityIdentifier("live-seat-map-loading")
                 case .failed(let message):
-                    LiveRouteMessageView(title: "좌석 현황을 표시할 수 없습니다", message: message, identifier: "live-seat-map-error")
+                    TicketgroundErrorSurface(
+                        title: "좌석 현황을 표시할 수 없습니다",
+                        message: message,
+                        actionTitle: "다시 시도",
+                        action: retry
+                    )
+                    .accessibilityIdentifier("live-seat-map-error")
                 case .loaded(let seatMap):
                     LiveSeatMapContent(seatMap: seatMap)
                 }
@@ -1145,6 +1181,34 @@ private struct LiveSeatMapRouteView: View {
     private func event(in catalog: LiveCatalog) -> LiveBackendCatalogEvent? {
         guard let slug = routeSlug else { return nil }
         return catalog.events.first { $0.id == slug || $0.slug == slug || $0.title == slug }
+    }
+
+    private func loadSeatMap() async {
+        guard case .loading = catalogState else { return }
+        do {
+            let catalog = try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog()
+            catalogState = .loaded(catalog)
+            guard let event = event(in: catalog) else {
+                seatMapState = .failed("요청한 공연이 GET /api/catalog 결과에 없습니다.")
+                return
+            }
+            seatMapState = .loading
+            seatMapState = .loaded(
+                try await LiveBackendService(apiClient: container.environment.apiClient).getSeatMap(eventID: event.id)
+            )
+        } catch {
+            if case .loaded = catalogState {
+                seatMapState = .failed("GET /api/seat-map?eventId=... 요청에 실패했습니다: \(error.localizedDescription)")
+            } else {
+                catalogState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private func retry() {
+        catalogState = .loading
+        seatMapState = .loading
+        reloadID += 1
     }
 
     private var routeSlug: String? {
@@ -1161,6 +1225,7 @@ private struct LiveSeatMapRouteView: View {
 
 private struct LiveSeatMapContent: View {
     let seatMap: LiveSeatMap
+    @Environment(AppContainer.self) private var container
 
     var body: some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
@@ -1175,6 +1240,16 @@ private struct LiveSeatMapContent: View {
                     .font(.body)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
             }
+
+            TicketgroundMediaImage(
+                resource: container.environment.apiClient.resolveResource(seatMap.map.image),
+                role: .seatMap,
+                accessibilityLabel: "\(seatMap.map.title) 좌석 배치도",
+                contentMode: .fit
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 260)
+            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
 
             VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                 Text("좌석 구역 및 잔여 수량")

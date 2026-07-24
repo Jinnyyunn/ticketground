@@ -169,68 +169,13 @@ struct DiscoveryFeaturedImage: View {
     let title: String
 
     var body: some View {
-        if let imageResource, let remoteURL = URL(string: imageResource), remoteURL.scheme != nil {
-            AsyncImage(url: remoteURL) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    localImageOrFallback(imageResource, title: title)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 420)
-            .clipped()
-            .accessibilityLabel(title)
-        } else if let imageResource,
-                  !imageResource.isEmpty,
-                  let imagePath = Bundle.main.path(forResource: imageResource, ofType: "jpg"),
-                  let image = UIImage(contentsOfFile: imagePath) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 420)
-                .clipped()
-                .accessibilityLabel(title)
-        } else {
-            localImageOrFallback(imageResource, title: title)
-                .frame(maxWidth: .infinity, minHeight: 420)
-        }
-    }
-
-    @ViewBuilder
-    private func localImageOrFallback(_ resource: String?, title: String) -> some View {
-        if let path = localImagePath(for: resource), let image = UIImage(contentsOfFile: path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 420)
-                .clipped()
-        } else {
-            ZStack {
-                LinearGradient(colors: [TicketgroundColor.surfaceRaised, TicketgroundColor.surface], startPoint: .top, endPoint: .bottom)
-                Text(title)
-                    .font(.title2.weight(.black))
-                    .foregroundStyle(TicketgroundColor.inkMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(TicketgroundSpacing.lg)
-            }
-            .frame(maxWidth: .infinity, minHeight: 420)
-        }
-    }
-
-    private func localImagePath(for resource: String?) -> String? {
-        guard let resource, !resource.isEmpty else { return nil }
-        let name = URL(string: resource)?.deletingPathExtension().lastPathComponent ?? resource
-        for fileExtension in ["jpg", "png", "gif"] {
-            if let path = Bundle.main.path(forResource: name, ofType: fileExtension) {
-                return path
-            }
-        }
-        return nil
+        TicketgroundMediaImage(
+            resource: imageResource,
+            role: .featured,
+            accessibilityLabel: title
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: 420)
     }
 }
 
