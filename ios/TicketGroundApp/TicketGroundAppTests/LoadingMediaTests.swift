@@ -349,7 +349,7 @@ final class LoadingMediaTests: XCTestCase {
         }
     }
 
-    func testHighBitDepthRasterUsesMetadataAndActualDecodeCosts() async throws {
+    func testNonByteAlignedAndHighBitDepthRasterUsesOutputLayoutCosts() async throws {
         let decoded = try BoundedRasterImageDecoder.decode(
             Self.highBitDepthPNG,
             maxDecodedBytes: 16,
@@ -395,6 +395,58 @@ final class LoadingMediaTests: XCTestCase {
         } catch {}
         let cachedImage = await repository.cachedImage(for: url)
         XCTAssertNil(cachedImage)
+
+        for (fixture, expectedDepth) in [(Self.tenBitRGBTIFF, 10), (Self.twelveBitRGBTIFF, 12)] {
+            let source = try XCTUnwrap(CGImageSourceCreateWithData(fixture as CFData, nil))
+            let properties = try XCTUnwrap(
+                CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+            )
+            XCTAssertEqual((properties[kCGImagePropertyDepth] as? NSNumber)?.intValue, expectedDepth)
+
+            XCTAssertThrowsError(
+                try BoundedRasterImageDecoder.metadata(
+                    for: fixture,
+                    maxDecodedBytes: 63,
+                    maxFrameCount: 1
+                )
+            ) { error in
+                guard case TicketgroundImageRepositoryError.decodedImageTooLarge = error else {
+                    return XCTFail("Unexpected \(expectedDepth)-bit layout error: \(error)")
+                }
+            }
+
+            let metadata = try BoundedRasterImageDecoder.metadata(
+                for: fixture,
+                maxDecodedBytes: 64,
+                maxFrameCount: 1
+            )
+            XCTAssertEqual(metadata.decodedByteCount, 64)
+
+            let decoded = try BoundedRasterImageDecoder.decode(
+                fixture,
+                maxDecodedBytes: 64,
+                maxFrameCount: 1
+            )
+            let image = try XCTUnwrap(decoded.cgImage)
+            XCTAssertEqual(image.bytesPerRow * image.height, 64)
+        }
+
+        let tenBitURL = URL(string: "https://media.ticketground.test/ten-bit.tiff")!
+        MediaURLProtocol.stubs[tenBitURL.path] = .init(
+            data: Self.tenBitRGBTIFF,
+            statusCode: 200,
+            contentType: "image/tiff"
+        )
+        let nonByteAlignedRepository = TicketgroundImageRepository(
+            session: URLSession(configuration: configuration),
+            limits: .init(maxDecodedBytes: 63)
+        )
+        do {
+            _ = try await nonByteAlignedRepository.image(for: tenBitURL)
+            XCTFail("Expected the padded 10-bit output layout to exceed the decode budget")
+        } catch {}
+        let cachedTenBitImage = await nonByteAlignedRepository.cachedImage(for: tenBitURL)
+        XCTAssertNil(cachedTenBitImage)
     }
 
     func testResponseDecodeAndCacheBoundsAreEnforced() async throws {
@@ -465,6 +517,14 @@ final class LoadingMediaTests: XCTestCase {
 
     private static let highBitDepthPNG = Data(base64Encoded:
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABEAYAAABPhRjKAAAAEUlEQVR4nGNgYGRgYmD+/x8AAyACBS+HMtIAAAAASUVORK5CYII="
+    )!
+
+    private static let tenBitRGBTIFF = Data(base64Encoded:
+        "SUkqAAgAAAAKAAABBAABAAAAAwAAAAEBBAABAAAAAgAAAAIBAwADAAAAhgAAAAMBAwABAAAAAQAAAAYBAwABAAAAAgAAABEBBAABAAAAjAAAABUBAwABAAAAAwAAABYBBAABAAAAAgAAABcBBAABAAAAGAAAABwBAwABAAAAAQAAAAAAAAAKAAoACgAAP/gBAMAED/wAgAAgGAEAAP/QDAIAIAA="
+    )!
+
+    private static let twelveBitRGBTIFF = Data(base64Encoded:
+        "SUkqAAgAAAAKAAABBAABAAAAAwAAAAEBBAABAAAAAgAAAAIBAwADAAAAhgAAAAMBAwABAAAAAQAAAAYBAwABAAAAAgAAABEBBAABAAAAjAAAABUBAwABAAAAAwAAABYBBAABAAAAAgAAABcBBAABAAAAHAAAABwBAwABAAAAAQAAAAAAAAAMAAwADAAAD/+ABADAAQD/8ACAACAGABAAAP/0AMAIACAA"
     )!
 
     private static let compressedPixelBomb = Data(base64Encoded:
