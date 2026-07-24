@@ -142,7 +142,7 @@ struct LiveAPIContract {
         for baseURL: URL,
         observedResponseVersion: String?,
         validatedStateResponse: Bool = false,
-        catalogRouteConfirmed: Bool = true
+        catalogRouteConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
@@ -174,9 +174,6 @@ struct LiveAPIContract {
         case .unknown:
             return validatedStateResponse && endpoint == .state ? .available : .unknown
         case .incompatible(let expected, let observed):
-            if validatedStateResponse && endpoint == .state {
-                return .available
-            }
             return .incompatible(expected: expected, observed: observed)
         case .compatible:
             guard endpoint != .catalog || catalogRouteConfirmed else {

@@ -266,6 +266,29 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
+    func testCapabilityMapRequiresExplicitCatalogRouteConfirmation() {
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion
+        )
+
+        XCTAssertEqual(map.state(for: .catalog), .unknown)
+    }
+
+    func testIncompatibleValidatedStateDoesNotReopenStateCapability() {
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: "future-contract",
+            validatedStateResponse: true,
+            catalogRouteConfirmed: false
+        )
+
+        XCTAssertEqual(
+            map.state(for: .state),
+            .incompatible(expected: LiveAPIContract.deployed.expectedResponseVersion, observed: "future-contract")
+        )
+    }
+
     func testMutationContractMatchesDeployedRouterPaths() {
         XCTAssertEqual(LiveAPIEndpoint.supportMessages.method, .post)
         XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/support/messages")
@@ -418,7 +441,8 @@ final class LiveBackendServiceTests: XCTestCase {
             apiClient: client,
             initialCapabilityMap: LiveAPIContract.deployed.capabilityMap(
                 for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
-                observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion
+                observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+                catalogRouteConfirmed: true
             )
         )
     }
