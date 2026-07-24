@@ -332,8 +332,59 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
+    func testDefaultLiveCatalogBootstrapUsesLocalRouterStateThenCatalog() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
+            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://132.145.109.87:4174/")!,
+            assetBaseURL: URL(string: "http://132.145.109.87:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let content = try await DiscoveryFixtureLoader.load(using: client)
+
+        XCTAssertEqual(content.featured.title, "Neon Stage")
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
+            ["/api/state", "/api/catalog"]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.httpMethod == "GET" && $0.value(forHTTPHeaderField: "Authorization") == nil
+        })
+    }
+
+    func testDefaultLiveCatalogBootstrapFailureDoesNotDispatchCatalog() async {
+        LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":false,"error":{"code":"BOOTSTRAP_DOWN","message":"Bootstrap unavailable"}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://132.145.109.87:4174/")!,
+            assetBaseURL: URL(string: "http://132.145.109.87:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await LiveBackendService(apiClient: client).getCatalog()
+            XCTFail("Expected bootstrap failure")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .server(status: 200, code: "BOOTSTRAP_DOWN", message: "Bootstrap unavailable"))
+            XCTAssertEqual(
+                LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
+                ["/api/state"]
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testContractProbeReportsVersionAndBlocksHTTPAuthenticatedAndMutationRoutes() async throws {
-        LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-24T06:53:18.703Z","version":"78b3c7c"}}"#.utf8)
+        LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]

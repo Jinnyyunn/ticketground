@@ -16,10 +16,9 @@ enum DiscoveryFixtureLoader {
     }
 
     static func load(using apiClient: APIClient) async throws -> DiscoveryContent {
-        let data = try await apiClient.data(for: "/api/catalog")
-        let response = try JSONDecoder().decode(LiveCatalogResponse.self, from: data)
-        guard !response.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
-        return try map(response.events, using: apiClient)
+        let catalog = try await LiveBackendService(apiClient: apiClient).getCatalog()
+        guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
+        return try map(catalog.events, using: apiClient)
     }
 
     private static func map(_ body: DiscoveryFixtureBody) throws -> DiscoveryContent {
@@ -65,7 +64,7 @@ enum DiscoveryFixtureLoader {
         return route
     }
 
-    private static func map(_ events: [LiveCatalogEvent], using apiClient: APIClient) throws -> DiscoveryContent {
+    private static func map(_ events: [LiveBackendCatalogEvent], using apiClient: APIClient) throws -> DiscoveryContent {
         let categories = [
             DiscoveryCategory(label: "홈", systemImage: "house.fill", route: .home),
             DiscoveryCategory(label: "콘서트", systemImage: "music.mic", route: .genre(name: "concert")),
@@ -105,7 +104,7 @@ enum DiscoveryFixtureLoader {
         return DiscoveryContent(categories: categories, featured: featured, supporting: supporting, rankings: rankings, openingSoon: openingSoon, shortcuts: shortcuts, calendar: calendar)
     }
 
-    private static func featuredLive(_ event: LiveCatalogEvent, eyebrow: String, using apiClient: APIClient) throws -> DiscoveryFeatured {
+    private static func featuredLive(_ event: LiveBackendCatalogEvent, eyebrow: String, using apiClient: APIClient) throws -> DiscoveryFeatured {
         DiscoveryFeatured(
             title: event.title,
             eyebrow: eyebrow,
@@ -117,7 +116,7 @@ enum DiscoveryFixtureLoader {
         )
     }
 
-    private static func ranking(_ event: LiveCatalogEvent, rank: Int, using apiClient: APIClient) throws -> DiscoveryRanking {
+    private static func ranking(_ event: LiveBackendCatalogEvent, rank: Int, using apiClient: APIClient) throws -> DiscoveryRanking {
         DiscoveryRanking(
             rank: rank,
             title: event.title,
@@ -131,7 +130,7 @@ enum DiscoveryFixtureLoader {
         )
     }
 
-    private static func opening(_ event: LiveCatalogEvent) throws -> DiscoveryOpening {
+    private static func opening(_ event: LiveBackendCatalogEvent) throws -> DiscoveryOpening {
         let components = event.date?.split(separator: "-") ?? []
         let month = components.count > 1 ? String(Int(components[1]) ?? 0) : "-"
         let day = components.count > 2 ? String(Int(components[2].prefix(2)) ?? 0) : "-"
@@ -148,7 +147,7 @@ enum DiscoveryFixtureLoader {
         )
     }
 
-    private static func calendarLive(_ event: LiveCatalogEvent) throws -> DiscoveryCalendar {
+    private static func calendarLive(_ event: LiveBackendCatalogEvent) throws -> DiscoveryCalendar {
         let day = Int(event.date?.split(separator: "-").last?.prefix(2) ?? "") ?? 0
         return DiscoveryCalendar(
             day: day,
@@ -184,28 +183,4 @@ enum DiscoveryFixtureLoader {
             ? "\(components[0]).\(components[1]).\(components[2])"
             : "\(components[0]).\(components[1]).\(components[2]) \(time)"
     }
-}
-
-private struct LiveCatalogResponse: Decodable {
-    let events: [LiveCatalogEvent]
-}
-
-private struct LiveCatalogEvent: Decodable {
-    let id: String
-    let slug: String?
-    let category: String?
-    let title: String
-    let venue: String
-    let date: String?
-    let period: String?
-    let image: String?
-    let pinnedRank: Int?
-    let soldCount: Int
-    let sale: LiveSale?
-}
-
-private struct LiveSale: Decodable {
-    let state: String?
-    let label: String?
-    let note: String?
 }

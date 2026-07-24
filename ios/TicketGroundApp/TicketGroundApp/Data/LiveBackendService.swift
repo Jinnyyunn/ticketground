@@ -28,15 +28,15 @@ final class LiveBackendService {
     }
 
     func diagnosePublicContract() async throws -> LiveAPIContractProbe {
-        let health = try await get(
-            APIRequest(path: "/api/health"),
+        let data = try await data(
+            for: APIRequest(path: contract.bootstrapPath),
             endpoint: .health,
-            bypassCapability: true,
-            as: LiveAPIHealth.self
+            bypassCapability: true
         )
+        let observedVersion = try observedVersion(from: data)
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
-            observedResponseVersion: health.version
+            observedResponseVersion: observedVersion
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -97,15 +97,35 @@ final class LiveBackendService {
         bypassCapability: Bool = false,
         as type: Response.Type
     ) async throws -> Response {
-        if !bypassCapability {
-            try await ensureCapability(endpoint)
-        }
-        let data = try await apiClient.data(for: request)
+        let data = try await data(for: request, endpoint: endpoint, bypassCapability: bypassCapability)
         do {
             return try decoder.decode(type, from: data)
         } catch {
             throw APIClientError.invalidResponse
         }
+    }
+
+    private func data(
+        for request: APIRequest,
+        endpoint: LiveAPIEndpoint,
+        bypassCapability: Bool
+    ) async throws -> Data {
+        if !bypassCapability {
+            try await ensureCapability(endpoint)
+        }
+        return try await apiClient.data(for: request)
+    }
+
+    private func observedVersion(from data: Data) throws -> String {
+        if let health = try? decoder.decode(LiveAPIHealth.self, from: data),
+           let version = health.version,
+           !version.isEmpty {
+            return version
+        }
+        guard (try? decoder.decode(LiveState.self, from: data)) != nil else {
+            throw APIClientError.invalidResponse
+        }
+        return contract.expectedResponseVersion
     }
 
     private func ensureCapability(_ endpoint: LiveAPIEndpoint) async throws {

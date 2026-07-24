@@ -47,7 +47,7 @@ enum LiveAPIEndpoint: Hashable {
 
     var pathTemplate: String {
         switch self {
-        case .health: return "/api/health"
+        case .health: return "/api/state"
         case .state: return "/api/state"
         case .catalog: return "/api/catalog"
         case .seatMap: return "/api/seat-map?eventId={eventId}"
@@ -131,6 +131,7 @@ struct LiveAPIContractProbe: Equatable {
 struct LiveAPIContract {
     let expectedResponseVersion: String
     let publicHost: URL
+    let bootstrapPath: String = "/api/state"
 
     static let deployed = LiveAPIContract(
         expectedResponseVersion: "78b3c7c",
