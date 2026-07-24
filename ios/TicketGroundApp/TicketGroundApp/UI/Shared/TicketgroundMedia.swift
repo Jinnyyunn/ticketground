@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import SwiftUI
 import UIKit
 
@@ -10,23 +11,153 @@ enum TicketgroundImageRepositoryError: Error {
     case decodedImageTooLarge
 }
 
+enum BoundedRasterImageDecoder {
+    struct Metadata: Equatable {
+        let frameCount: Int
+        let decodedByteCount: Int
+    }
+
+    static func metadata(
+        for data: Data,
+        maxDecodedBytes: Int,
+        maxFrameCount: Int
+    ) throws -> Metadata {
+        guard let source = CGImageSourceCreateWithData(
+            data as CFData,
+            [kCGImageSourceShouldCache: false] as CFDictionary
+        ) else {
+            throw TicketgroundImageRepositoryError.invalidImage
+        }
+        return try validatedMetadata(
+            for: source,
+            maxDecodedBytes: maxDecodedBytes,
+            maxFrameCount: maxFrameCount
+        )
+    }
+
+    static func decode(
+        _ data: Data,
+        maxDecodedBytes: Int,
+        maxFrameCount: Int
+    ) throws -> UIImage {
+        guard let source = CGImageSourceCreateWithData(
+            data as CFData,
+            [kCGImageSourceShouldCache: false] as CFDictionary
+        ) else {
+            throw TicketgroundImageRepositoryError.invalidImage
+        }
+        let metadata = try validatedMetadata(
+            for: source,
+            maxDecodedBytes: maxDecodedBytes,
+            maxFrameCount: maxFrameCount
+        )
+
+        var frames: [UIImage] = []
+        frames.reserveCapacity(metadata.frameCount)
+        var duration: TimeInterval = 0
+        for index in 0..<metadata.frameCount {
+            let dimensions = try pixelDimensions(of: source, at: index)
+            let options = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: max(dimensions.width, dimensions.height),
+                kCGImageSourceShouldCacheImmediately: true
+            ] as CFDictionary
+            guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options) else {
+                throw TicketgroundImageRepositoryError.invalidImage
+            }
+            frames.append(UIImage(cgImage: image))
+            duration += frameDuration(of: source, at: index)
+        }
+
+        guard let first = frames.first else {
+            throw TicketgroundImageRepositoryError.invalidImage
+        }
+        if frames.count == 1 {
+            return first
+        }
+        guard let animated = UIImage.animatedImage(with: frames, duration: duration) else {
+            throw TicketgroundImageRepositoryError.invalidImage
+        }
+        return animated
+    }
+
+    private static func validatedMetadata(
+        for source: CGImageSource,
+        maxDecodedBytes: Int,
+        maxFrameCount: Int
+    ) throws -> Metadata {
+        let frameCount = CGImageSourceGetCount(source)
+        guard maxDecodedBytes > 0,
+              maxFrameCount > 0,
+              frameCount > 0,
+              frameCount <= maxFrameCount else {
+            throw TicketgroundImageRepositoryError.decodedImageTooLarge
+        }
+
+        var decodedByteCount = 0
+        for index in 0..<frameCount {
+            let dimensions = try pixelDimensions(of: source, at: index)
+            let (pixelCount, pixelOverflow) = dimensions.width.multipliedReportingOverflow(by: dimensions.height)
+            let (frameBytes, byteOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
+            let (totalBytes, totalOverflow) = decodedByteCount.addingReportingOverflow(frameBytes)
+            guard !pixelOverflow,
+                  !byteOverflow,
+                  !totalOverflow,
+                  totalBytes <= maxDecodedBytes else {
+                throw TicketgroundImageRepositoryError.decodedImageTooLarge
+            }
+            decodedByteCount = totalBytes
+        }
+        return Metadata(frameCount: frameCount, decodedByteCount: decodedByteCount)
+    }
+
+    private static func pixelDimensions(
+        of source: CGImageSource,
+        at index: Int
+    ) throws -> (width: Int, height: Int) {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              width > 0,
+              height > 0 else {
+            throw TicketgroundImageRepositoryError.invalidImage
+        }
+        return (width, height)
+    }
+
+    private static func frameDuration(of source: CGImageSource, at index: Int) -> TimeInterval {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+              let gif = properties[kCGImagePropertyGIFDictionary] as? [CFString: Any] else {
+            return 0.1
+        }
+        let duration = (gif[kCGImagePropertyGIFUnclampedDelayTime] as? NSNumber)?.doubleValue
+            ?? (gif[kCGImagePropertyGIFDelayTime] as? NSNumber)?.doubleValue
+            ?? 0.1
+        return max(duration, 0.02)
+    }
+}
+
 actor TicketgroundImageRepository {
     struct Limits {
         let maxResponseBytes: Int
         let maxDecodedBytes: Int
         let maxCacheBytes: Int
         let maxCacheEntries: Int
+        let maxFrameCount: Int
 
         init(
             maxResponseBytes: Int = 4 * 1_024 * 1_024,
             maxDecodedBytes: Int = 32 * 1_024 * 1_024,
             maxCacheBytes: Int = 64 * 1_024 * 1_024,
-            maxCacheEntries: Int = 32
+            maxCacheEntries: Int = 32,
+            maxFrameCount: Int = 60
         ) {
             self.maxResponseBytes = max(1, maxResponseBytes)
             self.maxDecodedBytes = max(1, maxDecodedBytes)
             self.maxCacheBytes = max(1, maxCacheBytes)
             self.maxCacheEntries = max(1, maxCacheEntries)
+            self.maxFrameCount = max(1, maxFrameCount)
         }
     }
 
@@ -88,10 +219,12 @@ actor TicketgroundImageRepository {
             } catch {
                 throw TicketgroundImageRepositoryError.invalidImage
             }
-        } else if let decoded = UIImage(data: data) {
-            image = decoded
         } else {
-            throw TicketgroundImageRepositoryError.invalidImage
+            image = try BoundedRasterImageDecoder.decode(
+                data,
+                maxDecodedBytes: limits.maxDecodedBytes,
+                maxFrameCount: limits.maxFrameCount
+            )
         }
 
         let decodedBytes = try decodedByteCost(of: image)

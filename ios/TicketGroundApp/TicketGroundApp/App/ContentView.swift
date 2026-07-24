@@ -6,7 +6,8 @@ struct ContentView: View {
     @State private var selectedTab: TicketgroundTab = .home
     @State private var discoveryContent: DiscoveryContent?
     @State private var discoveryLoadFailed = false
-    @State private var fixtureRetryCount = 0
+    @State private var discoveryReloadRequest = 0
+    @State private var discoveryLoadRequestCount = 0
 
     var body: some View {
         @Bindable var container = container
@@ -33,8 +34,12 @@ struct ContentView: View {
                                     title: "콘텐츠를 불러올 수 없습니다",
                                     message: "번들 discovery fixture를 확인해 주세요.",
                                     actionTitle: "다시 시도",
-                                    action: { discoveryLoadFailed = false }
+                                    action: {
+                                        discoveryLoadFailed = false
+                                        discoveryReloadRequest += 1
+                                    }
                                 )
+                                .accessibilityValue("콘텐츠 요청 \(discoveryLoadRequestCount)회")
                             } else {
                                 TicketgroundLoadingSurface(title: "공연 콘텐츠를 불러오는 중")
                             }
@@ -52,12 +57,6 @@ struct ContentView: View {
                                     .accessibilityIdentifier("fixture-state-\(scenario.rawValue)")
                             }
                             stateSurface(for: scenario)
-                            if scenario == .empty || scenario == .offline {
-                                Text("재시도 요청 \(fixtureRetryCount)회")
-                                    .font(.caption)
-                                    .foregroundStyle(TicketgroundColor.inkMuted)
-                                    .accessibilityIdentifier("fixture-retry-count")
-                            }
                             if scenario == .empty {
                                 DiscoveryEmptyCalendarView(action: { container.navigationPath.removeAll() })
                             }
@@ -94,8 +93,9 @@ struct ContentView: View {
             .frame(width: geometry.size.width)
             }
         }
-        .task {
+        .task(id: discoveryReloadRequest) {
             guard discoveryContent == nil, !discoveryLoadFailed else { return }
+            discoveryLoadRequestCount += 1
             do {
                 if container.environment.mode == .fixture {
                     discoveryContent = try DiscoveryFixtureLoader.load()
@@ -125,7 +125,7 @@ struct ContentView: View {
                 title: "데이터 없음",
                 message: "표시할 공연이 없습니다.",
                 actionTitle: "다시 시도",
-                action: { fixtureRetryCount += 1 }
+                action: {}
             )
         case .malformed:
             TicketgroundErrorSurface(
@@ -139,7 +139,7 @@ struct ContentView: View {
                 title: "오프라인",
                 message: "네트워크 연결을 확인해 주세요.",
                 actionTitle: "다시 시도",
-                action: { fixtureRetryCount += 1 }
+                action: {}
             )
         case .unauthorized:
             TicketgroundErrorSurface(

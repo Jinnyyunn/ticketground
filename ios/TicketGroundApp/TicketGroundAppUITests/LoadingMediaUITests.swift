@@ -20,10 +20,6 @@ final class LoadingMediaUITests: XCTestCase {
         XCTAssertTrue(emptyRetry.waitForExistence(timeout: 10))
         XCTAssertEqual(emptyRetry.label, "다시 시도")
         XCTAssertTrue(emptyRetry.isEnabled)
-        let retryCount = anyElement(emptyApp, identifier: "fixture-retry-count")
-        XCTAssertEqual(retryCount.label, "재시도 요청 0회")
-        emptyRetry.tap()
-        XCTAssertTrue(waitForLabel("재시도 요청 1회", on: retryCount))
         emptyApp.terminate()
 
         let errorApp = UITestBootstrap.fixtureApp(scenario: .offline)
@@ -33,6 +29,26 @@ final class LoadingMediaUITests: XCTestCase {
         XCTAssertTrue(errorRetry.waitForExistence(timeout: 10))
         XCTAssertEqual(errorRetry.label, "다시 시도")
         XCTAssertTrue(errorRetry.isEnabled)
+    }
+
+    func testProductionErrorRetryStartsAnotherLiveRequest() {
+        let app = UITestBootstrap.liveApp(apiBaseURL: "https://127.0.0.1:1/")
+        app.launch()
+
+        let error = anyElement(app, identifier: "state-error")
+        XCTAssertTrue(error.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitForValue("콘텐츠 요청 1회", on: error))
+
+        let retry = app.buttons["state-error-action"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 10))
+        retry.tap()
+
+        XCTAssertTrue(waitForValue("콘텐츠 요청 2회", on: error))
+        XCTAssertTrue(error.waitForExistence(timeout: 15))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "production-retry-second-request"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testOfflinePosterUsesAccessibleFallback() {
@@ -86,8 +102,8 @@ final class LoadingMediaUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    private func waitForLabel(_ expected: String, on element: XCUIElement) -> Bool {
-        let predicate = NSPredicate(format: "label == %@", expected)
+    private func waitForValue(_ expected: String, on element: XCUIElement) -> Bool {
+        let predicate = NSPredicate(format: "value == %@", expected)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: 10) == .completed
     }

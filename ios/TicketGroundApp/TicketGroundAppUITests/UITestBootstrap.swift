@@ -37,6 +37,14 @@ enum UITestBootstrap {
         return app
     }
 
+    static func liveApp(apiBaseURL: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-api-mode", "live"]
+        app.launchEnvironment["TICKETGROUND_API_BASE_URL"] = apiBaseURL
+        app.launchEnvironment["TICKETGROUND_ASSET_BASE_URL"] = apiBaseURL
+        return app
+    }
+
     static func waitForHome(_ app: XCUIApplication) -> XCUIElement {
         let home = app.staticTexts["Ticketground"]
         XCTAssertTrue(home.waitForExistence(timeout: 30))

@@ -5,6 +5,8 @@ import WebKit
 enum TicketgroundSVGRendererError: Error {
     case invalidDocument
     case renderFailed
+    case timedOut
+    case emptyOutput
 }
 
 struct SafeSVGDocument {
@@ -79,7 +81,11 @@ private final class SafeSVGValidator: NSObject, XMLParserDelegate {
                 invalid = true
                 return
             }
-            renderSize = targetSize(from: attributeDict)
+            guard let targetSize = targetSize(from: attributeDict) else {
+                invalid = true
+                return
+            }
+            renderSize = targetSize
         }
         if name == "style" {
             styleDepth = depth
@@ -141,20 +147,58 @@ private final class SafeSVGValidator: NSObject, XMLParserDelegate {
         return false
     }
 
-    private func targetSize(from attributes: [String: String]) -> CGSize {
-        let viewBoxValue = attributes.first { $0.key.lowercased() == "viewbox" }?.value
-        let values = viewBoxValue?
-            .split(whereSeparator: { $0 == " " || $0 == "," })
-            .compactMap { Double($0) }
-        let width = values?.count == 4 ? abs(values?[2] ?? 0) : 0
-        let height = values?.count == 4 ? abs(values?[3] ?? 0) : 0
-        let aspectWidth = width > 0 ? width : 4
-        let aspectHeight = height > 0 ? height : 3
+    private func targetSize(from attributes: [String: String]) -> CGSize? {
+        let normalized = Dictionary(uniqueKeysWithValues: attributes.map { ($0.key.lowercased(), $0.value) })
+        let aspectWidth: Double
+        let aspectHeight: Double
+        if let viewBoxValue = normalized["viewbox"] {
+            let values = viewBoxValue
+                .split(whereSeparator: { $0 == " " || $0 == "," })
+                .compactMap { Double($0) }
+            guard values.count == 4, values[2] > 0, values[3] > 0 else { return nil }
+            aspectWidth = values[2]
+            aspectHeight = values[3]
+        } else {
+            if let width = normalized["width"] {
+                guard let parsedWidth = absolutePixels(width) else { return nil }
+                aspectWidth = parsedWidth
+            } else {
+                aspectWidth = 300
+            }
+            if let height = normalized["height"] {
+                guard let parsedHeight = absolutePixels(height) else { return nil }
+                aspectHeight = parsedHeight
+            } else {
+                aspectHeight = 150
+            }
+        }
         let scale = min(maxDimension / aspectWidth, maxDimension / aspectHeight, 1)
         return CGSize(
             width: max(1, aspectWidth * scale),
             height: max(1, aspectHeight * scale)
         )
+    }
+
+    private func absolutePixels(_ rawValue: String) -> Double? {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let unitless = Double(value), unitless > 0, unitless.isFinite {
+            return unitless
+        }
+        let units: [(suffix: String, pixelsPerUnit: Double)] = [
+            ("px", 1),
+            ("in", 96),
+            ("cm", 96 / 2.54),
+            ("mm", 96 / 25.4),
+            ("q", 96 / 101.6),
+            ("pt", 96 / 72),
+            ("pc", 16)
+        ]
+        for unit in units where value.hasSuffix(unit.suffix) {
+            let number = String(value.dropLast(unit.suffix.count))
+            guard let length = Double(number), length > 0, length.isFinite else { return nil }
+            return length * unit.pixelsPerUnit
+        }
+        return nil
     }
 }
 
@@ -162,8 +206,15 @@ private final class SafeSVGValidator: NSObject, XMLParserDelegate {
 final class TicketgroundSVGRenderer: NSObject, WKNavigationDelegate {
     private var webView: WKWebView?
     private var continuation: CheckedContinuation<UIImage, Error>?
+    private var timeoutTask: Task<Void, Never>?
 
-    func render(_ document: SafeSVGDocument) async throws -> UIImage {
+    func render(
+        _ document: SafeSVGDocument,
+        timeoutNanoseconds: UInt64 = 5_000_000_000
+    ) async throws -> UIImage {
+        guard timeoutNanoseconds > 0 else {
+            throw TicketgroundSVGRendererError.timedOut
+        }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
@@ -185,9 +236,25 @@ final class TicketgroundSVGRenderer: NSObject, WKNavigationDelegate {
         </head><body>\(document.markup)</body></html>
         """
 
-        return try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-            webView.loadHTMLString(html, baseURL: nil)
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                timeoutTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    guard !Task.isCancelled else { return }
+                    self?.finish(.failure(TicketgroundSVGRendererError.timedOut))
+                }
+                if Task.isCancelled {
+                    finish(.failure(CancellationError()))
+                } else {
+                    webView.loadHTMLString(html, baseURL: nil)
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.finish(.failure(CancellationError()))
+            }
         }
     }
 
@@ -197,8 +264,10 @@ final class TicketgroundSVGRenderer: NSObject, WKNavigationDelegate {
         webView.takeSnapshot(with: snapshot) { [weak self] image, error in
             Task { @MainActor in
                 guard let self else { return }
-                if let image {
+                if let image, Self.hasVisibleContent(image) {
                     self.finish(.success(image))
+                } else if image != nil {
+                    self.finish(.failure(TicketgroundSVGRendererError.emptyOutput))
                 } else {
                     self.finish(.failure(error ?? TicketgroundSVGRendererError.renderFailed))
                 }
@@ -221,7 +290,30 @@ final class TicketgroundSVGRenderer: NSObject, WKNavigationDelegate {
     private func finish(_ result: Result<UIImage, Error>) {
         guard let continuation else { return }
         self.continuation = nil
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
         self.webView = nil
         continuation.resume(with: result)
+    }
+
+    private static func hasVisibleContent(_ image: UIImage) -> Bool {
+        guard let cgImage = image.cgImage else { return false }
+        let dimension = 64
+        var pixels = [UInt8](repeating: 0, count: dimension * dimension * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: dimension,
+            height: dimension,
+            bitsPerComponent: 8,
+            bytesPerRow: dimension * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return false
+        }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: dimension, height: dimension))
+        return stride(from: 3, to: pixels.count, by: 4).contains { pixels[$0] > 0 }
     }
 }

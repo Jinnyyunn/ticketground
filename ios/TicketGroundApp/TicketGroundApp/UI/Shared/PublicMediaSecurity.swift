@@ -133,9 +133,11 @@ final class PublicMediaSessionDelegate: NSObject, URLSessionTaskDelegate {
 }
 
 enum PublicMediaSessionFactory {
-    static func make() -> URLSession {
+    static func make(
+        configuration: URLSessionConfiguration = PublicMediaSessionConfiguration.make()
+    ) -> URLSession {
         URLSession(
-            configuration: PublicMediaSessionConfiguration.make(),
+            configuration: configuration,
             delegate: PublicMediaSessionDelegate(),
             delegateQueue: nil
         )
