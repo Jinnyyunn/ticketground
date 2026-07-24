@@ -13,7 +13,9 @@ private final class LiveBackendServiceURLProtocol: URLProtocol {
     override func startLoading() {
         Self.requests.append(request)
         let key = request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") } ?? ""
-        let data = Self.responses[key] ?? Data(#"{"ok":false,"error":{"code":"MISSING_FIXTURE","message":"Missing test fixture"}}"#.utf8)
+        let data = Self.responses[key]
+            ?? Self.responses["*"]
+            ?? Data(#"{"ok":false,"error":{"code":"MISSING_FIXTURE","message":"Missing test fixture"}}"#.utf8)
         let statusCode = Self.statusCodes[key] ?? 200
         guard let response = HTTPURLResponse(
             url: request.url ?? URL(string: "http://ticketground.test")!,
@@ -50,10 +52,12 @@ final class LiveBackendServiceTests: XCTestCase {
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
         let client = LiveAPIClient(
-            baseURL: URL(string: "http://ticketground.test/")!,
-            assetBaseURL: URL(string: "http://ticketground.test/")!,
-            credentialStore: InMemoryCredentialStore(),
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: credentials,
             session: URLSession(configuration: configuration)
         )
         let service = LiveBackendService(apiClient: client)
@@ -81,6 +85,14 @@ final class LiveBackendServiceTests: XCTestCase {
         })
         XCTAssertEqual(requestPaths, Set(LiveBackendServiceURLProtocol.responses.keys))
         XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy { $0.httpMethod == "GET" })
+        let publicPaths: Set<String> = ["/api/state", "/api/catalog", "/api/seat-map"]
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy { request in
+            guard let path = request.url?.path else { return false }
+            let authorization = request.value(forHTTPHeaderField: "Authorization")
+            return publicPaths.contains(path)
+                ? authorization == nil
+                : authorization == "Bearer native-credential"
+        })
     }
 
     func testSurfacesBackendErrorAsAPIClientError() async {
@@ -103,6 +115,99 @@ final class LiveBackendServiceTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testRejectsInvalidJSONEnvelope() async {
+        LiveBackendServiceURLProtocol.responses["/api/state"] = Data("{".utf8)
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await LiveBackendService(apiClient: client).getState()
+            XCTFail("Expected invalid response")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testMapsUnauthorizedResponseWithBackendEnvelope() async {
+        LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":false,"error":{"code":"UNAUTHORIZED","message":"Authentication required"}}"#.utf8)
+        LiveBackendServiceURLProtocol.statusCodes["/api/state"] = 401
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await LiveBackendService(apiClient: client).getState()
+            XCTFail("Expected unauthorized response")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .server(status: 401, code: "UNAUTHORIZED", message: "Authentication required"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testMapsForbiddenResponseWithBackendEnvelope() async {
+        LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":false,"error":{"code":"FORBIDDEN","message":"Access denied"}}"#.utf8)
+        LiveBackendServiceURLProtocol.statusCodes["/api/state"] = 403
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await LiveBackendService(apiClient: client).getState()
+            XCTFail("Expected forbidden response")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .server(status: 403, code: "FORBIDDEN", message: "Access denied"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testEncodesAuthenticatedUserIDAsOnePathSegment() async throws {
+        let userID = "server/user 한"
+        LiveBackendServiceURLProtocol.responses["*"] = Data(#"{"ok":true,"data":{"id":"server/user 한","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8)
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: userID))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+
+        _ = try await LiveBackendService(apiClient: client).getSession(userID: userID)
+        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
+        let components = try XCTUnwrap(request.url.flatMap {
+            URLComponents(url: $0, resolvingAgainstBaseURL: false)
+        })
+
+        XCTAssertEqual(components.percentEncodedPath, "/api/users/server%2Fuser%20%ED%95%9C/session")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
     }
 
     func testDecodesUnknownSupportStatusAndRoleAsUnknown() throws {

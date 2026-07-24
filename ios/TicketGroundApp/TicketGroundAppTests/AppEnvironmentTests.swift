@@ -28,7 +28,7 @@ private final class LiveAPIURLProtocol: URLProtocol {
 final class AppEnvironmentTests: XCTestCase {
     func testColdStartAndRouteRestore() {
         let credentials = InMemoryCredentialStore()
-        credentials.save("native-credential")
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user"))
         let session = SessionStore(credentialStore: credentials)
         let container = AppContainer(environment: AppEnvironment(
             mode: .fixture,
@@ -37,7 +37,7 @@ final class AppEnvironmentTests: XCTestCase {
         ))
         container.navigationPath = [.goods(slug: "ticketground-day")]
 
-        XCTAssertEqual(session.current, NativeSession(userID: "native", credential: "native-credential"))
+        XCTAssertEqual(session.current, NativeSession(userID: "server-user", credential: "native-credential"))
         XCTAssertEqual(RouteResolver.resolve(path: "/goods/ticketground-day"), .goods(slug: "ticketground-day"))
         XCTAssertEqual(container.navigationPath.map(\.id), ["goods:ticketground-day"])
         XCTAssertEqual(container.environment.mode, .fixture)
@@ -98,7 +98,7 @@ final class AppEnvironmentTests: XCTestCase {
         configuration.protocolClasses = [LiveAPIURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let credentials = InMemoryCredentialStore()
-        credentials.save("native-credential")
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user-42"))
         LiveAPIURLProtocol.requests = []
         LiveAPIURLProtocol.responseData = Data(#"{"ok":true,"data":{"total":3}}"#.utf8)
         LiveAPIURLProtocol.statusCode = 200
@@ -110,11 +110,214 @@ final class AppEnvironmentTests: XCTestCase {
             session: session
         )
 
-        let response = try await client.data(for: "/api/catalog")
-        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response) as? [String: Int])
+        _ = try await client.data(for: "/api/catalog")
         let request = try XCTUnwrap(LiveAPIURLProtocol.requests.first)
 
-        XCTAssertEqual(object["total"], 3)
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
     }
+
+    func testLiveAPIClientRefusesAuthenticatedRequestOverHTTP() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user-42"))
+        LiveAPIURLProtocol.requests = []
+
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.data(for: APIRequest(
+                method: .get,
+                path: "/api/users/server-user-42/session",
+                authentication: .required(userID: "server-user-42")
+            ))
+            XCTFail("Expected insecure credential transport error")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .insecureCredentialTransport)
+            XCTAssertEqual(error.localizedDescription, "보안 인증 정보는 HTTPS 연결에서만 전송할 수 있습니다.")
+            XCTAssertTrue(LiveAPIURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testLiveAPIClientUsesTypedRequestBoundaryAndIdempotencyHeader() throws {
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://127.0.0.1/")!,
+            assetBaseURL: URL(string: "https://127.0.0.1/")!,
+            credentialStore: InMemoryCredentialStore()
+        )
+        let body = Data(#"{"ticketId":"ticket-1"}"#.utf8)
+        let request = APIRequest(
+            method: .post,
+            path: "/api/tickets/buy",
+            query: [APIRequestQuery(name: "source", value: "mobile app")],
+            headers: [APIRequestHeader(name: "X-Trace", value: "trace-1")],
+            body: .json(body),
+            idempotencyKey: "idempotency-1"
+        )
+
+        let emitted = try client.urlRequest(for: request)
+        let queryItems = try XCTUnwrap(emitted.url.flatMap {
+            URLComponents(url: $0, resolvingAgainstBaseURL: false)
+        }?.queryItems)
+
+        XCTAssertEqual(emitted.httpMethod, "POST")
+        XCTAssertEqual(queryItems, [URLQueryItem(name: "source", value: "mobile app")])
+        XCTAssertEqual(emitted.value(forHTTPHeaderField: "X-Trace"), "trace-1")
+        XCTAssertEqual(emitted.value(forHTTPHeaderField: "X-Idempotency-Key"), "idempotency-1")
+        XCTAssertEqual(emitted.httpBody, body)
+    }
+
+    func testLiveAPIClientMapsTransportFailureToDeterministicError() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FailingLiveAPIURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://127.0.0.1/")!,
+            assetBaseURL: URL(string: "https://127.0.0.1/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.data(for: "/api/catalog")
+            XCTFail("Expected deterministic transport error")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .requestFailed(code: URLError.Code.timedOut.rawValue))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSessionStoreRestoresServerUserIDPairedWithCredential() {
+        let credentials = InMemoryCredentialStore()
+        let initial = SessionStore(credentialStore: credentials)
+
+        initial.saveNativeCredential("native-credential", serverUserID: "server-user-42")
+        let restored = SessionStore(credentialStore: credentials)
+
+        XCTAssertEqual(
+            restored.current,
+            NativeSession(userID: "server-user-42", credential: "native-credential")
+        )
+        XCTAssertEqual(
+            credentials.read(),
+            StoredCredential(credential: "native-credential", serverUserID: "server-user-42")
+        )
+    }
+
+    func testLiveAPIClientSendsBearerCredentialOnlyOverHTTPS() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user-42"))
+        LiveAPIURLProtocol.responseData = Data(#"{"ok":true,"data":{"total":3}}"#.utf8)
+        LiveAPIURLProtocol.statusCode = 200
+        LiveAPIURLProtocol.requests = []
+
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://127.0.0.1/")!,
+            assetBaseURL: URL(string: "https://127.0.0.1/")!,
+            credentialStore: credentials,
+            session: session
+        )
+
+        _ = try await client.data(for: APIRequest(
+            method: .get,
+            path: "/api/users/server-user-42/session",
+            authentication: .required(userID: "server-user-42")
+        ))
+        let request = try XCTUnwrap(LiveAPIURLProtocol.requests.first)
+
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
+    }
+
+    func testLiveAPIClientRejectsCredentialOwnerMismatchBeforeSending() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user-42"))
+        LiveAPIURLProtocol.requests = []
+
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://127.0.0.1/")!,
+            assetBaseURL: URL(string: "https://127.0.0.1/")!,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.data(for: APIRequest(
+                method: .get,
+                path: "/api/users/another-user/session",
+                authentication: .required(userID: "another-user")
+            ))
+            XCTFail("Expected credential owner mismatch")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .credentialOwnerMismatch)
+            XCTAssertTrue(LiveAPIURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testLiveAPIClientRequiresStoredCredentialForAuthenticatedRequest() {
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://127.0.0.1/")!,
+            assetBaseURL: URL(string: "https://127.0.0.1/")!,
+            credentialStore: InMemoryCredentialStore()
+        )
+
+        XCTAssertThrowsError(try client.urlRequest(for: APIRequest(
+            method: .get,
+            path: "/api/users/server-user-42/session",
+            authentication: .required(userID: "server-user-42")
+        ))) { error in
+            XCTAssertEqual(error as? APIClientError, .missingCredential)
+        }
+    }
+
+    func testLiveAPIClientRejectsCallerSuppliedAuthorizationHeader() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        LiveAPIURLProtocol.requests = []
+
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.data(for: APIRequest(
+                method: .get,
+                path: "/api/catalog",
+                headers: [APIRequestHeader(name: "Authorization", value: "Bearer injected")]
+            ))
+            XCTFail("Expected reserved header error")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .reservedRequestHeader("Authorization"))
+            XCTAssertTrue(LiveAPIURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+}
+
+private final class FailingLiveAPIURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
+    }
+
+    override func stopLoading() {}
 }

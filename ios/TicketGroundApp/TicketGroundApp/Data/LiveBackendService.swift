@@ -10,35 +10,42 @@ final class LiveBackendService {
     }
 
     func getState() async throws -> LiveState {
-        try await get("/api/state", as: LiveState.self)
+        try await get(APIRequest(path: "/api/state"), as: LiveState.self)
     }
 
     func getCatalog() async throws -> LiveCatalog {
-        try await get("/api/catalog", as: LiveCatalog.self)
+        try await get(APIRequest(path: "/api/catalog"), as: LiveCatalog.self)
     }
 
     func getSeatMap(eventID: String) async throws -> LiveSeatMap {
-        try await get("/api/seat-map?eventId=\(queryValue(eventID))", as: LiveSeatMap.self)
+        try await get(APIRequest(
+            path: "/api/seat-map",
+            query: [APIRequestQuery(name: "eventId", value: eventID)]
+        ), as: LiveSeatMap.self)
     }
 
     func getSession(userID: String) async throws -> LiveSession {
-        try await get("/api/users/\(pathValue(userID))/session", as: LiveSession.self)
+        try await get(authenticatedRequest(path: "/api/users/\(pathValue(userID))/session", userID: userID), as: LiveSession.self)
     }
 
     func getTickets(userID: String) async throws -> [LiveTicket] {
-        try await get("/api/users/\(pathValue(userID))/tickets", as: [LiveTicket].self)
+        try await get(authenticatedRequest(path: "/api/users/\(pathValue(userID))/tickets", userID: userID), as: [LiveTicket].self)
     }
 
     func getWatchlist(userID: String) async throws -> [LiveWatchlistItem] {
-        try await get("/api/users/\(pathValue(userID))/watchlist", as: [LiveWatchlistItem].self)
+        try await get(authenticatedRequest(path: "/api/users/\(pathValue(userID))/watchlist", userID: userID), as: [LiveWatchlistItem].self)
     }
 
     func getSupportThreads(userID: String) async throws -> [LiveSupportThread] {
-        try await get("/api/support/threads?userId=\(queryValue(userID))", as: [LiveSupportThread].self)
+        try await get(APIRequest(
+            path: "/api/support/threads",
+            query: [APIRequestQuery(name: "userId", value: userID)],
+            authentication: .required(userID: userID)
+        ), as: [LiveSupportThread].self)
     }
 
-    private func get<Response: Decodable>(_ path: String, as type: Response.Type) async throws -> Response {
-        let data = try await apiClient.data(for: path)
+    private func get<Response: Decodable>(_ request: APIRequest, as type: Response.Type) async throws -> Response {
+        let data = try await apiClient.data(for: request)
         do {
             return try decoder.decode(type, from: data)
         } catch {
@@ -47,14 +54,11 @@ final class LiveBackendService {
     }
 
     private func pathValue(_ value: String) -> String {
-        var allowed = CharacterSet.urlPathAllowed
-        allowed.remove(charactersIn: "/")
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
-    private func queryValue(_ value: String) -> String {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "&=+")
-        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    private func authenticatedRequest(path: String, userID: String) -> APIRequest {
+        APIRequest(path: path, authentication: .required(userID: userID))
     }
 }

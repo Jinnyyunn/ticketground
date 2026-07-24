@@ -104,26 +104,96 @@ struct RouteResolver {
     }
 }
 
+enum APIRequestMethod: String, Equatable {
+    case get = "GET"
+    case post = "POST"
+    case put = "PUT"
+    case patch = "PATCH"
+    case delete = "DELETE"
+}
+
+struct APIRequestQuery: Equatable {
+    let name: String
+    let value: String
+}
+
+struct APIRequestHeader: Equatable {
+    let name: String
+    let value: String
+}
+
+enum APIRequestBody: Equatable {
+    case none
+    case json(Data)
+}
+
+enum APIRequestAuthentication: Equatable {
+    case none
+    case required(userID: String)
+}
+
+struct APIRequest: Equatable {
+    let method: APIRequestMethod
+    let path: String
+    let query: [APIRequestQuery]
+    let headers: [APIRequestHeader]
+    let body: APIRequestBody
+    let idempotencyKey: String?
+    let authentication: APIRequestAuthentication
+
+    init(
+        method: APIRequestMethod = .get,
+        path: String,
+        query: [APIRequestQuery] = [],
+        headers: [APIRequestHeader] = [],
+        body: APIRequestBody = .none,
+        idempotencyKey: String? = nil,
+        authentication: APIRequestAuthentication = .none
+    ) {
+        self.method = method
+        self.path = path
+        self.query = query
+        self.headers = headers
+        self.body = body
+        self.idempotencyKey = idempotencyKey
+        self.authentication = authentication
+    }
+}
+
 protocol APIClient: AnyObject {
     var mode: APIDataMode { get }
-    func data(for path: String) async throws -> Data
+    func data(for request: APIRequest) async throws -> Data
     func resolveResource(_ reference: String?) -> String?
+}
+
+extension APIClient {
+    func data(for path: String) async throws -> Data {
+        try await data(for: APIRequest(path: path))
+    }
 }
 
 enum APIClientError: Error, Equatable, LocalizedError {
     case liveTransportUnavailable
     case invalidBaseURL
     case invalidResponse
+    case insecureCredentialTransport
+    case missingCredential
+    case credentialOwnerMismatch
+    case reservedRequestHeader(String)
     case server(status: Int, code: String, message: String)
-    case requestFailed(String)
+    case requestFailed(code: Int)
 
     var errorDescription: String? {
         switch self {
         case .liveTransportUnavailable: return "라이브 API 전송이 준비되지 않았습니다."
         case .invalidBaseURL: return "API 서버 주소가 올바르지 않습니다."
         case .invalidResponse: return "API 응답 형식을 확인할 수 없습니다."
+        case .insecureCredentialTransport: return "보안 인증 정보는 HTTPS 연결에서만 전송할 수 있습니다."
+        case .missingCredential: return "로그인이 필요한 요청입니다."
+        case .credentialOwnerMismatch: return "현재 로그인 사용자와 요청 대상이 일치하지 않습니다."
+        case .reservedRequestHeader(let name): return "보안 헤더는 요청에서 직접 설정할 수 없습니다: \(name)"
         case .server(_, _, let message): return message
-        case .requestFailed(let message): return message
+        case .requestFailed(let code): return "네트워크 요청에 실패했습니다. (\(code))"
         }
     }
 }
@@ -131,7 +201,7 @@ enum APIClientError: Error, Equatable, LocalizedError {
 final class FixtureAPIClient: APIClient {
     let mode: APIDataMode = .fixture
 
-    func data(for path: String) async throws -> Data {
+    func data(for request: APIRequest) async throws -> Data {
         Data("{}".utf8)
     }
 
@@ -143,7 +213,7 @@ final class FixtureAPIClient: APIClient {
 final class DisabledLiveAPIClient: APIClient {
     let mode: APIDataMode = .live
 
-    func data(for path: String) async throws -> Data {
+    func data(for request: APIRequest) async throws -> Data {
         throw APIClientError.liveTransportUnavailable
     }
 
@@ -172,19 +242,8 @@ final class LiveAPIClient: APIClient {
         self.session = session
     }
 
-    func data(for path: String) async throws -> Data {
-        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
-            throw APIClientError.invalidBaseURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if url.scheme?.lowercased() == "https",
-           let token = credentialStore.read(),
-           !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+    func data(for apiRequest: APIRequest) async throws -> Data {
+        let request = try urlRequest(for: apiRequest)
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -197,9 +256,68 @@ final class LiveAPIClient: APIClient {
             return try unwrap(data)
         } catch let error as APIClientError {
             throw error
+        } catch let error as URLError {
+            throw APIClientError.requestFailed(code: error.code.rawValue)
         } catch {
-            throw APIClientError.requestFailed(error.localizedDescription)
+            throw APIClientError.requestFailed(code: (error as NSError).code)
         }
+    }
+
+    func urlRequest(for apiRequest: APIRequest) throws -> URLRequest {
+        guard apiRequest.path.hasPrefix("/"), !apiRequest.path.hasPrefix("//"),
+              let resolvedURL = URL(string: apiRequest.path, relativeTo: baseURL)?.absoluteURL,
+              var components = URLComponents(url: resolvedURL, resolvingAgainstBaseURL: false) else {
+            throw APIClientError.invalidBaseURL
+        }
+        if !apiRequest.query.isEmpty {
+            components.queryItems = (components.queryItems ?? []) + apiRequest.query.map {
+                URLQueryItem(name: $0.name, value: $0.value)
+            }
+        }
+        guard let url = components.url else {
+            throw APIClientError.invalidBaseURL
+        }
+
+        if let reservedHeader = apiRequest.headers.first(where: {
+            $0.name.caseInsensitiveCompare("Authorization") == .orderedSame
+        }) {
+            throw APIClientError.reservedRequestHeader(reservedHeader.name)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = apiRequest.method.rawValue
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        for header in apiRequest.headers {
+            request.setValue(header.value, forHTTPHeaderField: header.name)
+        }
+        switch apiRequest.body {
+        case .none:
+            break
+        case .json(let data):
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = data
+        }
+        if let idempotencyKey = apiRequest.idempotencyKey, !idempotencyKey.isEmpty {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "X-Idempotency-Key")
+        }
+        switch apiRequest.authentication {
+        case .none:
+            break
+        case .required(let userID):
+            guard url.scheme?.lowercased() == "https" else {
+                throw APIClientError.insecureCredentialTransport
+            }
+            guard let storedCredential = credentialStore.read(),
+                  !storedCredential.credential.isEmpty,
+                  !storedCredential.serverUserID.isEmpty else {
+                throw APIClientError.missingCredential
+            }
+            guard storedCredential.serverUserID == userID else {
+                throw APIClientError.credentialOwnerMismatch
+            }
+            request.setValue("Bearer \(storedCredential.credential)", forHTTPHeaderField: "Authorization")
+        }
+        return request
     }
 
     func resolveResource(_ reference: String?) -> String? {
@@ -211,7 +329,8 @@ final class LiveAPIClient: APIClient {
     }
 
     private func unwrap(_ data: Data) throws -> Data {
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard let payload = try? JSONSerialization.jsonObject(with: data),
+              let object = payload as? [String: Any],
               let ok = object["ok"] as? Bool else {
             throw APIClientError.invalidResponse
         }
@@ -235,18 +354,23 @@ final class LiveAPIClient: APIClient {
     }
 }
 
+struct StoredCredential: Codable, Equatable {
+    let credential: String
+    let serverUserID: String
+}
+
 protocol CredentialStore: AnyObject {
-    func read() -> String?
-    func save(_ credential: String)
+    func read() -> StoredCredential?
+    func save(_ credential: StoredCredential)
     func delete()
 }
 
 final class InMemoryCredentialStore: CredentialStore {
-    private(set) var value: String?
+    private(set) var value: StoredCredential?
 
-    func read() -> String? { value }
+    func read() -> StoredCredential? { value }
 
-    func save(_ credential: String) {
+    func save(_ credential: StoredCredential) {
         value = credential
     }
 
@@ -264,7 +388,7 @@ final class KeychainCredentialStore: CredentialStore {
         self.account = account
     }
 
-    func read() -> String? {
+    func read() -> StoredCredential? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -275,11 +399,11 @@ final class KeychainCredentialStore: CredentialStore {
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        return try? JSONDecoder().decode(StoredCredential.self, from: data)
     }
 
-    func save(_ credential: String) {
-        let data = Data(credential.utf8)
+    func save(_ credential: StoredCredential) {
+        guard let data = try? JSONEncoder().encode(credential) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -323,17 +447,25 @@ final class SessionStore {
     }
 
     func restore() {
-        guard let credential = credentialStore.read(), !credential.isEmpty else {
+        guard let storedCredential = credentialStore.read(),
+              !storedCredential.credential.isEmpty,
+              !storedCredential.serverUserID.isEmpty else {
             current = nil
             return
         }
-        current = NativeSession(userID: "native", credential: credential)
+        current = NativeSession(
+            userID: storedCredential.serverUserID,
+            credential: storedCredential.credential
+        )
     }
 
-    func saveNativeCredential(_ credential: String) {
-        guard !credential.isEmpty else { return }
-        credentialStore.save(credential)
-        current = NativeSession(userID: "native", credential: credential)
+    func saveNativeCredential(_ credential: String, serverUserID: String) {
+        guard !credential.isEmpty, !serverUserID.isEmpty else { return }
+        credentialStore.save(StoredCredential(
+            credential: credential,
+            serverUserID: serverUserID
+        ))
+        current = NativeSession(userID: serverUserID, credential: credential)
     }
 
     func setFixtureUser(_ userID: String) {
