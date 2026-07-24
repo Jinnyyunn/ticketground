@@ -238,6 +238,22 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
     }
 
+    func testLiveAPIClientDoesNotFollowAuthenticatedRedirectToHTTP() throws {
+        let redirectedRequest = try authenticatedRedirectResult(
+            to: URL(string: "http://ticketground.test/api/users/server-user-42/session")!
+        )
+
+        XCTAssertNil(redirectedRequest)
+    }
+
+    func testLiveAPIClientDoesNotFollowAuthenticatedRedirectToAnotherOrigin() throws {
+        let redirectedRequest = try authenticatedRedirectResult(
+            to: URL(string: "https://credential-capture.test/api/users/server-user-42/session")!
+        )
+
+        XCTAssertNil(redirectedRequest)
+    }
+
     func testLiveAPIClientRejectsCredentialOwnerMismatchBeforeSending() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveAPIURLProtocol.self]
@@ -259,6 +275,36 @@ final class AppEnvironmentTests: XCTestCase {
                 authentication: .required(userID: "another-user")
             ))
             XCTFail("Expected credential owner mismatch")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .credentialOwnerMismatch)
+            XCTAssertTrue(LiveAPIURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testLiveAPIClientRejectsAuthenticatedUserPathOwnerMismatchBeforeSending() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user-42"))
+        LiveAPIURLProtocol.requests = []
+        LiveAPIURLProtocol.responseData = Data(#"{"ok":true,"data":{"id":"another-user"}}"#.utf8)
+        LiveAPIURLProtocol.statusCode = 200
+
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.data(for: APIRequest(
+                path: "/api/users/another-user/session",
+                authentication: .required(userID: "server-user-42")
+            ))
+            XCTFail("Expected authenticated user path owner mismatch")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .credentialOwnerMismatch)
             XCTAssertTrue(LiveAPIURLProtocol.requests.isEmpty)
@@ -308,6 +354,40 @@ final class AppEnvironmentTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    private func authenticatedRedirectResult(to redirectURL: URL) throws -> URLRequest? {
+        var originalRequest = URLRequest(
+            url: URL(string: "https://ticketground.test/api/users/server-user-42/session")!
+        )
+        originalRequest.setValue("Bearer native-credential", forHTTPHeaderField: "Authorization")
+        var proposedRequest = originalRequest
+        proposedRequest.url = redirectURL
+
+        let session = URLSession(configuration: .ephemeral)
+        let task = session.dataTask(with: originalRequest)
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: originalRequest.url!,
+            statusCode: 307,
+            httpVersion: nil,
+            headerFields: ["Location": redirectURL.absoluteString]
+        ))
+        let delegate = AuthenticatedRedirectDelegate(originalRequest: originalRequest)
+        var completed = false
+        var result: URLRequest?
+
+        delegate.urlSession(
+            session,
+            task: task,
+            willPerformHTTPRedirection: response,
+            newRequest: proposedRequest
+        ) {
+            completed = true
+            result = $0
+        }
+
+        XCTAssertTrue(completed)
+        return result
     }
 }
 

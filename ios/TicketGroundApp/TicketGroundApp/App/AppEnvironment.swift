@@ -222,6 +222,46 @@ final class DisabledLiveAPIClient: APIClient {
     }
 }
 
+final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    private let originalRequest: URLRequest
+
+    init(originalRequest: URLRequest) {
+        self.originalRequest = originalRequest
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let originalURL = originalRequest.url,
+              let redirectURL = request.url,
+              redirectURL.scheme?.lowercased() == "https",
+              originalURL.scheme?.caseInsensitiveCompare(redirectURL.scheme ?? "") == .orderedSame,
+              originalURL.host?.caseInsensitiveCompare(redirectURL.host ?? "") == .orderedSame,
+              effectivePort(for: originalURL) == effectivePort(for: redirectURL) else {
+            completionHandler(nil)
+            return
+        }
+
+        var authorizedRequest = request
+        authorizedRequest.setValue(
+            originalRequest.value(forHTTPHeaderField: "Authorization"),
+            forHTTPHeaderField: "Authorization"
+        )
+        completionHandler(authorizedRequest)
+    }
+
+    private func effectivePort(for url: URL) -> Int? {
+        if let port = url.port {
+            return port
+        }
+        return url.scheme?.lowercased() == "https" ? 443 : nil
+    }
+}
+
 final class LiveAPIClient: APIClient {
     let mode: APIDataMode = .live
 
@@ -246,7 +286,15 @@ final class LiveAPIClient: APIClient {
         let request = try urlRequest(for: apiRequest)
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let result: (Data, URLResponse)
+            switch apiRequest.authentication {
+            case .none:
+                result = try await session.data(for: request)
+            case .required:
+                let redirectDelegate = AuthenticatedRedirectDelegate(originalRequest: request)
+                result = try await session.data(for: request, delegate: redirectDelegate)
+            }
+            let (data, response) = result
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIClientError.invalidResponse
             }
@@ -307,6 +355,9 @@ final class LiveAPIClient: APIClient {
             guard url.scheme?.lowercased() == "https" else {
                 throw APIClientError.insecureCredentialTransport
             }
+            guard authenticatedOwnerIDs(in: components).allSatisfy({ $0 == userID }) else {
+                throw APIClientError.credentialOwnerMismatch
+            }
             guard let storedCredential = credentialStore.read(),
                   !storedCredential.credential.isEmpty,
                   !storedCredential.serverUserID.isEmpty else {
@@ -318,6 +369,22 @@ final class LiveAPIClient: APIClient {
             request.setValue("Bearer \(storedCredential.credential)", forHTTPHeaderField: "Authorization")
         }
         return request
+    }
+
+    private func authenticatedOwnerIDs(in components: URLComponents) -> [String] {
+        let pathSegments = components.percentEncodedPath
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+        var ownerIDs: [String] = []
+        if let usersIndex = pathSegments.firstIndex(of: "users"),
+           pathSegments.indices.contains(usersIndex + 1),
+           let pathOwner = pathSegments[usersIndex + 1].removingPercentEncoding {
+            ownerIDs.append(pathOwner)
+        }
+        ownerIDs.append(contentsOf: (components.queryItems ?? []).compactMap { item in
+            item.name == "userId" ? item.value : nil
+        })
+        return ownerIDs
     }
 
     func resolveResource(_ reference: String?) -> String? {
