@@ -138,13 +138,27 @@ struct LiveAPIContract {
         publicHost: URL(string: "http://132.145.109.87:4174")!
     )
 
-    func capabilityMap(for baseURL: URL, observedResponseVersion: String?) -> LiveCapabilityMap {
+    func capabilityMap(
+        for baseURL: URL,
+        observedResponseVersion: String?,
+        validatedStateResponse: Bool = false,
+        catalogRouteConfirmed: Bool = true
+    ) -> LiveCapabilityMap {
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
             observedResponseVersion: observedResponseVersion
         )
         let states = Dictionary(uniqueKeysWithValues: LiveAPIEndpoint.known.map { endpoint in
-            (endpoint, state(for: endpoint, baseURL: baseURL, diagnostics: diagnostics))
+            (
+                endpoint,
+                state(
+                    for: endpoint,
+                    baseURL: baseURL,
+                    diagnostics: diagnostics,
+                    validatedStateResponse: validatedStateResponse,
+                    catalogRouteConfirmed: catalogRouteConfirmed
+                )
+            )
         })
         return LiveCapabilityMap(diagnostics: diagnostics, baseURL: baseURL, states: states)
     }
@@ -152,14 +166,22 @@ struct LiveAPIContract {
     private func state(
         for endpoint: LiveAPIEndpoint,
         baseURL: URL,
-        diagnostics: LiveAPIContractDiagnostics
+        diagnostics: LiveAPIContractDiagnostics,
+        validatedStateResponse: Bool,
+        catalogRouteConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
-            return .unknown
+            return validatedStateResponse && endpoint == .state ? .available : .unknown
         case .incompatible(let expected, let observed):
+            if validatedStateResponse && endpoint == .state {
+                return .available
+            }
             return .incompatible(expected: expected, observed: observed)
         case .compatible:
+            guard endpoint != .catalog || catalogRouteConfirmed else {
+                return .unknown
+            }
             switch endpoint.access {
             case .publicRead:
                 return .available

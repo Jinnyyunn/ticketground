@@ -39,7 +39,7 @@ final class LiveBackendServiceTests: XCTestCase {
         LiveBackendServiceURLProtocol.requests = []
     }
 
-    func testGetsTypedPublicReadsThroughTheExistingAPIClient() async throws {
+    func testExplicitlyCompatibleContractDispatchesTypedPublicReads() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/state": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
             "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8),
@@ -332,10 +332,9 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
-    func testDefaultLiveCatalogBootstrapUsesLocalRouterStateThenCatalog() async throws {
+    func testDefaultLiveCatalogBootstrapFailsClosedWithoutVersionOrRouteProof() async {
         LiveBackendServiceURLProtocol.responses = [
-            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -346,16 +345,22 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        let content = try await DiscoveryFixtureLoader.load(using: client)
-
-        XCTAssertEqual(content.featured.title, "Neon Stage")
-        XCTAssertEqual(
-            LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
-            ["/api/state", "/api/catalog"]
-        )
-        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
-            $0.httpMethod == "GET" && $0.value(forHTTPHeaderField: "Authorization") == nil
-        })
+        let service = LiveBackendService(apiClient: client)
+        do {
+            _ = try await service.getCatalog()
+            XCTFail("Expected versionless contract to remain unknown")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .catalog, state: .unknown))
+            XCTAssertEqual(service.capabilityMap.diagnostics.compatibility, .unknown)
+            XCTAssertEqual(service.capabilityMap.state(for: .state), .available)
+            XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
+            XCTAssertEqual(
+                LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
+                ["/api/state"]
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testDefaultLiveCatalogBootstrapFailureDoesNotDispatchCatalog() async {
@@ -383,7 +388,7 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
-    func testContractProbeReportsVersionAndBlocksHTTPAuthenticatedAndMutationRoutes() async throws {
+    func testContractProbeKeepsVersionlessStatePublicOnly() async throws {
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -397,10 +402,11 @@ final class LiveBackendServiceTests: XCTestCase {
 
         let probe = try await LiveBackendService(apiClient: client).diagnosePublicContract()
 
-        XCTAssertEqual(probe.diagnostics.compatibility, .compatible)
+        XCTAssertEqual(probe.diagnostics.compatibility, .unknown)
         XCTAssertEqual(probe.capabilities.state(for: .state), .available)
-        XCTAssertEqual(probe.capabilities.state(for: .session), .blocked(.requiresHTTPS))
-        XCTAssertEqual(probe.capabilities.state(for: .ticketPurchase), .blocked(.requiresHTTPS))
+        XCTAssertEqual(probe.capabilities.state(for: .catalog), .unknown)
+        XCTAssertEqual(probe.capabilities.state(for: .session), .unknown)
+        XCTAssertEqual(probe.capabilities.state(for: .ticketPurchase), .unknown)
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.first?.value(forHTTPHeaderField: "Authorization"),
             nil

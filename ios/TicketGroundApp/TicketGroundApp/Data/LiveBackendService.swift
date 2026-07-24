@@ -33,10 +33,12 @@ final class LiveBackendService {
             endpoint: .health,
             bypassCapability: true
         )
-        let observedVersion = try observedVersion(from: data)
+        let observation = try observeBootstrap(from: data)
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
-            observedResponseVersion: observedVersion
+            observedResponseVersion: observation.version,
+            validatedStateResponse: observation.validatedStateResponse,
+            catalogRouteConfirmed: false
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -116,16 +118,16 @@ final class LiveBackendService {
         return try await apiClient.data(for: request)
     }
 
-    private func observedVersion(from data: Data) throws -> String {
+    private func observeBootstrap(from data: Data) throws -> (version: String?, validatedStateResponse: Bool) {
         if let health = try? decoder.decode(LiveAPIHealth.self, from: data),
            let version = health.version,
            !version.isEmpty {
-            return version
+            return (version, false)
         }
         guard (try? decoder.decode(LiveState.self, from: data)) != nil else {
             throw APIClientError.invalidResponse
         }
-        return contract.expectedResponseVersion
+        return (nil, true)
     }
 
     private func ensureCapability(_ endpoint: LiveAPIEndpoint) async throws {
