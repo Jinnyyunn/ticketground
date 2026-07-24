@@ -97,19 +97,61 @@ enum BoundedRasterImageDecoder {
 
         var decodedByteCount = 0
         for index in 0..<frameCount {
-            let dimensions = try pixelDimensions(of: source, at: index)
-            let (pixelCount, pixelOverflow) = dimensions.width.multipliedReportingOverflow(by: dimensions.height)
-            let (frameBytes, byteOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
+            let frameBytes = try decodedFrameByteCount(of: source, at: index)
             let (totalBytes, totalOverflow) = decodedByteCount.addingReportingOverflow(frameBytes)
-            guard !pixelOverflow,
-                  !byteOverflow,
-                  !totalOverflow,
+            guard !totalOverflow,
                   totalBytes <= maxDecodedBytes else {
                 throw TicketgroundImageRepositoryError.decodedImageTooLarge
             }
             decodedByteCount = totalBytes
         }
         return Metadata(frameCount: frameCount, decodedByteCount: decodedByteCount)
+    }
+
+    private static func decodedFrameByteCount(of source: CGImageSource, at index: Int) throws -> Int {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              let depth = (properties[kCGImagePropertyDepth] as? NSNumber)?.intValue,
+              let colorModel = properties[kCGImagePropertyColorModel] as? String,
+              width > 0,
+              height > 0,
+              depth > 0 else {
+            throw TicketgroundImageRepositoryError.invalidImage
+        }
+
+        let colorComponents: Int
+        switch colorModel {
+        case "RGB", "Lab":
+            colorComponents = 3
+        case "Gray":
+            colorComponents = 1
+        case "CMYK":
+            colorComponents = 4
+        default:
+            throw TicketgroundImageRepositoryError.invalidImage
+        }
+
+        let hasAlpha = (properties[kCGImagePropertyHasAlpha] as? NSNumber)?.boolValue ?? true
+        let (componentCount, componentOverflow) = colorComponents.addingReportingOverflow(hasAlpha ? 1 : 0)
+        let (bitsPerPixel, bitOverflow) = depth.multipliedReportingOverflow(by: componentCount)
+        let (roundedBits, roundingOverflow) = bitsPerPixel.addingReportingOverflow(7)
+        guard !componentOverflow, !bitOverflow, !roundingOverflow else {
+            throw TicketgroundImageRepositoryError.decodedImageTooLarge
+        }
+
+        let bytesPerPixel = max(4, roundedBits / 8)
+        let (rowBytes, rowOverflow) = width.multipliedReportingOverflow(by: bytesPerPixel)
+        let (alignedRowCeiling, alignmentOverflow) = rowBytes.addingReportingOverflow(15)
+        guard !rowOverflow, !alignmentOverflow else {
+            throw TicketgroundImageRepositoryError.decodedImageTooLarge
+        }
+        let alignedRowBytes = alignedRowCeiling / 16 * 16
+        let (frameBytes, frameOverflow) = alignedRowBytes.multipliedReportingOverflow(by: height)
+        guard !frameOverflow else {
+            throw TicketgroundImageRepositoryError.decodedImageTooLarge
+        }
+        return frameBytes
     }
 
     private static func pixelDimensions(
@@ -249,12 +291,12 @@ actor TicketgroundImageRepository {
         let frames = image.images ?? [image]
         var total = 0
         for frame in frames {
-            let width = frame.cgImage?.width ?? Int((frame.size.width * frame.scale).rounded(.up))
-            let height = frame.cgImage?.height ?? Int((frame.size.height * frame.scale).rounded(.up))
-            let (pixels, pixelOverflow) = width.multipliedReportingOverflow(by: height)
-            let (bytes, byteOverflow) = pixels.multipliedReportingOverflow(by: 4)
+            guard let cgImage = frame.cgImage else {
+                throw TicketgroundImageRepositoryError.invalidImage
+            }
+            let (bytes, byteOverflow) = cgImage.bytesPerRow.multipliedReportingOverflow(by: cgImage.height)
             let (nextTotal, totalOverflow) = total.addingReportingOverflow(bytes)
-            guard !pixelOverflow, !byteOverflow, !totalOverflow else {
+            guard !byteOverflow, !totalOverflow else {
                 throw TicketgroundImageRepositoryError.decodedImageTooLarge
             }
             total = nextTotal

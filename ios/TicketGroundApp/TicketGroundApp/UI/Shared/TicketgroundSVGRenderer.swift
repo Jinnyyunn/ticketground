@@ -148,7 +148,12 @@ private final class SafeSVGValidator: NSObject, XMLParserDelegate {
     }
 
     private func targetSize(from attributes: [String: String]) -> CGSize? {
-        let normalized = Dictionary(uniqueKeysWithValues: attributes.map { ($0.key.lowercased(), $0.value) })
+        var normalized: [String: String] = [:]
+        for (name, value) in attributes {
+            let normalizedName = name.lowercased()
+            guard normalized[normalizedName] == nil else { return nil }
+            normalized[normalizedName] = value
+        }
         let aspectWidth: Double
         let aspectHeight: Double
         if let viewBoxValue = normalized["viewbox"] {
