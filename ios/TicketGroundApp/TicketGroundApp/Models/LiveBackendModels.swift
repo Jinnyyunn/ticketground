@@ -1,5 +1,176 @@
 import Foundation
 
+enum LiveAPIEndpointAccess: Equatable {
+    case publicRead
+    case authenticatedRead
+    case mutation
+}
+
+enum LiveAPIEndpoint: Hashable {
+    case health
+    case state
+    case catalog
+    case seatMap
+    case session
+    case tickets
+    case watchlist
+    case supportThreads
+    case supportMessages
+    case watchlistMutation
+    case ticketPurchase
+    case unknown(method: APIRequestMethod, path: String)
+
+    static let known: [LiveAPIEndpoint] = [
+        .health,
+        .state,
+        .catalog,
+        .seatMap,
+        .session,
+        .tickets,
+        .watchlist,
+        .supportThreads,
+        .supportMessages,
+        .watchlistMutation,
+        .ticketPurchase
+    ]
+
+    var method: APIRequestMethod {
+        switch self {
+        case .supportMessages, .watchlistMutation, .ticketPurchase:
+            return .post
+        case .unknown(let method, _):
+            return method
+        case .health, .state, .catalog, .seatMap, .session, .tickets, .watchlist, .supportThreads:
+            return .get
+        }
+    }
+
+    var pathTemplate: String {
+        switch self {
+        case .health: return "/api/health"
+        case .state: return "/api/state"
+        case .catalog: return "/api/catalog"
+        case .seatMap: return "/api/seat-map?eventId={eventId}"
+        case .session: return "/api/users/{userId}/session"
+        case .tickets: return "/api/users/{userId}/tickets"
+        case .watchlist: return "/api/users/{userId}/watchlist"
+        case .supportThreads: return "/api/support/threads?userId={userId}"
+        case .supportMessages: return "/api/support/threads/{threadId}/messages"
+        case .watchlistMutation: return "/api/users/{userId}/watchlist"
+        case .ticketPurchase: return "/api/tickets/purchase"
+        case .unknown(_, let path): return path
+        }
+    }
+
+    var access: LiveAPIEndpointAccess {
+        switch self {
+        case .health, .state, .catalog, .seatMap:
+            return .publicRead
+        case .session, .tickets, .watchlist, .supportThreads:
+            return .authenticatedRead
+        case .supportMessages, .watchlistMutation, .ticketPurchase:
+            return .mutation
+        case .unknown:
+            return .mutation
+        }
+    }
+}
+
+enum LiveCapabilityBlockReason: Equatable {
+    case requiresHTTPS
+    case unsupportedMutation
+}
+
+enum LiveCapabilityState: Equatable {
+    case available
+    case blocked(LiveCapabilityBlockReason)
+    case unknown
+    case incompatible(expected: String, observed: String)
+}
+
+enum LiveContractCompatibility: Equatable {
+    case unknown
+    case compatible
+    case incompatible(expected: String, observed: String)
+}
+
+struct LiveAPIContractDiagnostics: Equatable {
+    let expectedResponseVersion: String
+    let observedResponseVersion: String?
+
+    var compatibility: LiveContractCompatibility {
+        guard let observedResponseVersion else { return .unknown }
+        guard observedResponseVersion == expectedResponseVersion else {
+            return .incompatible(expected: expectedResponseVersion, observed: observedResponseVersion)
+        }
+        return .compatible
+    }
+}
+
+struct LiveAPIHealth: Decodable, Equatable {
+    let status: String?
+    let time: String?
+    let version: String?
+}
+
+struct LiveCapabilityMap: Equatable {
+    let diagnostics: LiveAPIContractDiagnostics
+    let baseURL: URL
+    let states: [LiveAPIEndpoint: LiveCapabilityState]
+
+    func state(for endpoint: LiveAPIEndpoint) -> LiveCapabilityState {
+        states[endpoint] ?? .unknown
+    }
+}
+
+struct LiveAPIContractProbe: Equatable {
+    let diagnostics: LiveAPIContractDiagnostics
+    let capabilities: LiveCapabilityMap
+}
+
+struct LiveAPIContract {
+    let expectedResponseVersion: String
+    let publicHost: URL
+
+    static let deployed = LiveAPIContract(
+        expectedResponseVersion: "78b3c7c",
+        publicHost: URL(string: "http://132.145.109.87:4174")!
+    )
+
+    func capabilityMap(for baseURL: URL, observedResponseVersion: String?) -> LiveCapabilityMap {
+        let diagnostics = LiveAPIContractDiagnostics(
+            expectedResponseVersion: expectedResponseVersion,
+            observedResponseVersion: observedResponseVersion
+        )
+        let states = Dictionary(uniqueKeysWithValues: LiveAPIEndpoint.known.map { endpoint in
+            (endpoint, state(for: endpoint, baseURL: baseURL, diagnostics: diagnostics))
+        })
+        return LiveCapabilityMap(diagnostics: diagnostics, baseURL: baseURL, states: states)
+    }
+
+    private func state(
+        for endpoint: LiveAPIEndpoint,
+        baseURL: URL,
+        diagnostics: LiveAPIContractDiagnostics
+    ) -> LiveCapabilityState {
+        switch diagnostics.compatibility {
+        case .unknown:
+            return .unknown
+        case .incompatible(let expected, let observed):
+            return .incompatible(expected: expected, observed: observed)
+        case .compatible:
+            switch endpoint.access {
+            case .publicRead:
+                return .available
+            case .authenticatedRead:
+                return baseURL.scheme?.lowercased() == "https" ? .available : .blocked(.requiresHTTPS)
+            case .mutation:
+                return baseURL.scheme?.lowercased() == "https" ? .blocked(.unsupportedMutation) : .blocked(.requiresHTTPS)
+            }
+        }
+    }
+}
+
 struct LiveState: Decodable, Equatable {
     let events: [LiveStateEvent]
     let venues: [LiveVenue]

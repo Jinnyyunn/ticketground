@@ -218,4 +218,75 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(thread.status, .unknown)
         XCTAssertEqual(thread.messages.first?.role, .unknown)
     }
+
+    func testPublicHTTPReadSendsNoAuthorizationAndExcludesAdminPort() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://132.145.109.87:4174/")!,
+            assetBaseURL: URL(string: "http://132.145.109.87:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        _ = try await LiveBackendService(apiClient: client).getState()
+
+        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertEqual(request.url?.scheme, "http")
+        XCTAssertFalse(LiveAPIContract.deployed.publicHost.absoluteString.contains("50084"))
+        XCTAssertTrue(LiveAPIEndpoint.known.allSatisfy { !$0.pathTemplate.contains("50084") })
+    }
+
+    func testCapabilityMapRejectsUnknownOrIncompatibleContractState() {
+        let unknown = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: nil
+        )
+        XCTAssertEqual(unknown.diagnostics.compatibility, .unknown)
+        XCTAssertEqual(unknown.state(for: .state), .unknown)
+        XCTAssertEqual(
+            unknown.state(for: .unknown(method: .get, path: "/api/unknown")),
+            .unknown
+        )
+
+        let incompatible = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: "future-contract"
+        )
+        XCTAssertEqual(
+            incompatible.diagnostics.compatibility,
+            .incompatible(expected: LiveAPIContract.deployed.expectedResponseVersion, observed: "future-contract")
+        )
+        XCTAssertEqual(
+            incompatible.state(for: .catalog),
+            .incompatible(expected: LiveAPIContract.deployed.expectedResponseVersion, observed: "future-contract")
+        )
+    }
+
+    func testContractProbeReportsVersionAndBlocksHTTPAuthenticatedAndMutationRoutes() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-24T06:53:18.703Z","version":"78b3c7c"}}"#.utf8)
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://132.145.109.87:4174/")!,
+            assetBaseURL: URL(string: "http://132.145.109.87:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let probe = try await LiveBackendService(apiClient: client).diagnosePublicContract()
+
+        XCTAssertEqual(probe.diagnostics.compatibility, .compatible)
+        XCTAssertEqual(probe.capabilities.state(for: .state), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .session), .blocked(.requiresHTTPS))
+        XCTAssertEqual(probe.capabilities.state(for: .ticketPurchase), .blocked(.requiresHTTPS))
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.first?.value(forHTTPHeaderField: "Authorization"),
+            nil
+        )
+    }
 }

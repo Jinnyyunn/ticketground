@@ -104,7 +104,7 @@ struct RouteResolver {
     }
 }
 
-enum APIRequestMethod: String, Equatable {
+enum APIRequestMethod: String, Equatable, Hashable {
     case get = "GET"
     case post = "POST"
     case put = "PUT"
@@ -162,11 +162,14 @@ struct APIRequest: Equatable {
 
 protocol APIClient: AnyObject {
     var mode: APIDataMode { get }
+    var baseURL: URL? { get }
     func data(for request: APIRequest) async throws -> Data
     func resolveResource(_ reference: String?) -> String?
 }
 
 extension APIClient {
+    var baseURL: URL? { nil }
+
     func data(for path: String) async throws -> Data {
         try await data(for: APIRequest(path: path))
     }
@@ -335,7 +338,7 @@ final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
 final class LiveAPIClient: APIClient {
     let mode: APIDataMode = .live
 
-    private let baseURL: URL
+    private let configuredBaseURL: URL
     private let mediaResolver: MediaResourceResolver
     private let credentialStore: CredentialStore
     private let session: URLSession
@@ -346,11 +349,13 @@ final class LiveAPIClient: APIClient {
         credentialStore: CredentialStore,
         session: URLSession = .shared
     ) {
-        self.baseURL = baseURL
+        self.configuredBaseURL = baseURL
         self.mediaResolver = MediaResourceResolver(baseURL: assetBaseURL)
         self.credentialStore = credentialStore
         self.session = session
     }
+
+    var baseURL: URL? { configuredBaseURL }
 
     func data(for apiRequest: APIRequest) async throws -> Data {
         let request = try urlRequest(for: apiRequest)
@@ -386,7 +391,7 @@ final class LiveAPIClient: APIClient {
 
     func urlRequest(for apiRequest: APIRequest) throws -> URLRequest {
         guard apiRequest.path.hasPrefix("/"), !apiRequest.path.hasPrefix("//"),
-              let resolvedURL = URL(string: apiRequest.path, relativeTo: baseURL)?.absoluteURL,
+              let resolvedURL = URL(string: apiRequest.path, relativeTo: configuredBaseURL)?.absoluteURL,
               var components = URLComponents(url: resolvedURL, resolvingAgainstBaseURL: false) else {
             throw APIClientError.invalidBaseURL
         }

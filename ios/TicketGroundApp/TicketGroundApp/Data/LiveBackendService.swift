@@ -3,10 +3,35 @@ import Foundation
 final class LiveBackendService {
     private let apiClient: APIClient
     private let decoder: JSONDecoder
+    private let contract: LiveAPIContract
 
-    init(apiClient: APIClient, decoder: JSONDecoder = JSONDecoder()) {
+    init(
+        apiClient: APIClient,
+        decoder: JSONDecoder = JSONDecoder(),
+        contract: LiveAPIContract = .deployed
+    ) {
         self.apiClient = apiClient
         self.decoder = decoder
+        self.contract = contract
+    }
+
+    var capabilityMap: LiveCapabilityMap {
+        contract.capabilityMap(
+            for: apiClient.baseURL ?? contract.publicHost,
+            observedResponseVersion: nil
+        )
+    }
+
+    func diagnosePublicContract() async throws -> LiveAPIContractProbe {
+        let health = try await get(APIRequest(path: "/api/health"), as: LiveAPIHealth.self)
+        let capabilities = contract.capabilityMap(
+            for: apiClient.baseURL ?? contract.publicHost,
+            observedResponseVersion: health.version
+        )
+        return LiveAPIContractProbe(
+            diagnostics: capabilities.diagnostics,
+            capabilities: capabilities
+        )
     }
 
     func getState() async throws -> LiveState {
