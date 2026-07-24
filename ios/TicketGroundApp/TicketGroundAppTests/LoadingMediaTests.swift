@@ -301,17 +301,20 @@ final class LoadingMediaTests: XCTestCase {
 
     func testRasterMetadataRejectsPixelAndFrameBombsBeforeDecode() async throws {
         XCTAssertLessThan(Self.compressedPixelBomb.count, 4_096)
+        var thumbnailCreationCount = 0
         XCTAssertThrowsError(
             try BoundedRasterImageDecoder.metadata(
                 for: Self.compressedPixelBomb,
                 maxDecodedBytes: 32 * 1_024 * 1_024,
-                maxFrameCount: 60
+                maxFrameCount: 60,
+                thumbnailCreationObserver: { thumbnailCreationCount += 1 }
             )
         ) { error in
             guard case TicketgroundImageRepositoryError.decodedImageTooLarge = error else {
                 return XCTFail("Unexpected pixel-bound error: \(error)")
             }
         }
+        XCTAssertEqual(thumbnailCreationCount, 0)
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MediaURLProtocol.self]

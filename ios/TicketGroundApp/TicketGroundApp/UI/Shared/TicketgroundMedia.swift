@@ -25,7 +25,8 @@ enum BoundedRasterImageDecoder {
     static func metadata(
         for data: Data,
         maxDecodedBytes: Int,
-        maxFrameCount: Int
+        maxFrameCount: Int,
+        thumbnailCreationObserver: (() -> Void)? = nil
     ) throws -> Metadata {
         guard let source = CGImageSourceCreateWithData(
             data as CFData,
@@ -36,7 +37,8 @@ enum BoundedRasterImageDecoder {
         return try prepareFrames(
             for: source,
             maxDecodedBytes: maxDecodedBytes,
-            maxFrameCount: maxFrameCount
+            maxFrameCount: maxFrameCount,
+            thumbnailCreationObserver: thumbnailCreationObserver
         ).metadata
     }
 
@@ -54,7 +56,8 @@ enum BoundedRasterImageDecoder {
         let prepared = try prepareFrames(
             for: source,
             maxDecodedBytes: maxDecodedBytes,
-            maxFrameCount: maxFrameCount
+            maxFrameCount: maxFrameCount,
+            thumbnailCreationObserver: nil
         )
 
         var frames: [UIImage] = []
@@ -80,7 +83,8 @@ enum BoundedRasterImageDecoder {
     private static func prepareFrames(
         for source: CGImageSource,
         maxDecodedBytes: Int,
-        maxFrameCount: Int
+        maxFrameCount: Int,
+        thumbnailCreationObserver: (() -> Void)?
     ) throws -> PreparedFrames {
         let frameCount = CGImageSourceGetCount(source)
         guard maxDecodedBytes > 0,
@@ -89,12 +93,22 @@ enum BoundedRasterImageDecoder {
               frameCount <= maxFrameCount else {
             throw TicketgroundImageRepositoryError.decodedImageTooLarge
         }
+        let thumbnailMaxPixelSizes = try preflightThumbnailSizes(
+            for: source,
+            frameCount: frameCount,
+            maxDecodedBytes: maxDecodedBytes
+        )
 
         var images: [CGImage] = []
         images.reserveCapacity(frameCount)
         var decodedByteCount = 0
-        for index in 0..<frameCount {
-            let image = try lazyThumbnail(of: source, at: index)
+        for (index, maxPixelSize) in thumbnailMaxPixelSizes.enumerated() {
+            let image = try lazyThumbnail(
+                of: source,
+                at: index,
+                maxPixelSize: maxPixelSize,
+                creationObserver: thumbnailCreationObserver
+            )
             guard image.width > 0,
                   image.height > 0,
                   image.bytesPerRow > 0 else {
@@ -121,24 +135,51 @@ enum BoundedRasterImageDecoder {
         )
     }
 
+    private static func preflightThumbnailSizes(
+        for source: CGImageSource,
+        frameCount: Int,
+        maxDecodedBytes: Int
+    ) throws -> [Int] {
+        var maxPixelSizes: [Int] = []
+        maxPixelSizes.reserveCapacity(frameCount)
+        var totalRGBABytes = 0
+        for index in 0..<frameCount {
+            guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+                  let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+                  let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+                  width > 0,
+                  height > 0 else {
+                throw TicketgroundImageRepositoryError.invalidImage
+            }
+            let (pixelCount, pixelOverflow) = width.multipliedReportingOverflow(by: height)
+            let (rgbaBytes, rgbaOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
+            let (nextTotal, totalOverflow) = totalRGBABytes.addingReportingOverflow(rgbaBytes)
+            guard !pixelOverflow,
+                  !rgbaOverflow,
+                  !totalOverflow,
+                  nextTotal <= maxDecodedBytes else {
+                throw TicketgroundImageRepositoryError.decodedImageTooLarge
+            }
+            maxPixelSizes.append(max(width, height))
+            totalRGBABytes = nextTotal
+        }
+        return maxPixelSizes
+    }
+
     private static func lazyThumbnail(
         of source: CGImageSource,
-        at index: Int
+        at index: Int,
+        maxPixelSize: Int,
+        creationObserver: (() -> Void)?
     ) throws -> CGImage {
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
-              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
-              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
-              width > 0,
-              height > 0 else {
-            throw TicketgroundImageRepositoryError.invalidImage
-        }
         let options = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: max(width, height),
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
             kCGImageSourceShouldCache: false,
             kCGImageSourceShouldCacheImmediately: false
         ] as CFDictionary
+        creationObserver?()
         guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options) else {
             throw TicketgroundImageRepositoryError.invalidImage
         }
