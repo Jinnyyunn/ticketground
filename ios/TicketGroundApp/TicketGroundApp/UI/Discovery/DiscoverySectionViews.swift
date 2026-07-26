@@ -27,7 +27,7 @@ struct DiscoveryRankingSection: View {
                             ZStack(alignment: .topLeading) {
                                 DiscoveryRankingPoster(imageResource: item.imageResource, title: item.title)
                                 Text("\(item.rank)")
-                                    .font(.title2.weight(.black))
+                                    .font(.title3.weight(.black))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, TicketgroundSpacing.sm)
                                     .padding(.vertical, TicketgroundSpacing.xs)
@@ -44,18 +44,19 @@ struct DiscoveryRankingSection: View {
                                         .foregroundStyle(TicketgroundColor.inkMuted)
                                 }
                                 Text(item.title)
-                                    .font(.headline.weight(.black))
+                                    .font(.subheadline.weight(.black))
                                     .foregroundStyle(TicketgroundColor.ink)
                                     .multilineTextAlignment(.leading)
+                                    .lineLimit(2)
                                 Text(item.venue)
-                                    .font(.subheadline)
+                                    .font(.caption)
                                     .foregroundStyle(TicketgroundColor.inkSecondary)
                                 Text(item.date)
                                     .font(.caption)
                                     .foregroundStyle(TicketgroundColor.inkMuted)
                             }
                         }
-                        .frame(width: 148, alignment: .leading)
+                        .frame(width: 120, alignment: .leading)
                         .padding(.bottom, TicketgroundSpacing.sm)
                         .background(TicketgroundColor.surface)
                         .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
@@ -79,7 +80,7 @@ struct DiscoveryRankingPoster: View {
             role: .poster,
             accessibilityLabel: "\(title) 포스터"
         )
-        .frame(width: 148, height: 190)
+        .frame(width: 120, height: 156)
         .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
     }
 }
