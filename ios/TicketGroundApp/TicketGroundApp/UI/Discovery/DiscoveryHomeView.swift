@@ -89,7 +89,7 @@ struct DiscoveryFeaturedSection: View {
                             HStack(spacing: TicketgroundSpacing.sm) {
                                 Text(featured.eyebrow)
                                     .font(.caption.weight(.black))
-                                    .foregroundStyle(TicketgroundColor.ink)
+                                    .foregroundStyle(.black.opacity(0.9))
                                     .padding(.horizontal, TicketgroundSpacing.md)
                                     .frame(minHeight: 28)
                                     .background(.white.opacity(0.9))
