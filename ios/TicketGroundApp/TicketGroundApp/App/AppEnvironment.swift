@@ -203,6 +203,96 @@ enum APIClientError: Error, Equatable, LocalizedError {
     }
 }
 
+enum LiveAccountCapability {
+    case account
+    case watchlist
+    case support
+
+    fileprivate var endpoint: LiveAPIEndpoint {
+        switch self {
+        case .account: return .session
+        case .watchlist: return .watchlist
+        case .support: return .supportThreads
+        }
+    }
+}
+
+enum LiveAccountCapabilityState: Equatable {
+    case available(userID: String)
+    case loginRequired
+    case httpsRequired
+    case unsupported
+    case retry
+    case help
+
+    static func resolve(
+        for capability: LiveAccountCapability,
+        capabilityMap: LiveCapabilityMap,
+        session: NativeSession?,
+        requestError: APIClientError? = nil
+    ) -> LiveAccountCapabilityState {
+        if let requestError {
+            return state(for: requestError)
+        }
+
+        switch capabilityMap.state(for: capability.endpoint) {
+        case .available:
+            guard let session,
+                  !session.userID.isEmpty,
+                  let credential = session.credential,
+                  !credential.isEmpty else {
+                return .loginRequired
+            }
+            return .available(userID: session.userID)
+        case .blocked(.requiresHTTPS):
+            return .httpsRequired
+        case .blocked(.unsupportedMutation):
+            return .unsupported
+        case .unknown:
+            return .retry
+        case .incompatible:
+            return .help
+        }
+    }
+
+    private static func state(for error: APIClientError) -> LiveAccountCapabilityState {
+        switch error {
+        case .insecureCredentialTransport:
+            return .httpsRequired
+        case .missingCredential, .credentialOwnerMismatch:
+            return .loginRequired
+        case .capabilityUnavailable(_, let state):
+            switch state {
+            case .available:
+                return .retry
+            case .blocked(.requiresHTTPS):
+                return .httpsRequired
+            case .blocked(.unsupportedMutation):
+                return .unsupported
+            case .unknown:
+                return .retry
+            case .incompatible:
+                return .help
+            }
+        case .server(let status, _, _):
+            switch status {
+            case 401:
+                return .loginRequired
+            case 404, 405, 501:
+                return .unsupported
+            case 403:
+                return .help
+            default:
+                return .retry
+            }
+        case .liveTransportUnavailable, .invalidBaseURL, .reservedRequestHeader:
+            return .help
+        case .invalidResponse, .requestFailed:
+            return .retry
+        }
+    }
+}
+
 final class FixtureAPIClient: APIClient {
     let mode: APIDataMode = .fixture
 

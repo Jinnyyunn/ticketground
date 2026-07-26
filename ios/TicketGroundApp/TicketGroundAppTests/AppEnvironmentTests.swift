@@ -301,6 +301,97 @@ final class AppEnvironmentTests: XCTestCase {
         )
     }
 
+    func testAccountCapabilityRequiresLoginWithoutPairedSession() {
+        let state = LiveAccountCapabilityState.resolve(
+            for: .account,
+            capabilityMap: accountCapabilityMap(state: .available),
+            session: nil
+        )
+
+        XCTAssertEqual(state, .loginRequired)
+    }
+
+    func testAccountCapabilityRequiresLoginAfterExpiredOrMismatchedCredential() {
+        let capabilityMap = accountCapabilityMap(state: .available)
+        let session = NativeSession(userID: "server-user-42", credential: "native-credential")
+
+        XCTAssertEqual(
+            LiveAccountCapabilityState.resolve(
+                for: .watchlist,
+                capabilityMap: capabilityMap,
+                session: session,
+                requestError: .server(status: 401, code: "UNAUTHORIZED", message: "expired")
+            ),
+            .loginRequired
+        )
+        XCTAssertEqual(
+            LiveAccountCapabilityState.resolve(
+                for: .support,
+                capabilityMap: capabilityMap,
+                session: session,
+                requestError: .credentialOwnerMismatch
+            ),
+            .loginRequired
+        )
+    }
+
+    func testAccountCapabilityRequiresHTTPSBeforeAuthenticatedRead() {
+        let state = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: accountCapabilityMap(state: .blocked(.requiresHTTPS)),
+            session: NativeSession(userID: "server-user-42", credential: "native-credential")
+        )
+
+        XCTAssertEqual(state, .httpsRequired)
+    }
+
+    func testLogoutClearsPairedCredentialsAndReturnsLoginRequiredCapability() {
+        let credentials = InMemoryCredentialStore()
+        let session = SessionStore(credentialStore: credentials)
+        session.saveNativeCredential("native-credential", serverUserID: "server-user-42")
+
+        session.logout()
+
+        XCTAssertNil(credentials.read())
+        XCTAssertEqual(
+            LiveAccountCapabilityState.resolve(
+                for: .support,
+                capabilityMap: accountCapabilityMap(state: .available),
+                session: session.current
+            ),
+            .loginRequired
+        )
+    }
+
+    func testAccountCapabilityReturnsUnsupportedRetryAndHelpStates() {
+        XCTAssertEqual(
+            LiveAccountCapabilityState.resolve(
+                for: .watchlist,
+                capabilityMap: accountCapabilityMap(state: .blocked(.unsupportedMutation)),
+                session: NativeSession(userID: "server-user-42", credential: "native-credential")
+            ),
+            .unsupported
+        )
+        XCTAssertEqual(
+            LiveAccountCapabilityState.resolve(
+                for: .support,
+                capabilityMap: accountCapabilityMap(state: .unknown),
+                session: NativeSession(userID: "server-user-42", credential: "native-credential")
+            ),
+            .retry
+        )
+        XCTAssertEqual(
+            LiveAccountCapabilityState.resolve(
+                for: .account,
+                capabilityMap: accountCapabilityMap(
+                    state: .incompatible(expected: "expected", observed: "observed")
+                ),
+                session: NativeSession(userID: "server-user-42", credential: "native-credential")
+            ),
+            .help
+        )
+    }
+
     func testLiveAPIClientSendsBearerCredentialOnlyOverHTTPS() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveAPIURLProtocol.self]
@@ -519,6 +610,21 @@ final class AppEnvironmentTests: XCTestCase {
             assetBaseURL: URL(string: "https://ticketground.test/")!,
             credentialStore: credentials,
             session: URLSession(configuration: configuration)
+        )
+    }
+
+    private func accountCapabilityMap(state: LiveCapabilityState) -> LiveCapabilityMap {
+        LiveCapabilityMap(
+            diagnostics: LiveAPIContractDiagnostics(
+                expectedResponseVersion: "expected",
+                observedResponseVersion: "expected"
+            ),
+            baseURL: URL(string: "https://ticketground.test/")!,
+            states: [
+                .session: state,
+                .watchlist: state,
+                .supportThreads: state
+            ]
         )
     }
 
