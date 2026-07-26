@@ -1302,9 +1302,36 @@ private struct LiveSeatMapContent: View {
     }
 }
 
+private struct LiveAccountCapabilitySurface: View {
+    let state: LiveAccountCapabilityState
+    let title: String
+    let loginMessage: String
+    let identifier: String
+    let retry: () -> Void
+
+    var body: some View {
+        switch state {
+        case .available:
+            EmptyView()
+        case .loginRequired:
+            LiveLoginRequiredSurface(message: loginMessage, identifier: "\(identifier)-login-required")
+        case .httpsRequired:
+            LiveRouteMessageView(title: title, message: "보안 인증 정보는 HTTPS 연결에서만 전송할 수 있습니다.", identifier: "\(identifier)-https-required")
+        case .unsupported:
+            LiveRouteMessageView(title: title, message: "현재 백엔드에서 지원하지 않는 기능입니다.", identifier: "\(identifier)-unsupported")
+        case .retry:
+            TicketgroundErrorSurface(title: title, message: "기능 상태를 확인할 수 없습니다.", actionTitle: "다시 시도", action: retry)
+                .accessibilityIdentifier("\(identifier)-retry")
+        case .help:
+            LiveRouteMessageView(title: title, message: "기능 상태가 호환되지 않습니다. 고객센터에 문의해 주세요.", identifier: "\(identifier)-help")
+        }
+    }
+}
+
 private struct LiveAccountRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveAccountState = .loading
+    @State private var reloadID = 0
 
     var body: some View {
         ScrollView {
@@ -1337,17 +1364,53 @@ private struct LiveAccountRouteView: View {
         }
         .navigationTitle("마이페이지")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: container.environment.sessionStore.current?.userID) {
-            guard let session = realSession else {
-                state = .loginRequired
+        .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
+            if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
+                state = .capability(testState)
                 return
             }
+            let apiClient = container.environment.apiClient
+            let capabilityMap = LiveAPIContract.deployed.capabilityMap(
+                for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
+                observedResponseVersion: nil
+            )
+            let initialState = LiveAccountCapabilityState.resolve(
+                for: .account,
+                capabilityMap: capabilityMap,
+                session: container.environment.sessionStore.current,
+                baseURL: apiClient.baseURL
+            )
+            guard initialState == .retry else {
+                state = .capability(initialState)
+                return
+            }
+
+            let service = LiveBackendService(apiClient: apiClient)
             do {
-                async let profile = LiveBackendService(apiClient: container.environment.apiClient).getSession(userID: session.userID)
-                async let tickets = LiveBackendService(apiClient: container.environment.apiClient).getTickets(userID: session.userID)
+                let probe = try await service.diagnosePublicContract()
+                let resolvedState = LiveAccountCapabilityState.resolve(
+                    for: .account,
+                    capabilityMap: probe.capabilities,
+                    session: container.environment.sessionStore.current,
+                    baseURL: apiClient.baseURL
+                )
+                guard case .available(let userID) = resolvedState else {
+                    state = .capability(resolvedState)
+                    return
+                }
+                async let profile = service.getSession(userID: userID)
+                async let tickets = service.getTickets(userID: userID)
                 state = .loaded(try await profile, try await tickets)
+            } catch let error as APIClientError {
+                state = .capability(LiveAccountCapabilityState.resolve(
+                    for: .account,
+                    capabilityMap: capabilityMap,
+                    session: container.environment.sessionStore.current,
+                    baseURL: apiClient.baseURL,
+                    requestError: error
+                ))
             } catch {
-                state = .failed("GET /api/users/\(session.userID)/session 또는 /tickets 요청에 실패했습니다: \(error.localizedDescription)")
+                state = .capability(.retry)
             }
         }
     }
@@ -1357,10 +1420,14 @@ private struct LiveAccountRouteView: View {
         switch state {
         case .loading:
             LiveRouteMessageView(title: "계정", message: "세션과 티켓을 불러오는 중입니다.", identifier: "live-account-loading")
-        case .loginRequired:
-            LiveLoginRequiredSurface(message: "마이페이지를 보려면 실제 로그인 세션이 필요합니다.", identifier: "live-login-required")
-        case .failed(let message):
-            LiveRouteMessageView(title: "계정 정보를 표시할 수 없습니다", message: message, identifier: "live-account-error")
+        case .capability(let capability):
+            LiveAccountCapabilitySurface(
+                state: capability,
+                title: "계정 정보를 표시할 수 없습니다",
+                loginMessage: "마이페이지를 보려면 실제 로그인 세션이 필요합니다.",
+                identifier: "live-account",
+                retry: { reloadID += 1 }
+            )
         case .loaded(let session, let tickets):
             VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                 Text(session.name)
@@ -1379,22 +1446,18 @@ private struct LiveAccountRouteView: View {
         }
     }
 
-    private var realSession: NativeSession? {
-        guard let session = container.environment.sessionStore.current, session.credential != nil else { return nil }
-        return session
-    }
 }
 
 private enum LiveAccountState {
     case loading
-    case loginRequired
+    case capability(LiveAccountCapabilityState)
     case loaded(LiveSession, [LiveTicket])
-    case failed(String)
 }
 
 private struct LiveWatchlistRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveWatchlistState = .loading
+    @State private var reloadID = 0
 
     var body: some View {
         ScrollView {
@@ -1406,10 +1469,14 @@ private struct LiveWatchlistRouteView: View {
                 switch state {
                 case .loading:
                     LiveRouteMessageView(title: "관심공연", message: "GET /api/users/{userId}/watchlist 요청을 준비하는 중입니다.", identifier: "live-watchlist-loading")
-                case .loginRequired:
-                    LiveLoginRequiredSurface(message: "관심공연은 실제 로그인 세션이 필요합니다.", identifier: "live-login-required")
-                case .failed(let message):
-                    LiveRouteMessageView(title: "관심공연을 표시할 수 없습니다", message: message, identifier: "live-watchlist-error")
+                case .capability(let capability):
+                    LiveAccountCapabilitySurface(
+                        state: capability,
+                        title: "관심공연을 표시할 수 없습니다",
+                        loginMessage: "관심공연은 실제 로그인 세션이 필요합니다.",
+                        identifier: "live-watchlist",
+                        retry: { reloadID += 1 }
+                    )
                 case .loaded(let items):
                     if items.isEmpty {
                         LiveRouteMessageView(title: "관심공연이 없습니다", message: "GET /api/users/{userId}/watchlist 결과가 비어 있습니다.", identifier: "live-watchlist-empty")
@@ -1443,36 +1510,67 @@ private struct LiveWatchlistRouteView: View {
         }
         .navigationTitle("관심공연")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: container.environment.sessionStore.current?.userID) {
-            guard let session = realSession else {
-                state = .loginRequired
+        .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
+            if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
+                state = .capability(testState)
                 return
             }
+            let apiClient = container.environment.apiClient
+            let capabilityMap = LiveAPIContract.deployed.capabilityMap(
+                for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
+                observedResponseVersion: nil
+            )
+            let initialState = LiveAccountCapabilityState.resolve(
+                for: .watchlist,
+                capabilityMap: capabilityMap,
+                session: container.environment.sessionStore.current,
+                baseURL: apiClient.baseURL
+            )
+            guard initialState == .retry else {
+                state = .capability(initialState)
+                return
+            }
+
+            let service = LiveBackendService(apiClient: apiClient)
             do {
-                state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getWatchlist(userID: session.userID))
+                let probe = try await service.diagnosePublicContract()
+                let resolvedState = LiveAccountCapabilityState.resolve(
+                    for: .watchlist,
+                    capabilityMap: probe.capabilities,
+                    session: container.environment.sessionStore.current,
+                    baseURL: apiClient.baseURL
+                )
+                guard case .available(let userID) = resolvedState else {
+                    state = .capability(resolvedState)
+                    return
+                }
+                state = .loaded(try await service.getWatchlist(userID: userID))
+            } catch let error as APIClientError {
+                state = .capability(LiveAccountCapabilityState.resolve(
+                    for: .watchlist,
+                    capabilityMap: capabilityMap,
+                    session: container.environment.sessionStore.current,
+                    baseURL: apiClient.baseURL,
+                    requestError: error
+                ))
             } catch {
-                state = .failed("GET /api/users/\(session.userID)/watchlist 요청에 실패했습니다: \(error.localizedDescription)")
+                state = .capability(.retry)
             }
         }
-    }
-
-    private var realSession: NativeSession? {
-        guard let session = container.environment.sessionStore.current, session.credential != nil else { return nil }
-        return session
     }
 }
 
 private enum LiveWatchlistState {
     case loading
-    case loginRequired
+    case capability(LiveAccountCapabilityState)
     case loaded([LiveWatchlistItem])
-    case failed(String)
 }
 
 private struct LiveSupportRouteView: View {
     let route: AppRoute
     @Environment(AppContainer.self) private var container
     @State private var state: LiveSupportState = .loading
+    @State private var reloadID = 0
 
     var body: some View {
         ScrollView {
@@ -1484,10 +1582,14 @@ private struct LiveSupportRouteView: View {
                 switch state {
                 case .loading:
                     LiveRouteMessageView(title: routeTitle, message: "GET /api/support/threads?userId={userId} 요청을 준비하는 중입니다.", identifier: "live-support-loading")
-                case .loginRequired:
-                    LiveLoginRequiredSurface(message: "고객센터와 1:1 문의는 실제 로그인 세션이 필요합니다.", identifier: "live-login-required")
-                case .failed(let message):
-                    LiveRouteMessageView(title: routeTitle, message: message, identifier: "live-support-error")
+                case .capability(let capability):
+                    LiveAccountCapabilitySurface(
+                        state: capability,
+                        title: routeTitle,
+                        loginMessage: "고객센터와 1:1 문의는 실제 로그인 세션이 필요합니다.",
+                        identifier: "live-support",
+                        retry: { reloadID += 1 }
+                    )
                 case .loaded(let threads):
                     if threads.isEmpty {
                         LiveRouteMessageView(title: "문의 내역이 없습니다", message: "GET /api/support/threads 결과가 비어 있습니다.", identifier: "live-support-empty")
@@ -1520,26 +1622,57 @@ private struct LiveSupportRouteView: View {
         }
         .navigationTitle(routeTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: container.environment.sessionStore.current?.userID) {
-            guard let session = realSession else {
-                state = .loginRequired
+        .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
+            if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
+                state = .capability(testState)
                 return
             }
+            let apiClient = container.environment.apiClient
+            let capabilityMap = LiveAPIContract.deployed.capabilityMap(
+                for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
+                observedResponseVersion: nil
+            )
+            let initialState = LiveAccountCapabilityState.resolve(
+                for: .support,
+                capabilityMap: capabilityMap,
+                session: container.environment.sessionStore.current,
+                baseURL: apiClient.baseURL
+            )
+            guard initialState == .retry else {
+                state = .capability(initialState)
+                return
+            }
+
+            let service = LiveBackendService(apiClient: apiClient)
             do {
-                state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getSupportThreads(userID: session.userID))
+                let probe = try await service.diagnosePublicContract()
+                let resolvedState = LiveAccountCapabilityState.resolve(
+                    for: .support,
+                    capabilityMap: probe.capabilities,
+                    session: container.environment.sessionStore.current,
+                    baseURL: apiClient.baseURL
+                )
+                guard case .available(let userID) = resolvedState else {
+                    state = .capability(resolvedState)
+                    return
+                }
+                state = .loaded(try await service.getSupportThreads(userID: userID))
+            } catch let error as APIClientError {
+                state = .capability(LiveAccountCapabilityState.resolve(
+                    for: .support,
+                    capabilityMap: capabilityMap,
+                    session: container.environment.sessionStore.current,
+                    baseURL: apiClient.baseURL,
+                    requestError: error
+                ))
             } catch {
-                state = .failed("GET /api/support/threads?userId=\(session.userID) 요청에 실패했습니다: \(error.localizedDescription)")
+                state = .capability(.retry)
             }
         }
     }
 
     private var routeTitle: String {
         route == .inquiry ? "1:1 문의 · LIVE" : "고객센터 · LIVE"
-    }
-
-    private var realSession: NativeSession? {
-        guard let session = container.environment.sessionStore.current, session.credential != nil else { return nil }
-        return session
     }
 
     private func supportStatus(_ status: LiveSupportStatus) -> String {
@@ -1554,9 +1687,8 @@ private struct LiveSupportRouteView: View {
 
 private enum LiveSupportState {
     case loading
-    case loginRequired
+    case capability(LiveAccountCapabilityState)
     case loaded([LiveSupportThread])
-    case failed(String)
 }
 
 private struct LiveUnsupportedRouteView: View {

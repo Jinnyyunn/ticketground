@@ -311,6 +311,29 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(state, .loginRequired)
     }
 
+    func testAccountCapabilityRequiresBothSessionAndTickets() {
+        let capabilityMap = LiveCapabilityMap(
+            diagnostics: LiveAPIContractDiagnostics(
+                expectedResponseVersion: "expected",
+                observedResponseVersion: "expected"
+            ),
+            baseURL: URL(string: "https://ticketground.test/")!,
+            states: [
+                .session: .available,
+                .tickets: .unknown
+            ]
+        )
+
+        XCTAssertEqual(
+            LiveAccountCapabilityState.resolve(
+                for: .account,
+                capabilityMap: capabilityMap,
+                session: NativeSession(userID: "server-user-42", credential: "native-credential")
+            ),
+            .retry
+        )
+    }
+
     func testAccountCapabilityRequiresLoginAfterExpiredOrMismatchedCredential() {
         let capabilityMap = accountCapabilityMap(state: .available)
         let session = NativeSession(userID: "server-user-42", credential: "native-credential")
@@ -622,6 +645,7 @@ final class AppEnvironmentTests: XCTestCase {
             baseURL: URL(string: "https://ticketground.test/")!,
             states: [
                 .session: state,
+                .tickets: state,
                 .watchlist: state,
                 .supportThreads: state
             ]

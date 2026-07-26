@@ -208,11 +208,11 @@ enum LiveAccountCapability {
     case watchlist
     case support
 
-    fileprivate var endpoint: LiveAPIEndpoint {
+    fileprivate var endpoints: [LiveAPIEndpoint] {
         switch self {
-        case .account: return .session
-        case .watchlist: return .watchlist
-        case .support: return .supportThreads
+        case .account: return [.session, .tickets]
+        case .watchlist: return [.watchlist]
+        case .support: return [.supportThreads]
         }
     }
 }
@@ -229,30 +229,39 @@ enum LiveAccountCapabilityState: Equatable {
         for capability: LiveAccountCapability,
         capabilityMap: LiveCapabilityMap,
         session: NativeSession?,
+        baseURL: URL? = nil,
         requestError: APIClientError? = nil
     ) -> LiveAccountCapabilityState {
         if let requestError {
             return state(for: requestError)
         }
-
-        switch capabilityMap.state(for: capability.endpoint) {
-        case .available:
-            guard let session,
-                  !session.userID.isEmpty,
-                  let credential = session.credential,
-                  !credential.isEmpty else {
-                return .loginRequired
-            }
-            return .available(userID: session.userID)
-        case .blocked(.requiresHTTPS):
+        if let baseURL, baseURL.scheme?.lowercased() != "https" {
             return .httpsRequired
-        case .blocked(.unsupportedMutation):
+        }
+        guard let session,
+              !session.userID.isEmpty,
+              let credential = session.credential,
+              !credential.isEmpty else {
+            return .loginRequired
+        }
+
+        let states = capability.endpoints.map(capabilityMap.state(for:))
+        if states.contains(.blocked(.requiresHTTPS)) {
+            return .httpsRequired
+        }
+        if states.contains(.blocked(.unsupportedMutation)) {
             return .unsupported
-        case .unknown:
-            return .retry
-        case .incompatible:
+        }
+        if states.contains(where: { state in
+            if case .incompatible = state { return true }
+            return false
+        }) {
             return .help
         }
+        if states.contains(.unknown) {
+            return .retry
+        }
+        return .available(userID: session.userID)
     }
 
     private static func state(for error: APIClientError) -> LiveAccountCapabilityState {
@@ -748,6 +757,23 @@ final class AppContainer {
 }
 
 enum RuntimeConfiguration {
+    static var liveAccountCapabilityTestState: LiveAccountCapabilityState? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ui-testing"),
+              let index = arguments.firstIndex(of: "-live-capability-state"),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        switch arguments[index + 1] {
+        case "login-required": return .loginRequired
+        case "https-required": return .httpsRequired
+        case "unsupported": return .unsupported
+        case "retry": return .retry
+        case "help": return .help
+        default: return nil
+        }
+    }
+
     static var apiBaseURL: URL {
         URL(string: value(for: "TICKETGROUND_API_BASE_URL") ?? "http://132.145.109.87:4174/")!
     }

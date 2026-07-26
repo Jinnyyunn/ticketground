@@ -171,6 +171,90 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(watchlistApp, identifier: "live-login-required").exists || anyElement(watchlistApp, identifier: "live-watchlist-items").exists)
     }
 
+    func testLiveAccountRoutesBlockHTTPBeforeProtectedRequests() {
+        let accountApp = liveApp()
+        accountApp.launch()
+        XCTAssertTrue(accountApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        accountApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(accountApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        accountApp.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(accountApp, identifier: "live-account-https-required").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(accountApp, identifier: "live-account-error").exists)
+
+        let watchlistApp = liveApp()
+        watchlistApp.launch()
+        XCTAssertTrue(watchlistApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        watchlistApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(watchlistApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        watchlistApp.buttons["live-menu-watchlist"].tap()
+        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist-https-required").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(watchlistApp, identifier: "live-watchlist-error").exists)
+
+        let supportApp = liveApp()
+        supportApp.launch()
+        XCTAssertTrue(supportApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        supportApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(supportApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        supportApp.buttons["live-menu-help"].tap()
+        XCTAssertTrue(anyElement(supportApp, identifier: "live-support-https-required").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(supportApp, identifier: "live-support-error").exists)
+    }
+
+    func testLiveAccountCapabilityRendersLoginRequiredSurface() {
+        let app = liveApp(capabilityState: "login-required")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-account-login-required").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "live-account-error").exists)
+    }
+
+    func testLiveAccountCapabilityRendersHTTPSRequiredSurface() {
+        let app = liveApp(capabilityState: "https-required")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-account-https-required").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "live-account-error").exists)
+    }
+
+    func testLiveAccountCapabilityRendersUnsupportedSurface() {
+        let app = liveApp(capabilityState: "unsupported")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-account-unsupported").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "live-account-error").exists)
+    }
+
+    func testLiveAccountCapabilityRendersRetrySurface() {
+        let app = liveApp(capabilityState: "retry")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-account-retry").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "live-account-error").exists)
+    }
+
+    func testLiveAccountCapabilityRendersHelpSurface() {
+        let app = liveApp(capabilityState: "help")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-account-help").waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "live-account-error").exists)
+    }
+
     func testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry() {
         let app = liveApp()
         app.launch()
@@ -229,9 +313,12 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(emptyApp, identifier: "live-search-empty").waitForExistence(timeout: 10))
     }
 
-    private func liveApp() -> XCUIApplication {
+    private func liveApp(capabilityState: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-api-mode", "live"]
+        if let capabilityState {
+            app.launchArguments += ["-live-capability-state", capabilityState]
+        }
         return app
     }
 
