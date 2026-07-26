@@ -1,7 +1,7 @@
 import XCTest
 
 final class SharedShellTests: XCTestCase {
-    func testHeaderAndBottomNavigation() {
+    func testHeaderControlsExposeDistinctSearchLoginAndMenuActions() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
 
@@ -9,13 +9,20 @@ final class SharedShellTests: XCTestCase {
         assertHittable(app.buttons["header-search"])
         assertHittable(app.buttons["header-watchlist"])
         assertHittable(app.buttons["header-mypage"])
+        XCTAssertEqual(app.buttons["header-search"].label, "공연, 아티스트 또는 공연장 검색")
+        XCTAssertEqual(app.buttons["header-watchlist"].label, "로그인")
+        XCTAssertEqual(app.buttons["header-mypage"].label, "전체 메뉴")
+    }
+
+    func testBottomNavigationRemainsReachable() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+
+        XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
         assertHittable(app.buttons["tab-home"])
         assertHittable(app.buttons["tab-search"])
         assertHittable(app.buttons["tab-watchlist"])
         assertHittable(app.buttons["tab-mypage"])
-        XCTAssertTrue(app.buttons["header-search"].label.contains("검색"))
-        XCTAssertTrue(app.buttons["header-watchlist"].label.contains("관심공연"))
-        XCTAssertTrue(app.buttons["header-mypage"].label.contains("마이페이지"))
     }
 
     func testLargeTextAndReducedMotion() {

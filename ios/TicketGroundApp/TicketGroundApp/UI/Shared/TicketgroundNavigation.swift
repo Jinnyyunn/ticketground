@@ -16,12 +16,12 @@ struct SiteHeader: View {
                 .foregroundStyle(TicketgroundColor.ink)
                 .accessibilityIdentifier("header-logo")
                 Spacer(minLength: TicketgroundSpacing.sm)
-                headerLink(title: "로그인", accessibilityTitle: "로그인 · 관심공연", identifier: "header-watchlist", route: .login)
-                headerLink(title: "☰", accessibilityTitle: "마이페이지 · 메뉴", identifier: "header-mypage", route: .mypage)
+                headerLink(title: "로그인", identifier: "header-watchlist", route: .login)
+                headerLink(title: "전체 메뉴", icon: "line.3.horizontal", identifier: "header-mypage", route: .mypage)
             }
 
             Button(action: onSearch) {
-                Label("공연명, 아티스트, 공연장 검색", systemImage: "magnifyingglass")
+                Label("공연, 아티스트 또는 공연장 검색", systemImage: "magnifyingglass")
                     .font(.caption)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
@@ -35,7 +35,8 @@ struct SiteHeader: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("header-search")
-            .accessibilityLabel("검색")
+            .accessibilityLabel("공연, 아티스트 또는 공연장 검색")
+            .accessibilityHint("검색 화면을 엽니다")
         }
         .padding(.horizontal, TicketgroundSpacing.lg)
         .padding(.top, TicketgroundSpacing.xs)
@@ -44,13 +45,20 @@ struct SiteHeader: View {
         .accessibilityElement(children: .contain)
     }
 
-    private func headerLink(title: String, accessibilityTitle: String, identifier: String, route: AppRoute) -> some View {
+    private func headerLink(title: String, icon: String? = nil, identifier: String, route: AppRoute) -> some View {
         NavigationLink(value: route) {
-            Text(title)
-                .font(.caption.weight(.semibold))
+            Group {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.body.weight(.semibold))
+                } else {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                }
+            }
                 .foregroundStyle(TicketgroundColor.inkSecondary)
-                .frame(minWidth: title == "☰" ? 32 : 56, minHeight: 32)
-                .padding(.horizontal, title == "☰" ? 0 : TicketgroundSpacing.sm)
+                .frame(minWidth: icon == nil ? 56 : 44, minHeight: 44)
+                .padding(.horizontal, icon == nil ? TicketgroundSpacing.sm : 0)
                 .overlay {
                     Capsule()
                         .stroke(TicketgroundColor.lineStrong, lineWidth: 1)
@@ -58,7 +66,8 @@ struct SiteHeader: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(identifier)
-        .accessibilityLabel(accessibilityTitle)
+        .accessibilityLabel(title)
+        .accessibilityHint(icon == nil ? "로그인 옵션을 확인합니다" : "전체 메뉴를 엽니다")
     }
 }
 
