@@ -54,9 +54,13 @@ struct TicketgroundErrorSurface: View {
     var body: some View {
         TicketgroundSurface(tone: .error) {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                Label(title, systemImage: "exclamationmark.triangle.fill")
-                    .font(.headline)
-                    .foregroundStyle(TicketgroundColor.accent)
+                HStack(spacing: TicketgroundSpacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(TicketgroundColor.accent)
+                    Text(title)
+                        .foregroundStyle(TicketgroundColor.ink)
+                }
+                .font(.headline)
                 Text(message)
                     .font(.body)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
@@ -67,6 +71,5 @@ struct TicketgroundErrorSurface: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("state-error")
-        .accessibilityAddTraits(.isModal)
     }
 }
