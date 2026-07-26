@@ -25,6 +25,7 @@ final class LoadingMediaUITests: XCTestCase {
         let errorApp = UITestBootstrap.fixtureApp(scenario: .offline)
         errorApp.launch()
         XCTAssertTrue(anyElement(errorApp, identifier: "state-error").waitForExistence(timeout: 10))
+        XCTAssertFalse(errorApp.images["state-error-icon"].exists)
         let errorRetry = errorApp.buttons["state-error-action"]
         XCTAssertTrue(errorRetry.waitForExistence(timeout: 10))
         XCTAssertEqual(errorRetry.label, "다시 시도")

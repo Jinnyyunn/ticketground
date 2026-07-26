@@ -57,6 +57,8 @@ struct TicketgroundErrorSurface: View {
                 HStack(spacing: TicketgroundSpacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(TicketgroundColor.accent)
+                        .accessibilityIdentifier("state-error-icon")
+                        .accessibilityHidden(true)
                     Text(title)
                         .foregroundStyle(TicketgroundColor.ink)
                 }
