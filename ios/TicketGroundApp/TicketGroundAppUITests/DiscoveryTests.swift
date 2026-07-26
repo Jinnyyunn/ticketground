@@ -54,7 +54,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["IU 2026 WORLD TOUR"].waitForExistence(timeout: 10))
     }
 
-    func testHeaderLoginNavigatesToFixtureLogin() {
+    func testHeaderLoginShowsExternalOAuthGateWithoutCreatingAnAccount() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
         XCTAssertTrue(app.buttons["header-watchlist"].waitForExistence(timeout: 10))
@@ -65,8 +65,11 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["login-kakao"].exists)
         XCTAssertTrue(app.buttons["login-naver"].exists)
         app.buttons["login-google"].tap()
-        XCTAssertTrue(app.staticTexts["login-success"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Google fixture 로그인 완료"].exists)
+        XCTAssertTrue(app.buttons["login-provider-external-gate"].waitForExistence(timeout: 10))
+        app.buttons["login-provider-external-gate"].tap()
+        XCTAssertTrue(app.staticTexts["login-provider-external-state"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["login-success"].exists)
+        XCTAssertTrue(app.staticTexts["Google 로그인은 외부 OAuth 인증 단계(E3) 연결이 필요합니다."].exists)
     }
 
     func testHeaderMenuNavigatesToFixtureMenu() {
@@ -125,7 +128,9 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
 
         app.buttons["login-google"].tap()
-        XCTAssertTrue(anyElement(app, identifier: "live-login-provider-state").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["login-provider-external-gate"].waitForExistence(timeout: 10))
+        app.buttons["login-provider-external-gate"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "login-provider-external-state").waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(app, identifier: "login-success").exists)
     }
 
@@ -300,6 +305,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(searchInput.waitForExistence(timeout: 20))
         searchInput.tap()
         searchInput.typeText("kInTeX")
+        searchInput.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["2026 Palette Festival"].waitForExistence(timeout: 20))
 
         let emptyApp = liveApp()
@@ -310,7 +316,20 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(emptySearchInput.waitForExistence(timeout: 20))
         emptySearchInput.tap()
         emptySearchInput.typeText("없는공연검색")
+        emptySearchInput.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
         XCTAssertTrue(anyElement(emptyApp, identifier: "live-search-empty").waitForExistence(timeout: 10))
+    }
+
+    func testLiveMenuCloseReturnsToTheDiscoveryHome() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+
+        app.buttons["live-menu-close"].tap()
+        XCTAssertTrue(app.buttons["header-search"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["live-menu-screen-title"].exists)
     }
 
     private func liveApp(capabilityState: String? = nil) -> XCUIApplication {

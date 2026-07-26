@@ -121,10 +121,8 @@ private struct DiscoverySearchResult: Identifiable {
 }
 
 struct DiscoveryLoginView: View {
-    @Environment(AppContainer.self) private var container
-    @State private var didLogin = false
-    @State private var providerName = ""
-    @State private var liveProviderMessage: String?
+    @State private var selectedProvider: Provider?
+    @State private var providerMessage: String?
 
     private struct Provider: Identifiable {
         let id: String
@@ -149,9 +147,7 @@ struct DiscoveryLoginView: View {
                     Text("간편 로그인으로 계정을 시작해 주세요")
                         .font(.title.weight(.black))
                         .foregroundStyle(TicketgroundColor.ink)
-                    Text(container.environment.mode == .fixture
-                         ? "별도 이메일 회원가입 없이 간편 로그인 완료 시 티켓그라운드 계정이 생성됩니다."
-                         : "현재 백엔드가 확인한 로그인 경로의 준비 상태를 안내합니다.")
+                    Text("외부 인증 연결 상태를 확인한 뒤에만 로그인을 진행합니다.")
                         .font(.subheadline)
                         .foregroundStyle(TicketgroundColor.inkMuted)
                         .lineSpacing(3)
@@ -160,13 +156,7 @@ struct DiscoveryLoginView: View {
                 VStack(spacing: TicketgroundSpacing.sm) {
                     ForEach(providers, id: \.id) { provider in
                         Button {
-                            if container.environment.mode == .fixture {
-                                container.environment.sessionStore.setFixtureUser("fixture-\(provider.id)")
-                                providerName = provider.name
-                                didLogin = true
-                            } else {
-                                liveProviderMessage = liveProviderReason(for: provider.id)
-                            }
+                            selectedProvider = provider
                         } label: {
                             HStack(spacing: TicketgroundSpacing.md) {
                                 providerMark(provider.id)
@@ -197,31 +187,10 @@ struct DiscoveryLoginView: View {
                     }
                 }
 
-                if didLogin {
-                    HStack(spacing: TicketgroundSpacing.sm) {
-                        Image(systemName: "checkmark.circle.fill")
-                        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                            Text("로그인 완료")
-                                .font(.subheadline.weight(.bold))
-                            Text("\(providerName) fixture 로그인 완료")
-                                .font(.caption.weight(.semibold))
-                            Text("\(providerName) fixture 계정으로 시작합니다.")
-                                .font(.caption)
-                                .foregroundStyle(TicketgroundColor.inkMuted)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .foregroundStyle(TicketgroundColor.success)
-                    .padding(TicketgroundSpacing.md)
-                    .background(TicketgroundColor.success.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-                    .accessibilityIdentifier("login-success")
-                }
-
-                if let liveProviderMessage {
+                if let providerMessage {
                     HStack(alignment: .top, spacing: TicketgroundSpacing.sm) {
                         Image(systemName: "info.circle.fill")
-                        Text(liveProviderMessage)
+                        Text(providerMessage)
                             .font(.subheadline)
                             .foregroundStyle(TicketgroundColor.ink)
                             .fixedSize(horizontal: false, vertical: true)
@@ -230,7 +199,7 @@ struct DiscoveryLoginView: View {
                     .padding(TicketgroundSpacing.md)
                     .background(TicketgroundColor.surfaceMuted)
                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-                    .accessibilityIdentifier("live-login-provider-state")
+                    .accessibilityIdentifier("login-provider-external-state")
                 }
 
                 NavigationLink(value: AppRoute.signup) {
@@ -256,6 +225,29 @@ struct DiscoveryLoginView: View {
         }
         .navigationTitle("로그인")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "\(selectedProvider?.name ?? "")로 계속하기",
+            isPresented: Binding(
+                get: { selectedProvider != nil },
+                set: { if !$0 { selectedProvider = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("외부 OAuth 인증 연결 필요") {
+                guard let provider = selectedProvider else { return }
+                providerMessage = externalOAuthMessage(for: provider)
+                selectedProvider = nil
+            }
+            .accessibilityIdentifier("login-provider-external-gate")
+            Button("취소", role: .cancel) {
+                guard let provider = selectedProvider else { return }
+                providerMessage = "\(provider.name) 로그인 요청을 취소했습니다. 로그인 상태는 변경되지 않았습니다."
+                selectedProvider = nil
+            }
+            .accessibilityIdentifier("login-provider-cancel")
+        } message: {
+            Text("외부 인증 앱 또는 브라우저로 전환해야 합니다. 이 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다.")
+        }
     }
 
     @ViewBuilder
@@ -304,15 +296,8 @@ struct DiscoveryLoginView: View {
         }
     }
 
-    private func liveProviderReason(for id: String) -> String {
-        switch id {
-        case "google":
-            return "Google 로그인은 POST /api/auth/google에 provider credential이 필요합니다. 현재 앱에는 provider credential이 없어 로그인 계정을 만들지 않았습니다."
-        case "kakao":
-            return "카카오톡 로그인은 provider 설정과 브라우저 callback flow가 필요해 현재 앱에서 사용할 수 없습니다."
-        default:
-            return "네이버 로그인은 provider 설정과 브라우저 callback flow가 필요해 현재 앱에서 사용할 수 없습니다."
-        }
+    private func externalOAuthMessage(for provider: Provider) -> String {
+        "\(provider.name) 로그인은 외부 OAuth 인증 단계(E3) 연결이 필요합니다. 현재 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다."
     }
 }
 
@@ -646,6 +631,7 @@ private struct LiveDiscoveryRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveCatalogRouteState = .loading
     @State private var searchQuery = ""
+    @State private var submittedSearchQuery = ""
     @State private var reloadID = 0
 
     var body: some View {
@@ -697,7 +683,7 @@ private struct LiveDiscoveryRouteView: View {
 
     @ViewBuilder
     private func catalogView(_ catalog: LiveCatalog) -> some View {
-        let events = events(for: route, in: catalog)
+        let events = events(for: route, in: catalog, searchQuery: submittedSearchQuery)
         ScrollView {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
                 Text(routeTitle)
@@ -708,6 +694,10 @@ private struct LiveDiscoveryRouteView: View {
                 if route == .search {
                     TextField("공연명, 공연장, 장르 검색", text: $searchQuery)
                         .textFieldStyle(.roundedBorder)
+                        .submitLabel(.search)
+                        .onSubmit {
+                            submittedSearchQuery = searchQuery
+                        }
                         .accessibilityIdentifier("live-search-input")
                         .accessibilityLabel("LIVE catalog 검색어")
                 }
@@ -727,7 +717,10 @@ private struct LiveDiscoveryRouteView: View {
                         title: "검색 결과가 없습니다",
                         message: "\"\(searchQuery.trimmingCharacters(in: .whitespacesAndNewlines))\"에 해당하는 공연명, 공연장, 장르를 찾지 못했습니다.",
                         actionTitle: "검색어 지우기",
-                        action: { searchQuery = "" }
+                        action: {
+                            searchQuery = ""
+                            submittedSearchQuery = ""
+                        }
                     )
                     .accessibilityIdentifier("live-search-empty")
                 } else if events.isEmpty {
@@ -775,7 +768,7 @@ private struct LiveDiscoveryRouteView: View {
     }
 
     private var normalizedSearchQuery: String {
-        normalizedSearchValue(searchQuery)
+        normalizedSearchValue(submittedSearchQuery)
     }
 
     private var routeTitle: String {
@@ -792,14 +785,15 @@ private struct LiveDiscoveryRouteView: View {
         }
     }
 
-    private func events(for route: AppRoute, in catalog: LiveCatalog) -> [LiveBackendCatalogEvent] {
+    private func events(for route: AppRoute, in catalog: LiveCatalog, searchQuery: String) -> [LiveBackendCatalogEvent] {
         switch route {
         case .ranking:
             return sortedEvents(catalog.events)
         case .genre(let name):
             return sortedEvents(catalog.events.filter { normalizedGenre($0.category) == normalizedGenre(name) })
         case .search:
-            guard !normalizedSearchQuery.isEmpty else { return sortedEvents(catalog.events) }
+            let normalizedQuery = normalizedSearchValue(searchQuery)
+            guard !normalizedQuery.isEmpty else { return sortedEvents(catalog.events) }
             return sortedEvents(catalog.events.filter { event in
                 [
                     event.title,
@@ -808,7 +802,7 @@ private struct LiveDiscoveryRouteView: View {
                     event.category.map(displayGenre)
                 ]
                 .compactMap { $0 }
-                .contains { normalizedSearchValue($0).contains(normalizedSearchQuery) }
+                .contains { normalizedSearchValue($0).contains(normalizedQuery) }
             })
         case .region, .open:
             return []
