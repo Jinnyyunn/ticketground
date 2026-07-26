@@ -4,13 +4,18 @@ struct DiscoveryHomeView: View {
     let content: DiscoveryContent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+        VStack(alignment: .leading, spacing: 0) {
             DiscoveryCategoryGrid(categories: content.categories)
             DiscoveryFeaturedSection(featured: content.featured, supporting: content.supporting)
+                .padding(.top, TicketgroundSpacing.xl)
             DiscoveryRankingSection(rankings: content.rankings)
+                .padding(.top, TicketgroundSpacing.xxl)
             DiscoveryOpeningSection(openingSoon: content.openingSoon)
+                .padding(.top, TicketgroundSpacing.xxl)
             DiscoveryShortcutsSection(shortcuts: content.shortcuts)
+                .padding(.top, TicketgroundSpacing.xxl)
         }
+        .padding(.horizontal, TicketgroundSpacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -19,7 +24,7 @@ struct DiscoveryCategoryGrid: View {
     let categories: [DiscoveryCategory]
 
     var body: some View {
-        VStack(spacing: TicketgroundSpacing.xs) {
+        VStack(spacing: TicketgroundSpacing.md) {
             ForEach(Array(stride(from: 0, to: categories.count, by: 5)), id: \.self) { index in
                 HStack(spacing: TicketgroundSpacing.xs) {
                     ForEach(Array(categories[index..<min(index + 5, categories.count)]), id: \.label) { category in
@@ -44,7 +49,7 @@ struct DiscoveryCategoryGrid: View {
                 }
             }
         }
-        .padding(.vertical, TicketgroundSpacing.xs)
+        .padding(.vertical, TicketgroundSpacing.md)
     }
 
     private func categoryIdentifier(for label: String) -> String {
@@ -67,6 +72,7 @@ struct DiscoveryCategoryGrid: View {
 struct DiscoveryFeaturedSection: View {
     let featured: DiscoveryFeatured
     let supporting: [DiscoveryFeatured]
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
@@ -99,38 +105,35 @@ struct DiscoveryFeaturedSection: View {
                                     .accessibilityIdentifier("discovery-hero-page-indicator")
                                     .accessibilityLabel("1 / \(max(supporting.count + 1, 2))")
                             }
-                            Text(featured.title)
-                                .font(.system(size: 30, weight: .black))
-                                .foregroundStyle(.white)
-                                .lineLimit(2)
-                                .allowsTightening(true)
-                                .frame(maxWidth: 304, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityLabel(featured.title)
-                                .accessibilityIdentifier("discovery-featured-title")
-                            Text(featured.venue)
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(.white.opacity(0.92))
-                            Text(featured.date)
-                                .font(.footnote)
-                                .foregroundStyle(.white.opacity(0.8))
+                            Spacer(minLength: 0)
+                            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                                Text(featured.title)
+                                    .font(.system(size: 30, weight: .black))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(2)
+                                    .allowsTightening(true)
+                                    .frame(maxWidth: 304, alignment: .leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityLabel(featured.title)
+                                    .accessibilityIdentifier("discovery-featured-title")
+                                Text(featured.venue)
+                                    .font(.headline.weight(.bold))
+                                    .foregroundStyle(.white.opacity(0.92))
+                                Text(featured.date)
+                                    .font(.footnote)
+                                    .foregroundStyle(.white.opacity(0.8))
+                                Text("\(featured.cta)  →")
+                                    .font(.subheadline.weight(.black))
+                                    .foregroundStyle(colorScheme == .dark ? .white : TicketgroundColor.ink)
+                                    .padding(.horizontal, TicketgroundSpacing.md)
+                                    .frame(minHeight: 36)
+                                    .background(colorScheme == .dark ? .black.opacity(0.7) : .white)
+                                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+                                    .accessibilityHidden(true)
+                            }
                         }
                         .padding(TicketgroundSpacing.lg)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
-                        HStack {
-                            Text("\(featured.cta)  →")
-                                .font(.headline.weight(.black))
-                                .foregroundStyle(TicketgroundColor.ink)
-                                .padding(.horizontal, TicketgroundSpacing.lg)
-                                .frame(minHeight: 40)
-                                .background(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
-                                .accessibilityHidden(true)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, TicketgroundSpacing.lg)
-                        .padding(.bottom, TicketgroundSpacing.lg)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         HStack {
                             Text("‹")
                                 .font(.title3.weight(.bold))

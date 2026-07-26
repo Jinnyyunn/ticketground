@@ -23,14 +23,14 @@ struct DiscoveryRankingSection: View {
                 HStack(alignment: .top, spacing: TicketgroundSpacing.sm) {
                     ForEach(rankings, id: \.rank) { item in
                     NavigationLink(value: item.route) {
-                        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
                             ZStack(alignment: .topLeading) {
                                 DiscoveryRankingPoster(imageResource: item.imageResource, title: item.title)
                                 Text("\(item.rank)")
                                     .font(.title3.weight(.black))
                                     .foregroundStyle(.white)
-                                    .padding(.horizontal, TicketgroundSpacing.sm)
-                                    .padding(.vertical, TicketgroundSpacing.xs)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
                                     .background(TicketgroundColor.accent)
                                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
                             }
