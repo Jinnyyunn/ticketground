@@ -81,7 +81,7 @@ struct DiscoveryFeaturedSection: View {
                     ZStack(alignment: .topLeading) {
                         DiscoveryFeaturedImage(imageResource: featured.imageResource, title: featured.title)
                         LinearGradient(
-                            colors: [TicketgroundColor.ink.opacity(0.72), .clear, TicketgroundColor.ink.opacity(0.72)],
+                            colors: [.black.opacity(0.72), .clear, .black.opacity(0.72)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
