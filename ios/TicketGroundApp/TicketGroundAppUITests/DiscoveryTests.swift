@@ -65,8 +65,9 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["login-kakao"].exists)
         XCTAssertTrue(app.buttons["login-naver"].exists)
         app.buttons["login-google"].tap()
-        XCTAssertTrue(app.buttons["login-provider-external-gate"].waitForExistence(timeout: 10))
-        app.buttons["login-provider-external-gate"].tap()
+        let externalGate = app.buttons.matching(identifier: "login-provider-external-gate").element(boundBy: 1)
+        XCTAssertTrue(externalGate.waitForExistence(timeout: 10))
+        externalGate.tap()
         XCTAssertTrue(app.staticTexts["login-provider-external-state"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["login-success"].exists)
         XCTAssertTrue(app.staticTexts["Google 로그인은 외부 OAuth 인증 단계(E3) 연결이 필요합니다."].exists)
@@ -135,8 +136,9 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
 
         app.buttons["login-google"].tap()
-        XCTAssertTrue(app.buttons["login-provider-external-gate"].waitForExistence(timeout: 10))
-        app.buttons["login-provider-external-gate"].tap()
+        let externalGate = app.buttons.matching(identifier: "login-provider-external-gate").element(boundBy: 1)
+        XCTAssertTrue(externalGate.waitForExistence(timeout: 10))
+        externalGate.tap()
         XCTAssertTrue(anyElement(app, identifier: "login-provider-external-state").waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(app, identifier: "login-success").exists)
     }

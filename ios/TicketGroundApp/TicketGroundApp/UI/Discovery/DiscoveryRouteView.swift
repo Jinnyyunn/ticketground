@@ -240,7 +240,6 @@ struct DiscoveryLoginView: View {
                 providerMessage = externalOAuthMessage(for: provider)
                 selectedProvider = nil
             }
-            .accessibilityElement(children: .ignore)
             .accessibilityIdentifier("login-provider-external-gate")
             Button("취소", role: .cancel) {
                 guard let provider = selectedProvider else { return }
