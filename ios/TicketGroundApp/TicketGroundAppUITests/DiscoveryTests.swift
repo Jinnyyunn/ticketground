@@ -116,23 +116,15 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.textFields["search-input"].exists)
     }
 
-    func testLiveCatalogRouteShowsLiveStateAndSeatMapEntry() {
+    func testLiveHomeShowsPublicStateWhenCatalogRouteIsUnconfirmed() {
         let app = liveApp()
         app.launch()
 
-        let featuredCTA = app.buttons["discovery-featured-cta"]
-        XCTAssertTrue(featuredCTA.waitForExistence(timeout: 20))
-        featuredCTA.tap()
-
-        XCTAssertTrue(anyElement(app, identifier: "live-route-state").waitForExistence(timeout: 20))
-        XCTAssertTrue(anyElement(app, identifier: "live-catalog-event").exists)
-        XCTAssertFalse(app.staticTexts["이 화면은 다음 discovery 단계에서 콘텐츠를 연결합니다."].exists)
-
-        let seatMapLink = app.buttons["live-seat-map-link"]
-        XCTAssertTrue(seatMapLink.waitForExistence(timeout: 20))
-        seatMapLink.tap()
-        XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 20))
-        XCTAssertTrue(anyElement(app, identifier: "live-seat-map-zones").exists)
+        XCTAssertTrue(anyElement(app, identifier: "live-state-home").waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["공개 상태 조회"].exists)
+        XCTAssertTrue(app.staticTexts["공연 목록, 검색, 상세와 좌석도는 아직 사용할 수 없습니다."].exists)
+        XCTAssertFalse(app.buttons["discovery-featured-cta"].exists)
+        XCTAssertFalse(app.buttons["live-seat-map-link"].exists)
     }
 
     func testLiveLoginDoesNotCreateFixtureUser() {

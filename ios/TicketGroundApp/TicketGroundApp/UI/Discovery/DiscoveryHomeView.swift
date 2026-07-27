@@ -20,6 +20,39 @@ struct DiscoveryHomeView: View {
     }
 }
 
+struct LiveStateOnlyHomeView: View {
+    let state: LiveState
+
+    var body: some View {
+        TicketgroundSurface(tone: .standard) {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+                Text("공개 상태 조회")
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(TicketgroundColor.ink)
+                Text("GET /api/state 응답")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(TicketgroundColor.accent)
+                Text("공연 \(state.events.count)건 · 공연장 \(state.venues.count)곳")
+                    .font(.headline)
+                    .foregroundStyle(TicketgroundColor.ink)
+                Text("백엔드 집계: 공연 \(state.backendSummary.events)건 · 티켓 \(state.backendSummary.tickets)건")
+                    .font(.subheadline)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+                Text("원장 검증: \(state.ledger.verified ? "완료" : "미확인") · 항목 \(state.ledger.totalEntries)건")
+                    .font(.subheadline)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+                Text("공연 목록, 검색, 상세와 좌석도는 아직 사용할 수 없습니다.")
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+                Text("GET /api/catalog 계약이 확인되지 않아 공연 정보를 추정하거나 표시하지 않습니다.")
+                    .font(.footnote)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+            }
+        }
+        .accessibilityIdentifier("live-state-home")
+    }
+}
+
 struct DiscoveryCategoryGrid: View {
     let categories: [DiscoveryCategory]
 

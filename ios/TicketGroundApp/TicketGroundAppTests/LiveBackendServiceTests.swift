@@ -386,6 +386,28 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
+    func testLiveHomeKeepsTypedStateWhenCatalogRouteIsUnconfirmed() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://132.145.109.87:4174/")!,
+            assetBaseURL: URL(string: "http://132.145.109.87:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let home = try await DiscoveryFixtureLoader.loadLive(using: client)
+
+        guard case .stateOnly(let state) = home else {
+            return XCTFail("Expected state-only Home when catalog has no route proof")
+        }
+        XCTAssertEqual(state.events.first?.title, "Neon Stage")
+        XCTAssertEqual(state.backendSummary.events, 1)
+        XCTAssertEqual(state.ledger.verified, true)
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy { $0.url?.path == "/api/state" })
+    }
+
     func testDefaultLiveCatalogBootstrapFailureDoesNotDispatchCatalog() async {
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":false,"error":{"code":"BOOTSTRAP_DOWN","message":"Bootstrap unavailable"}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral

@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedTab: TicketgroundTab = .home
     @State private var discoveryContent: DiscoveryContent?
+    @State private var liveState: LiveState?
     @State private var discoveryLoadFailed = false
     @State private var discoveryReloadRequest = 0
     @State private var discoveryLoadRequestCount = 0
@@ -29,6 +30,8 @@ struct ContentView: View {
                         if scenario == .happy {
                             if let discoveryContent {
                                 DiscoveryHomeView(content: discoveryContent)
+                            } else if let liveState {
+                                LiveStateOnlyHomeView(state: liveState)
                             } else if discoveryLoadFailed {
                                 TicketgroundErrorSurface(
                                     title: "콘텐츠를 불러올 수 없습니다",
@@ -94,13 +97,18 @@ struct ContentView: View {
             }
         }
         .task(id: discoveryReloadRequest) {
-            guard discoveryContent == nil, !discoveryLoadFailed else { return }
+            guard discoveryContent == nil, liveState == nil, !discoveryLoadFailed else { return }
             discoveryLoadRequestCount += 1
             do {
                 if container.environment.mode == .fixture {
                     discoveryContent = try DiscoveryFixtureLoader.load()
                 } else {
-                    discoveryContent = try await DiscoveryFixtureLoader.load(using: container.environment.apiClient)
+                    switch try await DiscoveryFixtureLoader.loadLive(using: container.environment.apiClient) {
+                    case .catalog(let content):
+                        discoveryContent = content
+                    case .stateOnly(let state):
+                        liveState = state
+                    }
                 }
             } catch {
                 discoveryLoadFailed = true

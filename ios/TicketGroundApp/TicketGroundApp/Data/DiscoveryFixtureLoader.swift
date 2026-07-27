@@ -1,5 +1,10 @@
 import Foundation
 
+enum LiveDiscoveryHomeContent {
+    case catalog(DiscoveryContent)
+    case stateOnly(LiveState)
+}
+
 enum DiscoveryFixtureLoader {
     static func load() throws -> DiscoveryContent {
         let bundle = Bundle(for: VirtualFixtureBundleMarker.self)
@@ -15,10 +20,17 @@ enum DiscoveryFixtureLoader {
         return try map(fixture.body)
     }
 
-    static func load(using apiClient: APIClient) async throws -> DiscoveryContent {
-        let catalog = try await LiveBackendService(apiClient: apiClient).getCatalog()
+    static func loadLive(using apiClient: APIClient) async throws -> LiveDiscoveryHomeContent {
+        let service = LiveBackendService(apiClient: apiClient)
+        let state = try await service.getState()
+        let catalog: LiveCatalog
+        do {
+            catalog = try await service.getCatalog()
+        } catch {
+            return .stateOnly(state)
+        }
         guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
-        return try map(catalog.events, using: apiClient)
+        return .catalog(try map(catalog.events, using: apiClient))
     }
 
     private static func map(_ body: DiscoveryFixtureBody) throws -> DiscoveryContent {

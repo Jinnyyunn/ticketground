@@ -195,7 +195,7 @@ struct LiveState: Decodable, Equatable {
     let events: [LiveStateEvent]
     let venues: [LiveVenue]
     let users: [LiveUser]
-    let tickets: [LiveTicket]
+    let tickets: [LiveTicket]?
     let resalePools: [LiveResalePool]
     let backendSummary: LiveBackendSummary
     let ledger: LiveLedger
