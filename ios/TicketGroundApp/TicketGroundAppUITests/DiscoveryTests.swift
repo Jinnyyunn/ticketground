@@ -91,6 +91,21 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
     }
 
+    func testMenuOpensCapabilityLedgerWithoutClaimingUnavailableFunctionsAreLive() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["menu-capability-ledger"].waitForExistence(timeout: 10))
+        app.buttons["menu-capability-ledger"].tap()
+
+        XCTAssertTrue(app.staticTexts["capability-ledger-title"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["공개 상태 조회"].exists)
+        XCTAssertTrue(app.staticTexts["확인되지 않음 또는 이용 불가"].exists)
+        XCTAssertTrue(app.staticTexts["HTTP 전용, 인증 또는 외부 계약이 필요합니다"].exists)
+    }
+
     func testBottomSearchTabNavigatesToFixtureSearch() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()

@@ -156,10 +156,11 @@ final class AppEnvironmentTests: XCTestCase {
             .event(slug: "event"), .place(slug: nil), .artist(slug: "artist"),
             .goods(slug: "goods"), .queue(slug: "queue"), .booking(slug: "booking"),
             .checkout(slug: "checkout"), .reservation(id: "reservation"), .login,
-            .signup, .mypage, .cancel, .resale, .transfer, .watchlist, .help, .inquiry
+            .signup, .mypage, .cancel, .resale, .transfer, .watchlist, .help, .inquiry, .capabilityLedger
         ]
         XCTAssertEqual(Set(routes.map(\.id)).count, routes.count)
         XCTAssertNil(RouteResolver.resolve(path: "/admin"))
+        XCTAssertNil(RouteResolver.resolve(path: "/capability-ledger"))
         XCTAssertNil(RouteResolver.resolve(path: "/contents/genre/"))
     }
 

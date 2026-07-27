@@ -22,6 +22,8 @@ struct DiscoveryRouteView: View {
             DiscoveryLoginView()
         case .mypage:
             DiscoveryMenuView()
+        case .capabilityLedger:
+            CapabilityLedgerView()
         case .open:
             if let content {
                 DiscoveryOpenCalendarView(content: content)
@@ -408,6 +410,10 @@ struct DiscoveryMenuView: View {
                     menuLink(title: "공지사항", icon: "megaphone", route: .open, identifier: "menu-notice")
                 }
 
+                menuSection(title: "서비스 안내", detail: "현재 연결 상태를 확인하세요") {
+                    menuLink(title: "서비스 연결 현황", icon: "checklist", route: .capabilityLedger, identifier: "menu-capability-ledger")
+                }
+
                 TicketgroundSurface(tone: .muted) {
                     HStack {
                         Label("화면 모드", systemImage: lightMode ? "sun.max" : "moon")
@@ -640,6 +646,8 @@ private struct LiveDiscoveryRouteView: View {
             DiscoveryLoginView()
         case .mypage:
             LiveMenuRouteView()
+        case .capabilityLedger:
+            CapabilityLedgerView()
         case .queue, .booking:
             LiveSeatMapRouteView(route: route)
         case .watchlist:
@@ -947,6 +955,10 @@ private struct LiveMenuRouteView: View {
                     liveMenuLink(title: "1:1 문의", icon: "bubble.left", route: .inquiry, identifier: "live-menu-inquiry")
                 }
 
+                menuSection(title: "서비스 안내", detail: "현재 연결 상태를 확인하세요") {
+                    liveMenuLink(title: "서비스 연결 현황", icon: "checklist", route: .capabilityLedger, identifier: "live-menu-capability-ledger")
+                }
+
                 Text("실시간 서비스 메뉴")
                     .font(.caption)
                     .foregroundStyle(TicketgroundColor.inkMuted)
@@ -1011,6 +1023,58 @@ private struct LiveMenuRouteView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
         .contentShape(Rectangle())
+    }
+}
+
+private struct CapabilityLedgerView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text("서비스 연결 현황")
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(TicketgroundColor.ink)
+                    .accessibilityIdentifier("capability-ledger-title")
+                Text("현재 확인된 공개 API 계약만 안내합니다. 확인되지 않은 기능은 라이브로 표시하지 않습니다.")
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+
+                statusCard(
+                    title: "공개 상태 조회",
+                    detail: "GET /api/state만 현재 공개 읽기로 확인되었습니다. 상태 응답은 시도할 수 있습니다.",
+                    icon: "checkmark.circle"
+                )
+                statusCard(
+                    title: "확인되지 않음 또는 이용 불가",
+                    detail: "공연 목록과 그 밖의 공개 읽기는 계약이 확인되지 않았습니다. GET /api/catalog도 현재 공개 읽기로 표시하지 않습니다.",
+                    icon: "questionmark.circle"
+                )
+                statusCard(
+                    title: "HTTP 전용, 인증 또는 외부 계약이 필요합니다",
+                    detail: "로그인·계정, 관심공연·고객센터, 예매·결제·QR·외부 로그인 제공자는 HTTP 전용 연결, 인증 또는 외부 계약이 필요합니다. 이 앱에서는 실행하지 않습니다.",
+                    icon: "lock.circle"
+                )
+            }
+            .padding(TicketgroundSpacing.xl)
+        }
+        .background(TicketgroundColor.surfaceMuted)
+        .navigationTitle("서비스 연결 현황")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func statusCard(title: String, detail: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Label(title, systemImage: icon)
+                .font(.headline.weight(.black))
+                .foregroundStyle(TicketgroundColor.ink)
+            Text(detail)
+                .font(.body)
+                .foregroundStyle(TicketgroundColor.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TicketgroundSpacing.lg)
+        .background(TicketgroundColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
     }
 }
 

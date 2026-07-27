@@ -31,6 +31,7 @@ enum AppRoute: Hashable, Codable {
     case watchlist
     case help
     case inquiry
+    case capabilityLedger
 
     var id: String {
         switch self {
@@ -57,6 +58,7 @@ enum AppRoute: Hashable, Codable {
         case .watchlist: return "watchlist"
         case .help: return "help"
         case .inquiry: return "inquiry"
+        case .capabilityLedger: return "capability-ledger"
         }
     }
 }
