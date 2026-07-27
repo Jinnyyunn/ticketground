@@ -310,6 +310,21 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support").waitForExistence(timeout: 20))
     }
 
+    func testLiveMenuOpensCapabilityLedger() {
+        let app = liveApp()
+        app.launch()
+
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["live-menu-capability-ledger"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-capability-ledger"].tap()
+
+        XCTAssertTrue(app.staticTexts["capability-ledger-title"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["공개 상태 조회"].exists)
+        XCTAssertTrue(app.staticTexts["확인되지 않음 또는 이용 불가"].exists)
+        XCTAssertTrue(app.staticTexts["HTTP 전용, 인증 또는 외부 계약이 필요합니다"].exists)
+    }
+
     func testLiveSearchFiltersCatalogAndShowsExplicitEmptyState() {
         let app = liveApp()
         app.launch()
