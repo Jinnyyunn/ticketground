@@ -648,8 +648,8 @@ private struct LiveDiscoveryRouteView: View {
             LiveMenuRouteView()
         case .capabilityLedger:
             CapabilityLedgerView()
-        case .queue, .booking:
-            LiveSeatMapRouteView(route: route)
+        case .search, .ranking, .genre, .place, .event, .goods, .queue, .booking:
+            LiveCatalogUnavailableRouteView(route: route)
         case .watchlist:
             LiveWatchlistRouteView()
         case .help, .inquiry:
@@ -659,7 +659,7 @@ private struct LiveDiscoveryRouteView: View {
         case .signup, .resale, .transfer, .cancel, .checkout, .reservation, .artist:
             LiveUnsupportedRouteView(route: route)
         default:
-            catalogBody
+            LiveUnsupportedRouteView(route: route)
         }
     }
 
@@ -867,6 +867,75 @@ private struct LiveDiscoveryRouteView: View {
         case "child", "children", "family": return "아동"
         case "sports": return "스포츠"
         default: return value
+        }
+    }
+}
+
+private struct LiveCatalogUnavailableRouteView: View {
+    @Environment(AppContainer.self) private var container
+    let route: AppRoute
+    @State private var stateSummary = "공개 상태는 홈 화면에서 확인할 수 있습니다."
+    @State private var reloadID = 0
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text("공연 정보 연결 상태")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                    .accessibilityIdentifier("live-route-state")
+                Text("공연 정보 이용 불가")
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(TicketgroundColor.ink)
+                Text("공연 목록, 검색, 상세와 좌석도는 아직 사용할 수 없습니다.")
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+                Text("GET /api/catalog 계약이 확인되지 않아 공연 정보를 추정하거나 표시하지 않습니다.")
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+                Text(stateSummary)
+                    .font(.caption)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+                Button("상태 다시 확인") {
+                    reloadID += 1
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("live-catalog-unavailable-retry")
+                Button("홈으로") {
+                    container.navigationPath.removeAll()
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("live-catalog-unavailable-home")
+            }
+            .padding(TicketgroundSpacing.xl)
+        }
+        .accessibilityIdentifier("live-catalog-unavailable")
+        .navigationTitle(routeTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: reloadID) {
+            await loadState()
+        }
+    }
+
+    private func loadState() async {
+        do {
+            let state = try await LiveBackendService(apiClient: container.environment.apiClient).getState()
+            stateSummary = "공개 상태: 공연 \(state.events.count)건 · 공연장 \(state.venues.count)곳"
+        } catch {
+            stateSummary = "공개 상태를 확인하지 못했습니다. 홈으로 돌아가 다시 시도해 주세요."
+        }
+    }
+
+    private var routeTitle: String {
+        switch route {
+        case .search: return "공연 검색"
+        case .ranking: return "실시간 예매 랭킹"
+        case .genre(let name): return "\(name) 공연"
+        case .place: return "공연장별 공연"
+        case .event: return "공연 상세"
+        case .goods: return "상품 상세"
+        case .queue, .booking: return "좌석 현황"
+        default: return "공연 정보"
         }
     }
 }

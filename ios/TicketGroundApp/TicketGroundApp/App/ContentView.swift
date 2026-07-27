@@ -34,8 +34,10 @@ struct ContentView: View {
                                 LiveStateOnlyHomeView(state: liveState)
                             } else if discoveryLoadFailed {
                                 TicketgroundErrorSurface(
-                                    title: "콘텐츠를 불러올 수 없습니다",
-                                    message: "번들 discovery fixture를 확인해 주세요.",
+                                    title: container.environment.mode == .live ? "공개 상태를 불러올 수 없습니다" : "콘텐츠를 불러올 수 없습니다",
+                                    message: container.environment.mode == .live
+                                        ? "공개 서버 상태를 확인하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요."
+                                        : "번들 discovery fixture를 확인해 주세요.",
                                     actionTitle: "다시 시도",
                                     action: {
                                         discoveryLoadFailed = false
@@ -103,12 +105,7 @@ struct ContentView: View {
                 if container.environment.mode == .fixture {
                     discoveryContent = try DiscoveryFixtureLoader.load()
                 } else {
-                    switch try await DiscoveryFixtureLoader.loadLive(using: container.environment.apiClient) {
-                    case .catalog(let content):
-                        discoveryContent = content
-                    case .stateOnly(let state):
-                        liveState = state
-                    }
+                    liveState = try await LiveBackendService(apiClient: container.environment.apiClient).getState()
                 }
             } catch {
                 discoveryLoadFailed = true

@@ -405,6 +405,10 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(state.events.first?.title, "Neon Stage")
         XCTAssertEqual(state.backendSummary.events, 1)
         XCTAssertEqual(state.ledger.verified, true)
+        XCTAssertFalse(
+            LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/catalog" },
+            "확인되지 않은 catalog route는 요청하지 않아야 합니다."
+        )
         XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy { $0.url?.path == "/api/state" })
     }
 

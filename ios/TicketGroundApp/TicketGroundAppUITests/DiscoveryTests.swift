@@ -128,6 +128,19 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(app.buttons["live-seat-map-link"].exists)
     }
 
+    func testLiveCatalogRoutesUseOneUnavailableSurface() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-search"].waitForExistence(timeout: 10))
+        app.buttons["header-search"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "live-catalog-unavailable").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["공연 목록, 검색, 상세와 좌석도는 아직 사용할 수 없습니다."].exists)
+        XCTAssertTrue(app.buttons["live-catalog-unavailable-retry"].exists)
+        XCTAssertTrue(app.buttons["live-catalog-unavailable-home"].exists)
+        XCTAssertFalse(app.textFields["live-search-input"].exists)
+    }
+
     func testLiveLoginDoesNotCreateFixtureUser() {
         let app = liveApp()
         app.launch()
@@ -317,31 +330,6 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["공개 상태 조회"].exists)
         XCTAssertTrue(app.staticTexts["확인되지 않음 또는 이용 불가"].exists)
         XCTAssertTrue(app.staticTexts["HTTP 전용, 인증 또는 외부 계약이 필요합니다"].exists)
-    }
-
-    func testLiveSearchFiltersCatalogAndShowsExplicitEmptyState() {
-        let app = liveApp()
-        app.launch()
-        XCTAssertTrue(app.buttons["header-search"].waitForExistence(timeout: 10))
-        app.buttons["header-search"].tap()
-
-        let searchInput = app.textFields["live-search-input"]
-        XCTAssertTrue(searchInput.waitForExistence(timeout: 20))
-        searchInput.tap()
-        searchInput.typeText("kInTeX")
-        searchInput.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-        XCTAssertTrue(app.staticTexts["2026 Palette Festival"].waitForExistence(timeout: 20))
-
-        let emptyApp = liveApp()
-        emptyApp.launch()
-        XCTAssertTrue(emptyApp.buttons["header-search"].waitForExistence(timeout: 10))
-        emptyApp.buttons["header-search"].tap()
-        let emptySearchInput = emptyApp.textFields["live-search-input"]
-        XCTAssertTrue(emptySearchInput.waitForExistence(timeout: 20))
-        emptySearchInput.tap()
-        emptySearchInput.typeText("없는공연검색")
-        emptySearchInput.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
-        XCTAssertTrue(anyElement(emptyApp, identifier: "live-search-empty").waitForExistence(timeout: 10))
     }
 
     func testLiveMenuCloseReturnsToTheDiscoveryHome() {
