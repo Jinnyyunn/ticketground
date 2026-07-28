@@ -214,6 +214,19 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(goods.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
     }
 
+    func testAdmittedLiveCatalogShowsReadOnlySeatMap() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
+        app.buttons["live-seat-map-link"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].exists)
+        XCTAssertTrue(app.staticTexts["R석"].exists)
+        XCTAssertFalse(app.buttons["live-seat-hold"].exists)
+    }
+
     func testLiveLoginDoesNotCreateFixtureUser() {
         let app = liveApp()
         app.launch()

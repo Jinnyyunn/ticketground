@@ -882,6 +882,8 @@ private final class UITestLiveHomeAPIClient: APIClient {
             return catalog(events: "[\(event)]")
         case ("/api/catalog", _):
             return scenario == .empty ? catalog(events: "[]") : catalog(events: "[\(event)]")
+        case ("/api/seat-map", _):
+            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
         default:
             throw APIClientError.invalidResponse
         }

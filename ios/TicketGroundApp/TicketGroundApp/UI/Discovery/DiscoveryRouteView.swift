@@ -651,7 +651,7 @@ private struct LiveDiscoveryRouteView: View {
         case .search, .ranking, .genre, .place, .event, .goods:
             catalogBody
         case .queue, .booking:
-            LiveCatalogUnavailableRouteView(route: route)
+            LiveSeatMapRouteView(route: route)
         case .watchlist:
             LiveWatchlistRouteView()
         case .help, .inquiry:
