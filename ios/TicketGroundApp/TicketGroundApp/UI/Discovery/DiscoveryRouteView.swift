@@ -299,7 +299,7 @@ struct DiscoveryLoginView: View {
     }
 
     private func externalOAuthMessage(for provider: Provider) -> String {
-        "\(provider.name) 로그인은 외부 OAuth 인증 단계(E3) 연결이 필요합니다. 현재 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다."
+        "\(provider.name) 로그인은 HTTPS API와 외부 OAuth 인증 단계(E3) 연결이 모두 필요합니다. 현재 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다."
     }
 }
 

@@ -70,7 +70,20 @@ final class DiscoveryTests: XCTestCase {
         externalGate.tap()
         XCTAssertTrue(app.staticTexts["login-provider-external-state"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["login-success"].exists)
-        XCTAssertTrue(app.staticTexts["Google 로그인은 외부 OAuth 인증 단계(E3) 연결이 필요합니다."].exists)
+        XCTAssertTrue(app.staticTexts["Google 로그인은 HTTPS API와 외부 OAuth 인증 단계(E3) 연결이 모두 필요합니다. 현재 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다."].exists)
+    }
+
+    func testProviderLoginCancellationDoesNotCreateASession() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+        app.buttons["header-watchlist"].tap()
+        XCTAssertTrue(app.buttons["login-kakao"].waitForExistence(timeout: 10))
+        app.buttons["login-kakao"].tap()
+        let cancel = app.buttons.matching(identifier: "login-provider-cancel").element(boundBy: 1)
+        XCTAssertTrue(cancel.waitForExistence(timeout: 10))
+        cancel.tap()
+        XCTAssertTrue(app.staticTexts["login-provider-external-state"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["login-success"].exists)
     }
 
     func testHeaderMenuNavigatesToFixtureMenu() {
