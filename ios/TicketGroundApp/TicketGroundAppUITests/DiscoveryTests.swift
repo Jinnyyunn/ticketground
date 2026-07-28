@@ -102,9 +102,11 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["menu-capability-ledger"].tap()
 
         XCTAssertTrue(app.staticTexts["capability-ledger-title"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["공개 상태 조회"].exists)
-        XCTAssertTrue(app.staticTexts["확인되지 않음 또는 이용 불가"].exists)
-        XCTAssertTrue(app.staticTexts["HTTP 전용, 인증 또는 외부 계약이 필요합니다"].exists)
+        XCTAssertTrue(app.staticTexts["공개 공연 및 좌석 조회"].exists)
+        XCTAssertTrue(app.staticTexts["공개 미디어 원본"].exists)
+        XCTAssertTrue(app.staticTexts["로그인과 내 정보"].exists)
+        XCTAssertTrue(app.buttons["capability-ledger-home"].exists)
+        XCTAssertTrue(app.buttons["capability-ledger-login"].exists)
     }
 
     func testBottomSearchTabNavigatesToFixtureSearch() {
@@ -413,9 +415,12 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["live-menu-capability-ledger"].tap()
 
         XCTAssertTrue(app.staticTexts["capability-ledger-title"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["공개 상태 조회"].exists)
-        XCTAssertTrue(app.staticTexts["확인되지 않음 또는 이용 불가"].exists)
-        XCTAssertTrue(app.staticTexts["HTTP 전용, 인증 또는 외부 계약이 필요합니다"].exists)
+        XCTAssertTrue(app.staticTexts["공개 공연 및 좌석 조회"].exists)
+        XCTAssertTrue(app.staticTexts["공개 미디어 원본"].exists)
+        XCTAssertTrue(app.staticTexts["계약이 없는 탐색 메뉴"].exists)
+        XCTAssertTrue(app.staticTexts["거래 및 인증 기능"].exists)
+        XCTAssertTrue(app.buttons["capability-ledger-home"].exists)
+        XCTAssertTrue(app.buttons["capability-ledger-login"].exists)
     }
 
     func testLiveMenuCloseReturnsToTheDiscoveryHome() {

@@ -1099,6 +1099,8 @@ private struct LiveMenuRouteView: View {
 }
 
 private struct CapabilityLedgerView: View {
+    @Environment(AppContainer.self) private var container
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
@@ -1106,25 +1108,56 @@ private struct CapabilityLedgerView: View {
                     .font(.title2.weight(.black))
                     .foregroundStyle(TicketgroundColor.ink)
                     .accessibilityIdentifier("capability-ledger-title")
-                Text("현재 확인된 공개 API 계약만 안내합니다. 확인되지 않은 기능은 라이브로 표시하지 않습니다.")
+                Text("현재 확인된 계약만 기능으로 엽니다. 아직 연결 조건이 없는 메뉴는 이유와 다음 행동을 함께 안내합니다.")
                     .font(.body)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
 
                 statusCard(
-                    title: "공개 상태 조회",
-                    detail: "GET /api/state만 현재 공개 읽기로 확인되었습니다. 상태 응답은 시도할 수 있습니다.",
-                    icon: "checkmark.circle"
+                    title: "공개 공연 및 좌석 조회",
+                    detail: "공연 목록 계약이 확인되면 검색·랭킹·상세·좌석 현황을 읽기 전용으로 표시합니다. 연결이 불안정하면 홈에서 다시 시도할 수 있습니다.",
+                    icon: "checkmark.circle",
+                    identifier: "capability-ledger-public-read"
                 )
                 statusCard(
-                    title: "확인되지 않음 또는 이용 불가",
-                    detail: "공연 목록과 그 밖의 공개 읽기는 계약이 확인되지 않았습니다. GET /api/catalog도 현재 공개 읽기로 표시하지 않습니다.",
-                    icon: "questionmark.circle"
+                    title: "공개 미디어 원본",
+                    detail: "포스터와 좌석도는 승인된 HTTPS 미디어 원본이 설정된 경우에만 불러옵니다. 설정이 없거나 안전하지 않으면 대체 이미지를 표시합니다.",
+                    icon: "photo.badge.exclamationmark",
+                    identifier: "capability-ledger-media"
                 )
                 statusCard(
-                    title: "HTTP 전용, 인증 또는 외부 계약이 필요합니다",
-                    detail: "로그인·계정, 관심공연·고객센터, 예매·결제·QR·외부 로그인 제공자는 HTTP 전용 연결, 인증 또는 외부 계약이 필요합니다. 이 앱에서는 실행하지 않습니다.",
-                    icon: "lock.circle"
+                    title: "로그인과 내 정보",
+                    detail: "로그인·마이페이지·관심공연·문의는 HTTPS와 실제 제공자 설정, 짝지어진 로그인 세션이 모두 필요합니다. 준비 전에는 요청을 보내지 않습니다.",
+                    icon: "lock.circle",
+                    identifier: "capability-ledger-auth"
                 )
+                statusCard(
+                    title: "계약이 없는 탐색 메뉴",
+                    detail: "지역·아티스트·티켓오픈 캘린더는 현재 공개 응답에 필요한 데이터가 없어 임의로 구성하지 않습니다. 홈의 공연 목록에서 지원되는 탐색을 이용해 주세요.",
+                    icon: "questionmark.circle",
+                    identifier: "capability-ledger-contract-missing"
+                )
+                statusCard(
+                    title: "거래 및 인증 기능",
+                    detail: "회원가입, 결제, 예약·취소·양도·전송, QR, 푸시와 기기 신뢰는 별도 서버 계약과 HTTPS 증명이 완료될 때까지 실행하지 않습니다.",
+                    icon: "hand.raised.circle",
+                    identifier: "capability-ledger-external-gate"
+                )
+
+                VStack(spacing: TicketgroundSpacing.sm) {
+                    Button("홈으로") {
+                        container.navigationPath.removeAll()
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("capability-ledger-home")
+
+                    NavigationLink(value: AppRoute.login) {
+                        Label("로그인 조건 확인", systemImage: "lock")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(TicketgroundColor.accent)
+                    .accessibilityIdentifier("capability-ledger-login")
+                }
             }
             .padding(TicketgroundSpacing.xl)
         }
@@ -1133,7 +1166,7 @@ private struct CapabilityLedgerView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func statusCard(title: String, detail: String, icon: String) -> some View {
+    private func statusCard(title: String, detail: String, icon: String, identifier: String) -> some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
             Label(title, systemImage: icon)
                 .font(.headline.weight(.black))
@@ -1147,6 +1180,7 @@ private struct CapabilityLedgerView: View {
         .padding(TicketgroundSpacing.lg)
         .background(TicketgroundColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+        .accessibilityIdentifier(identifier)
     }
 }
 
