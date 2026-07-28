@@ -473,7 +473,7 @@ final class LiveAPIClient: APIClient {
 
     init(
         baseURL: URL,
-        assetBaseURL: URL,
+        assetBaseURL: URL?,
         credentialStore: CredentialStore,
         session: URLSession = .shared
     ) {
@@ -759,7 +759,7 @@ final class AppContainer {
 
     static func live(
         baseURL: URL = URL(string: "http://132.145.109.87:4174/")!,
-        assetBaseURL: URL = URL(string: "http://132.145.109.87:4173/")!,
+        assetBaseURL: URL? = nil,
         credentialStore: CredentialStore = KeychainCredentialStore()
     ) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: credentialStore)
@@ -782,7 +782,7 @@ final class AppContainer {
             return liveHomeTest(scenario)
         }
         let apiURL = RuntimeConfiguration.apiBaseURL
-        return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL(for: apiURL))
+        return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL)
     }
 
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
@@ -826,15 +826,13 @@ enum RuntimeConfiguration {
         URL(string: value(for: "TICKETGROUND_API_BASE_URL") ?? "http://132.145.109.87:4174/")!
     }
 
-    static func assetBaseURL(for apiURL: URL) -> URL {
-        if let configured = value(for: "TICKETGROUND_ASSET_BASE_URL"), let url = URL(string: configured) {
-            return url
+    static var assetBaseURL: URL? {
+        guard let configured = value(for: "TICKETGROUND_ASSET_BASE_URL"),
+              let url = URL(string: configured),
+              PublicMediaOrigin(url: url) != nil else {
+            return nil
         }
-        guard var components = URLComponents(url: apiURL, resolvingAgainstBaseURL: false), components.port == 4174 else {
-            return apiURL
-        }
-        components.port = 4173
-        return components.url ?? apiURL
+        return url
     }
 
     private static func value(for key: String) -> String? {

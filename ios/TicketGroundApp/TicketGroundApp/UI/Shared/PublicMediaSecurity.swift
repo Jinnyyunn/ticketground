@@ -8,7 +8,7 @@ struct PublicMediaOrigin: Hashable {
     init?(url: URL) {
         guard let scheme = url.scheme?.lowercased(),
               let host = url.host?.lowercased(),
-              ["http", "https"].contains(scheme),
+              scheme == "https",
               url.user == nil,
               url.password == nil else {
             return nil

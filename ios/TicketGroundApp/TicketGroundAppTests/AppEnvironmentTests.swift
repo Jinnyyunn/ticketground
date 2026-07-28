@@ -173,7 +173,7 @@ final class AppEnvironmentTests: XCTestCase {
 
         let client = LiveAPIClient(
             baseURL: URL(string: "http://127.0.0.1:4174/")!,
-            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            assetBaseURL: URL(string: "https://media.ticketground.test/")!,
             credentialStore: InMemoryCredentialStore(),
             session: session
         )
@@ -181,7 +181,26 @@ final class AppEnvironmentTests: XCTestCase {
         let response = try await client.data(for: "/api/catalog")
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: response) as? [String: Int])
         XCTAssertEqual(object["total"], 3)
-        XCTAssertEqual(client.resolveResource("/assets/poster.jpg"), "http://127.0.0.1:4173/assets/poster.jpg")
+        XCTAssertEqual(client.resolveResource("/assets/poster.jpg"), "https://media.ticketground.test/assets/poster.jpg")
+    }
+
+    func testLiveAPIClientUsesOnlyExplicitHTTPSMediaOrigins() {
+        let insecureClient = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            credentialStore: InMemoryCredentialStore()
+        )
+        let secureClient = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "https://media.ticketground.test/assets/")!,
+            credentialStore: InMemoryCredentialStore()
+        )
+
+        XCTAssertNil(insecureClient.resolveResource("/assets/poster.jpg"))
+        XCTAssertEqual(
+            secureClient.resolveResource("posters/show.jpg"),
+            "https://media.ticketground.test/assets/posters/show.jpg"
+        )
     }
 
     func testLiveAPIClientDoesNotSendBearerCredentialOverHTTP() async throws {
