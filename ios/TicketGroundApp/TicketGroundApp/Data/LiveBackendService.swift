@@ -126,6 +126,10 @@ final class LiveBackendService {
         ), endpoint: .supportThreads, as: [LiveSupportThread].self)
     }
 
+    func perform(_ action: LiveAuthenticatedAction) async throws -> LiveMutationReceipt {
+        try await get(action.request(), endpoint: action.endpoint, as: LiveMutationReceipt.self)
+    }
+
     private func get<Response: Decodable>(
         _ request: APIRequest,
         endpoint: LiveAPIEndpoint,

@@ -159,6 +159,15 @@ final class AppEnvironmentTests: XCTestCase {
             .signup, .mypage, .cancel, .resale, .transfer, .watchlist, .help, .inquiry, .capabilityLedger
         ]
         XCTAssertEqual(Set(routes.map(\.id)).count, routes.count)
+        XCTAssertEqual(routes.map(\.classification).count, routes.count)
+        XCTAssertEqual(
+            Set(routes.map { $0.classification.connectivity }),
+            [.publicRead, .externalGate, .contractMissing, .intentionallyUnsupported]
+        )
+        XCTAssertEqual(AppRoute.region.classification.connectivity, .contractMissing)
+        XCTAssertEqual(AppRoute.login.classification.connectivity, .externalGate)
+        XCTAssertEqual(AppRoute.checkout(slug: "checkout").classification.connectivity, .intentionallyUnsupported)
+        XCTAssertEqual(AppRoute.booking(slug: "booking").classification.connectivity, .publicRead)
         XCTAssertNil(RouteResolver.resolve(path: "/admin"))
         XCTAssertNil(RouteResolver.resolve(path: "/capability-ledger"))
         XCTAssertNil(RouteResolver.resolve(path: "/contents/genre/"))

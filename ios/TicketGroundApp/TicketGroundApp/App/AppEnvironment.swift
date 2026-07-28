@@ -63,6 +63,33 @@ enum AppRoute: Hashable, Codable {
     }
 }
 
+enum AppRouteConnectivity: String, Equatable, Hashable {
+    case publicRead
+    case externalGate
+    case contractMissing
+    case intentionallyUnsupported
+}
+
+struct AppRouteClassification: Equatable {
+    let connectivity: AppRouteConnectivity
+    let reason: String
+}
+
+extension AppRoute {
+    var classification: AppRouteClassification {
+        switch self {
+        case .home, .search, .ranking, .genre, .event, .place, .goods, .queue, .booking, .capabilityLedger:
+            return AppRouteClassification(connectivity: .publicRead, reason: "공개 공연 및 좌석 조회 계약")
+        case .login, .signup, .mypage, .watchlist, .help, .inquiry:
+            return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
+        case .region, .artist, .open:
+            return AppRouteClassification(connectivity: .contractMissing, reason: "공개 DTO와 조회 경로 계약 부재")
+        case .checkout, .reservation, .cancel, .resale, .transfer:
+            return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "거래별 HTTPS·인증·결제 계약 필요")
+        }
+    }
+}
+
 struct RouteResolver {
     static func resolve(_ url: URL) -> AppRoute? {
         resolve(path: url.path)
@@ -134,6 +161,11 @@ enum APIRequestAuthentication: Equatable {
     case required(userID: String)
 }
 
+enum APIRequestOwnerBinding: Equatable {
+    case url
+    case jsonField(String)
+}
+
 struct APIRequest: Equatable {
     let method: APIRequestMethod
     let path: String
@@ -142,6 +174,7 @@ struct APIRequest: Equatable {
     let body: APIRequestBody
     let idempotencyKey: String?
     let authentication: APIRequestAuthentication
+    let ownerBinding: APIRequestOwnerBinding
 
     init(
         method: APIRequestMethod = .get,
@@ -150,7 +183,8 @@ struct APIRequest: Equatable {
         headers: [APIRequestHeader] = [],
         body: APIRequestBody = .none,
         idempotencyKey: String? = nil,
-        authentication: APIRequestAuthentication = .none
+        authentication: APIRequestAuthentication = .none,
+        ownerBinding: APIRequestOwnerBinding = .url
     ) {
         self.method = method
         self.path = path
@@ -159,6 +193,7 @@ struct APIRequest: Equatable {
         self.body = body
         self.idempotencyKey = idempotencyKey
         self.authentication = authentication
+        self.ownerBinding = ownerBinding
     }
 }
 
@@ -423,10 +458,16 @@ private enum AuthenticatedRequestOwnerValidator {
 final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
     private let originalRequest: URLRequest
     private let userID: String
+    private let ownerBinding: APIRequestOwnerBinding
 
-    init(originalRequest: URLRequest, userID: String) {
+    init(
+        originalRequest: URLRequest,
+        userID: String,
+        ownerBinding: APIRequestOwnerBinding
+    ) {
         self.originalRequest = originalRequest
         self.userID = userID
+        self.ownerBinding = ownerBinding
     }
 
     func urlSession(
@@ -442,6 +483,7 @@ final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
               originalURL.scheme?.caseInsensitiveCompare(redirectURL.scheme ?? "") == .orderedSame,
               originalURL.host?.caseInsensitiveCompare(redirectURL.host ?? "") == .orderedSame,
               effectivePort(for: originalURL) == effectivePort(for: redirectURL),
+              ownerBinding == .url,
               AuthenticatedRequestOwnerValidator.matches(userID, url: redirectURL) else {
             completionHandler(nil)
             return
@@ -496,7 +538,8 @@ final class LiveAPIClient: APIClient {
             case .required(let userID):
                 let redirectDelegate = AuthenticatedRedirectDelegate(
                     originalRequest: request,
-                    userID: userID
+                    userID: userID,
+                    ownerBinding: apiRequest.ownerBinding
                 )
                 result = try await session.data(for: request, delegate: redirectDelegate)
             }
@@ -562,7 +605,7 @@ final class LiveAPIClient: APIClient {
             guard url.scheme?.lowercased() == "https" else {
                 throw APIClientError.insecureCredentialTransport
             }
-            guard AuthenticatedRequestOwnerValidator.matches(userID, url: url) else {
+            guard ownerMatches(userID, request: apiRequest, url: url) else {
                 throw APIClientError.credentialOwnerMismatch
             }
             guard let storedCredential = credentialStore.read(),
@@ -580,6 +623,24 @@ final class LiveAPIClient: APIClient {
 
     func resolveResource(_ reference: String?) -> String? {
         mediaResolver.resolve(reference)?.absoluteString
+    }
+
+    private func ownerMatches(
+        _ userID: String,
+        request: APIRequest,
+        url: URL
+    ) -> Bool {
+        switch request.ownerBinding {
+        case .url:
+            return AuthenticatedRequestOwnerValidator.matches(userID, url: url)
+        case .jsonField(let name):
+            guard case .json(let body) = request.body,
+                  let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                  let owner = object[name] as? String else {
+                return false
+            }
+            return !owner.isEmpty && owner == userID
+        }
     }
 
     private func unwrap(_ data: Data) throws -> Data {

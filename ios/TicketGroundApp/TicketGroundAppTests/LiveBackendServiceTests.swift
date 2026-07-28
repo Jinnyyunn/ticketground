@@ -494,6 +494,150 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.pathTemplate, "/api/tickets/buy")
     }
 
+    func testAuthenticatedActionSendsOwnerBoundJSONAndIdempotencyKeyOverHTTPS() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/watchlist"] = Data(#"{"ok":true,"data":{"watchlist":{"id":"watch-1","userId":"user-1","eventId":"event-1"}}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+
+        let action = LiveAuthenticatedAction.watchlist(
+            userID: "user-1",
+            eventID: "event-1",
+            idempotencyKey: "watchlist-1"
+        )
+        let emitted = try client.urlRequest(for: action.request())
+        let emittedBody = try XCTUnwrap(emitted.httpBody.flatMap {
+            try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+        })
+        let receipt = try await mutationReadyService(for: client).perform(action)
+        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
+
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/api/watchlist")
+        XCTAssertEqual(emittedBody["eventId"] as? String, "event-1")
+        XCTAssertEqual(emittedBody["userId"] as? String, "user-1")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Idempotency-Key"), "watchlist-1")
+        XCTAssertEqual(receipt.payload, .object(["watchlist": .object([
+            "id": .string("watch-1"),
+            "userId": .string("user-1"),
+            "eventId": .string("event-1")
+        ])]))
+    }
+
+    func testAuthenticatedActionRejectsMissingIdentityAndHTTPBeforeDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let action = LiveAuthenticatedAction.ticketPurchase(
+            userID: "user-1",
+            ticketID: "ticket-1",
+            idempotencyKey: "purchase-1"
+        )
+        let secureClient = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await mutationReadyService(for: secureClient).perform(action)
+            XCTFail("Expected missing paired credential")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .missingCredential)
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let insecureClient = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        do {
+            _ = try await mutationReadyService(for: insecureClient).perform(action)
+            XCTFail("Expected HTTPS capability denial")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .insecureCredentialTransport)
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testAuthenticatedActionSurfacesMutationStatusErrorsAndRejectsEmptyInput() async {
+        LiveBackendServiceURLProtocol.responses["/api/support/messages"] = Data(#"{"ok":false,"error":{"code":"CONFLICT","message":"Duplicate action"}}"#.utf8)
+        LiveBackendServiceURLProtocol.statusCodes["/api/support/messages"] = 409
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await mutationReadyService(for: client).perform(.supportMessage(
+                userID: "user-1",
+                threadID: "thread-1",
+                message: "문의 내용",
+                idempotencyKey: "message-1"
+            ))
+            XCTFail("Expected backend status error")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .server(status: 409, code: "CONFLICT", message: "Duplicate action"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertThrowsError(try LiveAuthenticatedAction.watchlist(
+            userID: "user-1",
+            eventID: "",
+            idempotencyKey: "watchlist-2"
+        ).request()) { error in
+            XCTAssertEqual(error as? APIClientError, .invalidResponse)
+        }
+    }
+
+    func testAuthenticatedActionDefinitionsMatchDocumentedPathsAndOwners() throws {
+        let actions: [(LiveAuthenticatedAction, String, String)] = [
+            (.supportThread(userID: "user-1", message: "문의", idempotencyKey: "thread"), "/api/support/threads", "userId"),
+            (.supportMessage(userID: "user-1", threadID: "thread-1", message: "답변", idempotencyKey: "message"), "/api/support/messages", "actorId"),
+            (.watchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "watch"), "/api/watchlist", "userId"),
+            (.watchlistNotification(userID: "user-1", eventID: "event-1", idempotencyKey: "notify"), "/api/watchlist/notify", "userId"),
+            (.ticketPurchase(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "purchase"), "/api/tickets/buy", "userId"),
+            (.identityStart(userID: "user-1", phone: "01012345678", idempotencyKey: "identity-start"), "/api/identity/portone-danal/start", "userId"),
+            (.identityConfirm(userID: "user-1", phone: "01012345678", verificationID: "identity-1", idempotencyKey: "identity-confirm"), "/api/identity/portone-danal/confirm", "userId"),
+            (.trustDevice(userID: "user-1", deviceID: "device-1", attestation: "attestation", idempotencyKey: "trust"), "/api/devices/trust", "userId"),
+            (.pushToken(userID: "user-1", token: "push-token", idempotencyKey: "push"), "/api/devices/push-token", "userId"),
+            (.admissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "device-1", attestation: "attestation", idempotencyKey: "qr"), "/api/tickets/qr", "userId"),
+            (.virtualQR(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "virtual-qr"), "/api/tickets/virtual-qr", "userId")
+        ]
+
+        for (action, path, ownerField) in actions {
+            let request = try action.request()
+            let body = try XCTUnwrap(request.body.jsonObject)
+            XCTAssertEqual(request.method, .post)
+            XCTAssertEqual(request.path, path)
+            XCTAssertEqual(request.idempotencyKey?.isEmpty, false)
+            XCTAssertEqual(request.authentication, .required(userID: "user-1"))
+            XCTAssertEqual(request.ownerBinding, .jsonField(ownerField))
+            XCTAssertEqual(body[ownerField] as? String, "user-1")
+        }
+    }
+
     func testServiceRejectsUnknownIncompatibleAndBlockedCapabilitiesBeforeDispatch() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -673,5 +817,31 @@ final class LiveBackendServiceTests: XCTestCase {
                 catalogRouteConfirmed: true
             )
         )
+    }
+
+    private func mutationReadyService(for client: LiveAPIClient) -> LiveBackendService {
+        let compatible = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            catalogRouteConfirmed: true
+        )
+        let states = Dictionary(uniqueKeysWithValues: LiveAPIEndpoint.known.map { endpoint in
+            (endpoint, endpoint.access == .mutation ? .available : compatible.state(for: endpoint))
+        })
+        return LiveBackendService(
+            apiClient: client,
+            initialCapabilityMap: LiveCapabilityMap(
+                diagnostics: compatible.diagnostics,
+                baseURL: compatible.baseURL,
+                states: states
+            )
+        )
+    }
+}
+
+private extension APIRequestBody {
+    var jsonObject: [String: Any]? {
+        guard case .json(let data) = self else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 }

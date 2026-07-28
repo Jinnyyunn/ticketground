@@ -15,9 +15,18 @@ enum LiveAPIEndpoint: Hashable {
     case tickets
     case watchlist
     case supportThreads
+    case supportThreadMutation
     case supportMessages
     case watchlistMutation
+    case watchlistNotification
     case ticketPurchase
+    case googleAuthentication
+    case identityStart
+    case identityConfirm
+    case deviceTrust
+    case pushToken
+    case ticketQR
+    case virtualQR
     case unknown(method: APIRequestMethod, path: String)
 
     static let known: [LiveAPIEndpoint] = [
@@ -29,14 +38,26 @@ enum LiveAPIEndpoint: Hashable {
         .tickets,
         .watchlist,
         .supportThreads,
+        .supportThreadMutation,
         .supportMessages,
         .watchlistMutation,
-        .ticketPurchase
+        .watchlistNotification,
+        .ticketPurchase,
+        .googleAuthentication,
+        .identityStart,
+        .identityConfirm,
+        .deviceTrust,
+        .pushToken,
+        .ticketQR,
+        .virtualQR
     ]
 
     var method: APIRequestMethod {
         switch self {
-        case .supportMessages, .watchlistMutation, .ticketPurchase:
+        case .supportThreadMutation, .supportMessages, .watchlistMutation,
+             .watchlistNotification, .ticketPurchase, .googleAuthentication,
+             .identityStart, .identityConfirm, .deviceTrust, .pushToken,
+             .ticketQR, .virtualQR:
             return .post
         case .unknown(let method, _):
             return method
@@ -55,9 +76,18 @@ enum LiveAPIEndpoint: Hashable {
         case .tickets: return "/api/users/{userId}/tickets"
         case .watchlist: return "/api/users/{userId}/watchlist"
         case .supportThreads: return "/api/support/threads?userId={userId}"
+        case .supportThreadMutation: return "/api/support/threads"
         case .supportMessages: return "/api/support/messages"
         case .watchlistMutation: return "/api/watchlist"
+        case .watchlistNotification: return "/api/watchlist/notify"
         case .ticketPurchase: return "/api/tickets/buy"
+        case .googleAuthentication: return "/api/auth/google"
+        case .identityStart: return "/api/identity/portone-danal/start"
+        case .identityConfirm: return "/api/identity/portone-danal/confirm"
+        case .deviceTrust: return "/api/devices/trust"
+        case .pushToken: return "/api/devices/push-token"
+        case .ticketQR: return "/api/tickets/qr"
+        case .virtualQR: return "/api/tickets/virtual-qr"
         case .unknown(_, let path): return path
         }
     }
@@ -68,7 +98,10 @@ enum LiveAPIEndpoint: Hashable {
             return .publicRead
         case .session, .tickets, .watchlist, .supportThreads:
             return .authenticatedRead
-        case .supportMessages, .watchlistMutation, .ticketPurchase:
+        case .supportThreadMutation, .supportMessages, .watchlistMutation,
+             .watchlistNotification, .ticketPurchase, .googleAuthentication,
+             .identityStart, .identityConfirm, .deviceTrust, .pushToken,
+             .ticketQR, .virtualQR:
             return .mutation
         case .unknown:
             return .mutation
@@ -542,5 +575,145 @@ enum LiveSupportRole: String, Decodable, Equatable {
     init(from decoder: Decoder) throws {
         let rawValue = try decoder.singleValueContainer().decode(String.self)
         self = Self(rawValue: rawValue) ?? .unknown
+    }
+}
+
+indirect enum LiveJSONValue: Decodable, Equatable {
+    case object([String: LiveJSONValue])
+    case array([LiveJSONValue])
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case null
+
+    init(from decoder: Decoder) throws {
+        if let container = try? decoder.container(keyedBy: DynamicCodingKey.self) {
+            self = .object(Dictionary(uniqueKeysWithValues: try container.allKeys.map { key in
+                (key.stringValue, try container.decode(LiveJSONValue.self, forKey: key))
+            }))
+        } else if var container = try? decoder.unkeyedContainer() {
+            var values: [LiveJSONValue] = []
+            while !container.isAtEnd {
+                values.append(try container.decode(LiveJSONValue.self))
+            }
+            self = .array(values)
+        } else {
+            let container = try decoder.singleValueContainer()
+            if container.decodeNil() { self = .null }
+            else if let value = try? container.decode(Bool.self) { self = .bool(value) }
+            else if let value = try? container.decode(Double.self) { self = .number(value) }
+            else { self = .string(try container.decode(String.self)) }
+        }
+    }
+}
+
+private struct DynamicCodingKey: CodingKey {
+    let stringValue: String
+    init?(stringValue: String) { self.stringValue = stringValue }
+    let intValue: Int? = nil
+    init?(intValue: Int) { return nil }
+}
+
+struct LiveMutationReceipt: Decodable, Equatable {
+    let payload: LiveJSONValue
+
+    init(from decoder: Decoder) throws {
+        payload = try LiveJSONValue(from: decoder)
+    }
+}
+
+enum LiveAuthenticatedAction: Equatable {
+    case supportThread(userID: String, message: String, idempotencyKey: String)
+    case supportMessage(userID: String, threadID: String, message: String, idempotencyKey: String)
+    case watchlist(userID: String, eventID: String, idempotencyKey: String)
+    case watchlistNotification(userID: String, eventID: String, idempotencyKey: String)
+    case ticketPurchase(userID: String, ticketID: String, idempotencyKey: String)
+    case identityStart(userID: String, phone: String, idempotencyKey: String)
+    case identityConfirm(userID: String, phone: String, verificationID: String, idempotencyKey: String)
+    case trustDevice(userID: String, deviceID: String, attestation: String, idempotencyKey: String)
+    case pushToken(userID: String, token: String, idempotencyKey: String)
+    case admissionQR(userID: String, ticketID: String, deviceID: String, attestation: String, idempotencyKey: String)
+    case virtualQR(userID: String, ticketID: String, idempotencyKey: String)
+
+    var endpoint: LiveAPIEndpoint {
+        switch self {
+        case .supportThread: return .supportThreadMutation
+        case .supportMessage: return .supportMessages
+        case .watchlist: return .watchlistMutation
+        case .watchlistNotification: return .watchlistNotification
+        case .ticketPurchase: return .ticketPurchase
+        case .identityStart: return .identityStart
+        case .identityConfirm: return .identityConfirm
+        case .trustDevice: return .deviceTrust
+        case .pushToken: return .pushToken
+        case .admissionQR: return .ticketQR
+        case .virtualQR: return .virtualQR
+        }
+    }
+
+    func request() throws -> APIRequest {
+        let owner: (id: String, field: String)
+        let body: [String: Any]
+        let idempotencyKey: String
+        switch self {
+        case let .supportThread(userID, message, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "message": message]
+            idempotencyKey = key
+        case let .supportMessage(userID, threadID, message, key):
+            owner = (userID, "actorId")
+            body = ["threadId": threadID, "actorId": userID, "message": message]
+            idempotencyKey = key
+        case let .watchlist(userID, eventID, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "eventId": eventID]
+            idempotencyKey = key
+        case let .watchlistNotification(userID, eventID, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "eventId": eventID]
+            idempotencyKey = key
+        case let .ticketPurchase(userID, ticketID, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "ticketId": ticketID]
+            idempotencyKey = key
+        case let .identityStart(userID, phone, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "phone": phone]
+            idempotencyKey = key
+        case let .identityConfirm(userID, phone, verificationID, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "phone": phone, "identityVerificationId": verificationID]
+            idempotencyKey = key
+        case let .trustDevice(userID, deviceID, attestation, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "deviceId": deviceID, "biometricVerified": true, "appAttestation": attestation]
+            idempotencyKey = key
+        case let .pushToken(userID, token, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "platform": "ios", "token": token]
+            idempotencyKey = key
+        case let .admissionQR(userID, ticketID, deviceID, attestation, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "ticketId": ticketID, "channel": "APP", "deviceId": deviceID, "appAttestation": attestation]
+            idempotencyKey = key
+        case let .virtualQR(userID, ticketID, key):
+            owner = (userID, "userId")
+            body = ["userId": userID, "ticketId": ticketID]
+            idempotencyKey = key
+        }
+        guard !owner.id.isEmpty,
+              !idempotencyKey.isEmpty,
+              body.values.allSatisfy({ !($0 as? String == "") }),
+              JSONSerialization.isValidJSONObject(body) else {
+            throw APIClientError.invalidResponse
+        }
+        return APIRequest(
+            method: .post,
+            path: endpoint.pathTemplate,
+            body: .json(try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])),
+            idempotencyKey: idempotencyKey,
+            authentication: .required(userID: owner.id),
+            ownerBinding: .jsonField(owner.field)
+        )
     }
 }
