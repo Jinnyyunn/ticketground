@@ -241,7 +241,7 @@ struct DiscoveryLoginView: View {
                 selectedProvider = nil
             }
             .accessibilityIdentifier("login-provider-external-gate")
-            Button("취소", role: .cancel) {
+            Button("인증 요청 취소") {
                 guard let provider = selectedProvider else { return }
                 providerMessage = "\(provider.name) 로그인 요청을 취소했습니다. 로그인 상태는 변경되지 않았습니다."
                 selectedProvider = nil
