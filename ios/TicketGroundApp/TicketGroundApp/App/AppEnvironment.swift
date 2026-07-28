@@ -753,12 +753,33 @@ final class AppContainer {
         if FixtureScenario.isFixtureMode {
             return fixture()
         }
+        if let scenario = RuntimeConfiguration.liveHomeTestScenario {
+            return liveHomeTest(scenario)
+        }
         let apiURL = RuntimeConfiguration.apiBaseURL
         return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL(for: apiURL))
+    }
+
+    private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
+        AppContainer(environment: AppEnvironment(
+            mode: .live,
+            apiClient: UITestLiveHomeAPIClient(scenario: scenario),
+            sessionStore: SessionStore(credentialStore: InMemoryCredentialStore())
+        ))
     }
 }
 
 enum RuntimeConfiguration {
+    fileprivate static var liveHomeTestScenario: UITestLiveHomeScenario? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ui-testing"),
+              let index = arguments.firstIndex(of: "-live-home-scenario"),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return UITestLiveHomeScenario(rawValue: arguments[index + 1])
+    }
+
     static var liveAccountCapabilityTestState: LiveAccountCapabilityState? {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("-ui-testing"),
@@ -800,5 +821,55 @@ enum RuntimeConfiguration {
             return nil
         }
         return arguments[index + 1]
+    }
+}
+
+private enum UITestLiveHomeScenario: String {
+    case catalog
+    case empty
+    case offline
+}
+
+private final class UITestLiveHomeAPIClient: APIClient {
+    let mode: APIDataMode = .live
+    let baseURL: URL? = URL(string: "http://ui-test.ticketground.invalid/")
+    private let scenario: UITestLiveHomeScenario
+
+    init(scenario: UITestLiveHomeScenario) {
+        self.scenario = scenario
+    }
+
+    func data(for request: APIRequest) async throws -> Data {
+        if scenario == .offline {
+            throw APIClientError.requestFailed(code: URLError.notConnectedToInternet.rawValue)
+        }
+        switch (request.path, request.query) {
+        case ("/api/health", _):
+            return json("{\"status\":\"ok\",\"version\":\"78b3c7c\"}")
+        case ("/api/state", _):
+            return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
+        case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):
+            return catalog(events: "[\(event)]")
+        case ("/api/catalog", _):
+            return scenario == .empty ? catalog(events: "[]") : catalog(events: "[\(event)]")
+        default:
+            throw APIClientError.invalidResponse
+        }
+    }
+
+    func resolveResource(_ reference: String?) -> String? {
+        reference
+    }
+
+    private var event: String {
+        "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
+    }
+
+    private func catalog(events: String) -> Data {
+        json("{\"events\":\(events),\"venues\":[],\"total\":1}")
+    }
+
+    private func json(_ value: String) -> Data {
+        Data(value.utf8)
     }
 }

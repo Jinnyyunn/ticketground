@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var discoveryContent: DiscoveryContent?
     @State private var liveState: LiveState?
     @State private var discoveryLoadFailed = false
+    @State private var discoveryLoadEmpty = false
     @State private var discoveryReloadRequest = 0
     @State private var discoveryLoadRequestCount = 0
 
@@ -32,6 +33,16 @@ struct ContentView: View {
                                 DiscoveryHomeView(content: discoveryContent)
                             } else if let liveState {
                                 LiveStateOnlyHomeView(state: liveState)
+                            } else if discoveryLoadEmpty {
+                                TicketgroundEmptySurface(
+                                    title: "공연이 없습니다",
+                                    message: "표시할 공연이 없습니다.",
+                                    actionTitle: "다시 시도",
+                                    action: {
+                                        discoveryLoadEmpty = false
+                                        discoveryReloadRequest += 1
+                                    }
+                                )
                             } else if discoveryLoadFailed {
                                 TicketgroundErrorSurface(
                                     title: container.environment.mode == .live ? "공개 상태를 불러올 수 없습니다" : "콘텐츠를 불러올 수 없습니다",
@@ -41,6 +52,7 @@ struct ContentView: View {
                                     actionTitle: "다시 시도",
                                     action: {
                                         discoveryLoadFailed = false
+                                        discoveryLoadEmpty = false
                                         discoveryReloadRequest += 1
                                     }
                                 )
@@ -99,14 +111,21 @@ struct ContentView: View {
             }
         }
         .task(id: discoveryReloadRequest) {
-            guard discoveryContent == nil, liveState == nil, !discoveryLoadFailed else { return }
+            guard discoveryContent == nil, liveState == nil, !discoveryLoadFailed, !discoveryLoadEmpty else { return }
             discoveryLoadRequestCount += 1
             do {
                 if container.environment.mode == .fixture {
                     discoveryContent = try DiscoveryFixtureLoader.load()
                 } else {
-                    liveState = try await LiveBackendService(apiClient: container.environment.apiClient).getState()
+                    switch try await DiscoveryFixtureLoader.loadLive(using: container.environment.apiClient) {
+                    case .catalog(let content):
+                        discoveryContent = content
+                    case .stateOnly(let state):
+                        liveState = state
+                    }
                 }
+            } catch VirtualFixtureDecodeError.emptyResponse {
+                discoveryLoadEmpty = true
             } catch {
                 discoveryLoadFailed = true
             }

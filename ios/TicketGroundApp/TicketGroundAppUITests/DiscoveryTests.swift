@@ -128,6 +128,35 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(app.buttons["live-seat-map-link"].exists)
     }
 
+    func testLiveHomeShowsAdmittedCatalogContent() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["LIVE BACKEND"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Neon Stage"].exists)
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].exists)
+        XCTAssertFalse(anyElement(app, identifier: "live-state-home").exists)
+        XCTAssertFalse(anyElement(app, identifier: "state-error").exists)
+    }
+
+    func testLiveHomeShowsEmptyStateForAnAdmittedEmptyCatalog() {
+        let app = liveApp(homeScenario: "empty")
+        app.launch()
+
+        XCTAssertTrue(anyElement(app, identifier: "state-empty").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["표시할 공연이 없습니다."].exists)
+        XCTAssertTrue(app.buttons["state-empty-action"].exists)
+    }
+
+    func testLiveHomeShowsRetryForOfflineCatalogLoad() {
+        let app = liveApp(homeScenario: "offline")
+        app.launch()
+
+        XCTAssertTrue(anyElement(app, identifier: "state-error").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["state-error-action"].exists)
+        XCTAssertEqual(anyElement(app, identifier: "state-error").value as? String, "콘텐츠 요청 1회")
+    }
+
     func testLiveCatalogRoutesUseOneUnavailableSurface() {
         let app = liveApp()
         app.launch()
@@ -344,11 +373,14 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["live-menu-screen-title"].exists)
     }
 
-    private func liveApp(capabilityState: String? = nil) -> XCUIApplication {
+    private func liveApp(capabilityState: String? = nil, homeScenario: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-api-mode", "live"]
         if let capabilityState {
             app.launchArguments += ["-live-capability-state", capabilityState]
+        }
+        if let homeScenario {
+            app.launchArguments += ["-live-home-scenario", homeScenario]
         }
         return app
     }
