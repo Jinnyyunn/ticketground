@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var liveState: LiveState?
     @State private var discoveryLoadFailed = false
     @State private var discoveryLoadEmpty = false
+    @State private var discoveryFailurePresentation: PublicReadPresentation?
     @State private var discoveryReloadRequest = 0
     @State private var discoveryLoadRequestCount = 0
 
@@ -44,15 +45,15 @@ struct ContentView: View {
                                     }
                                 )
                             } else if discoveryLoadFailed {
+                                let presentation = discoveryFailurePresentation ?? PublicReadPresentation(title: "공개 상태를 불러올 수 없습니다", message: "네트워크를 확인한 뒤 다시 시도해 주세요.")
                                 TicketgroundErrorSurface(
-                                    title: container.environment.mode == .live ? "공개 상태를 불러올 수 없습니다" : "콘텐츠를 불러올 수 없습니다",
-                                    message: container.environment.mode == .live
-                                        ? "공개 서버 상태를 확인하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요."
-                                        : "번들 discovery fixture를 확인해 주세요.",
+                                    title: container.environment.mode == .live ? presentation.title : "콘텐츠를 불러올 수 없습니다",
+                                    message: container.environment.mode == .live ? presentation.message : "번들 discovery fixture를 확인해 주세요.",
                                     actionTitle: "다시 시도",
                                     action: {
                                         discoveryLoadFailed = false
                                         discoveryLoadEmpty = false
+                                        discoveryFailurePresentation = nil
                                         discoveryReloadRequest += 1
                                     }
                                 )
@@ -128,6 +129,7 @@ struct ContentView: View {
                 discoveryLoadEmpty = true
             } catch {
                 discoveryLoadFailed = true
+                discoveryFailurePresentation = PublicReadPresentation.resolve(error)
             }
         }
     }

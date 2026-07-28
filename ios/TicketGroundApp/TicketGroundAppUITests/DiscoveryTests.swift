@@ -157,6 +157,18 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertEqual(anyElement(app, identifier: "state-error").value as? String, "콘텐츠 요청 1회")
     }
 
+    func testLiveHomeShowsSafeRateLimitAndIncompatibleContractReasons() {
+        let rateLimited = liveApp(homeScenario: "rateLimited")
+        rateLimited.launch()
+        XCTAssertTrue(rateLimited.staticTexts["요청이 많습니다"].waitForExistence(timeout: 10))
+        XCTAssertTrue(rateLimited.staticTexts["잠시 후 다시 시도해 주세요."].exists)
+
+        let incompatible = liveApp(homeScenario: "incompatible")
+        incompatible.launch()
+        XCTAssertTrue(incompatible.staticTexts["공연 정보 연결 확인 필요"].waitForExistence(timeout: 10))
+        XCTAssertTrue(incompatible.staticTexts["서버 응답 형식이 앱과 달라 공연 정보를 안전하게 표시할 수 없습니다."].exists)
+    }
+
     func testLiveCatalogRoutesUseOneUnavailableSurface() {
         let app = liveApp()
         app.launch()

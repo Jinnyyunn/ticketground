@@ -673,9 +673,10 @@ private struct LiveDiscoveryRouteView: View {
             case .loaded(let catalog):
                 catalogView(catalog)
             case .failed(let message):
+                let presentation = PublicReadPresentation.resolve(APIClientError.invalidResponse)
                 TicketgroundErrorSurface(
-                    title: "\(routeTitle) 표시 불가",
-                    message: message,
+                    title: presentation.title,
+                    message: message.isEmpty ? presentation.message : presentation.message,
                     actionTitle: "다시 시도",
                     action: retry
                 )
@@ -766,7 +767,7 @@ private struct LiveDiscoveryRouteView: View {
         do {
             state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog())
         } catch {
-            state = .failed("GET /api/catalog 요청에 실패했습니다: \(error.localizedDescription)")
+            state = .failed(PublicReadPresentation.resolve(error).message)
         }
     }
 

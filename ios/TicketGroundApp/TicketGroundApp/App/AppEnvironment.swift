@@ -205,6 +205,31 @@ enum APIClientError: Error, Equatable, LocalizedError {
     }
 }
 
+struct PublicReadPresentation: Equatable {
+    let title: String
+    let message: String
+
+    static func resolve(_ error: Error) -> PublicReadPresentation {
+        guard let apiError = error as? APIClientError else {
+            return PublicReadPresentation(title: "공연 정보를 불러올 수 없습니다", message: "네트워크를 확인한 뒤 다시 시도해 주세요.")
+        }
+        switch apiError {
+        case .capabilityUnavailable(_, .incompatible):
+            return PublicReadPresentation(title: "공연 정보 연결 확인 필요", message: "서버 응답 형식이 앱과 달라 공연 정보를 안전하게 표시할 수 없습니다.")
+        case .capabilityUnavailable:
+            return PublicReadPresentation(title: "공연 정보 연결 확인 필요", message: "공개 공연 정보 계약이 아직 확인되지 않았습니다. 잠시 후 다시 시도해 주세요.")
+        case .server(status: 429, _, _):
+            return PublicReadPresentation(title: "요청이 많습니다", message: "잠시 후 다시 시도해 주세요.")
+        case .invalidResponse:
+            return PublicReadPresentation(title: "공연 정보 형식 오류", message: "서버 응답을 안전하게 해석할 수 없습니다. 잠시 후 다시 시도해 주세요.")
+        case .requestFailed:
+            return PublicReadPresentation(title: "네트워크 연결 확인", message: "인터넷 연결을 확인한 뒤 다시 시도해 주세요.")
+        default:
+            return PublicReadPresentation(title: "공연 정보를 불러올 수 없습니다", message: "잠시 후 다시 시도해 주세요.")
+        }
+    }
+}
+
 enum LiveAccountCapability {
     case account
     case watchlist
@@ -828,6 +853,8 @@ private enum UITestLiveHomeScenario: String {
     case catalog
     case empty
     case offline
+    case rateLimited
+    case incompatible
 }
 
 private final class UITestLiveHomeAPIClient: APIClient {
@@ -843,9 +870,12 @@ private final class UITestLiveHomeAPIClient: APIClient {
         if scenario == .offline {
             throw APIClientError.requestFailed(code: URLError.notConnectedToInternet.rawValue)
         }
+        if scenario == .rateLimited {
+            throw APIClientError.server(status: 429, code: "RATE_LIMITED", message: "too many requests")
+        }
         switch (request.path, request.query) {
         case ("/api/health", _):
-            return json("{\"status\":\"ok\",\"version\":\"78b3c7c\"}")
+            return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):
