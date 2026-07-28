@@ -575,8 +575,6 @@ final class LiveBackendServiceTests: XCTestCase {
     }
 
     func testAuthenticatedActionSurfacesMutationStatusErrorsAndRejectsEmptyInput() async {
-        LiveBackendServiceURLProtocol.responses["/api/support/messages"] = Data(#"{"ok":false,"error":{"code":"CONFLICT","message":"Duplicate action"}}"#.utf8)
-        LiveBackendServiceURLProtocol.statusCodes["/api/support/messages"] = 409
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
         let credentials = InMemoryCredentialStore()
@@ -588,18 +586,25 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        do {
-            _ = try await mutationReadyService(for: client).perform(.supportMessage(
-                userID: "user-1",
-                threadID: "thread-1",
-                message: "문의 내용",
-                idempotencyKey: "message-1"
-            ))
-            XCTFail("Expected backend status error")
-        } catch let error as APIClientError {
-            XCTAssertEqual(error, .server(status: 409, code: "CONFLICT", message: "Duplicate action"))
-        } catch {
-            XCTFail("Unexpected error: \(error)")
+        for status in [401, 403, 409, 422, 429] {
+            let code = "ACTION_\(status)"
+            let message = "Mutation rejected: \(status)"
+            LiveBackendServiceURLProtocol.responses["/api/support/messages"] = Data(#"{"ok":false,"error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8)
+            LiveBackendServiceURLProtocol.statusCodes["/api/support/messages"] = status
+
+            do {
+                _ = try await mutationReadyService(for: client).perform(.supportMessage(
+                    userID: "user-1",
+                    threadID: "thread-1",
+                    message: "문의 내용",
+                    idempotencyKey: "message-\(status)"
+                ))
+                XCTFail("Expected backend status error \(status)")
+            } catch let error as APIClientError {
+                XCTAssertEqual(error, .server(status: status, code: code, message: message))
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
         }
 
         XCTAssertThrowsError(try LiveAuthenticatedAction.watchlist(
