@@ -47,7 +47,7 @@ enum LiveAPIEndpoint: Hashable {
 
     var pathTemplate: String {
         switch self {
-        case .health: return "/api/state"
+        case .health: return "/api/health"
         case .state: return "/api/state"
         case .catalog: return "/api/catalog"
         case .seatMap: return "/api/seat-map?eventId={eventId}"
@@ -131,7 +131,7 @@ struct LiveAPIContractProbe: Equatable {
 struct LiveAPIContract {
     let expectedResponseVersion: String
     let publicHost: URL
-    let bootstrapPath: String = "/api/state"
+    let bootstrapPath: String = "/api/health"
 
     static let deployed = LiveAPIContract(
         expectedResponseVersion: "78b3c7c",
@@ -246,6 +246,22 @@ struct LiveLedger: Decodable, Equatable {
 
 struct LiveCatalog: Decodable, Equatable {
     let events: [LiveBackendCatalogEvent]
+    let venues: [LiveCatalogVenue]?
+    let nextCursor: String?
+    let total: Int?
+}
+
+struct LiveCatalogVenue: Decodable, Equatable {
+    let id: String
+    let name: String
+    let address: String?
+    let mapType: String?
+    let imageURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, address, mapType
+        case imageURL = "imageUrl"
+    }
 }
 
 struct LiveBackendCatalogEvent: Decodable, Equatable {
@@ -253,13 +269,46 @@ struct LiveBackendCatalogEvent: Decodable, Equatable {
     let slug: String?
     let category: String?
     let title: String
+    let shortTitle: String?
+    let venueID: String?
     let venue: String
     let date: String?
+    let dates: [LiveCatalogSchedule]?
+    let schedules: [LiveCatalogSchedule]?
     let period: String?
+    let runtime: String?
+    let ageLimit: String?
     let image: String?
+    let badge: String?
+    let artistSlug: String?
+    let summary: String?
+    let casts: [String]?
+    let notices: [String]?
+    let prices: [LiveCatalogPrice]?
+    let saleState: String?
+    let saleNote: String?
     let pinnedRank: Int?
     let soldCount: Int
     let sale: LiveCatalogSale?
+
+    enum CodingKeys: String, CodingKey {
+        case id, slug, category, title, shortTitle, venue, date, dates, schedules, period, runtime, ageLimit, image, badge, artistSlug, summary, casts, notices, prices, saleState, saleNote, pinnedRank, soldCount, sale
+        case venueID = "venueId"
+    }
+}
+
+struct LiveCatalogSchedule: Decodable, Equatable {
+    let id: String?
+    let label: String?
+    let date: String?
+    let startsAt: String?
+    let times: [String]?
+}
+
+struct LiveCatalogPrice: Decodable, Equatable {
+    let grade: String?
+    let seat: String?
+    let price: Int?
 }
 
 struct LiveCatalogSale: Decodable, Equatable {
@@ -269,6 +318,8 @@ struct LiveCatalogSale: Decodable, Equatable {
 }
 
 struct LiveSeatMap: Decodable, Equatable {
+    let category: String?
+    let date: String?
     let event: LiveSeatMapEvent
     let map: LiveSeatMapDetails
     let zones: [LiveSeatMapZone]
@@ -283,6 +334,8 @@ struct LiveSeatMapEvent: Decodable, Equatable {
 }
 
 struct LiveSeatMapDetails: Decodable, Equatable {
+    let id: String?
+    let venue: String?
     let title: String
     let image: String
     let description: String
@@ -304,6 +357,58 @@ struct LiveSeat: Decodable, Equatable {
     let price: Int
     let status: String
     let available: Bool
+    let mapPosition: LiveSeatMapPosition?
+}
+
+struct LiveSeatMapPosition: Decodable, Equatable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+    let rotate: Double
+    let shape: String
+}
+
+struct LiveVenueSeatMap: Decodable, Equatable {
+    let eventID: String
+    let venueID: String
+    let venue: String
+    let address: String?
+    let type: String?
+    let imageURL: String?
+    let imageSource: String?
+    let stage: String?
+    let helper: String?
+    let labels: [LiveVenueSeatMapLabel]?
+    let seats: [LiveVenueSeat]
+
+    enum CodingKeys: String, CodingKey {
+        case venue, address, type, imageSource, stage, helper, labels, seats
+        case eventID = "eventId"
+        case venueID = "venueId"
+        case imageURL = "imageUrl"
+    }
+}
+
+struct LiveVenueSeatMapLabel: Decodable, Equatable {
+    let text: String
+    let x: Double
+    let y: Double
+}
+
+struct LiveVenueSeat: Decodable, Equatable {
+    let zoneID: String
+    let seatLabel: String
+    let number: Int
+    let x: Double
+    let y: Double
+    let section: String?
+
+    enum CodingKeys: String, CodingKey {
+        case number, x, y, section
+        case zoneID = "zoneId"
+        case seatLabel
+    }
 }
 
 struct LiveSession: Decodable, Equatable {

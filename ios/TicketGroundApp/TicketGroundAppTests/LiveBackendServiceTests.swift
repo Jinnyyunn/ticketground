@@ -5,6 +5,7 @@ import XCTest
 private final class LiveBackendServiceURLProtocol: URLProtocol {
     static var responses: [String: Data] = [:]
     static var statusCodes: [String: Int] = [:]
+    static var errors: [String: URLError.Code] = [:]
     static var requests: [URLRequest] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -13,6 +14,10 @@ private final class LiveBackendServiceURLProtocol: URLProtocol {
     override func startLoading() {
         Self.requests.append(request)
         let key = request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") } ?? ""
+        if let errorCode = Self.errors[key] {
+            client?.urlProtocol(self, didFailWithError: URLError(errorCode))
+            return
+        }
         let data = Self.responses[key]
             ?? Self.responses["*"]
             ?? Data(#"{"ok":false,"error":{"code":"MISSING_FIXTURE","message":"Missing test fixture"}}"#.utf8)
@@ -36,6 +41,7 @@ final class LiveBackendServiceTests: XCTestCase {
         super.setUp()
         LiveBackendServiceURLProtocol.responses = [:]
         LiveBackendServiceURLProtocol.statusCodes = [:]
+        LiveBackendServiceURLProtocol.errors = [:]
         LiveBackendServiceURLProtocol.requests = []
     }
 
@@ -275,6 +281,196 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(map.state(for: .catalog), .unknown)
     }
 
+    func testCatalogAdmissionUsesHealthThenBoundedCatalogProbe() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8),
+            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let catalog = try await LiveBackendService(apiClient: client).getCatalog()
+
+        XCTAssertEqual(catalog.events.map(\.id), ["event-1"])
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/catalog?limit=1", "/api/catalog"]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == nil
+        })
+    }
+
+    func testCatalogAdmissionRejectsIncompatibleHealthWithoutCatalogDispatch() async {
+        LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"future-contract"}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await LiveBackendService(apiClient: client).getCatalog()
+            XCTFail("Expected incompatible catalog capability")
+        } catch let error as APIClientError {
+            XCTAssertEqual(
+                error,
+                .capabilityUnavailable(
+                    endpoint: .catalog,
+                    state: .incompatible(expected: LiveAPIContract.deployed.expectedResponseVersion, observed: "future-contract")
+                )
+            )
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path }, ["/api/health"])
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCatalogAdmissionRejectsMalformedOrEmptyProbe() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        for catalogData in [Data("{".utf8), Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)] {
+            LiveBackendServiceURLProtocol.requests = []
+            LiveBackendServiceURLProtocol.responses = [
+                "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+                "/api/catalog?limit=1": catalogData
+            ]
+            let service = LiveBackendService(apiClient: client)
+
+            do {
+                _ = try await service.getCatalog()
+                XCTFail("Expected catalog admission rejection")
+            } catch let error as APIClientError {
+                XCTAssertEqual(error, .invalidResponse)
+                XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
+                XCTAssertEqual(
+                    LiveBackendServiceURLProtocol.requests.compactMap { request in
+                        request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+                    },
+                    ["/api/health", "/api/catalog?limit=1"]
+                )
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testCatalogAdmissionRejectsHealthTimeoutWithoutCatalogDispatch() async {
+        LiveBackendServiceURLProtocol.errors["/api/health"] = .timedOut
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        do {
+            _ = try await service.getCatalog()
+            XCTFail("Expected health timeout")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .requestFailed(code: URLError.timedOut.rawValue))
+            XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
+            XCTAssertEqual(
+                LiveBackendServiceURLProtocol.requests.compactMap { request in
+                    request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+                },
+                ["/api/health"]
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testDecodesCatalogPaginationAndSeatMapMetadata() throws {
+        let catalog = try JSONDecoder().decode(
+            LiveCatalog.self,
+            from: Data(#"{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","shortTitle":"Neon","venueId":"venue-1","venue":"Arena","date":"2026-09-19T19:00:00+09:00","dates":[{"id":"show-1","label":"1회차","startsAt":"2026-09-19T19:00:00+09:00"}],"schedules":[{"label":"토요일","date":"2026-09-19","times":["19:00"]}],"period":"2026.09.19","runtime":"120분","ageLimit":"8세 이상","image":null,"badge":"추천","artistSlug":"neon","summary":"공연 소개","casts":["A"],"notices":["안내"],"prices":[{"grade":"VIP","seat":"A","price":99000}],"saleState":"ON_SALE","saleNote":"공식 판매","pinnedRank":1,"soldCount":4,"sale":null}],"venues":[{"id":"venue-1","name":"Arena","address":"Seoul","mapType":"svg","imageUrl":null}],"nextCursor":"1","total":2}"#.utf8)
+        )
+        let seatMap = try JSONDecoder().decode(
+            LiveSeatMap.self,
+            from: Data(#"{"category":"concert","date":"2026-09-19T19:00:00+09:00","event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"id":"arena-map","venue":"Arena","title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[{"id":"vip","name":"VIP","price":99000,"available":2}],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"vip","zoneName":"VIP","price":99000,"status":"ON_SALE","available":true,"mapPosition":{"x":50,"y":52,"width":5.4,"height":7.2,"rotate":90,"shape":"actual-map"}}]}"#.utf8)
+        )
+
+        XCTAssertEqual(catalog.nextCursor, "1")
+        XCTAssertEqual(catalog.total, 2)
+        XCTAssertEqual(catalog.venues?.first?.imageURL, nil)
+        XCTAssertEqual(catalog.events.first?.dates?.first?.startsAt, "2026-09-19T19:00:00+09:00")
+        XCTAssertEqual(catalog.events.first?.schedules?.first?.times, ["19:00"])
+        XCTAssertEqual(catalog.events.first?.prices?.first?.price, 99000)
+        XCTAssertEqual(seatMap.map.id, "arena-map")
+        XCTAssertEqual(seatMap.seats.first?.mapPosition?.shape, "actual-map")
+    }
+
+    func testDecodesEventVenueSeatMapRoute() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/events/event-1/seat-map"] = Data(#"{"ok":true,"data":{"eventId":"event-1","venueId":"venue-1","venue":"Arena","address":"Seoul","type":"svg","imageUrl":"/assets/map.svg","imageSource":"venue-map","stage":"STAGE","helper":"좌석 안내","labels":[{"text":"VIP","x":50,"y":38}],"seats":[{"zoneId":"vip","seatLabel":"VIP-01","number":1,"x":34,"y":58,"section":"VIP"}]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = compatibleService(for: client)
+
+        let map = try await service.getVenueSeatMap(eventID: "event-1")
+
+        XCTAssertEqual(map.eventID, "event-1")
+        XCTAssertEqual(map.imageURL, "/assets/map.svg")
+        XCTAssertEqual(map.labels?.first?.text, "VIP")
+        XCTAssertEqual(map.seats.first?.seatLabel, "VIP-01")
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path }, ["/api/events/event-1/seat-map"])
+    }
+
+    func testRejectsInvalidCatalogIdentityAndMalformedSeatMap() {
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                LiveCatalog.self,
+                from: Data(#"{"events":[{"slug":"missing-id","title":"Broken","venue":"Arena","soldCount":0}]}"#.utf8)
+            )
+        )
+        XCTAssertNoThrow(
+            try JSONDecoder().decode(
+                LiveCatalog.self,
+                from: Data(#"{"events":[]}"#.utf8)
+            )
+        )
+        XCTAssertNoThrow(
+            try JSONDecoder().decode(
+                LiveCatalog.self,
+                from: Data(#"{"events":[{"id":"event-1","title":"Unknown sale","venue":"Arena","soldCount":0,"saleState":"FUTURE_STATE"}]}"#.utf8)
+            )
+        )
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                LiveSeatMap.self,
+                from: Data(#"{"event":{"id":"event-1","title":"Broken","venueId":"venue-1","venue":"Arena"},"map":{"title":"Map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"vip","zoneName":"VIP","price":99000,"status":"ON_SALE"}]}"#.utf8)
+            )
+        )
+    }
+
     func testIncompatibleValidatedStateDoesNotReopenStateCapability() {
         let map = LiveAPIContract.deployed.capabilityMap(
             for: URL(string: "http://132.145.109.87:4174/")!,
@@ -357,6 +553,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testDefaultLiveCatalogBootstrapFailsClosedWithoutVersionOrRouteProof() async {
         LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":null}}"#.utf8),
             "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
@@ -379,7 +576,7 @@ final class LiveBackendServiceTests: XCTestCase {
             XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
             XCTAssertEqual(
                 LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
-                ["/api/state"]
+                ["/api/health", "/api/state"]
             )
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -387,6 +584,7 @@ final class LiveBackendServiceTests: XCTestCase {
     }
 
     func testLiveHomeKeepsTypedStateWhenCatalogRouteIsUnconfirmed() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":null}}"#.utf8)
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -409,11 +607,14 @@ final class LiveBackendServiceTests: XCTestCase {
             LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/catalog" },
             "확인되지 않은 catalog route는 요청하지 않아야 합니다."
         )
-        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy { $0.url?.path == "/api/state" })
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
+            ["/api/health", "/api/state", "/api/state", "/api/health", "/api/state"]
+        )
     }
 
     func testDefaultLiveCatalogBootstrapFailureDoesNotDispatchCatalog() async {
-        LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":false,"error":{"code":"BOOTSTRAP_DOWN","message":"Bootstrap unavailable"}}"#.utf8)
+        LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":false,"error":{"code":"BOOTSTRAP_DOWN","message":"Bootstrap unavailable"}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
         let client = LiveAPIClient(
@@ -430,7 +631,7 @@ final class LiveBackendServiceTests: XCTestCase {
             XCTAssertEqual(error, .server(status: 200, code: "BOOTSTRAP_DOWN", message: "Bootstrap unavailable"))
             XCTAssertEqual(
                 LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
-                ["/api/state"]
+                ["/api/health"]
             )
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -438,6 +639,7 @@ final class LiveBackendServiceTests: XCTestCase {
     }
 
     func testContractProbeKeepsVersionlessStatePublicOnly() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":null}}"#.utf8)
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
 
         let configuration = URLSessionConfiguration.ephemeral

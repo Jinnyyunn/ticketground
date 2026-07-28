@@ -28,17 +28,42 @@ final class LiveBackendService {
     }
 
     func diagnosePublicContract() async throws -> LiveAPIContractProbe {
-        let data = try await data(
-            for: APIRequest(path: contract.bootstrapPath),
+        let health = try await get(
+            APIRequest(path: contract.bootstrapPath),
             endpoint: .health,
-            bypassCapability: true
+            bypassCapability: true,
+            as: LiveAPIHealth.self
         )
-        let observation = try observeBootstrap(from: data)
+        guard let version = health.version, !version.isEmpty else {
+            return try await diagnoseVersionlessState()
+        }
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
-            observedResponseVersion: observation.version,
-            validatedStateResponse: observation.validatedStateResponse,
+            observedResponseVersion: version,
+            validatedStateResponse: false,
             catalogRouteConfirmed: false
+        )
+        guard capabilities.diagnostics.compatibility == .compatible else {
+            return LiveAPIContractProbe(
+                diagnostics: capabilities.diagnostics,
+                capabilities: capabilities
+            )
+        }
+
+        let catalog = try await get(
+            APIRequest(path: "/api/catalog", query: [APIRequestQuery(name: "limit", value: "1")]),
+            endpoint: .catalog,
+            bypassCapability: true,
+            as: LiveCatalog.self
+        )
+        guard !catalog.events.isEmpty else {
+            throw APIClientError.invalidResponse
+        }
+        capabilities = contract.capabilityMap(
+            for: apiClient.baseURL ?? contract.publicHost,
+            observedResponseVersion: version,
+            validatedStateResponse: false,
+            catalogRouteConfirmed: true
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -59,6 +84,14 @@ final class LiveBackendService {
             path: "/api/seat-map",
             query: [APIRequestQuery(name: "eventId", value: eventID)]
         ), endpoint: .seatMap, as: LiveSeatMap.self)
+    }
+
+    func getVenueSeatMap(eventID: String) async throws -> LiveVenueSeatMap {
+        try await get(
+            APIRequest(path: "/api/events/\(pathValue(eventID))/seat-map"),
+            endpoint: .seatMap,
+            as: LiveVenueSeatMap.self
+        )
     }
 
     func getSession(userID: String) async throws -> LiveSession {
@@ -118,16 +151,23 @@ final class LiveBackendService {
         return try await apiClient.data(for: request)
     }
 
-    private func observeBootstrap(from data: Data) throws -> (version: String?, validatedStateResponse: Bool) {
-        if let health = try? decoder.decode(LiveAPIHealth.self, from: data),
-           let version = health.version,
-           !version.isEmpty {
-            return (version, false)
-        }
-        guard (try? decoder.decode(LiveState.self, from: data)) != nil else {
-            throw APIClientError.invalidResponse
-        }
-        return (nil, true)
+    private func diagnoseVersionlessState() async throws -> LiveAPIContractProbe {
+        _ = try await get(
+            APIRequest(path: "/api/state"),
+            endpoint: .state,
+            bypassCapability: true,
+            as: LiveState.self
+        )
+        capabilities = contract.capabilityMap(
+            for: apiClient.baseURL ?? contract.publicHost,
+            observedResponseVersion: nil,
+            validatedStateResponse: true,
+            catalogRouteConfirmed: false
+        )
+        return LiveAPIContractProbe(
+            diagnostics: capabilities.diagnostics,
+            capabilities: capabilities
+        )
     }
 
     private func ensureCapability(_ endpoint: LiveAPIEndpoint) async throws {
