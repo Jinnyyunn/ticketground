@@ -648,7 +648,9 @@ private struct LiveDiscoveryRouteView: View {
             LiveMenuRouteView()
         case .capabilityLedger:
             CapabilityLedgerView()
-        case .search, .ranking, .genre, .place, .event, .goods, .queue, .booking:
+        case .search, .ranking, .genre, .place, .event, .goods:
+            catalogBody
+        case .queue, .booking:
             LiveCatalogUnavailableRouteView(route: route)
         case .watchlist:
             LiveWatchlistRouteView()

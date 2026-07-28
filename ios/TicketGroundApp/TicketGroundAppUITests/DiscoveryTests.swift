@@ -182,6 +182,38 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(app.textFields["live-search-input"].exists)
     }
 
+    func testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods() {
+        let search = liveApp(homeScenario: "catalog")
+        search.launch()
+        XCTAssertTrue(search.buttons["header-search"].waitForExistence(timeout: 10))
+        search.buttons["header-search"].tap()
+        XCTAssertTrue(search.textFields["live-search-input"].waitForExistence(timeout: 10))
+        search.textFields["live-search-input"].tap()
+        search.textFields["live-search-input"].typeText("Neon")
+        search.textFields["live-search-input"].typeText("\n")
+        XCTAssertTrue(search.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(search, identifier: "live-catalog-unavailable").exists)
+
+        let ranking = liveApp(homeScenario: "catalog")
+        ranking.launch()
+        ranking.buttons["header-mypage"].tap()
+        XCTAssertTrue(ranking.buttons["live-menu-ranking"].waitForExistence(timeout: 10))
+        ranking.buttons["live-menu-ranking"].tap()
+        XCTAssertTrue(ranking.staticTexts["LIVE catalog · 1개"].waitForExistence(timeout: 10))
+
+        let genre = liveApp(homeScenario: "catalog")
+        genre.launch()
+        XCTAssertTrue(genre.buttons["discovery-category-concert"].waitForExistence(timeout: 10))
+        genre.buttons["discovery-category-concert"].tap()
+        XCTAssertTrue(genre.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
+
+        let goods = liveApp(homeScenario: "catalog")
+        goods.launch()
+        XCTAssertTrue(goods.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        goods.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(goods.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
+    }
+
     func testLiveLoginDoesNotCreateFixtureUser() {
         let app = liveApp()
         app.launch()
