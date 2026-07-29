@@ -123,7 +123,7 @@ function normalizeDb(db) {
     const before = JSON.stringify(user.identityVerification || null);
     user.identityVerification ||= null;
     if (JSON.stringify(user.identityVerification) !== before) changed = true;
-    if (!user.profileConfirmedAt) {
+    if (user.profileConfirmedAt === undefined) {
       user.profileConfirmedAt = now();
       changed = true;
     }
