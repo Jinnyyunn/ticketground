@@ -7,6 +7,7 @@ import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-t
 const sessionStorageKey = "ticketground:session-user-id";
 const signedOutStorageKey = "ticketground:demo-auth-state";
 const sessionChangedEvent = "ticketground:session-user-changed";
+const staleResponseConsumedKey = "ticketground:test:stale-response-consumed";
 
 async function createIncompleteProfile(baseUrl) {
   const response = await api(baseUrl, "/api/auth/google", {
@@ -148,6 +149,20 @@ test("a late missing-user response cannot clear a newer completed session", asyn
   const { context, page } = await newPageWithSession(browser, "user_fan_a");
   t.after(() => context.close());
 
+  await page.addInitScript(({ responsePath, consumedKey }) => {
+    const originalJson = window.Response.prototype.json;
+    window.Response.prototype.json = async function responseJson(...args) {
+      const payload = await originalJson.apply(this, args);
+      if (new URL(this.url).pathname === responsePath) {
+        window.setTimeout(() => window.sessionStorage.setItem(consumedKey, "1"), 0);
+      }
+      return payload;
+    };
+  }, {
+    responsePath: "/api/users/user_fan_a/session",
+    consumedKey: staleResponseConsumedKey,
+  });
+
   let markFirstRequestSeen;
   const firstRequestSeen = new Promise((resolve) => {
     markFirstRequestSeen = resolve;
@@ -193,6 +208,10 @@ test("a late missing-user response cannot clear a newer completed session", asyn
   releaseFirstResponse();
   await navigation;
   await firstResponseHandled;
+  await page.waitForFunction(
+    (consumedKey) => window.sessionStorage.getItem(consumedKey) === "1",
+    staleResponseConsumedKey,
+  );
 
   assert.equal(new URL(page.url()).pathname, "/");
   assert.equal(
