@@ -73,7 +73,13 @@ test("login page completes social callback, keeps nickname confirmation visible,
         contentType: "application/json; charset=utf-8",
         body: JSON.stringify({
           ok: true,
-          data: { id: callbackUserId, name: "카카오 테스트 사용자", status: "ACTIVE", trustScore: 88 },
+          data: {
+            id: callbackUserId,
+            name: "카카오 테스트 사용자",
+            status: "ACTIVE",
+            trustScore: 88,
+            profileConfirmed: false,
+          },
         }),
       });
     });
@@ -131,9 +137,11 @@ test("local preview Kakao and Naver buttons complete QA mock sessions without ex
       const button = page.getByRole("button", { name: `${providerName} 계정으로 로그인하기`, exact: true });
       await button.waitFor({ timeout: 5000 });
       assert.equal(await button.getAttribute("data-social-ready"), "mock");
-      await button.click();
-
-      await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+      await Promise.all([
+        page.waitForURL(`${baseUrl}/`, { timeout: 5000 }),
+        button.click(),
+      ]);
+      assert.equal(await page.getByLabel("닉네임").count(), 0);
       assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
     }
   } finally {

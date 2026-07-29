@@ -55,7 +55,8 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       balance: 0,
       status: "ACTIVE",
       trustScore: 90,
-      sanctions: []
+      sanctions: [],
+      profileConfirmedAt: null
     };
     db.users.push(user);
     appendLedger(db, user.id, "GOOGLE_USER_REGISTERED", {
