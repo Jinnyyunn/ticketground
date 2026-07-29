@@ -4,6 +4,7 @@ import { posterGradientClasses, type PosterGradient } from "@/components/poster-
 import { TicketgroundTag } from "@/components/ticketground/primitives";
 import { cn } from "@/lib/utils";
 import type { FeaturedShow, PosterFit, RankingShow } from "./home-content";
+import { homeFeaturedImagePolicy } from "./home-featured-image-policy";
 
 type GradientPosterProps = {
   readonly title: string;
@@ -61,19 +62,27 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
         size === "large" ? "min-h-[420px] md:min-h-[580px]" : "min-h-[280px]",
       )}
     >
-      <Image
-        src={show.poster}
-        alt=""
-        fill
-        sizes={size === "large" ? "(min-width: 768px) 56vw, 100vw" : "(min-width: 768px) 34vw, 100vw"}
-        className={cn(
-          "absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]",
-          size === "large" ? "object-top" : "object-center",
-        )}
-        loading={size === "large" ? "eager" : undefined}
-        fetchPriority={size === "large" ? "high" : undefined}
-        unoptimized={show.poster.endsWith(".gif")}
-      />
+      {show.poster === homeFeaturedImagePolicy.src && size === "large" ? (
+        <Image
+          {...homeFeaturedImagePolicy}
+          alt={homeFeaturedImagePolicy.alt}
+          className="absolute inset-0 size-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]"
+        />
+      ) : (
+        <Image
+          src={show.poster}
+          alt=""
+          fill
+          sizes={size === "large" ? "(min-width: 768px) 56vw, 100vw" : "(min-width: 768px) 34vw, 100vw"}
+          className={cn(
+            "absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]",
+            size === "large" ? "object-top" : "object-center",
+          )}
+          loading={size === "large" ? "eager" : undefined}
+          fetchPriority={size === "large" ? "high" : undefined}
+          unoptimized={show.poster.endsWith(".gif")}
+        />
+      )}
       <div
         className={cn(
           "absolute inset-0 bg-gradient-to-r from-scrim/90 via-scrim/55 to-scrim/10",
