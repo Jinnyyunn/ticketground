@@ -6,6 +6,7 @@ import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-t
 
 const sessionStorageKey = "ticketground:session-user-id";
 const signedOutStorageKey = "ticketground:demo-auth-state";
+const sessionChangedEvent = "ticketground:session-user-changed";
 
 async function createIncompleteProfile(baseUrl) {
   const response = await api(baseUrl, "/api/auth/google", {
@@ -101,4 +102,98 @@ test("stale stored sessions are cleared without blocking anonymous home access",
   await page.waitForFunction((key) => window.localStorage.getItem(key) === null, sessionStorageKey);
   assert.equal(new URL(page.url()).pathname, "/");
   assert.equal(await page.evaluate((key) => window.localStorage.getItem(key), signedOutStorageKey), "signed-out");
+});
+
+test("session API failures keep the stored session and fail closed with a recovery link", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const { context, page } = await newPageWithSession(browser, "user_fan_a");
+  t.after(() => context.close());
+  await page.route("**/api/users/user_fan_a/session", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: {
+          code: "SESSION_UNAVAILABLE",
+          message: "일시적으로 세션을 확인할 수 없습니다.",
+        },
+      }),
+    });
+  });
+
+  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+
+  const alert = page.locator("p[role='alert']");
+  await alert.waitFor({ timeout: 5000 });
+  assert.equal(await alert.textContent(), "프로필 상태를 확인할 수 없습니다. 다시 로그인해 주세요.");
+  const recoveryLink = page.getByRole("link", { name: "로그인으로 이동" });
+  assert.equal(await recoveryLink.getAttribute("href"), "/login");
+  assert.equal(await page.locator("[data-section='spec-hero']").count(), 0);
+  assert.equal(
+    await page.evaluate((key) => window.localStorage.getItem(key), sessionStorageKey),
+    "user_fan_a",
+  );
+  assert.equal(await page.evaluate((key) => window.localStorage.getItem(key), signedOutStorageKey), null);
+});
+
+test("a late missing-user response cannot clear a newer completed session", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const { context, page } = await newPageWithSession(browser, "user_fan_a");
+  t.after(() => context.close());
+
+  let markFirstRequestSeen;
+  const firstRequestSeen = new Promise((resolve) => {
+    markFirstRequestSeen = resolve;
+  });
+  let releaseFirstResponse;
+  const firstResponseReleased = new Promise((resolve) => {
+    releaseFirstResponse = resolve;
+  });
+  await page.route("**/api/users/*/session", async (route) => {
+    const userId = new URL(route.request().url()).pathname.split("/").at(-2);
+    if (userId !== "user_fan_a") {
+      await route.continue();
+      return;
+    }
+    markFirstRequestSeen();
+    await firstResponseReleased;
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: {
+          code: "USER_NOT_FOUND",
+          message: "사용자를 찾을 수 없습니다.",
+        },
+      }),
+    });
+  });
+
+  const navigation = page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await firstRequestSeen;
+  await page.evaluate(({ key, userId, eventName }) => {
+    window.localStorage.setItem(key, userId);
+    window.dispatchEvent(new Event(eventName));
+  }, { key: sessionStorageKey, userId: "user_fan_b", eventName: sessionChangedEvent });
+
+  await page.locator("[data-section='spec-hero']").waitFor({ timeout: 5000 });
+  releaseFirstResponse();
+  await navigation;
+  await page.waitForTimeout(250);
+
+  assert.equal(new URL(page.url()).pathname, "/");
+  assert.equal(
+    await page.evaluate((key) => window.localStorage.getItem(key), sessionStorageKey),
+    "user_fan_b",
+  );
+  assert.equal(await page.evaluate((key) => window.localStorage.getItem(key), signedOutStorageKey), null);
+  assert.equal(await page.locator("[data-section='spec-hero']").isVisible(), true);
 });
