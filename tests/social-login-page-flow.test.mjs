@@ -137,9 +137,11 @@ test("local preview Kakao and Naver buttons complete QA mock sessions without ex
       const button = page.getByRole("button", { name: providerLabel, exact: true });
       await button.waitFor({ timeout: 5000 });
       assert.equal(await button.getAttribute("data-social-ready"), "mock");
-      await button.click();
-
-      await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
+      await Promise.all([
+        page.waitForURL(`${baseUrl}/`, { timeout: 5000 }),
+        button.click(),
+      ]);
+      assert.equal(await page.getByLabel("닉네임").count(), 0);
       assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
     }
   } finally {

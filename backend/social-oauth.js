@@ -182,7 +182,8 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
       balance: 0,
       status: "ACTIVE",
       trustScore: 88,
-      sanctions: []
+      sanctions: [],
+      profileConfirmedAt: null
     };
     db.users.push(user);
     appendLedger(db, id, "SOCIAL_USER_REGISTERED", {
