@@ -293,8 +293,13 @@ test("successful Kakao and Naver callbacks persist an accessible last-login indi
     const descriptionId = await providerControl.getAttribute("aria-describedby");
     assert.ok(descriptionId, `${providerName} control references its last-login indicator`);
     const indicator = page.locator(`#${descriptionId}`);
-    assert.equal(await indicator.getAttribute("aria-label"), `최근 로그인한 수단: ${providerName}`);
-    assert.equal(await indicator.isVisible(), true);
+    assert.equal(await indicator.getAttribute("role"), "status");
+    assert.equal(await indicator.getAttribute("aria-live"), "polite");
+    assert.equal(await indicator.getAttribute("aria-atomic"), "true");
+    assert.equal(await indicator.textContent(), `최근 로그인한 수단: ${providerName}`);
+    const visibleChip = page.getByText("최근 로그인", { exact: true });
+    assert.equal(await visibleChip.isVisible(), true);
+    assert.equal(await visibleChip.getAttribute("aria-hidden"), "true");
 
     await context.close();
   }

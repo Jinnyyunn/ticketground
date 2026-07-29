@@ -87,6 +87,7 @@ export function GoogleSignInCard({
 }: GoogleSignInCardProps) {
   const [googleConfig, setGoogleConfig] = useState<GoogleConfig | null>(null);
   const [googleReady, setGoogleReady] = useState(false);
+  const [googleFocused, setGoogleFocused] = useState(false);
   const [originSupport, setOriginSupport] = useState<GoogleOriginSupport>("checking");
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleClientId = googleConfig?.clientId ?? "";
@@ -204,6 +205,30 @@ export function GoogleSignInCard({
     };
   }, [googleClientId, handleGoogleCredential, onStatusChange, originSupport]);
 
+  useEffect(() => {
+    if (!googleReady) return;
+    const googleIframe = googleButtonRef.current?.querySelector("iframe");
+    if (!googleIframe) return;
+
+    let pendingFrame = 0;
+    const syncGoogleFocus = () => {
+      setGoogleFocused(document.activeElement === googleIframe);
+    };
+    const handleWindowBlur = () => {
+      pendingFrame = window.requestAnimationFrame(syncGoogleFocus);
+    };
+
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", syncGoogleFocus);
+    document.addEventListener("focusin", syncGoogleFocus);
+    return () => {
+      window.cancelAnimationFrame(pendingFrame);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", syncGoogleFocus);
+      document.removeEventListener("focusin", syncGoogleFocus);
+    };
+  }, [googleReady]);
+
   async function handleMockGoogleLogin() {
     onStatusChange("Google QA mock 세션 확인 중");
     try {
@@ -287,8 +312,9 @@ export function GoogleSignInCard({
       role="group"
       aria-label="Google로 계속하기"
       aria-describedby={lastLoginIndicatorId}
-      className={GOOGLE_READY_BUTTON_CLASS}
+      className={`${GOOGLE_READY_BUTTON_CLASS} ${googleFocused ? "ring-3 ring-ring/30" : ""}`}
       data-google-client-id={googleClientId}
+      data-google-focused={googleFocused ? "true" : "false"}
       data-google-scope={GOOGLE_AUTH_SCOPE}
       data-google-ready={googleReady ? "true" : "false"}
       data-google-origin-supported={originSupport}

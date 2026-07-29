@@ -326,7 +326,7 @@ test("login page initializes Google Identity Services only once in a browser ses
   }
 });
 
-test("Google persists only a successful credential result and exposes an accessible last-login indicator", async (t) => {
+test("deterministic iframe contract preserves failed credentials and exposes the successful Google provider in the parent document", async (t) => {
   configureGoogleEnv(t, true);
   useProviderMode(t);
   const { baseUrl } = await startServer(t);
@@ -345,14 +345,27 @@ test("Google persists only a successful credential result and exposes an accessi
           },
           renderButton: (element) => {
             element.replaceChildren();
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = "Google로 계속하기";
-            button.addEventListener("click", () => {
+            const iframe = document.createElement("iframe");
+            iframe.title = "Deterministic Google control fixture (not live GIS)";
+            iframe.srcdoc = `
+              <!doctype html>
+              <html lang="ko">
+                <body>
+                  <button type="button" aria-label="Google로 계속하기">Google로 계속하기</button>
+                  <script>
+                    document.querySelector("button").addEventListener("click", () => {
+                      parent.postMessage({ type: "ticketground-google-fixture-click" }, "*");
+                    });
+                  </` + `script>
+                </body>
+              </html>
+            `;
+            window.addEventListener("message", (event) => {
+              if (event.source !== iframe.contentWindow || event.data?.type !== "ticketground-google-fixture-click") return;
               const credential = window.__ticketgroundGoogleCredential;
               window.__ticketgroundGoogleCallback?.(credential ? { credential } : {});
             });
-            element.appendChild(button);
+            element.appendChild(iframe);
           }
         }
       }
@@ -360,9 +373,17 @@ test("Google persists only a successful credential result and exposes an accessi
   });
 
   await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+  const initialParentStatus = page.locator("#last-login-provider-naver");
+  await initialParentStatus.waitFor({ state: "attached", timeout: 5000 });
+  assert.equal(await initialParentStatus.getAttribute("role"), "status");
+  assert.equal(await initialParentStatus.getAttribute("aria-live"), "polite");
+  assert.equal(await initialParentStatus.getAttribute("aria-atomic"), "true");
+  assert.equal(await initialParentStatus.textContent(), "최근 로그인한 수단: 네이버");
+
   const googleGroup = page.getByRole("group", { name: "Google로 계속하기", exact: true });
   await googleGroup.waitFor({ timeout: 5000 });
-  const googleButton = googleGroup.getByRole("button", {
+  const googleFrame = googleGroup.frameLocator('iframe[title="Deterministic Google control fixture (not live GIS)"]');
+  const googleButton = googleFrame.getByRole("button", {
     name: "Google로 계속하기",
     exact: true,
   });
@@ -378,10 +399,19 @@ test("Google persists only a successful credential result and exposes an accessi
     if (keyboardReachedGoogle) break;
   }
   assert.equal(keyboardReachedGoogle, true, "Tab reaches the real Google login control");
+  await page.locator("[data-google-focused='true']").waitFor({ timeout: 5000 });
+  const parentFocusState = await googleGroup.evaluate((group) => {
+    const iframe = group.querySelector("iframe");
+    return {
+      activeTag: document.activeElement?.tagName ?? null,
+      iframeMatchesFocus: iframe?.matches(":focus") ?? false,
+      recordedFocus: group.getAttribute("data-google-focused"),
+    };
+  });
   assert.notEqual(
     await googleGroup.evaluate((group) => window.getComputedStyle(group).boxShadow),
     restingGoogleShadow,
-    "the visible Google surface shows a focus ring when the real GIS control receives focus",
+    `the visible Google surface shows a focus ring when the real GIS control receives focus: ${JSON.stringify(parentFocusState)}`,
   );
 
   await googleButton.click();
@@ -402,8 +432,14 @@ test("Google persists only a successful credential result and exposes an accessi
   );
 
   const descriptionId = await googleGroup.getAttribute("aria-describedby");
-  assert.ok(descriptionId, "Google control group references its last-login indicator");
+  assert.ok(descriptionId, "Google parent group references its parent-document status");
   const indicator = page.locator(`#${descriptionId}`);
-  assert.equal(await indicator.getAttribute("aria-label"), "최근 로그인한 수단: Google");
-  assert.equal(await indicator.isVisible(), true);
+  assert.equal(await indicator.getAttribute("role"), "status");
+  assert.equal(await indicator.getAttribute("aria-live"), "polite");
+  assert.equal(await indicator.getAttribute("aria-atomic"), "true");
+  assert.equal(await indicator.textContent(), "최근 로그인한 수단: Google");
+
+  const visibleChip = page.getByText("최근 로그인", { exact: true });
+  assert.equal(await visibleChip.isVisible(), true);
+  assert.equal(await visibleChip.getAttribute("aria-hidden"), "true");
 });
