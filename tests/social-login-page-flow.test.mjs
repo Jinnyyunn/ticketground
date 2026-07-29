@@ -73,7 +73,13 @@ test("login page completes social callback, keeps nickname confirmation visible,
         contentType: "application/json; charset=utf-8",
         body: JSON.stringify({
           ok: true,
-          data: { id: callbackUserId, name: "카카오 테스트 사용자", status: "ACTIVE", trustScore: 88 },
+          data: {
+            id: callbackUserId,
+            name: "카카오 테스트 사용자",
+            status: "ACTIVE",
+            trustScore: 88,
+            profileConfirmed: false,
+          },
         }),
       });
     });
@@ -133,7 +139,7 @@ test("local preview Kakao and Naver buttons complete QA mock sessions without ex
       assert.equal(await button.getAttribute("data-social-ready"), "mock");
       await button.click();
 
-      await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+      await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
       assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
     }
   } finally {
@@ -285,8 +291,13 @@ test("successful Kakao and Naver callbacks persist an accessible last-login indi
     const descriptionId = await providerControl.getAttribute("aria-describedby");
     assert.ok(descriptionId, `${providerName} control references its last-login indicator`);
     const indicator = page.locator(`#${descriptionId}`);
-    assert.equal(await indicator.getAttribute("aria-label"), `최근 로그인한 수단: ${providerName}`);
-    assert.equal(await indicator.isVisible(), true);
+    assert.equal(await indicator.getAttribute("role"), "status");
+    assert.equal(await indicator.getAttribute("aria-live"), "polite");
+    assert.equal(await indicator.getAttribute("aria-atomic"), "true");
+    assert.equal(await indicator.textContent(), `최근 로그인한 수단: ${providerName}`);
+    const visibleChip = page.getByText("최근 로그인", { exact: true });
+    assert.equal(await visibleChip.isVisible(), true);
+    assert.equal(await visibleChip.getAttribute("aria-hidden"), "true");
 
     await context.close();
   }
