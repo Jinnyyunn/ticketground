@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { DEMO_USER_ID, getSession, type ApiSession } from "@/lib/ticketground-api";
+import {
+  LAST_LOGIN_PROVIDER_INDICATOR_IDS,
+  LastLoginProviderBadge,
+} from "@/components/ticketing/last-login-provider-badge";
 
 type SocialProviderId = "kakao" | "naver";
 
@@ -96,7 +100,7 @@ export function SocialLoginButtons({ onAuthenticated, onStatusChange, highlightP
     <>
       {socialProviders.map((provider) => {
         const Icon = provider.id === "kakao" ? KakaoLogo : NaverLogo;
-        const className = `flex h-12 items-center justify-center gap-2 rounded-sm border px-4 text-base font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 ${provider.tone}`;
+        const className = `flex h-12 w-full items-center justify-center gap-2 rounded-sm border px-4 text-base font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 ${provider.tone}`;
         const configured = config !== null && (provider.id === "kakao" ? config.kakaoConfigured : config.naverConfigured);
         const useMock = config !== null && (config.preferMock || (!configured && config.mockEnabled));
         const highlighted = highlightProviderId === provider.id;
@@ -104,14 +108,11 @@ export function SocialLoginButtons({ onAuthenticated, onStatusChange, highlightP
         if (useMock) {
           return (
             <div key={provider.id} className="relative">
-              {highlighted && (
-                <span className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink px-2 py-0.5 text-[10px] font-black text-on-ink shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
-                  최근 로그인
-                </span>
-              )}
+              {highlighted && <LastLoginProviderBadge provider={provider.id} />}
               <button
                 type="button"
                 onClick={() => handleMockLogin(provider.id, provider.name)}
+                aria-describedby={highlighted ? LAST_LOGIN_PROVIDER_INDICATOR_IDS[provider.id] : undefined}
                 className={className}
                 data-social-provider={provider.id}
                 data-social-ready="mock"
@@ -125,13 +126,10 @@ export function SocialLoginButtons({ onAuthenticated, onStatusChange, highlightP
 
         return (
           <div key={provider.id} className="relative">
-            {highlighted && (
-              <span className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink px-2 py-0.5 text-[10px] font-black text-on-ink shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
-                최근 로그인
-              </span>
-            )}
+            {highlighted && <LastLoginProviderBadge provider={provider.id} />}
             <a
               href={provider.href}
+              aria-describedby={highlighted ? LAST_LOGIN_PROVIDER_INDICATOR_IDS[provider.id] : undefined}
               className={className}
               data-social-provider={provider.id}
               data-social-ready={configured ? "true" : "false"}
