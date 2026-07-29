@@ -192,8 +192,8 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
     <section className="ticketground-container py-10">
       <div className="mb-3 flex items-center justify-end gap-2">
         {navigationLocked ? (
-          <p role="status" aria-live="polite" className="text-xs font-bold text-ink-3">
-            닉네임을 확인하고 프로필을 저장해야 다른 화면으로 이동할 수 있어요
+          <p role="status" aria-live="polite" className="break-keep text-xs font-bold text-ink-3">
+            닉네임을 확인하고 프로필을 저장해야 다른 화면으로 이동할&nbsp;수&nbsp;있어요
           </p>
         ) : (
           <LoginHomeLink />
