@@ -156,6 +156,10 @@ test("a late missing-user response cannot clear a newer completed session", asyn
   const firstResponseReleased = new Promise((resolve) => {
     releaseFirstResponse = resolve;
   });
+  let markFirstResponseHandled;
+  const firstResponseHandled = new Promise((resolve) => {
+    markFirstResponseHandled = resolve;
+  });
   await page.route("**/api/users/*/session", async (route) => {
     const userId = new URL(route.request().url()).pathname.split("/").at(-2);
     if (userId !== "user_fan_a") {
@@ -175,6 +179,7 @@ test("a late missing-user response cannot clear a newer completed session", asyn
         },
       }),
     });
+    markFirstResponseHandled();
   });
 
   const navigation = page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -187,7 +192,7 @@ test("a late missing-user response cannot clear a newer completed session", asyn
   await page.locator("[data-section='spec-hero']").waitFor({ timeout: 5000 });
   releaseFirstResponse();
   await navigation;
-  await page.waitForTimeout(250);
+  await firstResponseHandled;
 
   assert.equal(new URL(page.url()).pathname, "/");
   assert.equal(
