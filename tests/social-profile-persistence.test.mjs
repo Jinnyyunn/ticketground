@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { createCatalogPersistence } from "../backend/catalog-persistence.js";
 import { createSessionBackend } from "../backend/session.js";
+import { api, startServer } from "./backend-test-utils.mjs";
 import {
   configureSocialEnv,
   cookieHeaderFromSetCookie,
   createDirectSocialBackend,
   PROVIDERS,
+  redirected,
 } from "./social-auth-test-helpers.mjs";
 
 test("database reload preserves explicitly incomplete profiles while backfilling legacy users", () => {
@@ -176,4 +181,105 @@ test("Kakao, Naver, and Google identities cannot expose another provider profile
   assert.notEqual(naverUser.name, "카카오 저장 프로필");
   assert.notEqual(googleSession.name, "카카오 저장 프로필");
   assert.equal(kakaoUser.name, "카카오 저장 프로필");
+});
+
+test("saved Naver identity survives a real server restart on the same database", async (t) => {
+  // Given: a deterministic Naver login completed on the first server process.
+  configureSocialEnv(t, true);
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-social-restart-"));
+  const dbPath = path.join(tempDir, "db.json");
+  t.after(() => rm(tempDir, { recursive: true, force: true }));
+
+  async function completeNaverLogin(server) {
+    const start = await fetch(`${server.baseUrl}/api/auth/naver/start`, { redirect: "manual" });
+    const authorizeUrl = new URL(await redirected(start));
+    const state = authorizeUrl.searchParams.get("state");
+    assert.ok(state, "Naver state is present");
+    const callback = await fetch(
+      `${server.baseUrl}/api/auth/naver/callback?code=${PROVIDERS.naver.code}&state=${encodeURIComponent(state)}`,
+      {
+        headers: { cookie: cookieHeaderFromSetCookie(start.headers.get("set-cookie")) },
+        redirect: "manual",
+      },
+    );
+    const sessionResponse = await fetch(`${server.baseUrl}/api/auth/naver/session`, {
+      headers: { cookie: cookieHeaderFromSetCookie(callback.headers.get("set-cookie")) },
+    });
+    assert.equal(sessionResponse.status, 200);
+    return (await sessionResponse.json()).data;
+  }
+
+  const firstServer = await startServer(t, { dbPath });
+  const firstSession = await completeNaverLogin(firstServer);
+  assert.equal(firstSession.profileConfirmed, false);
+  const savedProfile = await api(firstServer.baseUrl, `/api/users/${firstSession.id}/profile`, {
+    name: "재시작 보존 닉네임",
+  });
+  assert.equal(savedProfile.data.profileConfirmed, true);
+
+  // When: the first process fully stops and a different process opens the same DB.
+  await firstServer.stop();
+  const secondServer = await startServer(t, { dbPath });
+  const secondSession = await completeNaverLogin(secondServer);
+
+  // Then: relogin reuses the persisted identity and completed profile.
+  assert.notEqual(secondServer.pid, firstServer.pid);
+  assert.equal(secondSession.id, firstSession.id);
+  assert.equal(secondSession.name, "재시작 보존 닉네임");
+  assert.equal(secondSession.profileConfirmed, true);
+  await secondServer.stop();
+});
+
+test("Kakao and Naver keep the same provider subject in separate user records", async (t) => {
+  // Given: both providers return the same raw subject through controlled OAuth responses.
+  configureSocialEnv(t, true);
+  process.env.TIG_SOCIAL_AUTH_TEST_MODE = "0";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const requestUrl = new URL(url);
+    if (requestUrl.pathname.includes("token")) {
+      return Response.json({ access_token: "redacted-test-token" });
+    }
+    if (requestUrl.hostname === "kapi.kakao.com") {
+      return Response.json({ id: "shared-subject", properties: { nickname: "Kakao profile" } });
+    }
+    if (requestUrl.hostname === "openapi.naver.com") {
+      return Response.json({ response: { id: "shared-subject", nickname: "Naver profile" } });
+    }
+    throw new Error(`unexpected OAuth fixture request: ${requestUrl.origin}${requestUrl.pathname}`);
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const { backend, db } = createDirectSocialBackend();
+
+  async function register(provider) {
+    const request = { headers: { host: "127.0.0.1:1" } };
+    const start = backend.socialAuthStart(request, provider);
+    const state = new URL(start.redirect).searchParams.get("state");
+    assert.ok(state, `${provider} state is present`);
+    await backend.socialAuthCallback(
+      db,
+      {
+        headers: {
+          host: "127.0.0.1:1",
+          cookie: cookieHeaderFromSetCookie(start.headers["Set-Cookie"]),
+        },
+      },
+      provider,
+      new URLSearchParams({ code: "shared-subject-code", state }),
+    );
+    return db.users.at(-1);
+  }
+
+  // When: Kakao and Naver callbacks register that identical subject.
+  const kakaoUser = await register("kakao");
+  const naverUser = await register("naver");
+
+  // Then: provider qualification prevents cross-provider account merging.
+  assert.ok(kakaoUser);
+  assert.ok(naverUser);
+  assert.notEqual(kakaoUser.id, naverUser.id);
+  assert.equal(kakaoUser.name, "Kakao profile");
+  assert.equal(naverUser.name, "Naver profile");
 });

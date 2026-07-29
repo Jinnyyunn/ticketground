@@ -31,8 +31,9 @@ async function freePort() {
   });
 }
 
-export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = {} } = {}) {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-backend-"));
+export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = {}, dbPath } = {}) {
+  const tempDir = dbPath ? null : await mkdtemp(path.join(tmpdir(), "ticketground-backend-"));
+  const resolvedDbPath = dbPath || path.join(tempDir, "db.json");
   const port = await freePort();
   const adminPort = await freePort();
   const child = spawn(process.execPath, ["server.js"], {
@@ -46,7 +47,7 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_ADMIN_SESSION_SECRET: adminSessionSecret,
       TIG_ADMIN_USERNAME: "admin",
       TIG_ADMIN_PASSWORD: bootstrapAdminPassword,
-      TIG_DB_PATH: path.join(tempDir, "db.json"),
+      TIG_DB_PATH: resolvedDbPath,
       TIG_NOW: now,
       TIG_APP_ATTESTATION_SECRET: appAttestationSecret,
       TIG_PORTONE_IDENTITY_TEST_MODE: "1",
@@ -59,6 +60,9 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
   let stdout = "";
   let stderr = "";
   let exited = false;
+  const exitPromise = new Promise((resolve) => {
+    child.once("exit", resolve);
+  });
   child.stdout.on("data", (chunk) => {
     stdout += chunk.toString();
   });
@@ -69,12 +73,14 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
     exited = true;
   });
 
+  async function stop() {
+    if (!exited) child.kill("SIGTERM");
+    await exitPromise;
+  }
+
   t.after(async () => {
-    if (!exited) {
-      child.kill("SIGTERM");
-      await new Promise((resolve) => child.once("exit", resolve));
-    }
-    await rm(tempDir, { recursive: true, force: true });
+    await stop();
+    if (tempDir) await rm(tempDir, { recursive: true, force: true });
   });
 
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -82,7 +88,16 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
     if (exited) break;
     try {
       const response = await fetch(`${baseUrl}/api/state`);
-      if (response.ok) return { baseUrl, adminToken, adminUrl: `http://127.0.0.1:${adminPort}`, stderr };
+      if (response.ok) {
+        return {
+          baseUrl,
+          adminToken,
+          adminUrl: `http://127.0.0.1:${adminPort}`,
+          pid: child.pid,
+          stderr,
+          stop
+        };
+      }
     } catch {
       // wait until both HTTP servers bind
     }
