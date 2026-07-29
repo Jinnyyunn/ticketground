@@ -92,6 +92,7 @@ test("Google button prefers the real Identity Services flow over QA mock when a 
               element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
+              button.setAttribute("aria-label", "Google로 계속하기");
               button.textContent = "Sign in with Google";
               element.appendChild(button);
             }
@@ -105,7 +106,7 @@ test("Google button prefers the real Identity Services flow over QA mock when a 
     await googleArea.waitFor({ timeout: 5000 });
     await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
     assert.equal(await page.locator("[data-google-ready='mock']").count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).isVisible(), true);
+    assert.equal(await page.getByRole("button", { name: "Google로 계속하기", exact: true }).isVisible(), true);
   } finally {
     await page.close();
   }
@@ -129,6 +130,7 @@ test("login page renders Google Identity Services wiring as a social-only button
               element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
+              button.setAttribute("aria-label", "Google로 계속하기");
               button.textContent = "Sign in with Google";
               button.style.height = "48px";
               button.style.width = "100%";
@@ -146,18 +148,22 @@ test("login page renders Google Identity Services wiring as a social-only button
     await googleArea.waitFor({ timeout: 5000 });
     await page.locator("[data-google-ready='true']").waitFor({ timeout: 5000 });
     assert.equal(await googleArea.getAttribute("data-google-scope"), "openid email profile");
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
-    assert.ok(await googleButton.isVisible(), "Ticketground custom Google button should stay visible after GIS is ready");
+    const googleGroup = page.getByRole("group", { name: "Google로 계속하기", exact: true });
+    const googleButton = googleGroup.getByRole("button", {
+      name: "Google로 계속하기",
+      exact: true,
+    });
+    assert.ok(await googleButton.isVisible(), "the real GIS control stays keyboard and screen-reader accessible");
     assert.equal(await page.getByRole("button", { name: "Sign in with Google", exact: true }).count(), 0);
     assert.ok(await googleArea.locator("svg").first().isVisible());
     assert.equal(await page.getByText("이메일과 프로필 확인 범위만 요청합니다.").count(), 0);
     assert.equal(await page.getByText("Google 버튼 로드 중").count(), 0);
-    const kakaoButton = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
-    const googleBox = await googleButton.boundingBox();
+    const kakaoButton = page.getByRole("link", { name: "카카오톡으로 계속하기", exact: true });
+    const googleBox = await googleGroup.boundingBox();
     const kakaoBox = await kakaoButton.boundingBox();
     assert.ok(googleBox, "Google login control has a rendered box");
     assert.ok(kakaoBox, "Kakao login button has a rendered box");
-    const googleElement = await googleButton.evaluate((element) => ({
+    const googleElement = await googleGroup.evaluate((element) => ({
       tagName: element.tagName,
       role: element.getAttribute("role"),
       backgroundColor: window.getComputedStyle(element).backgroundColor,
@@ -165,7 +171,7 @@ test("login page renders Google Identity Services wiring as a social-only button
     }));
     assert.deepEqual(googleElement, {
       tagName: "DIV",
-      role: "button",
+      role: "group",
       backgroundColor: "rgb(255, 255, 255)",
       borderTopWidth: "1px",
     });
@@ -221,7 +227,7 @@ test("login page does not request Google Identity Services from unsupported prev
     await googleArea.waitFor({ timeout: 5000 });
     await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
     assert.equal(await googleArea.locator("svg path[fill='#4285F4']").count(), 1);
-    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByRole("button", { name: "Google로 계속하기", exact: true }).click();
     await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
 
     assert.equal(requestedGoogleScript, false);
@@ -258,7 +264,7 @@ test("login page does not assume localhost is Google-authorized without an expli
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     await page.locator("[data-google-origin-supported='false']").waitFor({ timeout: 5000 });
     assert.equal(await page.locator("[data-google-origin-supported='false'] svg path[fill='#4285F4']").count(), 1);
-    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByRole("button", { name: "Google로 계속하기", exact: true }).click();
     await page.getByText("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.").waitFor({ timeout: 5000 });
 
     assert.equal(requestedGoogleScript, false);
@@ -290,7 +296,7 @@ test("login page initializes Google Identity Services only once in a browser ses
               element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
-              button.textContent = "Google 계정으로 로그인하기";
+              button.textContent = "Google로 계속하기";
               button.addEventListener("click", () => {
                 window.__ticketgroundGoogleCalls.credential += 1;
                 window.__ticketgroundGoogleCallback?.({ credential: "ticketground-google-test-credential" });
@@ -318,4 +324,86 @@ test("login page initializes Google Identity Services only once in a browser ses
   } finally {
     await page.close();
   }
+});
+
+test("Google persists only a successful credential result and exposes an accessible last-login indicator", async (t) => {
+  configureGoogleEnv(t, true);
+  useProviderMode(t);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  await page.addInitScript(() => {
+    window.localStorage.setItem("ticketground:last-login-provider", "naver");
+    window.__ticketgroundGoogleCredential = "";
+    window.google = {
+      accounts: {
+        id: {
+          initialize: (options) => {
+            window.__ticketgroundGoogleCallback = options.callback;
+          },
+          renderButton: (element) => {
+            element.replaceChildren();
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = "Google로 계속하기";
+            button.addEventListener("click", () => {
+              const credential = window.__ticketgroundGoogleCredential;
+              window.__ticketgroundGoogleCallback?.(credential ? { credential } : {});
+            });
+            element.appendChild(button);
+          }
+        }
+      }
+    };
+  });
+
+  await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+  const googleGroup = page.getByRole("group", { name: "Google로 계속하기", exact: true });
+  await googleGroup.waitFor({ timeout: 5000 });
+  const googleButton = googleGroup.getByRole("button", {
+    name: "Google로 계속하기",
+    exact: true,
+  });
+  await googleButton.waitFor({ timeout: 5000 });
+  const restingGoogleShadow = await googleGroup.evaluate((group) => window.getComputedStyle(group).boxShadow);
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+  let keyboardReachedGoogle = false;
+  for (let step = 0; step < 10; step += 1) {
+    await page.keyboard.press("Tab");
+    keyboardReachedGoogle = await googleButton.evaluate((button) => document.activeElement === button);
+    if (keyboardReachedGoogle) break;
+  }
+  assert.equal(keyboardReachedGoogle, true, "Tab reaches the real Google login control");
+  assert.notEqual(
+    await googleGroup.evaluate((group) => window.getComputedStyle(group).boxShadow),
+    restingGoogleShadow,
+    "the visible Google surface shows a focus ring when the real GIS control receives focus",
+  );
+
+  await googleButton.click();
+  await page.getByText("Google 인증 정보를 받지 못했습니다.").waitFor({ timeout: 5000 });
+  assert.equal(
+    await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
+    "naver",
+  );
+
+  await page.evaluate(() => {
+    window.__ticketgroundGoogleCredential = "ticketground-google-test-credential";
+  });
+  await googleButton.click();
+  await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+  assert.equal(
+    await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
+    "google",
+  );
+
+  const descriptionId = await googleGroup.getAttribute("aria-describedby");
+  assert.ok(descriptionId, "Google control group references its last-login indicator");
+  const indicator = page.locator(`#${descriptionId}`);
+  assert.equal(await indicator.getAttribute("aria-label"), "최근 로그인한 수단: Google");
+  assert.equal(await indicator.isVisible(), true);
 });
