@@ -61,7 +61,7 @@ test("login page keeps empty Google config disabled in production without QA moc
   try {
     await forceDarkTheme(page);
     await page.goto(`http://public.ticketground.test:${port}/login`, { waitUntil: "domcontentloaded" });
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
+    const googleButton = page.getByRole("button", { name: "Google로 계속하기", exact: true });
     await googleButton.waitFor({ timeout: 5000 });
 
     assert.equal(await googleButton.isEnabled(), false);
@@ -84,15 +84,17 @@ test("login page uses a clickable Google QA mock fallback when public Google con
   try {
     await forceDarkTheme(page);
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
+    const googleButton = page.getByRole("button", { name: "Google로 계속하기", exact: true });
     await googleButton.waitFor({ timeout: 5000 });
 
     assert.equal(await googleButton.isEnabled(), true);
     assert.equal(await buttonBackgroundColor(googleButton), "rgb(255, 255, 255)");
     assert.deepEqual(await googleLogoFills(googleButton), ["#4285F4", "#34A853", "#FBBC05", "#EA4335"]);
-    await googleButton.click();
-    await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
-    assert.equal(await page.getByLabel("닉네임").inputValue(), "민서");
+    await Promise.all([
+      page.waitForURL(`${baseUrl}/`, { timeout: 5000 }),
+      googleButton.click(),
+    ]);
+    assert.equal(await page.getByLabel("닉네임").count(), 0);
     assert.equal(await page.getByText("세션 상태", { exact: true }).count(), 0);
     assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "user_fan_a");
   } finally {
