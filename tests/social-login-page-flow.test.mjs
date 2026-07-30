@@ -102,8 +102,8 @@ test("login page completes social callback, keeps nickname confirmation visible,
 
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     const googleArea = page.locator("[data-google-client-id]").first();
-    const kakaoLink = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
-    const naverLink = page.getByRole("link", { name: "네이버 계정으로 로그인하기", exact: true });
+    const kakaoLink = page.getByRole("link", { name: "카카오톡으로 계속하기", exact: true });
+    const naverLink = page.getByRole("link", { name: "네이버로 계속하기", exact: true });
     assert.equal(await kakaoLink.getAttribute("href"), "/api/auth/kakao/start");
     assert.equal(await naverLink.getAttribute("href"), "/api/auth/naver/start");
     assert.equal(await kakaoLink.locator("svg circle").getAttribute("fill"), "#FFDE32");
@@ -129,12 +129,12 @@ test("local preview Kakao and Naver buttons complete QA mock sessions without ex
 
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   try {
-    for (const providerName of ["카카오톡", "네이버"]) {
+    for (const providerLabel of ["카카오톡으로 계속하기", "네이버로 계속하기"]) {
       await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
       await page.evaluate(() => window.localStorage.clear());
       await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
 
-      const button = page.getByRole("button", { name: `${providerName} 계정으로 로그인하기`, exact: true });
+      const button = page.getByRole("button", { name: providerLabel, exact: true });
       await button.waitFor({ timeout: 5000 });
       assert.equal(await button.getAttribute("data-social-ready"), "mock");
       await Promise.all([
@@ -159,15 +159,15 @@ test("configured Kakao and Naver credentials render real OAuth links instead of 
   try {
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
 
-    const kakaoLink = page.getByRole("link", { name: "카카오톡 계정으로 로그인하기", exact: true });
-    const naverLink = page.getByRole("link", { name: "네이버 계정으로 로그인하기", exact: true });
+    const kakaoLink = page.getByRole("link", { name: "카카오톡으로 계속하기", exact: true });
+    const naverLink = page.getByRole("link", { name: "네이버로 계속하기", exact: true });
     await kakaoLink.waitFor({ timeout: 5000 });
     assert.equal(await kakaoLink.getAttribute("href"), "/api/auth/kakao/start");
     assert.equal(await kakaoLink.getAttribute("data-social-ready"), "true");
     assert.equal(await naverLink.getAttribute("href"), "/api/auth/naver/start");
     assert.equal(await naverLink.getAttribute("data-social-ready"), "true");
-    assert.equal(await page.getByRole("button", { name: "카카오톡 계정으로 로그인하기", exact: true }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "네이버 계정으로 로그인하기", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "카카오톡으로 계속하기", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "네이버로 계속하기", exact: true }).count(), 0);
   } finally {
     await page.close();
   }
@@ -194,7 +194,7 @@ test("unauthenticated login page waits for an explicit login action before showi
               element.replaceChildren();
               const button = document.createElement("button");
               button.type = "button";
-              button.textContent = "Google 계정으로 로그인하기";
+              button.textContent = "Google로 계속하기";
               button.addEventListener("click", () => {
                 window.__ticketgroundGoogleCallback?.({ credential: "ticketground-google-test-credential" });
               });
@@ -221,7 +221,7 @@ test("unauthenticated login page waits for an explicit login action before showi
     assert.equal(await page.getByPlaceholder("qa@ticketground.kr").count(), 0);
     assert.equal(await page.getByRole("button", { name: "mock 로그인 확인" }).count(), 0);
 
-    await page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true }).click();
+    await page.getByRole("button", { name: "Google로 계속하기", exact: true }).click();
     await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
     assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "google_user_test");
   } finally {
@@ -262,4 +262,82 @@ test("successful social callback clears the one-time provider query before refre
   await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
   await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
   assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), storedUserId);
+});
+
+test("successful Kakao and Naver callbacks persist an accessible last-login indicator", async (t) => {
+  configureSocialEnv(t, true);
+  useProviderMode(t);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  for (const [provider, providerName, providerLabel] of [
+    ["kakao", "카카오톡", "카카오톡으로 계속하기"],
+    ["naver", "네이버", "네이버로 계속하기"],
+  ]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    await context.addCookies(await issueSocialBridgeCookies(baseUrl, provider, PROVIDERS[provider].code));
+    const page = await context.newPage();
+
+    await page.goto(`${baseUrl}/login?socialProvider=${provider}`, { waitUntil: "domcontentloaded" });
+    await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+
+    assert.equal(
+      await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
+      provider,
+    );
+    const providerControl = page.getByRole("link", {
+      name: providerLabel,
+      exact: true,
+    });
+    const descriptionId = await providerControl.getAttribute("aria-describedby");
+    assert.ok(descriptionId, `${providerName} control references its last-login indicator`);
+    const indicator = page.locator(`#${descriptionId}`);
+    assert.equal(await indicator.getAttribute("role"), "status");
+    assert.equal(await indicator.getAttribute("aria-live"), "polite");
+    assert.equal(await indicator.getAttribute("aria-atomic"), "true");
+    assert.equal(await indicator.textContent(), `최근 로그인한 수단: ${providerName}`);
+    const visibleChip = page.getByText("최근 로그인", { exact: true });
+    assert.equal(await visibleChip.isVisible(), true);
+    assert.equal(await visibleChip.getAttribute("aria-hidden"), "true");
+
+    await context.close();
+  }
+});
+
+test("failed or invalid social callbacks preserve the last successful provider and corrupt storage is ignored", async (t) => {
+  configureSocialEnv(t, true);
+  configureGoogleEnv(t, true);
+  useProviderMode(t);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.localStorage.setItem("ticketground:last-login-provider", "google");
+  });
+
+  await page.goto(`${baseUrl}/login?socialError=kakao_access_denied`, { waitUntil: "domcontentloaded" });
+  await page.getByText("kakao_access_denied 소셜 로그인 요청을 처리하지 못했습니다.").waitFor({ timeout: 5000 });
+  assert.equal(
+    await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
+    "google",
+  );
+
+  await page.goto(`${baseUrl}/login?socialProvider=naver`, { waitUntil: "domcontentloaded" });
+  await page.getByText("소셜 로그인 세션을 다시 시작해주세요.").waitFor({ timeout: 5000 });
+  assert.equal(
+    await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
+    "google",
+  );
+
+  await page.evaluate(() => {
+    window.localStorage.setItem("ticketground:last-login-provider", "{broken");
+  });
+  await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "간편 로그인으로 계정을 시작해 주세요" }).waitFor({ timeout: 5000 });
+  assert.equal(await page.getByText("최근 로그인", { exact: true }).count(), 0);
 });

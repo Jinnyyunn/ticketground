@@ -46,7 +46,7 @@ const GOOGLE_FALLBACK_BUTTON_CLASS =
   "flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-neutral-300 bg-white px-4 text-base font-black text-neutral-900 shadow-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-white disabled:text-neutral-500 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:border-neutral-400 dark:disabled:bg-white dark:disabled:text-neutral-500";
 const GOOGLE_LOADING_BUTTON_CLASS = `absolute inset-0 ${GOOGLE_FALLBACK_BUTTON_CLASS}`;
 const GOOGLE_READY_BUTTON_CLASS =
-  "relative flex h-12 w-full overflow-hidden items-center justify-center gap-2 rounded-sm border border-neutral-300 bg-white px-4 text-base font-black text-neutral-900 shadow-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:border-neutral-400";
+  "relative flex h-12 w-full overflow-hidden items-center justify-center gap-2 rounded-sm border border-neutral-300 bg-white px-4 text-base font-black text-neutral-900 shadow-sm transition-colors hover:border-neutral-400 focus-within:outline-none focus-within:ring-3 focus-within:ring-ring/30 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:border-neutral-400";
 const GOOGLE_RENDERED_HOST_CLASS =
   "absolute inset-0 z-0 h-full w-full opacity-0 [&>*]:!h-full [&>*]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full";
 const GOOGLE_VISIBLE_BUTTON_CLASS = `pointer-events-none absolute inset-0 z-10 ${GOOGLE_FALLBACK_BUTTON_CLASS}`;
@@ -59,6 +59,7 @@ type GoogleConfig = {
 };
 
 type GoogleSignInCardProps = {
+  readonly lastLoginIndicatorId?: string;
   readonly onAuthenticated: (session: ApiSession) => void;
   readonly onStatusChange: (message: string) => void;
 };
@@ -79,9 +80,14 @@ function currentOriginCanLoadGoogleIdentityServices(allowedOrigins: readonly str
   return new Set(allowedOrigins).has(window.location.origin);
 }
 
-export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSignInCardProps) {
+export function GoogleSignInCard({
+  lastLoginIndicatorId,
+  onAuthenticated,
+  onStatusChange,
+}: GoogleSignInCardProps) {
   const [googleConfig, setGoogleConfig] = useState<GoogleConfig | null>(null);
   const [googleReady, setGoogleReady] = useState(false);
+  const [googleFocused, setGoogleFocused] = useState(false);
   const [originSupport, setOriginSupport] = useState<GoogleOriginSupport>("checking");
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleClientId = googleConfig?.clientId ?? "";
@@ -199,6 +205,30 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
     };
   }, [googleClientId, handleGoogleCredential, onStatusChange, originSupport]);
 
+  useEffect(() => {
+    if (!googleReady) return;
+    const googleIframe = googleButtonRef.current?.querySelector("iframe");
+    if (!googleIframe) return;
+
+    let pendingFrame = 0;
+    const syncGoogleFocus = () => {
+      setGoogleFocused(document.activeElement === googleIframe);
+    };
+    const handleWindowBlur = () => {
+      pendingFrame = window.requestAnimationFrame(syncGoogleFocus);
+    };
+
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", syncGoogleFocus);
+    document.addEventListener("focusin", syncGoogleFocus);
+    return () => {
+      window.cancelAnimationFrame(pendingFrame);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", syncGoogleFocus);
+      document.removeEventListener("focusin", syncGoogleFocus);
+    };
+  }, [googleReady]);
+
   async function handleMockGoogleLogin() {
     onStatusChange("Google QA mock 세션 확인 중");
     try {
@@ -214,6 +244,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
         <button
           type="button"
           onClick={handleMockGoogleLogin}
+          aria-describedby={lastLoginIndicatorId}
           className={GOOGLE_FALLBACK_BUTTON_CLASS}
           data-google-client-id=""
           data-google-scope={GOOGLE_AUTH_SCOPE}
@@ -229,6 +260,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         disabled
+        aria-describedby={lastLoginIndicatorId}
         className={GOOGLE_FALLBACK_BUTTON_CLASS}
         data-google-client-id=""
         data-google-scope={GOOGLE_AUTH_SCOPE}
@@ -244,6 +276,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         onClick={handleMockGoogleLogin}
+        aria-describedby={lastLoginIndicatorId}
         className={GOOGLE_FALLBACK_BUTTON_CLASS}
         data-google-client-id={googleClientId}
         data-google-scope={GOOGLE_AUTH_SCOPE}
@@ -261,6 +294,7 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
       <button
         type="button"
         onClick={() => onStatusChange("Google 로그인은 승인된 도메인에서만 사용할 수 있습니다.")}
+        aria-describedby={lastLoginIndicatorId}
         className={GOOGLE_FALLBACK_BUTTON_CLASS}
         data-google-client-id={googleClientId}
         data-google-scope={GOOGLE_AUTH_SCOPE}
@@ -275,17 +309,18 @@ export function GoogleSignInCard({ onAuthenticated, onStatusChange }: GoogleSign
 
   return (
     <div
-      role="button"
+      role="group"
       aria-label="Google로 계속하기"
-      className={GOOGLE_READY_BUTTON_CLASS}
+      aria-describedby={lastLoginIndicatorId}
+      className={`${GOOGLE_READY_BUTTON_CLASS} ${googleFocused ? "ring-3 ring-ring/30" : ""}`}
       data-google-client-id={googleClientId}
+      data-google-focused={googleFocused ? "true" : "false"}
       data-google-scope={GOOGLE_AUTH_SCOPE}
       data-google-ready={googleReady ? "true" : "false"}
       data-google-origin-supported={originSupport}
     >
       <div
         ref={googleButtonRef}
-        aria-hidden="true"
         className={GOOGLE_RENDERED_HOST_CLASS}
       />
       {!googleReady ? (

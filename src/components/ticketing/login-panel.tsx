@@ -17,6 +17,10 @@ import {
   updateProfile,
 } from "@/lib/ticketground-api";
 import { GoogleSignInCard } from "@/components/ticketing/google-sign-in-card";
+import {
+  LAST_LOGIN_PROVIDER_INDICATOR_IDS,
+  LastLoginProviderBadge,
+} from "@/components/ticketing/last-login-provider-badge";
 import { LoginHomeLink } from "@/components/ticketing/login-home-link";
 import { LoginHeroAside } from "@/components/ticketing/login-hero-aside";
 import { LoginModeTabs } from "@/components/ticketing/login-mode-tabs";
@@ -30,14 +34,6 @@ const LOGIN_DESCRIPTION = "별도 이메일 회원가입 없이 간편 로그인
 
 function isSocialLoginProvider(value: string | null): value is SocialLoginProvider {
   return value === "kakao" || value === "naver";
-}
-
-function LastUsedBadge() {
-  return (
-    <span className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink px-2 py-0.5 text-[10px] font-black text-on-ink shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
-      최근 로그인
-    </span>
-  );
 }
 
 export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: LoginMode }) {
@@ -227,8 +223,12 @@ export function LoginPanel({ initialMode = "login" }: { readonly initialMode?: L
 
           <div className="mx-auto mt-7 grid w-full max-w-[400px] gap-3">
             <div className="relative">
-              {lastProvider === "google" && <LastUsedBadge />}
-              <GoogleSignInCard onAuthenticated={handleGoogleSession} onStatusChange={handleGoogleStatusChange} />
+              {lastProvider === "google" && <LastLoginProviderBadge provider="google" />}
+              <GoogleSignInCard
+                lastLoginIndicatorId={lastProvider === "google" ? LAST_LOGIN_PROVIDER_INDICATOR_IDS.google : undefined}
+                onAuthenticated={handleGoogleSession}
+                onStatusChange={handleGoogleStatusChange}
+              />
             </div>
             <SocialLoginButtons
               onAuthenticated={handleSocialMockSession}

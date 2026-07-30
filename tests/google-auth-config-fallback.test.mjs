@@ -61,7 +61,7 @@ test("login page keeps empty Google config disabled in production without QA moc
   try {
     await forceDarkTheme(page);
     await page.goto(`http://public.ticketground.test:${port}/login`, { waitUntil: "domcontentloaded" });
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
+    const googleButton = page.getByRole("button", { name: "Google로 계속하기", exact: true });
     await googleButton.waitFor({ timeout: 5000 });
 
     assert.equal(await googleButton.isEnabled(), false);
@@ -84,7 +84,7 @@ test("login page uses a clickable Google QA mock fallback when public Google con
   try {
     await forceDarkTheme(page);
     await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
-    const googleButton = page.getByRole("button", { name: "Google 계정으로 로그인하기", exact: true });
+    const googleButton = page.getByRole("button", { name: "Google로 계속하기", exact: true });
     await googleButton.waitFor({ timeout: 5000 });
 
     assert.equal(await googleButton.isEnabled(), true);
