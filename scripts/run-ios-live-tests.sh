@@ -23,9 +23,11 @@ DESTINATION=""
 TEST_ONLY=""
 EVIDENCE_DIR=""
 BACKEND_ROOT="${TICKETGROUND_IOS_BACKEND_ROOT:-$REPO_ROOT}"
-SEED_DB="${TICKETGROUND_IOS_SEED_DB:-$BACKEND_ROOT/data/db.json}"
+SEED_DB="${TICKETGROUND_IOS_SEED_DB:-}"
 RUNTIME="${TICKETGROUND_IOS_RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-26-5}"
 DEVICE_TYPE="${TICKETGROUND_IOS_DEVICE_TYPE:-com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro}"
+READINESS_ATTEMPTS="${TICKETGROUND_IOS_READINESS_ATTEMPTS:-240}"
+READINESS_DELAY_SECONDS="${TICKETGROUND_IOS_READINESS_DELAY_SECONDS:-0.1}"
 FAIL_AFTER_SERVER_START=0
 while (($# > 0)); do
   case "$1" in
@@ -63,8 +65,12 @@ if [[ ! -d "$BACKEND_ROOT/node_modules" ]]; then
   echo "backend runtime dependencies are missing under $BACKEND_ROOT/node_modules" >&2
   exit 2
 fi
-if [[ ! -f "$SEED_DB" ]]; then
+if [[ -n "$SEED_DB" && ! -f "$SEED_DB" ]]; then
   echo "seed database is missing: $SEED_DB" >&2
+  exit 2
+fi
+if [[ ! "$READINESS_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "readiness attempts must be a positive integer" >&2
   exit 2
 fi
 mkdir -p "$EVIDENCE_DIR"
@@ -99,13 +105,16 @@ wait_for_http() {
   if (($# > 0)); then
     curl_args=("$@")
   fi
-  for _ in $(seq 1 240); do
+  for attempt in $(seq 1 "$READINESS_ATTEMPTS"); do
     if ((${#curl_args[@]} > 0)); then
       if curl --silent --show-error --fail --max-time 1 "${curl_args[@]}" "$url" >/dev/null; then
         return 0
       fi
     elif curl --silent --show-error --fail --max-time 1 "$url" >/dev/null; then
       return 0
+    fi
+    if ((attempt < READINESS_ATTEMPTS)); then
+      sleep "$READINESS_DELAY_SECONDS"
     fi
   done
   return 1
@@ -134,7 +143,10 @@ ADMIN_TOKEN="todo5-admin-token-$$"
 SERVER_LOG="$RUN_DIR/server.log"
 ENV_FILE="$RUN_DIR/api-environment.json"
 SHARED_DB="$SEED_DB"
-SHARED_DB_HASH_BEFORE=$(sha256_file "$SHARED_DB")
+SHARED_DB_HASH_BEFORE=""
+if [[ -n "$SHARED_DB" ]]; then
+  SHARED_DB_HASH_BEFORE=$(sha256_file "$SHARED_DB")
+fi
 DEVICE_ID=""
 SERVER_PID=""
 TEST_STATUS=0
@@ -162,10 +174,13 @@ cleanup() {
   if [[ -f "$ENV_FILE" ]]; then
     cp "$ENV_FILE" "$EVIDENCE_DIR/api-environment.json"
   fi
-  local shared_db_hash_after
-  shared_db_hash_after=$(sha256_file "$SHARED_DB")
-  local hash_marker="changed"
-  [[ "$SHARED_DB_HASH_BEFORE" == "$shared_db_hash_after" ]] && hash_marker="unchanged"
+  local hash_marker="not-provided"
+  if [[ -n "$SHARED_DB" ]]; then
+    local shared_db_hash_after
+    shared_db_hash_after=$(sha256_file "$SHARED_DB")
+    hash_marker="changed"
+    [[ "$SHARED_DB_HASH_BEFORE" == "$shared_db_hash_after" ]] && hash_marker="unchanged"
+  fi
   local device_marker="incomplete"
   [[ -n "$DEVICE_ID" ]] && ! xcrun simctl list devices | grep -q "$DEVICE_ID" && device_marker="complete"
   local port_marker="complete"
@@ -193,8 +208,10 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-cp "$SHARED_DB" "$TEMP_DB"
-printf 'backend-root=%s\nseed-db=%s\n' "$BACKEND_ROOT" "$SHARED_DB" | tee -a "$SIM_LOG"
+if [[ -n "$SHARED_DB" ]]; then
+  cp "$SHARED_DB" "$TEMP_DB"
+fi
+printf 'backend-root=%s\nseed-db=%s\n' "$BACKEND_ROOT" "${SHARED_DB:-generated-isolated}" | tee -a "$SIM_LOG"
 
 (cd "$BACKEND_ROOT" && TIG_NEXT_DEV=1 HOSTNAME=127.0.0.1 ADMIN_HOSTNAME=127.0.0.1 PORT="$PUBLIC_PORT" ADMIN_PORT="$ADMIN_PORT" \
   TIG_ADMIN_TOKEN="$ADMIN_TOKEN" TIG_DB_PATH="$TEMP_DB" TIG_NOW="$FIXED_NOW" \

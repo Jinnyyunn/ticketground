@@ -47,8 +47,8 @@ if (args.includes("--assert-wave-order") || args.includes("--assert-acyclic")) {
     for (const dependencyId of node.blockedBy) {
       const dependency = nodes.get(dependencyId);
       if (!dependency) throw new Error(`todo ${node.id} depends on missing todo ${dependencyId}`);
-      if (args.includes("--assert-wave-order") && dependency.wave > node.wave) {
-        throw new Error(`todo ${node.id} is Wave ${node.wave} before dependency ${dependency.id} in Wave ${dependency.wave}`);
+      if (args.includes("--assert-wave-order") && dependency.wave >= node.wave) {
+        throw new Error(`todo ${node.id} has dependency ${dependency.id} in the same or later wave (${dependency.wave} >= ${node.wave})`);
       }
     }
   }
