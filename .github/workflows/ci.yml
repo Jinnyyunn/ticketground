@@ -42,5 +42,8 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Test backend and iOS tooling regressions
+        run: node --test --test-concurrency=1 tests/backend-api-flow.test.mjs tests/ios-tooling-regression.test.mjs
+
       - name: Test GitHub bot
         run: node --test tests/ticketground-github-bot.test.mjs
