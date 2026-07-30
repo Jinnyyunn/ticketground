@@ -420,6 +420,16 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(state, .httpsRequired)
     }
 
+    func testAccountCapabilityStaysUnsupportedWithoutServerAuthorizationAttestation() {
+        let state = LiveAccountCapabilityState.resolve(
+            for: .account,
+            capabilityMap: accountCapabilityMap(state: .blocked(.serverAuthorizationUnverified)),
+            session: NativeSession(userID: "server-user-42", credential: "native-credential")
+        )
+
+        XCTAssertEqual(state, .unsupported)
+    }
+
     func testLogoutClearsPairedCredentialsAndReturnsLoginRequiredCapability() {
         let credentials = InMemoryCredentialStore()
         let session = SessionStore(credentialStore: credentials)

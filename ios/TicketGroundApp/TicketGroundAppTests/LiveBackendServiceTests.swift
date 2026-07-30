@@ -66,7 +66,7 @@ final class LiveBackendServiceTests: XCTestCase {
             credentialStore: credentials,
             session: URLSession(configuration: configuration)
         )
-        let service = compatibleService(for: client)
+        let service = compatibleService(for: client, authenticatedReads: true)
 
         let state = try await service.getState()
         let catalog = try await service.getCatalog()
@@ -206,7 +206,7 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        _ = try await compatibleService(for: client).getSession(userID: userID)
+        _ = try await compatibleService(for: client, authenticatedReads: true).getSession(userID: userID)
         let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
         let components = try XCTUnwrap(request.url.flatMap {
             URLComponents(url: $0, resolvingAgainstBaseURL: false)
@@ -279,6 +279,19 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(map.state(for: .catalog), .unknown)
+    }
+
+    func testCapabilityMapBlocksAuthenticatedReadsUntilServerAuthorizationIsAttested() {
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            catalogRouteConfirmed: true
+        )
+
+        XCTAssertEqual(map.state(for: .session), .blocked(.serverAuthorizationUnverified))
+        XCTAssertEqual(map.state(for: .tickets), .blocked(.serverAuthorizationUnverified))
+        XCTAssertEqual(map.state(for: .watchlist), .blocked(.serverAuthorizationUnverified))
+        XCTAssertEqual(map.state(for: .supportThreads), .blocked(.serverAuthorizationUnverified))
     }
 
     func testCatalogAdmissionUsesHealthThenBoundedCatalogProbe() async throws {
@@ -812,6 +825,32 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
+    func testLiveHomeSurfacesTransientCatalogFailureAfterSuccessfulAdmission() async {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
+        ]
+        LiveBackendServiceURLProtocol.errors["/api/catalog"] = .timedOut
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await DiscoveryFixtureLoader.loadLive(using: client)
+            XCTFail("Expected the transient catalog failure to remain retryable")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .requestFailed(code: URLError.timedOut.rawValue))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testDefaultLiveCatalogBootstrapFailureDoesNotDispatchCatalog() async {
         LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":false,"error":{"code":"BOOTSTRAP_DOWN","message":"Bootstrap unavailable"}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
@@ -863,13 +902,26 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
-    private func compatibleService(for client: LiveAPIClient) -> LiveBackendService {
+    private func compatibleService(
+        for client: LiveAPIClient,
+        authenticatedReads: Bool = false
+    ) -> LiveBackendService {
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            catalogRouteConfirmed: true
+        )
+        let states = authenticatedReads
+            ? Dictionary(uniqueKeysWithValues: LiveAPIEndpoint.known.map { endpoint in
+                (endpoint, endpoint.access == .authenticatedRead ? .available : map.state(for: endpoint))
+            })
+            : map.states
         LiveBackendService(
             apiClient: client,
-            initialCapabilityMap: LiveAPIContract.deployed.capabilityMap(
-                for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
-                observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
-                catalogRouteConfirmed: true
+            initialCapabilityMap: LiveCapabilityMap(
+                diagnostics: map.diagnostics,
+                baseURL: map.baseURL,
+                states: states
             )
         )
     }

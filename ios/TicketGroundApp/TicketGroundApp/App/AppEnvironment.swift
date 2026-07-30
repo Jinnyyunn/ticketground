@@ -313,7 +313,8 @@ enum LiveAccountCapabilityState: Equatable {
         if states.contains(.blocked(.requiresHTTPS)) {
             return .httpsRequired
         }
-        if states.contains(.blocked(.unsupportedMutation)) {
+        if states.contains(.blocked(.unsupportedMutation))
+            || states.contains(.blocked(.serverAuthorizationUnverified)) {
             return .unsupported
         }
         if states.contains(where: { state in

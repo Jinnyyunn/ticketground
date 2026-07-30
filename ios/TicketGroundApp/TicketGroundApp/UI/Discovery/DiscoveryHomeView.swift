@@ -118,13 +118,17 @@ struct DiscoveryFeaturedSection: View {
     let featured: DiscoveryFeatured
     let supporting: [DiscoveryFeatured]
     @Environment(\.colorScheme) private var colorScheme
+    @State private var selectedIndex = 0
 
     var body: some View {
+        let heroes = [featured] + supporting
+        let selectedHero = heroes[selectedIndex % heroes.count]
+
         VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
             ZStack(alignment: .topLeading) {
-                NavigationLink(value: featured.route) {
+                NavigationLink(value: selectedHero.route) {
                     ZStack(alignment: .topLeading) {
-                        DiscoveryFeaturedImage(imageResource: featured.imageResource, title: featured.title)
+                        DiscoveryFeaturedImage(imageResource: selectedHero.imageResource, title: selectedHero.title)
                         LinearGradient(
                             colors: [.black.opacity(0.72), .clear, .black.opacity(0.72)],
                             startPoint: .top,
@@ -132,7 +136,7 @@ struct DiscoveryFeaturedSection: View {
                         )
                         VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
                             HStack(spacing: TicketgroundSpacing.sm) {
-                                Text(featured.eyebrow)
+                                Text(selectedHero.eyebrow)
                                     .font(.caption.weight(.black))
                                     .foregroundStyle(.black.opacity(0.9))
                                     .padding(.horizontal, TicketgroundSpacing.md)
@@ -140,7 +144,7 @@ struct DiscoveryFeaturedSection: View {
                                     .background(.white.opacity(0.9))
                                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
                                 Spacer(minLength: 0)
-                                Text("1 / \(max(supporting.count + 1, 2))")
+                                Text("\(selectedIndex + 1) / \(heroes.count)")
                                     .font(.subheadline.weight(.bold))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, TicketgroundSpacing.md)
@@ -148,26 +152,26 @@ struct DiscoveryFeaturedSection: View {
                                     .background(.black.opacity(0.32))
                                     .clipShape(Capsule())
                                     .accessibilityIdentifier("discovery-hero-page-indicator")
-                                    .accessibilityLabel("1 / \(max(supporting.count + 1, 2))")
+                                    .accessibilityLabel("\(selectedIndex + 1) / \(heroes.count)")
                             }
                             Spacer(minLength: 0)
                             VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                                Text(featured.title)
+                                Text(selectedHero.title)
                                     .font(.system(size: 30, weight: .black))
                                     .foregroundStyle(.white)
                                     .lineLimit(2)
                                     .allowsTightening(true)
                                     .frame(maxWidth: 304, alignment: .leading)
                                     .fixedSize(horizontal: false, vertical: true)
-                                    .accessibilityLabel(featured.title)
+                                    .accessibilityLabel(selectedHero.title)
                                     .accessibilityIdentifier("discovery-featured-title")
-                                Text(featured.venue)
+                                Text(selectedHero.venue)
                                     .font(.headline.weight(.bold))
                                     .foregroundStyle(.white.opacity(0.92))
-                                Text(featured.date)
+                                Text(selectedHero.date)
                                     .font(.footnote)
                                     .foregroundStyle(.white.opacity(0.8))
-                                Text("\(featured.cta)  →")
+                                Text("\(selectedHero.cta)  →")
                                     .font(.subheadline.weight(.black))
                                     .foregroundStyle(colorScheme == .dark ? .white : TicketgroundColor.ink)
                                     .padding(.horizontal, TicketgroundSpacing.md)
@@ -179,27 +183,6 @@ struct DiscoveryFeaturedSection: View {
                         }
                         .padding(TicketgroundSpacing.lg)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
-                        HStack {
-                            Text("‹")
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 28, height: 28)
-                                .background(.black.opacity(0.32))
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(.white.opacity(0.65), lineWidth: 1))
-                                .accessibilityIdentifier("discovery-hero-previous")
-                            Spacer()
-                            Text("›")
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 28, height: 28)
-                                .background(.black.opacity(0.32))
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(.white.opacity(0.65), lineWidth: 1))
-                                .accessibilityIdentifier("discovery-hero-next")
-                        }
-                        .padding(.horizontal, TicketgroundSpacing.xl)
-                        .frame(maxHeight: .infinity, alignment: .center)
                     }
                     .frame(maxWidth: .infinity, alignment: .bottomLeading)
                     .frame(height: 420, alignment: .bottomLeading)
@@ -207,9 +190,51 @@ struct DiscoveryFeaturedSection: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("discovery-featured-cta")
+                HStack {
+                    heroButton(
+                        symbol: "‹",
+                        label: "이전 추천 공연",
+                        identifier: "discovery-hero-previous",
+                        action: {
+                            selectedIndex = (selectedIndex - 1 + heroes.count) % heroes.count
+                        }
+                    )
+                    Spacer()
+                    heroButton(
+                        symbol: "›",
+                        label: "다음 추천 공연",
+                        identifier: "discovery-hero-next",
+                        action: {
+                            selectedIndex = (selectedIndex + 1) % heroes.count
+                        }
+                    )
+                }
+                .padding(.horizontal, TicketgroundSpacing.xl)
+                .frame(maxHeight: .infinity, alignment: .center)
             }
 
         }
+    }
+
+    private func heroButton(
+        symbol: String,
+        label: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(symbol)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(.black.opacity(0.32))
+                .clipShape(Circle())
+                .overlay(Circle().stroke(.white.opacity(0.65), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(supporting.isEmpty)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(label)
     }
 }
 

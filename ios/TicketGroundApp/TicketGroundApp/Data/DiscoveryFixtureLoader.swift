@@ -26,7 +26,10 @@ enum DiscoveryFixtureLoader {
         let catalog: LiveCatalog
         do {
             catalog = try await service.getCatalog()
-        } catch {
+        } catch let error as APIClientError {
+            guard error == .capabilityUnavailable(endpoint: .catalog, state: .unknown) else {
+                throw error
+            }
             return .stateOnly(state)
         }
         guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }

@@ -85,7 +85,7 @@ struct ContentView: View {
                 }
                 .containerRelativeFrame(.horizontal)
             }
-            .overlay(alignment: .bottom) {
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 TicketgroundBottomNavigation(
                     selectedTab: $selectedTab,
                     visuallyHidden: false,

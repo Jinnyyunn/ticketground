@@ -23,6 +23,14 @@ final class DiscoveryTests: XCTestCase {
         let heroIndicator = app.staticTexts["discovery-hero-page-indicator"]
         XCTAssertTrue(heroIndicator.waitForExistence(timeout: 10))
         XCTAssertEqual(heroIndicator.label, "1 / 2")
+        let nextHero = app.buttons["discovery-hero-next"]
+        XCTAssertTrue(nextHero.isHittable)
+        nextHero.tap()
+        XCTAssertEqual(heroIndicator.label, "2 / 2")
+        XCTAssertNotEqual(heroTitle.label, "IU 2026 WORLD TOUR")
+        app.buttons["discovery-hero-previous"].tap()
+        XCTAssertEqual(heroIndicator.label, "1 / 2")
+        XCTAssertEqual(heroTitle.label, "IU 2026 WORLD TOUR")
         XCTAssertTrue(app.staticTexts["실시간 예매 랭킹 TOP10"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["티켓오픈 예정"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["바로가기"].waitForExistence(timeout: 10))

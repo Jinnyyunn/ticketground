@@ -111,6 +111,7 @@ enum LiveAPIEndpoint: Hashable {
 
 enum LiveCapabilityBlockReason: Equatable {
     case requiresHTTPS
+    case serverAuthorizationUnverified
     case unsupportedMutation
 }
 
@@ -216,7 +217,9 @@ struct LiveAPIContract {
             case .publicRead:
                 return .available
             case .authenticatedRead:
-                return baseURL.scheme?.lowercased() == "https" ? .available : .blocked(.requiresHTTPS)
+                return baseURL.scheme?.lowercased() == "https"
+                    ? .blocked(.serverAuthorizationUnverified)
+                    : .blocked(.requiresHTTPS)
             case .mutation:
                 return baseURL.scheme?.lowercased() == "https" ? .blocked(.unsupportedMutation) : .blocked(.requiresHTTPS)
             }
