@@ -259,6 +259,8 @@ struct PublicReadPresentation: Equatable {
             return PublicReadPresentation(title: "공연 정보 형식 오류", message: "서버 응답을 안전하게 해석할 수 없습니다. 잠시 후 다시 시도해 주세요.")
         case .requestFailed:
             return PublicReadPresentation(title: "네트워크 연결 확인", message: "인터넷 연결을 확인한 뒤 다시 시도해 주세요.")
+        case .invalidBaseURL:
+            return PublicReadPresentation(title: "API 서버 주소 확인 필요", message: "설정된 API 서버 주소가 올바르지 않습니다.")
         default:
             return PublicReadPresentation(title: "공연 정보를 불러올 수 없습니다", message: "잠시 후 다시 시도해 주세요.")
         }
@@ -378,9 +380,14 @@ final class FixtureAPIClient: APIClient {
 
 final class DisabledLiveAPIClient: APIClient {
     let mode: APIDataMode = .live
+    private let error: APIClientError
+
+    init(error: APIClientError = .liveTransportUnavailable) {
+        self.error = error
+    }
 
     func data(for request: APIRequest) async throws -> Data {
-        throw APIClientError.liveTransportUnavailable
+        throw error
     }
 
     func resolveResource(_ reference: String?) -> String? {
@@ -842,7 +849,14 @@ final class AppContainer {
         if let scenario = RuntimeConfiguration.liveHomeTestScenario {
             return liveHomeTest(scenario)
         }
-        let apiURL = RuntimeConfiguration.apiBaseURL
+        guard let apiURL = RuntimeConfiguration.apiBaseURL else {
+            let credentialStore = KeychainCredentialStore()
+            return AppContainer(environment: AppEnvironment(
+                mode: .live,
+                apiClient: DisabledLiveAPIClient(error: .invalidBaseURL),
+                sessionStore: SessionStore(credentialStore: credentialStore)
+            ))
+        }
         return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL)
     }
 
@@ -883,8 +897,20 @@ enum RuntimeConfiguration {
         }
     }
 
-    static var apiBaseURL: URL {
-        URL(string: value(for: "TICKETGROUND_API_BASE_URL") ?? "http://132.145.109.87:4174/")!
+    static var apiBaseURL: URL? {
+        apiBaseURL(from: value(for: "TICKETGROUND_API_BASE_URL"))
+    }
+
+    static func apiBaseURL(from configured: String?) -> URL? {
+        let value = configured ?? "http://132.145.109.87:4174/"
+        guard let components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              let host = components.host,
+              !host.isEmpty else {
+            return nil
+        }
+        return components.url
     }
 
     static var assetBaseURL: URL? {

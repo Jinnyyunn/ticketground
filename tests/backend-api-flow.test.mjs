@@ -5,6 +5,10 @@ import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer, ver
 test("public server serves the Next frontend and backend API on one port", async (t) => {
   const { baseUrl } = await startServer(t);
 
+  const health = await api(baseUrl, "/api/health");
+  assert.equal(health.data.status, "UP");
+  assert.equal(health.data.version, "78b3c7c");
+
   const home = await fetch(`${baseUrl}/`);
   assert.equal(home.status, 200);
   assert.match(home.headers.get("content-type") || "", /text\/html/);

@@ -88,7 +88,7 @@ struct ContentView: View {
             .overlay(alignment: .bottom) {
                 TicketgroundBottomNavigation(
                     selectedTab: $selectedTab,
-                    visuallyHidden: scenario == .happy,
+                    visuallyHidden: false,
                     onSelect: { tab in
                         switch tab {
                         case .home:

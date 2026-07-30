@@ -629,7 +629,7 @@ struct DiscoveryCalendarGrid: View {
 private enum LiveCatalogRouteState {
     case loading
     case loaded(LiveCatalog)
-    case failed(String)
+    case failed(PublicReadPresentation)
 }
 
 enum LiveCatalogRouteMatcher {
@@ -690,11 +690,10 @@ private struct LiveDiscoveryRouteView: View {
                     .accessibilityIdentifier("live-route-state")
             case .loaded(let catalog):
                 catalogView(catalog)
-            case .failed(let message):
-                let presentation = PublicReadPresentation.resolve(APIClientError.invalidResponse)
+            case .failed(let presentation):
                 TicketgroundErrorSurface(
                     title: presentation.title,
-                    message: message.isEmpty ? presentation.message : presentation.message,
+                    message: presentation.message,
                     actionTitle: "다시 시도",
                     action: retry
                 )
@@ -785,7 +784,7 @@ private struct LiveDiscoveryRouteView: View {
         do {
             state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog())
         } catch {
-            state = .failed(PublicReadPresentation.resolve(error).message)
+            state = .failed(PublicReadPresentation.resolve(error))
         }
     }
 
@@ -1305,10 +1304,10 @@ private struct LiveSeatMapRouteView: View {
             case .loading:
                 TicketgroundLoadingSurface(title: "좌석 공연 정보 불러오는 중")
                     .accessibilityIdentifier("live-route-state")
-            case .failed(let message):
+            case .failed(let presentation):
                 TicketgroundErrorSurface(
                     title: "좌석 현황을 표시할 수 없습니다",
-                    message: "GET /api/catalog 요청에 실패했습니다: \(message)",
+                    message: presentation.message,
                     actionTitle: "다시 시도",
                     action: retry
                 )
@@ -1375,7 +1374,7 @@ private struct LiveSeatMapRouteView: View {
             if case .loaded = catalogState {
                 seatMapState = .failed("GET /api/seat-map?eventId=... 요청에 실패했습니다: \(error.localizedDescription)")
             } else {
-                catalogState = .failed(error.localizedDescription)
+                catalogState = .failed(PublicReadPresentation.resolve(error))
             }
         }
     }
@@ -1607,7 +1606,7 @@ private struct LiveAccountRouteView: View {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                 Text(session.name)
                     .font(.title2.weight(.black))
-                Text("세션 \(session.id) · \(session.status)")
+                Text(LiveAccountDisplay.statusText(for: session))
                     .font(.subheadline)
                     .foregroundStyle(TicketgroundColor.inkMuted)
                 Text("보유 티켓 \(tickets.count)장 · 신뢰 점수 \(session.trustScore)")
@@ -1627,6 +1626,12 @@ private enum LiveAccountState {
     case loading
     case capability(LiveAccountCapabilityState)
     case loaded(LiveSession, [LiveTicket])
+}
+
+enum LiveAccountDisplay {
+    static func statusText(for session: LiveSession) -> String {
+        "계정 상태 \(session.status)"
+    }
 }
 
 private struct LiveWatchlistRouteView: View {

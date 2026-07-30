@@ -16,6 +16,9 @@ final class DiscoveryTests: XCTestCase {
         let concertCategory = app.buttons["discovery-category-concert"]
         XCTAssertEqual(homeCategory.value as? String, "selected")
         XCTAssertEqual(concertCategory.value as? String, "default")
+        homeCategory.tap()
+        XCTAssertTrue(app.staticTexts["discovery-featured-title"].exists)
+        XCTAssertFalse(app.staticTexts["이 화면은 다음 discovery 단계에서 콘텐츠를 연결합니다."].exists)
         XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
         let heroIndicator = app.staticTexts["discovery-hero-page-indicator"]
         XCTAssertTrue(heroIndicator.waitForExistence(timeout: 10))
@@ -195,6 +198,17 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["live-catalog-unavailable-retry"].exists)
         XCTAssertTrue(app.buttons["live-catalog-unavailable-home"].exists)
         XCTAssertFalse(app.textFields["live-search-input"].exists)
+    }
+
+    func testLiveCatalogRouteShowsResolvedNetworkFailure() {
+        let app = liveApp(homeScenario: "offline")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-search"].waitForExistence(timeout: 10))
+        app.buttons["header-search"].tap()
+
+        XCTAssertTrue(app.staticTexts["네트워크 연결 확인"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["인터넷 연결을 확인한 뒤 다시 시도해 주세요."].exists)
+        XCTAssertFalse(app.staticTexts["공연 정보 형식 오류"].exists)
     }
 
     func testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods() {

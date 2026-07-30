@@ -116,6 +116,29 @@ private final class RedirectingLiveAPIURLProtocol: URLProtocol {
 }
 
 final class AppEnvironmentTests: XCTestCase {
+    func testAPIBaseURLRejectsMalformedOperatorConfiguration() {
+        XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "not a valid API origin"))
+        XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "ftp://ticketground.test"))
+        XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "https:///missing-host"))
+        XCTAssertEqual(
+            RuntimeConfiguration.apiBaseURL(from: "https://api.ticketground.test/v1")?.absoluteString,
+            "https://api.ticketground.test/v1"
+        )
+    }
+
+    func testDisabledLiveClientSurfacesInvalidBaseURL() async {
+        let client = DisabledLiveAPIClient(error: .invalidBaseURL)
+
+        do {
+            _ = try await client.data(for: APIRequest(path: "/api/state"))
+            XCTFail("Expected invalid base URL")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidBaseURL)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testColdStartAndRouteRestore() {
         let credentials = InMemoryCredentialStore()
         credentials.save(StoredCredential(credential: "native-credential", serverUserID: "server-user"))

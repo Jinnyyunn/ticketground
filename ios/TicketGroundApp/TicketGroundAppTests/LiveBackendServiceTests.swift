@@ -338,7 +338,7 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
-    func testCatalogAdmissionRejectsMalformedOrEmptyProbe() async {
+    func testCatalogAdmissionRejectsMalformedProbe() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
         let client = LiveAPIClient(
@@ -348,30 +348,55 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        for catalogData in [Data("{".utf8), Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)] {
-            LiveBackendServiceURLProtocol.requests = []
-            LiveBackendServiceURLProtocol.responses = [
-                "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
-                "/api/catalog?limit=1": catalogData
-            ]
-            let service = LiveBackendService(apiClient: client)
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data("{".utf8)
+        ]
+        let service = LiveBackendService(apiClient: client)
 
-            do {
-                _ = try await service.getCatalog()
-                XCTFail("Expected catalog admission rejection")
-            } catch let error as APIClientError {
-                XCTAssertEqual(error, .invalidResponse)
-                XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
-                XCTAssertEqual(
-                    LiveBackendServiceURLProtocol.requests.compactMap { request in
-                        request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
-                    },
-                    ["/api/health", "/api/catalog?limit=1"]
-                )
-            } catch {
-                XCTFail("Unexpected error: \(error)")
-            }
+        do {
+            _ = try await service.getCatalog()
+            XCTFail("Expected catalog admission rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
+            XCTAssertEqual(
+                LiveBackendServiceURLProtocol.requests.compactMap { request in
+                    request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+                },
+                ["/api/health", "/api/catalog?limit=1"]
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testCatalogAdmissionAcceptsEmptyProbeAndReturnsEmptyCatalog() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/catalog": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let service = LiveBackendService(apiClient: client)
+        let catalog = try await service.getCatalog()
+
+        XCTAssertTrue(catalog.events.isEmpty)
+        XCTAssertEqual(service.capabilityMap.state(for: .catalog), .available)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/catalog?limit=1", "/api/catalog"]
+        )
     }
 
     func testCatalogAdmissionRejectsHealthTimeoutWithoutCatalogDispatch() async {
@@ -453,6 +478,20 @@ final class LiveBackendServiceTests: XCTestCase {
         let events = LiveCatalogRouteMatcher.placeEvents(slug: "venue-1", in: catalog)
 
         XCTAssertEqual(events.map(\.id), ["event-1"])
+    }
+
+    func testAccountStatusTextDoesNotExposeBackendUserIdentifier() {
+        let session = LiveSession(
+            id: "server-user-42",
+            name: "민서",
+            status: "ACTIVE",
+            trustScore: 92
+        )
+
+        let statusText = LiveAccountDisplay.statusText(for: session)
+
+        XCTAssertEqual(statusText, "계정 상태 ACTIVE")
+        XCTAssertFalse(statusText.contains(session.id))
     }
 
     func testRejectsInvalidCatalogIdentityAndMalformedSeatMap() {

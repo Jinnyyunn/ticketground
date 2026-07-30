@@ -103,6 +103,9 @@ async function handleApi(req, res, db, surface) {
     throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
   }
 
+  if (req.method === "GET" && url.pathname === "/api/health") {
+    return { status: "UP", version: "78b3c7c" };
+  }
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") return publicCatalog(db);
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();

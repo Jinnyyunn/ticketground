@@ -50,15 +50,12 @@ final class LiveBackendService {
             )
         }
 
-        let catalog = try await get(
+        _ = try await get(
             APIRequest(path: "/api/catalog", query: [APIRequestQuery(name: "limit", value: "1")]),
             endpoint: .catalog,
             bypassCapability: true,
             as: LiveCatalog.self
         )
-        guard !catalog.events.isEmpty else {
-            throw APIClientError.invalidResponse
-        }
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,

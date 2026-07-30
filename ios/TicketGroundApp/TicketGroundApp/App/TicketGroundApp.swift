@@ -6,17 +6,27 @@ struct TicketGroundApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(container)
-                .environment(\.sizeCategory, requestedSizeCategory)
+            configuredContent
         }
     }
 
-    private var requestedSizeCategory: ContentSizeCategory {
-        switch ProcessInfo.processInfo.environment["TICKETGROUND_UI_CONTENT_SIZE"] {
+    @ViewBuilder
+    private var configuredContent: some View {
+        if let sizeCategory = Self.requestedSizeCategory(environment: ProcessInfo.processInfo.environment) {
+            ContentView()
+                .environment(container)
+                .environment(\.sizeCategory, sizeCategory)
+        } else {
+            ContentView()
+                .environment(container)
+        }
+    }
+
+    static func requestedSizeCategory(environment: [String: String]) -> ContentSizeCategory? {
+        switch environment["TICKETGROUND_UI_CONTENT_SIZE"] {
         case "accessibilityExtraExtraExtraLarge": return .accessibilityExtraExtraExtraLarge
         case "accessibilityExtraExtraLarge": return .accessibilityExtraExtraLarge
-        default: return .large
+        default: return nil
         }
     }
 }

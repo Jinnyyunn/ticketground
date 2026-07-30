@@ -61,19 +61,16 @@ struct DiscoveryCategoryGrid: View {
             ForEach(Array(stride(from: 0, to: categories.count, by: 5)), id: \.self) { index in
                 HStack(spacing: TicketgroundSpacing.xs) {
                     ForEach(Array(categories[index..<min(index + 5, categories.count)]), id: \.label) { category in
-                        NavigationLink(value: category.route) {
-                            VStack(spacing: TicketgroundSpacing.xs) {
-                                Image(systemName: category.systemImage)
-                                    .font(.system(size: 19, weight: .regular))
-                                    .foregroundStyle(category.route == .home ? TicketgroundColor.accent : TicketgroundColor.ink)
-                                    .frame(height: 20)
-                                Text(category.label)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(category.route == .home ? TicketgroundColor.accent : TicketgroundColor.ink)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.75)
+                        Group {
+                            if category.route == .home {
+                                Button(action: {}) {
+                                    categoryLabel(category)
+                                }
+                            } else {
+                                NavigationLink(value: category.route) {
+                                    categoryLabel(category)
+                                }
                             }
-                            .frame(maxWidth: .infinity, minHeight: 42)
                         }
                         .buttonStyle(.plain)
                         .accessibilityValue(category.route == .home ? "selected" : "default")
@@ -83,6 +80,21 @@ struct DiscoveryCategoryGrid: View {
             }
         }
         .padding(.vertical, TicketgroundSpacing.md)
+    }
+
+    private func categoryLabel(_ category: DiscoveryCategory) -> some View {
+        VStack(spacing: TicketgroundSpacing.xs) {
+            Image(systemName: category.systemImage)
+                .font(.system(size: 19, weight: .regular))
+                .foregroundStyle(category.route == .home ? TicketgroundColor.accent : TicketgroundColor.ink)
+                .frame(height: 20)
+            Text(category.label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(category.route == .home ? TicketgroundColor.accent : TicketgroundColor.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, minHeight: 42)
     }
 
     private func categoryIdentifier(for label: String) -> String {
