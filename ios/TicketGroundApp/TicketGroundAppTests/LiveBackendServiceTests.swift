@@ -916,7 +916,7 @@ final class LiveBackendServiceTests: XCTestCase {
                 (endpoint, endpoint.access == .authenticatedRead ? .available : map.state(for: endpoint))
             })
             : map.states
-        LiveBackendService(
+        return LiveBackendService(
             apiClient: client,
             initialCapabilityMap: LiveCapabilityMap(
                 diagnostics: map.diagnostics,
