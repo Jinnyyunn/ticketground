@@ -341,7 +341,7 @@ enum LiveAccountCapabilityState: Equatable {
                 return .retry
             case .blocked(.requiresHTTPS):
                 return .httpsRequired
-            case .blocked(.unsupportedMutation):
+            case .blocked(.unsupportedMutation), .blocked(.serverAuthorizationUnverified):
                 return .unsupported
             case .unknown:
                 return .retry
