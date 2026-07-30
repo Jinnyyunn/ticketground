@@ -1,0 +1,16 @@
+{
+  "contractId": "ticketground-native-ios-virtual-fixture-v1",
+  "fixtureId": "virtual-negative-probes-001",
+  "mode": "virtual",
+  "source": "fixture-only",
+  "live": false,
+  "deterministic": true,
+  "status": 0,
+  "probes": [
+    { "name": "malformed-json", "input": "{", "expectedStatus": 400, "expectedCode": "BAD_JSON" },
+    { "name": "unknown-key", "input": { "unexpected": true }, "expectedStatus": 422, "expectedCode": "INVALID_API_RESPONSE" },
+    { "name": "null-required-field", "input": { "userId": null }, "expectedStatus": 400, "expectedCode": "MISSING_FIELD" },
+    { "name": "empty-response", "input": {}, "expectedStatus": 200, "expectedCode": "EMPTY_RESPONSE" },
+    { "name": "unauthorized", "input": { "credential": "fixture-missing" }, "expectedStatus": 401, "expectedCode": "UNAUTHORIZED" }
+  ]
+}

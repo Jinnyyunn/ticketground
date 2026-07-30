@@ -1,0 +1,16 @@
+{
+  "contractId": "ticketground-native-ios-virtual-fixture-v1",
+  "fixtureId": "virtual-qr-001",
+  "mode": "virtual",
+  "source": "fixture-only",
+  "live": false,
+  "deterministic": true,
+  "status": 200,
+  "body": {
+    "ticketId": "virtual-ticket-001",
+    "type": "virtual",
+    "issuedAt": "2026-07-13T00:00:00Z",
+    "expiresAt": "2026-08-01T19:30:00+09:00",
+    "status": "fixture-only"
+  }
+}

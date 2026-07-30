@@ -1,0 +1,146 @@
+{
+  "manifestVersion": 1,
+  "contractId": "ticketground-native-ios-virtual-fixture-v1",
+  "mode": "virtual",
+  "characterization": "fixture-only",
+  "live": false,
+  "consumerScope": "Todo 3 fixture foundation; no live transport",
+  "authorization": {
+    "kind": "user-override",
+    "status": "authorized-fixture-only",
+    "authorizedBy": "user-override",
+    "authorizedAt": "2026-07-14",
+    "ownerSignoff": "not-provided",
+    "scope": "arbitrary deterministic virtual values because no separate backend is available"
+  },
+  "liveGate": {
+    "status": "blocked",
+    "reason": "authoritative backend characterization and owner sign-off remain unavailable",
+    "receipts": [
+      "/Users/yeoreum/Documents/TicketGround/.omo/evidence/native-ios/w0/2/blocked/contract-export-production-build-blocked.md",
+      "/Users/yeoreum/Documents/TicketGround/.omo/evidence/native-ios/w0/2/blocked/contract-export-dev-runtime-blocked.md",
+      "/Users/yeoreum/Documents/TicketGround/.omo/evidence/native-ios/w0/2/blocked/contract-owner-signoff-blocked.md"
+    ]
+  },
+  "transport": {
+    "baseURL": "fixture://ticketground",
+    "authentication": "none",
+    "session": "fixture-scenario",
+    "cache": "bundled-only",
+    "nativeAuth": "disabled"
+  },
+  "determinism": {
+    "fixedClock": "2026-07-13T00:00:00Z",
+    "seed": "ticketground-ios-virtual-fixture-v1",
+    "randomness": "none"
+  },
+  "unknownKeyPolicy": "reject-unless-allowlisted",
+  "allowUnknownKeys": [],
+  "fixtures": [
+    { "file": "ios/TicketGroundApp/Fixtures/Backend/state.json", "kind": "success" },
+    { "file": "ios/TicketGroundApp/Fixtures/Backend/seat-map.json", "kind": "success" },
+    { "file": "ios/TicketGroundApp/Fixtures/Backend/session.json", "kind": "success" },
+    { "file": "ios/TicketGroundApp/Fixtures/Backend/tickets.json", "kind": "success" },
+    { "file": "ios/TicketGroundApp/Fixtures/Backend/purchase.json", "kind": "success" },
+    { "file": "ios/TicketGroundApp/Fixtures/Backend/virtual-qr.json", "kind": "success" },
+    { "file": "ios/TicketGroundApp/Fixtures/Backend/negative-probes.json", "kind": "failure-probes" }
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/state",
+      "fixture": "ios/TicketGroundApp/Fixtures/Backend/state.json",
+      "auth": { "transport": "fixture-scenario", "required": false },
+      "request": { "query": [], "body": "none" },
+      "response": {
+        "status": 200,
+        "envelope": "raw-object",
+        "fieldTypes": { "events": "array", "venues": "array", "users": "array", "tickets": "array", "resalePools": "array", "backendSummary": "object", "ledger": "object", "tickets[].virtualQr": "object|null" },
+        "requiredFields": ["events", "venues", "users", "tickets", "resalePools", "backendSummary", "ledger"],
+        "nullableFields": ["tickets[].issuedAt", "tickets[].virtualQr"],
+        "allowUnknownKeys": []
+      },
+      "errors": ["MALFORMED_JSON is not applicable to GET", "EMPTY_RESPONSE"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/events/{eventId}/seat-map",
+      "fixture": "ios/TicketGroundApp/Fixtures/Backend/seat-map.json",
+      "auth": { "transport": "fixture-scenario", "required": false },
+      "request": { "query": [], "body": "none", "path": ["eventId"] },
+      "response": {
+        "status": 200,
+        "envelope": "raw-object",
+        "fieldTypes": { "event": "object", "map": "object", "zones": "array", "zones[].seats": "array", "zones[].seats[].holderId": "string|null" },
+        "requiredFields": ["event", "map", "zones"],
+        "nullableFields": ["map.imageUrl", "zones[].seats[].holderId"],
+        "allowUnknownKeys": []
+      },
+      "errors": ["EMPTY_RESPONSE", "UNKNOWN_KEY"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/{userId}/session",
+      "fixture": "ios/TicketGroundApp/Fixtures/Backend/session.json",
+      "auth": { "transport": "fixture-scenario", "required": false },
+      "request": { "query": [], "body": "none", "path": ["userId"] },
+      "response": {
+        "status": 200,
+        "envelope": "raw-object",
+        "fieldTypes": { "user": "object|null", "authenticated": "boolean", "source": "string" },
+        "requiredFields": ["user", "authenticated", "source"],
+        "nullableFields": ["user"],
+        "allowUnknownKeys": []
+      },
+      "errors": ["UNAUTHORIZED", "NULL_REQUIRED_FIELD"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/{userId}/tickets",
+      "fixture": "ios/TicketGroundApp/Fixtures/Backend/tickets.json",
+      "auth": { "transport": "fixture-scenario", "required": false },
+      "request": { "query": [], "body": "none", "path": ["userId"] },
+      "response": {
+        "status": 200,
+        "envelope": "raw-array",
+        "fieldTypes": { "[]": "object", "[].id": "string", "[].eventId": "string", "[].status": "string", "[].available": "boolean", "[].faceValue": "integer", "[].virtualQr": "object|null" },
+        "requiredFields": ["[].id", "[].eventId", "[].status", "[].available", "[].faceValue", "[].virtualQr"],
+        "nullableFields": ["[].issuedAt", "[].virtualQr"],
+        "allowUnknownKeys": []
+      },
+      "errors": ["EMPTY_RESPONSE", "UNKNOWN_KEY"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/tickets/buy",
+      "fixture": "ios/TicketGroundApp/Fixtures/Backend/purchase.json",
+      "auth": { "transport": "fixture-scenario", "required": false },
+      "request": { "query": [], "body": { "required": ["userId", "ticketId"] } },
+      "response": {
+        "status": 200,
+        "envelope": "raw-object",
+        "fieldTypes": { "ticket": "object", "event": "object", "performanceDate": "string", "payment": "object", "admission": "object" },
+        "requiredFields": ["ticket", "event", "performanceDate", "payment", "admission"],
+        "nullableFields": ["ticket.issuedAt", "ticket.virtualQr"],
+        "allowUnknownKeys": []
+      },
+      "errors": ["BAD_JSON", "MISSING_FIELD", "UNAUTHORIZED"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/tickets/virtual-qr",
+      "fixture": "ios/TicketGroundApp/Fixtures/Backend/virtual-qr.json",
+      "auth": { "transport": "fixture-scenario", "required": false },
+      "request": { "query": [], "body": { "required": ["userId", "ticketId"] } },
+      "response": {
+        "status": 200,
+        "envelope": "raw-object",
+        "fieldTypes": { "ticketId": "string", "type": "string", "issuedAt": "string", "expiresAt": "string", "status": "string" },
+        "requiredFields": ["ticketId", "type", "issuedAt", "expiresAt", "status"],
+        "nullableFields": [],
+        "allowUnknownKeys": []
+      },
+      "errors": ["BAD_JSON", "MISSING_FIELD", "UNAUTHORIZED"]
+    }
+  ]
+}
