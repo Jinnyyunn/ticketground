@@ -32,8 +32,25 @@ fi
 
 PROBE=("$@")
 DEADLINE=$((SECONDS + TIMEOUT))
+run_probe() {
+  local probe_pid
+  set -m
+  TICKETGROUND_DEVICE_ID="$DEVICE_ID" TICKETGROUND_ACCESSIBILITY_ID="$ACCESSIBILITY_ID" "${PROBE[@]}" &
+  probe_pid=$!
+  set +m
+  while kill -0 "$probe_pid" 2>/dev/null; do
+    if ((SECONDS >= DEADLINE)); then
+      kill -TERM -- "-$probe_pid" 2>/dev/null || kill -TERM "$probe_pid" 2>/dev/null
+      wait "$probe_pid" 2>/dev/null
+      return 124
+    fi
+    sleep 0.1
+  done
+  wait "$probe_pid"
+}
+
 while :; do
-  if TICKETGROUND_DEVICE_ID="$DEVICE_ID" TICKETGROUND_ACCESSIBILITY_ID="$ACCESSIBILITY_ID" "${PROBE[@]}"; then
+  if run_probe; then
     printf 'ready-device=%s\nready-accessibility-id=%s\n' "$DEVICE_ID" "$ACCESSIBILITY_ID"
     exit 0
   fi

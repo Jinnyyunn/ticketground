@@ -123,6 +123,43 @@ test("live iOS wrapper waits between refused readiness probes", async (t) => {
   assert.ok(elapsed >= 180, `expected readiness delay, observed ${elapsed}ms`);
 });
 
+test("semantic readiness probe is terminated at the advertised timeout", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "ticketground-ios-probe-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const probe = path.join(directory, "probe.sh");
+  await writeFile(probe, "#!/usr/bin/env bash\nsleep 30\n");
+
+  const startedAt = Date.now();
+  const result = run("bash", [
+    "scripts/wait-for-ios-ready.sh",
+    "--device-id", "test-device",
+    "--accessibility-id", "ready-marker",
+    "--timeout", "1",
+    "--", "bash", probe
+  ]);
+  const elapsed = Date.now() - startedAt;
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /timed-out-accessibility-id=ready-marker/);
+  assert.ok(elapsed < 5_000, `probe exceeded bounded timeout: ${elapsed}ms`);
+});
+
+test("live iOS wrapper fails closed when cleanup postconditions are incomplete", async () => {
+  const script = await readFile(path.join(repoRoot, "scripts/run-ios-live-tests.sh"), "utf8");
+
+  assert.match(script, /cleanup_status=/);
+  assert.match(script, /cleanup_marker="incomplete"/);
+  assert.match(script, /return "\$cleanup_status"/);
+});
+
+test("pull-request CI compiles and tests the native iOS project on macOS", async () => {
+  const workflow = await readFile(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+
+  assert.match(workflow, /runs-on: macos-/);
+  assert.match(workflow, /xcodebuild[\s\S]*TicketGroundAppTests/);
+  assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testHomeRankingAndOpenCalendar/);
+});
+
 async function fixtureValidationRoot(t) {
   const root = await mkdtemp(path.join(tmpdir(), "ticketground-fixtures-"));
   t.after(() => rm(root, { recursive: true, force: true }));

@@ -155,6 +155,7 @@ XCODEBUILD_LOG="$EVIDENCE_DIR/xcodebuild.log"
 
 cleanup() {
   local exit_status=$?
+  local cleanup_status=$exit_status
   set +e
   if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
     kill -TERM "$SERVER_PID" 2>/dev/null
@@ -189,6 +190,11 @@ cleanup() {
       port_marker="incomplete"
     fi
   done
+  local cleanup_marker="complete"
+  if [[ "$hash_marker" == "changed" || "$device_marker" != "complete" || "$port_marker" != "complete" ]]; then
+    cleanup_marker="incomplete"
+    cleanup_status=1
+  fi
   {
     printf 'backend-root=%s\n' "$BACKEND_ROOT"
     printf 'seed-db=%s\n' "$SHARED_DB"
@@ -201,10 +207,10 @@ cleanup() {
     printf 'shared-db-hash=%s\n' "$hash_marker"
     printf 'device-cleanup=%s\n' "$device_marker"
     printf 'port-cleanup=%s\n' "$port_marker"
-    printf 'cleanup=complete\n'
+    printf 'cleanup=%s\n' "$cleanup_marker"
   } | tee -a "$SIM_LOG"
   rm -rf "$RUN_DIR"
-  return "$exit_status"
+  return "$cleanup_status"
 }
 trap cleanup EXIT INT TERM
 
