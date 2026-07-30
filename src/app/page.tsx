@@ -1,4 +1,6 @@
 import { FloatingSide } from "@/components/floating-side";
+import { HomeFeaturedImagePreload } from "@/components/home/home-featured-image-preload";
+import { ProfileCompletionGuard } from "@/components/home/profile-completion-guard";
 import type { RankingShow } from "@/components/home/home-content";
 import {
   EditorialEventsSection,
@@ -35,20 +37,25 @@ export default async function Home() {
   const topRankings = rankShows(generalSaleShows).map(toRankingShow);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <SiteHeader />
-      <main className="flex-1">
-        <HomeHeroSection />
-        <RealtimeTop10Section items={topRankings} />
-        <TicketOpenSection />
-        <OfficialResaleSection />
-        <GenreRecommendationsSection />
-        <EditorialEventsSection />
-        <ShortcutsSection />
-        <GroupBookingBanner />
-      </main>
-      <SiteFooter />
-      <FloatingSide />
-    </div>
+    <>
+      <HomeFeaturedImagePreload />
+      <ProfileCompletionGuard>
+        <div className="flex min-h-screen flex-col bg-background">
+          <SiteHeader />
+          <main className="flex-1">
+            <HomeHeroSection />
+            <RealtimeTop10Section items={topRankings} />
+            <TicketOpenSection />
+            <OfficialResaleSection />
+            <GenreRecommendationsSection />
+            <EditorialEventsSection />
+            <ShortcutsSection />
+            <GroupBookingBanner />
+          </main>
+          <SiteFooter />
+          <FloatingSide />
+        </div>
+      </ProfileCompletionGuard>
+    </>
   );
 }
