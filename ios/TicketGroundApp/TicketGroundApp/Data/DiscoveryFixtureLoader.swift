@@ -86,9 +86,7 @@ enum DiscoveryFixtureLoader {
             DiscoveryCategory(label: "클래식", systemImage: "pianokeys", route: .genre(name: "classic")),
             DiscoveryCategory(label: "전시", systemImage: "photo.artframe", route: .genre(name: "exhibition")),
             DiscoveryCategory(label: "아동", systemImage: "figure.2.and.child.holdinghands", route: .genre(name: "child")),
-            DiscoveryCategory(label: "스포츠", systemImage: "sportscourt.fill", route: .genre(name: "sports")),
-            DiscoveryCategory(label: "티켓 양도", systemImage: "arrow.left.arrow.right", route: .resale),
-            DiscoveryCategory(label: "캘린더", systemImage: "calendar", route: .open)
+            DiscoveryCategory(label: "스포츠", systemImage: "sportscourt.fill", route: .genre(name: "sports"))
         ]
         let featured = try featuredLive(events[0], eyebrow: "LIVE BACKEND", using: apiClient)
         let supporting = try events.dropFirst().prefix(1).map { try featuredLive($0, eyebrow: "LIVE", using: apiClient) }
