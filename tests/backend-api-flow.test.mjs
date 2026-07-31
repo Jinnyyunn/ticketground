@@ -19,6 +19,11 @@ test("public server serves the Next frontend and backend API on one port", async
 
   const state = await api(baseUrl, "/api/state");
   assert.ok(state.data.backendSummary.events > 0);
+
+  const catalog = await api(baseUrl, "/api/catalog");
+  const boundedCatalog = await api(baseUrl, "/api/catalog?limit=1");
+  assert.ok(catalog.data.events.length > 1);
+  assert.equal(boundedCatalog.data.events.length, 1);
 });
 
 test("backend watchlist, notification, seat map, and admin summary APIs remain usable", async (t) => {
