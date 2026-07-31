@@ -248,9 +248,13 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(ranking.buttons["live-menu-ranking"].waitForExistence(timeout: 10))
         ranking.buttons["live-menu-ranking"].tap()
         XCTAssertTrue(ranking.staticTexts["LIVE catalog · 1개"].waitForExistence(timeout: 10))
-        ranking.buttons["tab-mypage"].tap()
-        XCTAssertTrue(anyElement(ranking, identifier: "live-account-https-required").waitForExistence(timeout: 10))
-        XCTAssertFalse(ranking.staticTexts["live-menu-screen-title"].exists)
+
+        let account = liveApp(homeScenario: "catalog")
+        account.launch()
+        XCTAssertTrue(account.buttons["tab-mypage"].waitForExistence(timeout: 10))
+        account.buttons["tab-mypage"].tap()
+        XCTAssertTrue(anyElement(account, identifier: "live-account-https-required").waitForExistence(timeout: 10))
+        XCTAssertFalse(account.staticTexts["live-menu-screen-title"].exists)
 
         let genre = liveApp(homeScenario: "catalog")
         genre.launch()
