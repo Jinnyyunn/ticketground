@@ -192,6 +192,14 @@ test("native app Release configuration permits operator-provided signing", async
   assert.doesNotMatch(releaseConfiguration, /CODE_SIGNING_REQUIRED = NO/);
 });
 
+test("published Berlin Philharmonic poster stays within the native response limit", async () => {
+  const poster = await readFile(
+    path.join(repoRoot, "public/images/real-posters/berlin-phil.jpg")
+  );
+
+  assert.ok(poster.byteLength < 4 * 1_024 * 1_024);
+});
+
 test("pull-request CI compiles and tests the native iOS project on macOS", async () => {
   const workflow = await readFile(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
 
