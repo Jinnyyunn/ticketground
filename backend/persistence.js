@@ -1,12 +1,33 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export function createPersistence({ dbPath, hash, now, sortJson }) {
+export function createPersistence({
+  dbPath,
+  hash,
+  now,
+  sortJson,
+  chmodImpl = chmod,
+  writeFileImpl = writeFile,
+  renameImpl = rename
+}) {
   const dataDir = path.dirname(dbPath);
+  const pendingPath = `${dbPath}.pending`;
+  let saveQueue = Promise.resolve();
 
-  async function saveDb(db) {
-    await writeFile(dbPath, JSON.stringify(db, null, 2), "utf8");
+  function saveDb(db) {
+    const snapshot = JSON.stringify(db, null, 2);
+    const save = saveQueue.then(async () => {
+      try {
+        await chmodImpl(pendingPath, 0o600);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+      await writeFileImpl(pendingPath, snapshot, { encoding: "utf8", mode: 0o600 });
+      await renameImpl(pendingPath, dbPath);
+    });
+    saveQueue = save.catch(() => {});
+    return save;
   }
 
   async function loadDb({ normalizeDb, seedDb }) {

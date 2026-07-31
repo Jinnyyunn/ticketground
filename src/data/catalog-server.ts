@@ -11,6 +11,7 @@ interface ApiCatalogEvent {
   readonly shortTitle?: string;
   readonly venue: string;
   readonly date: string;
+  readonly dates: ReadonlyArray<{ readonly id: string; readonly startsAt: string; readonly label: string }>;
   readonly schedules?: ReadonlyArray<{ label: string; date: string; times: readonly string[] }>;
   readonly period?: string;
   readonly runtime?: string;
@@ -64,6 +65,11 @@ function toTicketShow(event: ApiCatalogEvent): TicketShow {
   return {
     slug: event.slug ?? event.id,
     backendEventId: event.id,
+    backendPerformances: event.dates.map((performance) => ({
+      id: performance.id,
+      date: performance.startsAt.slice(0, 10).replaceAll("-", "."),
+      time: performance.startsAt.slice(11, 16),
+    })),
     category: categoryEnToKo[event.category] ?? "콘서트",
     title: event.title,
     shortTitle: event.shortTitle || event.title,
@@ -136,7 +142,6 @@ export interface GroupBookingCatalogEvent {
 }
 
 interface ApiCatalogEventWithZones extends ApiCatalogEvent {
-  readonly dates?: readonly { readonly id: string; readonly startsAt: string; readonly label: string }[];
   readonly zones?: readonly { readonly id: string; readonly name: string; readonly faceValue: number }[];
 }
 

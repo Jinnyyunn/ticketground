@@ -103,8 +103,19 @@ async function handleApi(req, res, db, surface) {
     throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
   }
 
+  if (req.method === "GET" && url.pathname === "/api/health") {
+    return { status: "UP", version: "78b3c7c" };
+  }
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
-  if (req.method === "GET" && url.pathname === "/api/catalog") return publicCatalog(db);
+  if (req.method === "GET" && url.pathname === "/api/catalog") {
+    const rawLimit = url.searchParams.get("limit");
+    if (rawLimit === null) return publicCatalog(db);
+    const limit = Number(rawLimit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      throw httpError(400, "INVALID_LIMIT", "limit은 1 이상 100 이하의 정수여야 합니다.");
+    }
+    return publicCatalog(db, { limit });
+  }
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
@@ -161,7 +172,8 @@ async function handleApi(req, res, db, surface) {
     return seatMap(db, {
       category: url.searchParams.get("category"),
       venueId: url.searchParams.get("venueId"),
-      eventId: url.searchParams.get("eventId")
+      eventId: url.searchParams.get("eventId"),
+      performanceDateId: url.searchParams.get("performanceDateId")
     });
   }
   if (req.method === "GET" && seatMapMatch) return venueMapForEvent(db, decodeURIComponent(seatMapMatch[1]));

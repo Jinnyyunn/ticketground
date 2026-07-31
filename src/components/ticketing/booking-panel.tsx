@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
-import { getTicketShowBackendEventId } from "@/data/ticketing-backend-events";
+import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
-import { createSeatMap, SeatMap, type SeatOption, type SeatTier } from "./seat-map";
 
 const serviceFeePerSeat = 2000;
 const maxSelectableSeats = 2;
@@ -22,15 +21,6 @@ const steps: readonly { readonly id: BookingStep; readonly label: string }[] = [
   { id: "seats", label: "좌석 선택" },
 ];
 
-function priceMap(show: TicketShow): Record<SeatTier, number> {
-  return {
-    VIP: show.prices.find((price) => price.grade === "VIP")?.price ?? 190000,
-    R: show.prices.find((price) => price.grade === "R")?.price ?? 160000,
-    S: show.prices.find((price) => price.grade === "S")?.price ?? 120000,
-    A: show.prices.find((price) => price.grade === "A")?.price ?? 80000,
-  };
-}
-
 function minutes(seconds: number) {
   const mm = Math.floor(seconds / 60).toString().padStart(2, "0");
   const ss = (seconds % 60).toString().padStart(2, "0");
@@ -40,21 +30,21 @@ function minutes(seconds: number) {
 type BookingPanelProps = { readonly show: TicketShow; readonly initialSelection: Pick<BookingSelection, "date" | "time">; readonly initialTimerSeconds?: number };
 
 export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 * 60 }: BookingPanelProps) {
-  const prices = useMemo(() => priceMap(show), [show]);
-  const seats = useMemo(() => createSeatMap(prices), [prices]);
   const [date, setDate] = useState(initialSelection.date || show.schedules[0]?.date || "");
   const [time, setTime] = useState(initialSelection.time || show.schedules[0]?.times[0] || "");
   const [quantity, setQuantity] = useState(maxSelectableSeats);
   const [step, setStep] = useState<BookingStep>("schedule");
-  const [selectedSeatIds, setSelectedSeatIds] = useState<readonly string[]>([]);
   const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
   const [seatMapStatus, setSeatMapStatus] = useState("좌석도 로딩 중");
-  const [seatMapFailed, setSeatMapFailed] = useState(false);
   const [selectedBackendTicketIds, setSelectedBackendTicketIds] = useState<readonly string[]>([]);
   const [timerSeconds, setTimerSeconds] = useState(initialTimerSeconds);
   const timerExpired = timerSeconds === 0;
   const timerWarning = !timerExpired && timerSeconds <= 60;
   const backendEventId = useMemo(() => getTicketShowBackendEventId(show), [show]);
+  const performanceDateId = useMemo(
+    () => getTicketShowPerformanceDateId(show, date, time),
+    [date, show, time],
+  );
 
   useEffect(() => {
     if (timerExpired) return;
@@ -65,9 +55,15 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
   useEffect(() => {
     let mounted = true;
-    setSeatMapFailed(false);
+    setSeatMap(null);
     setSelectedBackendTicketIds([]);
-    getSeatMap(backendEventId)
+    if (!performanceDateId) {
+      setSeatMapStatus("선택한 회차의 좌석 정보를 확인할 수 없습니다.");
+      return () => {
+        mounted = false;
+      };
+    }
+    getSeatMap(backendEventId, performanceDateId)
       .then((nextSeatMap) => {
         if (!mounted) return;
         setSeatMap(nextSeatMap);
@@ -76,43 +72,30 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
       .catch((error: unknown) => {
         if (!mounted) return;
         setSeatMap(null);
-        setSeatMapFailed(true);
         setSeatMapStatus(error instanceof Error ? error.message : "좌석도를 불러오지 못했습니다.");
       });
     return () => {
       mounted = false;
     };
-  }, [backendEventId]);
+  }, [backendEventId, performanceDateId]);
 
-  const selectedSeats = selectedSeatIds.map((id) => seats.find((seat) => seat.id === id)).filter((seat): seat is SeatOption => Boolean(seat));
   const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
-  const showStaticSeatMap = !useBackendSeatMap && Boolean(seatMapFailed || (seatMap && backendSeats.length === 0));
-  const selectedLabels = useBackendSeatMap ? selectedBackendSeats.map((seat) => seat.displayCode).join(", ") : selectedSeatIds.join(", ");
-  const selectedCount = useBackendSeatMap ? selectedBackendSeats.length : selectedSeats.length;
-  const baseAmount = useBackendSeatMap ? selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0) : selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+  const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
+  const selectedCount = selectedBackendSeats.length;
+  const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
   const feeAmount = selectedCount * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
   const canChooseSeats = show.sale.bookable && !timerExpired && Boolean(date && time && quantity);
-  const canPay = show.sale.bookable && !timerExpired && (useBackendSeatMap ? selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity : selectedSeats.length > 0 && selectedSeats.length <= quantity);
+  const canPay = show.sale.bookable && !timerExpired && selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity;
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}`;
 
   function selectBackendSeat(ticketId: string) {
-    setSelectedSeatIds([]);
     setSelectedBackendTicketIds((current) => {
       if (current.includes(ticketId)) return current.filter((id) => id !== ticketId);
       const allowedCount = Math.min(quantity, maxSelectableSeats);
       return [...current, ticketId].slice(-allowedCount);
-    });
-  }
-
-  function toggleSeat(seat: SeatOption) {
-    setSelectedBackendTicketIds([]);
-    setSelectedSeatIds((current) => {
-      if (current.includes(seat.id)) return current.filter((id) => id !== seat.id);
-      const allowedCount = Math.min(quantity, maxSelectableSeats);
-      return [...current, seat.id].slice(-allowedCount);
     });
   }
 
@@ -232,14 +215,9 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
-                    {showStaticSeatMap ? "실시간 좌석도를 불러오지 못해 기본 좌석표로 선택합니다." : seatMapStatus}
+                    {seatMapStatus}
                   </div>
                 )}
-                {showStaticSeatMap ? (
-                  <div className="mt-3 min-w-0">
-                    <SeatMap seats={seats} selectedSeatIds={selectedSeatIds} onToggleSeat={toggleSeat} />
-                  </div>
-                ) : null}
               </div>
               {canPay ? (
                 <Link href={checkoutHref} className="mt-6 flex h-12 w-full items-center justify-center rounded-sm bg-ticketground text-lg font-black text-white">

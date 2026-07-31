@@ -1,0 +1,24 @@
+{
+  "contractId": "ticketground-native-ios-virtual-fixture-v1",
+  "fixtureId": "virtual-seat-map-001",
+  "mode": "virtual",
+  "source": "fixture-only",
+  "live": false,
+  "deterministic": true,
+  "status": 200,
+  "body": {
+    "event": { "id": "virtual-event-001", "title": "가상 별빛 콘서트", "venue": "가상 아레나" },
+    "map": { "type": "fixture", "imageUrl": null },
+    "zones": [
+      {
+        "id": "virtual-zone-vip",
+        "name": "VIP",
+        "price": 99000,
+        "seats": [
+          { "id": "virtual-seat-a01", "label": "A-01", "status": "ON_SALE", "holderId": null },
+          { "id": "virtual-seat-a02", "label": "A-02", "status": "SOLD_OUT", "holderId": "virtual-user-001" }
+        ]
+      }
+    ]
+  }
+}

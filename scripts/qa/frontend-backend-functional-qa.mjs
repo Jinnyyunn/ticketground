@@ -119,9 +119,13 @@ async function startServer(name, { now = "2026-09-19T17:00:00+09:00" } = {}) {
       ADMIN_HOSTNAME: "127.0.0.1",
       ADMIN_PORT: String(adminPort),
       TIG_ADMIN_TOKEN: adminToken,
+      TIG_ADMIN_SESSION_SECRET: crypto.randomBytes(32).toString("hex"),
+      TIG_ADMIN_USERNAME: "qa-admin",
+      TIG_ADMIN_PASSWORD: crypto.randomBytes(24).toString("hex"),
       TIG_DB_PATH: path.join(tempDir, "db.json"),
       TIG_NOW: now,
       TIG_APP_ATTESTATION_SECRET: attestationSecret,
+      TIG_PORTONE_IDENTITY_TEST_MODE: "1",
       TIG_SECRET: "qa-runtime-secret",
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -181,6 +185,18 @@ async function buyFirstTicket(baseUrl, userId = "user_fan_a") {
     paymentMethod: "CREDIT_CARD",
   }, 200, {}, `buy ${ticket.id}`);
   return { ticket: purchase.data.ticket, purchase: purchase.data };
+}
+
+async function verifyTestIdentity(baseUrl, userId, phone) {
+  const started = await api(baseUrl, "/api/identity/portone-danal/start", {
+    userId,
+    phone,
+  }, 200, {}, `identity verification start ${userId}`);
+  await api(baseUrl, "/api/identity/portone-danal/confirm", {
+    userId,
+    phone,
+    identityVerificationId: started.data.identityVerificationId,
+  }, 200, {}, `identity verification confirm ${userId}`);
 }
 
 async function screenshot(page, name) {
@@ -294,6 +310,8 @@ async function runApiContract() {
     const session = await api(baseUrl, "/api/users/user_fan_a/session", undefined, 200, {}, "session");
     assert.equal(session.data.status, "ACTIVE");
     assert.equal(typeof session.data.trustScore, "number");
+    await verifyTestIdentity(baseUrl, "user_fan_a", "010-0000-0098");
+    await verifyTestIdentity(baseUrl, "user_fan_b", "010-0000-0099");
     const updatedProfile = await api(baseUrl, "/api/users/user_fan_a/profile", { name: "민서QA" }, 200, {}, "profile update");
     assert.equal(updatedProfile.data.name, "민서QA");
     const invalidProfile = await api(baseUrl, "/api/users/user_fan_a/profile", { name: "1234567890123" }, 422, {}, "profile invalid length");
@@ -340,7 +358,10 @@ async function runApiContract() {
     }, 400, {}, "support empty message");
     assert.equal(emptySupport.error.code, "EMPTY_SUPPORT_MESSAGE");
 
-    const seatMap = await api(baseUrl, "/api/seat-map?eventId=event_kpop_001", undefined, 200, {}, "seat map");
+    const seatMapTicket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
+    assert.ok(seatMapTicket, "seat-map QA requires an on-sale performance");
+    const seatMapPath = `/api/seat-map?eventId=event_kpop_001&performanceDateId=${encodeURIComponent(seatMapTicket.performanceDateId)}`;
+    const seatMap = await api(baseUrl, seatMapPath, undefined, 200, {}, "seat map");
     assert.ok(seatMap.data.seats.length > 0);
     assert.ok(seatMap.data.zones.length > 0);
     const venueMap = await api(baseUrl, "/api/events/event_kpop_001/seat-map", undefined, 200, {}, "event venue map");
@@ -462,6 +483,7 @@ async function runApiContract() {
   const early = await startServer("early", { now: "2026-09-19T15:00:00+09:00" });
   try {
     const { baseUrl } = early;
+    await verifyTestIdentity(baseUrl, "user_fan_a", "010-0000-0098");
     const { ticket } = await buyFirstTicket(baseUrl);
     const forgedDevice = await api(baseUrl, "/api/devices/trust", {
       userId: "user_fan_a",
@@ -601,7 +623,7 @@ async function runBrowserFlow() {
     const requiredPaths = [
       "/api/users/user_fan_a/session",
       "/api/users/user_fan_a/profile",
-      "/api/seat-map?eventId=event_kpop_001",
+      "/api/seat-map?eventId=event_kpop_001&performanceDateId=",
       "/api/tickets/buy",
       "/api/tickets/virtual-qr",
       "/api/watchlist",

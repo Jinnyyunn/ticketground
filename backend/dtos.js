@@ -129,13 +129,15 @@ function soldCountByEventId(db) {
   return counts;
 }
 
-function publicCatalog(db) {
+function publicCatalog(db, { limit } = {}) {
   const soldCounts = soldCountByEventId(db);
+  const visibleEvents = db.events.filter((event) => Array.isArray(event.prices) && event.prices.length > 0);
+  const selectedEvents = limit === undefined ? visibleEvents : visibleEvents.slice(0, limit);
   return {
     // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
     // catalog schema and never carry a prices[] array - they power internal
     // ticket/resale-engine demos, not the public show listing.
-    events: db.events.filter((event) => Array.isArray(event.prices) && event.prices.length > 0).map((event) => ({
+    events: selectedEvents.map((event) => ({
       id: event.id,
       slug: event.slug,
       category: event.category,

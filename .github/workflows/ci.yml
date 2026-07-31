@@ -42,5 +42,51 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Test backend and iOS tooling regressions
+        run: node --test --test-concurrency=1 tests/backend-api-flow.test.mjs tests/backend-persistence.test.mjs tests/booking-single-checkout-flow.test.mjs tests/event-id-mapping.test.mjs tests/ios-tooling-regression.test.mjs
+
       - name: Test GitHub bot
         run: node --test tests/ticketground-github-bot.test.mjs
+
+  ios-native:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Select available iPhone simulator
+        id: simulator
+        run: |
+          device_id=$(xcrun simctl list devices available --json | python3 -c '
+          import json
+          import sys
+
+          devices = json.load(sys.stdin)["devices"]
+          for runtime in reversed(list(devices.values())):
+              for device in runtime:
+                  if device["name"].startswith("iPhone"):
+                      print(device["udid"])
+                      raise SystemExit(0)
+          raise SystemExit("No available iPhone simulator")
+          ')
+          echo "device-id=$device_id" >> "$GITHUB_OUTPUT"
+
+      - name: Build and run focused native tests
+        run: |
+          xcodebuild test \
+            -project ios/TicketGroundApp/TicketGroundApp.xcodeproj \
+            -scheme TicketGroundApp \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device-id }}" \
+            -only-testing:TicketGroundAppTests/LiveBackendServiceTests \
+            -only-testing:TicketGroundAppTests/AppEnvironmentTests \
+            -only-testing:TicketGroundAppTests/LoadingMediaTests \
+            -only-testing:TicketGroundAppTests/TicketGroundAppTests \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testHomeRankingAndOpenCalendar \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveStateOnlyHomeCanRetryCatalogAdmission \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveCatalogRoutesUseOneUnavailableSurface \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogShowsReadOnlySeatMap \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry

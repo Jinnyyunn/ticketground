@@ -5,6 +5,10 @@ import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer, ver
 test("public server serves the Next frontend and backend API on one port", async (t) => {
   const { baseUrl } = await startServer(t);
 
+  const health = await api(baseUrl, "/api/health");
+  assert.equal(health.data.status, "UP");
+  assert.equal(health.data.version, "78b3c7c");
+
   const home = await fetch(`${baseUrl}/`);
   assert.equal(home.status, 200);
   assert.match(home.headers.get("content-type") || "", /text\/html/);
@@ -15,6 +19,11 @@ test("public server serves the Next frontend and backend API on one port", async
 
   const state = await api(baseUrl, "/api/state");
   assert.ok(state.data.backendSummary.events > 0);
+
+  const catalog = await api(baseUrl, "/api/catalog");
+  const boundedCatalog = await api(baseUrl, "/api/catalog?limit=1");
+  assert.ok(catalog.data.events.length > 1);
+  assert.equal(boundedCatalog.data.events.length, 1);
 });
 
 test("backend watchlist, notification, seat map, and admin summary APIs remain usable", async (t) => {
@@ -41,9 +50,22 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   });
   assert.equal(notify.data.notificationJob.status, "SENT");
 
-  const seatMap = await api(baseUrl, "/api/seat-map?eventId=event_kpop_001");
+  const state = await api(baseUrl, "/api/state");
+  const performanceDateId = state.data.events
+    .find((event) => event.id === "event_kpop_001").dates[0].id;
+  const seatMap = await api(
+    baseUrl,
+    `/api/seat-map?eventId=event_kpop_001&performanceDateId=${performanceDateId}`
+  );
   assert.ok(seatMap.data.seats.length > 0);
   assert.ok(seatMap.data.zones.length > 0);
+  const expectedTicketIDs = state.data.tickets
+    .filter((ticket) =>
+      ticket.eventId === "event_kpop_001" && ticket.performanceDateId === performanceDateId
+    )
+    .map((ticket) => ticket.id)
+    .sort();
+  assert.deepEqual(seatMap.data.seats.map((seat) => seat.id).sort(), expectedTicketIDs);
 
   const publicAdmin = await api(baseUrl, "/api/admin/summary", null, 404);
   assert.equal(publicAdmin.error.code, "NOT_FOUND");
@@ -88,10 +110,23 @@ test("seat-map API rejects an explicit missing event id", async (t) => {
   const { baseUrl } = await startServer(t);
 
   // When: the caller asks for a specific event id that does not exist.
-  const seatMap = await api(baseUrl, "/api/seat-map?eventId=missing-event", null, 404);
+  const seatMap = await api(
+    baseUrl,
+    "/api/seat-map?eventId=missing-event&performanceDateId=missing-performance",
+    null,
+    404
+  );
 
   // Then: the API reports the missing event instead of falling back to the first event.
   assert.equal(seatMap.error.code, "EVENT_NOT_FOUND");
+});
+
+test("seat-map API requires an explicit performance date", async (t) => {
+  const { baseUrl } = await startServer(t);
+
+  const seatMap = await api(baseUrl, "/api/seat-map?eventId=event_kpop_001", null, 400);
+
+  assert.equal(seatMap.error.code, "MISSING_FIELD");
 });
 
 test("public demo session supports login profile lookup and nickname update without exposing state users", async (t) => {

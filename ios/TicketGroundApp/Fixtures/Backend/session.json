@@ -1,0 +1,14 @@
+{
+  "contractId": "ticketground-native-ios-virtual-fixture-v1",
+  "fixtureId": "virtual-session-001",
+  "mode": "virtual",
+  "source": "fixture-only",
+  "live": false,
+  "deterministic": true,
+  "status": 200,
+  "body": {
+    "user": { "id": "virtual-user-001", "name": "가상 사용자" },
+    "authenticated": false,
+    "source": "fixture-only"
+  }
+}
