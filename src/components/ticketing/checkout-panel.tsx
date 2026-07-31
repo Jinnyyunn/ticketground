@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { useEffect, useState } from "react";
-import { getTicketShowBackendEventId } from "@/data/ticketing-backend-events";
+import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
 import {
   buyTicketWithBootpay,
@@ -97,6 +97,7 @@ export function CheckoutPanel({
   const [identityBusy, setIdentityBusy] = useState(false);
   const [identityMessage, setIdentityMessage] = useState("간편 로그인 후 본인인증 상태를 확인합니다.");
   const backendEventId = getTicketShowBackendEventId(show);
+  const performanceDateId = getTicketShowPerformanceDateId(show, selection.date, selection.time);
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
   const hasSelectedTicket = Boolean(selection.ticketId);
   const amountPending = hasSelectedTicket && trustedTicketAmount === null;
@@ -123,7 +124,11 @@ export function CheckoutPanel({
     getState()
       .then((state) => {
         if (!mounted) return;
-        const ticket = state.tickets.find((item) => item.id === selection.ticketId && item.eventId === backendEventId);
+        const ticket = state.tickets.find(
+          (item) => item.id === selection.ticketId
+            && item.eventId === backendEventId
+            && item.performanceDateId === performanceDateId,
+        );
         setTrustedTicketAmount(ticket?.faceValue ?? null);
         setStatus(ticket ? "좌석 선택 완료" : "선택한 좌석을 확인할 수 없습니다.");
       })
@@ -136,7 +141,7 @@ export function CheckoutPanel({
     return () => {
       mounted = false;
     };
-  }, [backendEventId, selection.ticketId]);
+  }, [backendEventId, performanceDateId, selection.ticketId]);
 
   useEffect(() => {
     let mounted = true;
@@ -258,7 +263,11 @@ export function CheckoutPanel({
       let ticketId = selection.ticketId;
       if (!ticketId) {
         const state = await getState();
-        ticketId = state.tickets.find((ticket) => ticket.eventId === backendEventId && ticket.status === "ON_SALE")?.id ?? "";
+        ticketId = state.tickets.find(
+          (ticket) => ticket.eventId === backendEventId
+            && ticket.performanceDateId === performanceDateId
+            && ticket.status === "ON_SALE",
+        )?.id ?? "";
       }
       if (!ticketId) {
         setStatus("구매 가능한 티켓이 없습니다.");

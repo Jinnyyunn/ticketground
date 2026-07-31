@@ -143,8 +143,9 @@ export function getState() {
   return readApi("/api/state", apiStateSchema);
 }
 
-export function getSeatMap(eventId = DEMO_EVENT_ID) {
-  return readApi(`/api/seat-map?eventId=${encodeURIComponent(eventId)}`, apiSeatMapSchema);
+export function getSeatMap(eventId: string, performanceDateId: string) {
+  const query = new URLSearchParams({ eventId, performanceDateId });
+  return readApi(`/api/seat-map?${query.toString()}`, apiSeatMapSchema);
 }
 
 export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
