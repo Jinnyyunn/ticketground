@@ -215,7 +215,7 @@ final class TicketgroundSVGRenderer: NSObject, WKNavigationDelegate {
 
     func render(
         _ document: SafeSVGDocument,
-        timeoutNanoseconds: UInt64 = 5_000_000_000
+        timeoutNanoseconds: UInt64 = 10_000_000_000
     ) async throws -> UIImage {
         guard timeoutNanoseconds > 0 else {
             throw TicketgroundSVGRendererError.timedOut
