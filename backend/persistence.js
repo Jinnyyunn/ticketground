@@ -18,8 +18,12 @@ export function createPersistence({
   function saveDb(db) {
     const snapshot = JSON.stringify(db, null, 2);
     const save = saveQueue.then(async () => {
-      await writeFileImpl(pendingPath, snapshot, "utf8");
-      await chmodImpl(pendingPath, 0o600);
+      try {
+        await chmodImpl(pendingPath, 0o600);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+      await writeFileImpl(pendingPath, snapshot, { encoding: "utf8", mode: 0o600 });
       await renameImpl(pendingPath, dbPath);
     });
     saveQueue = save.catch(() => {});

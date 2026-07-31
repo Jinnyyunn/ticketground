@@ -46,16 +46,22 @@ test("database snapshot promotion preserves restrictive file permissions", async
   const dbPath = path.join(dataDir, "db.json");
   await writeFile(dbPath, "{}", { mode: 0o600 });
   await chmod(dbPath, 0o600);
+  let pendingModeDuringWrite = null;
   const persistence = createPersistence({
     dbPath,
     hash: () => "",
     now: () => "",
-    sortJson: (value) => value
+    sortJson: (value) => value,
+    writeFileImpl: async (filePath, snapshot, options) => {
+      await writeFile(filePath, snapshot, options);
+      pendingModeDuringWrite = (await stat(filePath)).mode & 0o777;
+    }
   });
 
   // When: a new snapshot replaces the protected inode.
   await persistence.saveDb({ revision: 1 });
 
   // Then: account and payment metadata remain owner-readable only.
+  assert.equal(pendingModeDuringWrite, 0o600);
   assert.equal((await stat(dbPath)).mode & 0o777, 0o600);
 });
