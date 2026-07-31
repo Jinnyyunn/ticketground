@@ -1058,10 +1058,6 @@ private struct LiveMenuRouteView: View {
                     }
                 }
 
-                menuSection(title: "티켓 서비스", detail: "예매와 오픈 일정을 한눈에") {
-                    liveMenuLink(title: "티켓오픈 캘린더", icon: "calendar", route: .open, identifier: "live-menu-open-calendar")
-                }
-
                 menuSection(title: "고객센터", detail: "도움이 필요할 때 이용하세요") {
                     liveMenuLink(title: "고객센터", icon: "questionmark.circle", route: .help, identifier: "live-menu-help")
                     liveMenuLink(title: "1:1 문의", icon: "bubble.left", route: .inquiry, identifier: "live-menu-inquiry")
