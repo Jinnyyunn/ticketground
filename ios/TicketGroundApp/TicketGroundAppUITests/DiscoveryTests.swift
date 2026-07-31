@@ -196,7 +196,7 @@ final class DiscoveryTests: XCTestCase {
     }
 
     func testLiveCatalogRoutesUseOneUnavailableSurface() {
-        let app = liveApp()
+        let app = liveApp(homeScenario: "unavailable")
         app.launch()
         XCTAssertTrue(app.buttons["header-search"].waitForExistence(timeout: 10))
         app.buttons["header-search"].tap()

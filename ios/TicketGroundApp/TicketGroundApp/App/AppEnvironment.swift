@@ -941,6 +941,7 @@ private enum UITestLiveHomeScenario: String {
     case offline
     case rateLimited
     case incompatible
+    case unavailable
 }
 
 private final class UITestLiveHomeAPIClient: APIClient {
@@ -961,6 +962,9 @@ private final class UITestLiveHomeAPIClient: APIClient {
         }
         switch (request.path, request.query) {
         case ("/api/health", _):
+            if scenario == .unavailable {
+                return json("{\"status\":\"ok\",\"version\":null}")
+            }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
