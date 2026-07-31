@@ -1429,6 +1429,7 @@ private struct LiveSeatMapRouteView: View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
             Text("관람 회차")
                 .font(.headline.weight(.black))
+                .accessibilityIdentifier("live-seat-performance-selector")
             Text("좌석 현황을 확인할 회차를 선택해주세요.")
                 .font(.subheadline)
                 .foregroundStyle(TicketgroundColor.inkMuted)
@@ -1448,7 +1449,6 @@ private struct LiveSeatMapRouteView: View {
                 .accessibilityIdentifier("live-seat-performance-\(option.id)")
             }
         }
-        .accessibilityIdentifier("live-seat-performance-selector")
     }
 
     private func performanceOptions(
