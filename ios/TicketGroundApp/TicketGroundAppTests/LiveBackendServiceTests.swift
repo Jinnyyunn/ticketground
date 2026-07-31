@@ -346,6 +346,7 @@ final class LiveBackendServiceTests: XCTestCase {
         }
         XCTAssertEqual(content.featured.title, "Neon Stage")
         XCTAssertEqual(content.featured.date, "2026.09.19")
+        XCTAssertEqual(content.featured.cta, "공연 상세 보기")
         XCTAssertEqual(content.rankings.first?.date, "2026.09.19")
         XCTAssertTrue(content.openingSoon.isEmpty)
         XCTAssertTrue(content.calendar.isEmpty)
@@ -515,12 +516,24 @@ final class LiveBackendServiceTests: XCTestCase {
     func testPlaceRouteMatchesCatalogVenueIdentifier() throws {
         let catalog = try JSONDecoder().decode(
             LiveCatalog.self,
-            from: Data(#"{"events":[{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venueId":"venue-1","venue":"Arena","soldCount":4}],"venues":[{"id":"venue-1","name":"Arena"}]}"#.utf8)
+            from: Data(#"{"events":[{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venueId":"venue-1","venue":"Arena","soldCount":4},{"id":"venue-1-preview","slug":"venue-1-preview","title":"Venue 1 Preview","venueId":"venue-2","venue":"Hall","soldCount":1}],"venues":[{"id":"venue-1","name":"Arena"},{"id":"venue-2","name":"Hall"}]}"#.utf8)
         )
 
         let events = LiveCatalogRouteMatcher.placeEvents(slug: "venue-1", in: catalog)
 
         XCTAssertEqual(events.map(\.id), ["event-1"])
+    }
+
+    func testSearchMatchesCastAndArtistSlug() throws {
+        let catalog = try JSONDecoder().decode(
+            LiveCatalog.self,
+            from: Data(#"{"events":[{"id":"event-1","slug":"elizabeth","title":"엘리자벳","venue":"블루스퀘어","artistSlug":"ok-joo-hyun","casts":["옥주현"],"soldCount":4}]}"#.utf8)
+        )
+        let event = try XCTUnwrap(catalog.events.first)
+
+        XCTAssertTrue(LiveCatalogRouteMatcher.matchesSearch(query: "옥주현", event: event))
+        XCTAssertTrue(LiveCatalogRouteMatcher.matchesSearch(query: "ok-joo-hyun", event: event))
+        XCTAssertFalse(LiveCatalogRouteMatcher.matchesSearch(query: "다른 배우", event: event))
     }
 
     func testAccountStatusTextDoesNotExposeBackendUserIdentifier() {

@@ -120,7 +120,7 @@ enum DiscoveryFixtureLoader {
             eyebrow: eyebrow,
             venue: event.venue,
             date: event.period ?? formattedDate(event.date),
-            cta: "예매하기",
+            cta: "공연 상세 보기",
             route: .goods(slug: event.slug ?? event.id),
             imageResource: apiClient.resolveResource(event.image)
         )

@@ -641,10 +641,27 @@ enum LiveCatalogRouteMatcher {
         guard let slug, !slug.isEmpty else { return catalog.events }
         let normalizedRoute = normalizedSlug(slug)
         return catalog.events.filter { event in
-            [event.id, event.slug, event.venueID, event.venue, event.title]
+            [event.venueID, event.venue]
                 .compactMap { $0 }
                 .contains { normalizedSlug($0).contains(normalizedRoute) }
         }
+    }
+
+    static func matchesSearch(
+        query: String,
+        event: LiveBackendCatalogEvent,
+        categoryLabel: String? = nil
+    ) -> Bool {
+        let normalizedQuery = normalizedSlug(query)
+        guard !normalizedQuery.isEmpty else { return true }
+        let values = [
+            event.title,
+            event.venue,
+            event.category,
+            categoryLabel,
+            event.artistSlug
+        ].compactMap { $0 } + (event.casts ?? [])
+        return values.contains { normalizedSlug($0).contains(normalizedQuery) }
     }
 
     private static func normalizedSlug(_ value: String) -> String {
@@ -828,17 +845,12 @@ private struct LiveDiscoveryRouteView: View {
         case .genre(let name):
             return sortedEvents(catalog.events.filter { normalizedGenre($0.category) == normalizedGenre(name) })
         case .search:
-            let normalizedQuery = normalizedSearchValue(searchQuery)
-            guard !normalizedQuery.isEmpty else { return sortedEvents(catalog.events) }
             return sortedEvents(catalog.events.filter { event in
-                [
-                    event.title,
-                    event.venue,
-                    event.category,
-                    event.category.map(displayGenre)
-                ]
-                .compactMap { $0 }
-                .contains { normalizedSearchValue($0).contains(normalizedQuery) }
+                LiveCatalogRouteMatcher.matchesSearch(
+                    query: searchQuery,
+                    event: event,
+                    categoryLabel: event.category.map(displayGenre)
+                )
             })
         case .region, .open:
             return []
