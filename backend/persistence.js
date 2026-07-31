@@ -1,12 +1,27 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export function createPersistence({ dbPath, hash, now, sortJson }) {
+export function createPersistence({
+  dbPath,
+  hash,
+  now,
+  sortJson,
+  writeFileImpl = writeFile,
+  renameImpl = rename
+}) {
   const dataDir = path.dirname(dbPath);
+  const pendingPath = `${dbPath}.pending`;
+  let saveQueue = Promise.resolve();
 
-  async function saveDb(db) {
-    await writeFile(dbPath, JSON.stringify(db, null, 2), "utf8");
+  function saveDb(db) {
+    const snapshot = JSON.stringify(db, null, 2);
+    const save = saveQueue.then(async () => {
+      await writeFileImpl(pendingPath, snapshot, "utf8");
+      await renameImpl(pendingPath, dbPath);
+    });
+    saveQueue = save.catch(() => {});
+    return save;
   }
 
   async function loadDb({ normalizeDb, seedDb }) {
