@@ -17,7 +17,7 @@ struct SiteHeader: View {
                 .accessibilityIdentifier("header-logo")
                 Spacer(minLength: TicketgroundSpacing.sm)
                 headerLink(title: "로그인", identifier: "header-watchlist", route: .login)
-                headerLink(title: "전체 메뉴", icon: "line.3.horizontal", identifier: "header-mypage", route: .mypage)
+                headerLink(title: "전체 메뉴", icon: "line.3.horizontal", identifier: "header-mypage", route: .menu)
             }
 
             Button(action: onSearch) {

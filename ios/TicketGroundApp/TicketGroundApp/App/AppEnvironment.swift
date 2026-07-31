@@ -24,6 +24,7 @@ enum AppRoute: Hashable, Codable {
     case reservation(id: String)
     case login
     case signup
+    case menu
     case mypage
     case cancel
     case resale
@@ -51,6 +52,7 @@ enum AppRoute: Hashable, Codable {
         case .reservation(let id): return "reservation:\(id)"
         case .login: return "login"
         case .signup: return "signup"
+        case .menu: return "menu"
         case .mypage: return "mypage"
         case .cancel: return "cancel"
         case .resale: return "resale"
@@ -78,7 +80,7 @@ struct AppRouteClassification: Equatable {
 extension AppRoute {
     var classification: AppRouteClassification {
         switch self {
-        case .home, .search, .ranking, .genre, .event, .place, .goods, .queue, .booking, .capabilityLedger:
+        case .home, .search, .ranking, .genre, .event, .place, .goods, .queue, .booking, .menu, .capabilityLedger:
             return AppRouteClassification(connectivity: .publicRead, reason: "공개 공연 및 좌석 조회 계약")
         case .login, .signup, .mypage, .watchlist, .help, .inquiry:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
@@ -106,6 +108,7 @@ struct RouteResolver {
         if parts == ["place"] { return .place(slug: nil) }
         if parts == ["login"] { return .login }
         if parts == ["signup"] { return .signup }
+        if parts == ["menu"] { return .menu }
         if parts == ["mypage"] { return .mypage }
         if parts == ["cancel"] { return .cancel }
         if parts == ["resale"] { return .resale }

@@ -428,16 +428,21 @@ struct TicketgroundMediaImage: View {
             guard localRasterImage == nil, let loadableSource else { return }
             phase = .loading
             do {
+                let image: UIImage
                 switch loadableSource {
                 case .remote(let url):
-                    phase = .loaded(try await TicketgroundImageRepository.shared.image(for: url))
+                    image = try await TicketgroundImageRepository.shared.image(for: url)
                 case .localSVG(let url):
                     let document = try SafeSVGDocument(data: Data(contentsOf: url))
-                    phase = .loaded(try await TicketgroundSVGRenderer().render(document))
+                    image = try await TicketgroundSVGRenderer().render(document)
                 }
+                try Task.checkCancellation()
+                guard self.loadableSource == loadableSource else { return }
+                phase = .loaded(image)
             } catch is CancellationError {
                 return
             } catch {
+                guard !Task.isCancelled, self.loadableSource == loadableSource else { return }
                 phase = .failed
             }
         }

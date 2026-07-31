@@ -176,13 +176,15 @@ final class AppEnvironmentTests: XCTestCase {
     func testRouteAliasesAndInventory() {
         XCTAssertEqual(RouteResolver.resolve(path: "/contents/notice"), .open)
         XCTAssertEqual(RouteResolver.resolve(path: "/support/inquiry"), .inquiry)
+        XCTAssertEqual(RouteResolver.resolve(path: "/menu"), .menu)
+        XCTAssertEqual(RouteResolver.resolve(path: "/mypage"), .mypage)
 
         let routes: [AppRoute] = [
             .home, .search, .ranking, .genre(name: "concert"), .region, .open,
             .event(slug: "event"), .place(slug: nil), .artist(slug: "artist"),
             .goods(slug: "goods"), .queue(slug: "queue"), .booking(slug: "booking"),
             .checkout(slug: "checkout"), .reservation(id: "reservation"), .login,
-            .signup, .mypage, .cancel, .resale, .transfer, .watchlist, .help, .inquiry, .capabilityLedger
+            .signup, .menu, .mypage, .cancel, .resale, .transfer, .watchlist, .help, .inquiry, .capabilityLedger
         ]
         XCTAssertEqual(Set(routes.map(\.id)).count, routes.count)
         XCTAssertEqual(routes.map(\.classification).count, routes.count)

@@ -20,7 +20,7 @@ struct DiscoveryRouteView: View {
             DiscoverySearchView(content: content)
         case .login:
             DiscoveryLoginView()
-        case .mypage:
+        case .menu, .mypage:
             DiscoveryMenuView()
         case .capabilityLedger:
             CapabilityLedgerView()
@@ -681,8 +681,10 @@ private struct LiveDiscoveryRouteView: View {
         switch route {
         case .login:
             DiscoveryLoginView()
-        case .mypage:
+        case .menu:
             LiveMenuRouteView()
+        case .mypage:
+            LiveAccountRouteView()
         case .capabilityLedger:
             CapabilityLedgerView()
         case .search, .ranking, .genre, .place, .event, .goods:
@@ -1305,6 +1307,7 @@ private struct LiveSeatMapRouteView: View {
     @State private var catalogState: LiveCatalogRouteState = .loading
     @State private var seatMapState: LiveSeatMapRouteState = .loading
     @State private var selectedPerformanceDateID: String?
+    @State private var admittedService: LiveBackendService?
     @State private var reloadID = 0
 
     var body: some View {
@@ -1380,6 +1383,7 @@ private struct LiveSeatMapRouteView: View {
         do {
             let service = LiveBackendService(apiClient: container.environment.apiClient)
             let catalog = try await service.getCatalog()
+            admittedService = service
             catalogState = .loaded(catalog)
             guard let event = event(in: catalog) else {
                 seatMapState = .failed("요청한 공연이 GET /api/catalog 결과에 없습니다.")
@@ -1408,16 +1412,23 @@ private struct LiveSeatMapRouteView: View {
     }
 
     private func loadSeatMap(eventID: String, performanceDateID: String) async {
+        guard selectedPerformanceDateID == performanceDateID, !Task.isCancelled else { return }
+        guard let admittedService else {
+            seatMapState = .failed("좌석 조회 서비스를 준비하지 못했습니다. 다시 시도해 주세요.")
+            return
+        }
         do {
             seatMapState = .loading
-            let service = LiveBackendService(apiClient: container.environment.apiClient)
-            seatMapState = .loaded(
-                try await service.getSeatMap(
-                    eventID: eventID,
-                    performanceDateID: performanceDateID
-                )
+            let seatMap = try await admittedService.getSeatMap(
+                eventID: eventID,
+                performanceDateID: performanceDateID
             )
+            guard selectedPerformanceDateID == performanceDateID, !Task.isCancelled else { return }
+            seatMapState = .loaded(seatMap)
+        } catch is CancellationError {
+            return
         } catch {
+            guard selectedPerformanceDateID == performanceDateID, !Task.isCancelled else { return }
             seatMapState = .failed(
                 "GET /api/seat-map?eventId=...&performanceDateId=... 요청에 실패했습니다: \(error.localizedDescription)"
             )
@@ -1467,6 +1478,7 @@ private struct LiveSeatMapRouteView: View {
     }
 
     private func retry() {
+        admittedService = nil
         catalogState = .loading
         seatMapState = .loading
         selectedPerformanceDateID = nil
