@@ -41,8 +41,9 @@ final class DiscoveryTests: XCTestCase {
         assertWithinHomeBounds(app)
 
         app.buttons["discovery-ranking-more"].tap()
-        XCTAssertTrue(app.staticTexts["실시간 예매 랭킹"].waitForExistence(timeout: 10))
-        app.swipeRight()
+        XCTAssertTrue(app.staticTexts["route-ranking"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["BackButton"].waitForExistence(timeout: 10))
+        app.buttons["BackButton"].tap()
         XCTAssertTrue(app.staticTexts["실시간 예매 랭킹 TOP10"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["tab-home"].isSelected)
 
