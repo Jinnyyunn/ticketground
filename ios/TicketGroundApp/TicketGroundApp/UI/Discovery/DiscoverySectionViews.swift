@@ -15,9 +15,12 @@ struct DiscoveryRankingSection: View {
                         .foregroundStyle(TicketgroundColor.inkMuted)
                 }
                 Spacer(minLength: TicketgroundSpacing.sm)
-                Text("더보기")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(TicketgroundColor.inkMuted)
+                NavigationLink(value: AppRoute.ranking) {
+                    Text("더보기")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                }
+                .accessibilityIdentifier("discovery-ranking-more")
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: TicketgroundSpacing.sm) {

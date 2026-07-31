@@ -94,11 +94,11 @@ struct ContentView: View {
                         case .home:
                             container.navigationPath.removeAll()
                         case .search:
-                            container.navigationPath.append(.search)
+                            container.navigationPath = [.search]
                         case .watchlist:
-                            container.navigationPath.append(.watchlist)
+                            container.navigationPath = [.watchlist]
                         case .mypage:
-                            container.navigationPath.append(.mypage)
+                            container.navigationPath = [.mypage]
                         }
                     }
                 )
@@ -131,6 +131,22 @@ struct ContentView: View {
                 discoveryLoadFailed = true
                 discoveryFailurePresentation = PublicReadPresentation.resolve(error)
             }
+        }
+        .onChange(of: container.navigationPath) { _, path in
+            if path.isEmpty {
+                selectedTab = .home
+            } else if let rootTab = path.reversed().compactMap({ tab(for: $0) }).first {
+                selectedTab = rootTab
+            }
+        }
+    }
+
+    private func tab(for route: AppRoute) -> TicketgroundTab? {
+        switch route {
+        case .search: return .search
+        case .watchlist: return .watchlist
+        case .mypage: return .mypage
+        default: return nil
         }
     }
 

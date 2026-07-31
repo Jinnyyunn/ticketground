@@ -347,6 +347,7 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(content.featured.title, "Neon Stage")
         XCTAssertTrue(content.openingSoon.isEmpty)
         XCTAssertTrue(content.calendar.isEmpty)
+        XCTAssertFalse(content.shortcuts.contains { $0.label == "당일 공연" })
         XCTAssertFalse(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
     }
 

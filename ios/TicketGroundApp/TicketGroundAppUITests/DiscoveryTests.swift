@@ -35,9 +35,16 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["티켓오픈 예정"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["바로가기"].waitForExistence(timeout: 10))
         assertDiscoverable(app.buttons["discovery-featured-cta"])
+        assertDiscoverable(app.buttons["discovery-ranking-more"])
         assertDiscoverable(app.buttons["discovery-open-calendar"])
         assertDiscoverable(app.buttons["shortcut-open-calendar"])
         assertWithinHomeBounds(app)
+
+        app.buttons["discovery-ranking-more"].tap()
+        XCTAssertTrue(app.staticTexts["실시간 예매 랭킹"].waitForExistence(timeout: 10))
+        app.swipeRight()
+        XCTAssertTrue(app.staticTexts["실시간 예매 랭킹 TOP10"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["tab-home"].isSelected)
 
         app.buttons["discovery-open-calendar"].tap()
         XCTAssertTrue(app.staticTexts["2026년 7월 월별 캘린더"].waitForExistence(timeout: 10))
