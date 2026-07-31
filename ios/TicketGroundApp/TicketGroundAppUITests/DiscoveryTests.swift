@@ -452,7 +452,6 @@ final class DiscoveryTests: XCTestCase {
             "live-menu-watchlist",
             "live-menu-search",
             "live-menu-ranking",
-            "live-menu-open-calendar",
             "live-menu-help",
             "live-menu-inquiry",
             "live-menu-category-concert",
@@ -460,6 +459,7 @@ final class DiscoveryTests: XCTestCase {
         ] {
             XCTAssertTrue(app.buttons[identifier].exists, identifier)
         }
+        XCTAssertFalse(app.buttons["live-menu-open-calendar"].exists)
         XCTAssertFalse(app.staticTexts["fixture-state-happy"].exists)
         XCTAssertFalse(app.staticTexts["fixture"].exists)
 

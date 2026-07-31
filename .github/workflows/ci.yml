@@ -88,4 +88,5 @@ jobs:
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveStateOnlyHomeCanRetryCatalogAdmission \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveCatalogRoutesUseOneUnavailableSurface \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods \
-            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogShowsReadOnlySeatMap
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogShowsReadOnlySeatMap \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry
