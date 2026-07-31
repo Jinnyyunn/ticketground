@@ -160,7 +160,7 @@ enum DiscoveryFixtureLoader {
         guard let day = pieces.first else { return date }
         let components = day.split(separator: "-")
         guard components.count == 3 else { return date }
-        let time = pieces.last.map { String($0.prefix(5)) } ?? ""
+        let time = pieces.count > 1 ? String(pieces[1].prefix(5)) : ""
         return time.isEmpty
             ? "\(components[0]).\(components[1]).\(components[2])"
             : "\(components[0]).\(components[1]).\(components[2]) \(time)"

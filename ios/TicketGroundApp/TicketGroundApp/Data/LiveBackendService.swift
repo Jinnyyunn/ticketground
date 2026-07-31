@@ -5,6 +5,7 @@ final class LiveBackendService {
     private let decoder: JSONDecoder
     private let contract: LiveAPIContract
     private var capabilities: LiveCapabilityMap
+    private var diagnosedVersionlessState: LiveState?
     private let allowsCapabilityBootstrap: Bool
 
     init(
@@ -69,7 +70,11 @@ final class LiveBackendService {
     }
 
     func getState() async throws -> LiveState {
-        try await get(APIRequest(path: "/api/state"), endpoint: .state, as: LiveState.self)
+        if let diagnosedVersionlessState {
+            self.diagnosedVersionlessState = nil
+            return diagnosedVersionlessState
+        }
+        return try await get(APIRequest(path: "/api/state"), endpoint: .state, as: LiveState.self)
     }
 
     func getCatalog() async throws -> LiveCatalog {
@@ -153,7 +158,7 @@ final class LiveBackendService {
     }
 
     private func diagnoseVersionlessState() async throws -> LiveAPIContractProbe {
-        _ = try await get(
+        diagnosedVersionlessState = try await get(
             APIRequest(path: "/api/state"),
             endpoint: .state,
             bypassCapability: true,

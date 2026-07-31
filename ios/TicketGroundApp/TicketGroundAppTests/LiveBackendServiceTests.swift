@@ -327,7 +327,7 @@ final class LiveBackendServiceTests: XCTestCase {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
+            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19","period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
         ]
         LiveBackendServiceURLProtocol.errors["/api/state"] = .timedOut
         let configuration = URLSessionConfiguration.ephemeral
@@ -345,6 +345,8 @@ final class LiveBackendServiceTests: XCTestCase {
             return XCTFail("Expected healthy catalog content")
         }
         XCTAssertEqual(content.featured.title, "Neon Stage")
+        XCTAssertEqual(content.featured.date, "2026.09.19")
+        XCTAssertEqual(content.rankings.first?.date, "2026.09.19")
         XCTAssertTrue(content.openingSoon.isEmpty)
         XCTAssertTrue(content.calendar.isEmpty)
         XCTAssertFalse(content.shortcuts.contains { $0.label == "당일 공연" })
@@ -849,7 +851,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path },
-            ["/api/health", "/api/state", "/api/state"]
+            ["/api/health", "/api/state"]
         )
     }
 
