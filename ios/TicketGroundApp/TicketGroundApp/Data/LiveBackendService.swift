@@ -58,11 +58,13 @@ final class LiveBackendService {
             bypassCapability: true,
             as: LiveCatalog.self
         )
+        let discoveryRoutesConfirmed = await probeDiscoveryContract()
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
             validatedStateResponse: false,
-            catalogRouteConfirmed: true
+            catalogRouteConfirmed: true,
+            discoveryRoutesConfirmed: discoveryRoutesConfirmed
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -184,6 +186,21 @@ final class LiveBackendService {
             throw APIClientError.invalidResponse
         }
         return response
+    }
+
+    private func probeDiscoveryContract() async -> Bool {
+        do {
+            let response = try await get(
+                APIRequest(path: "/api/discovery/v1/contract"),
+                endpoint: .health,
+                bypassCapability: true,
+                as: LiveDiscoveryContractStatus.self
+            )
+            return response.version == Self.discoveryVersion
+                && Set(response.endpoints) == Set(["regions", "artists", "open-calendar"])
+        } catch {
+            return false
+        }
     }
 
     private func data(

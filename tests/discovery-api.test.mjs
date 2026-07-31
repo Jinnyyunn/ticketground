@@ -16,6 +16,15 @@ test("region discovery returns versioned groups from persisted venues", async (t
   assert.ok(seoul.events.every((event) => event.venueId && event.title));
 });
 
+test("discovery contract advertises additive versioned routes", async (t) => {
+  const server = await startServer(t);
+
+  const response = await api(server.baseUrl, "/api/discovery/v1/contract");
+
+  assert.equal(response.data.version, "1");
+  assert.deepEqual(response.data.endpoints, ["regions", "artists", "open-calendar"]);
+});
+
 test("artist discovery resolves persisted artist identities and rejects unknown slugs", async (t) => {
   const server = await startServer(t);
 
@@ -76,5 +85,29 @@ test("discovery accepts persisted artist identifiers and keeps non-seeded region
   assert.deepEqual(
     regions.regions.map(({ slug, name, eventCount }) => ({ slug, name, eventCount })),
     [{ slug: "busan", name: "부산", eventCount: 1 }]
+  );
+});
+
+test("artist discovery keeps canonical slugs with separators distinct", () => {
+  const events = [
+    { id: "separated", title: "AB-C", artistSlug: "ab-c", casts: ["AB C"] },
+    { id: "compact", title: "ABC", artistSlug: "abc", casts: ["ABC"] }
+  ];
+  const discovery = createDiscoveryBackend({
+    httpError(status, code, message) {
+      return Object.assign(new Error(message), { status, code });
+    },
+    publicCatalog() {
+      return { events, venues: [] };
+    }
+  });
+
+  assert.deepEqual(
+    discovery.publicArtist({}, "ab-c").events.map((event) => event.id),
+    ["separated"]
+  );
+  assert.deepEqual(
+    discovery.publicArtist({}, "abc").events.map((event) => event.id),
+    ["compact"]
   );
 });

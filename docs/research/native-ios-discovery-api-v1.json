@@ -1,7 +1,8 @@
 {
   "contractId": "ticketground-public-discovery-v1",
   "version": "1",
-  "healthContractVersion": "discovery-v1",
+  "healthContractVersion": "78b3c7c",
+  "capabilityPath": "/api/discovery/v1/contract",
   "authentication": "none",
   "qualification": {
     "repository": "verified",

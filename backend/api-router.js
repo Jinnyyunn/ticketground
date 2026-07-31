@@ -108,7 +108,7 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return { status: "UP", version: "discovery-v1" };
+    return { status: "UP", version: "78b3c7c" };
   }
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") {
@@ -121,6 +121,12 @@ async function handleApi(req, res, db, surface) {
     return publicCatalog(db, { limit });
   }
   if (req.method === "GET" && url.pathname === "/api/discovery/v1/regions") return publicRegions(db);
+  if (req.method === "GET" && url.pathname === "/api/discovery/v1/contract") {
+    return {
+      version: "1",
+      endpoints: ["regions", "artists", "open-calendar"]
+    };
+  }
   if (req.method === "GET" && artistDiscoveryMatch) {
     return publicArtist(db, decodeURIComponent(artistDiscoveryMatch[1]));
   }

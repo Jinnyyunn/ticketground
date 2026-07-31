@@ -50,22 +50,26 @@ export function createDiscoveryBackend({ httpError, publicCatalog }) {
 
   function publicArtist(db, requestedSlug) {
     const slug = String(requestedSlug || "").trim();
-    const normalizedSlug = normalizeIdentity(slug);
-    if (!normalizedSlug || slug.length > 200 || /[\u0000-\u001f\u007f]/u.test(slug)) {
+    const canonicalSlug = normalizeArtistSlug(slug);
+    if (!canonicalSlug || slug.length > 200 || /[\u0000-\u001f\u007f]/u.test(slug)) {
       throw httpError(400, "INVALID_ARTIST_SLUG", "아티스트 식별자를 확인해주세요.");
     }
-    const events = catalog(db).events.filter((event) => {
-      const identities = [event.artistSlug, ...(event.casts || [])]
-        .filter(Boolean)
-        .map(normalizeIdentity);
-      return identities.includes(normalizedSlug);
-    });
+    const currentEvents = catalog(db).events;
+    const exactSlugEvents = currentEvents.filter(
+      (event) => normalizeArtistSlug(event.artistSlug) === canonicalSlug
+    );
+    const normalizedCast = normalizeIdentity(slug);
+    const events = exactSlugEvents.length
+      ? exactSlugEvents
+      : currentEvents.filter((event) =>
+          (event.casts || []).some((cast) => normalizeIdentity(cast) === normalizedCast)
+        );
     if (!events.length) {
       throw httpError(404, "ARTIST_NOT_FOUND", "아티스트 공연을 찾을 수 없습니다.");
     }
     const matchedCast = events
       .flatMap((event) => event.casts || [])
-      .find((cast) => normalizeIdentity(cast) === normalizedSlug);
+      .find((cast) => normalizeIdentity(cast) === normalizedCast);
     return {
       version: DISCOVERY_VERSION,
       artist: {
@@ -98,6 +102,10 @@ export function createDiscoveryBackend({ httpError, publicCatalog }) {
 
 function normalizeIdentity(value) {
   return String(value || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function normalizeArtistSlug(value) {
+  return String(value || "").trim().normalize("NFKC").toLocaleLowerCase("ko-KR");
 }
 
 function regionForAddress(address) {

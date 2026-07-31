@@ -71,6 +71,9 @@ test("live menu and catalog expose reachable discovery routes with UI-test respo
     assert.match(contractView, new RegExp(state));
   }
   assert.match(environment, /case discoveryRouteNotFound/);
+  assert.doesNotMatch(environment, /case contractMissing/);
+  assert.doesNotMatch(routeView, /capability-ledger-contract-missing/);
+  assert.match(routeView, /capability-ledger-discovery/);
   assert.match(
     contractView,
     /if case \.server\(status: 404,[\s\S]*?case \.artist = route/
@@ -83,7 +86,8 @@ test("checked-in public discovery contract matches the client paths and version"
   );
 
   assert.equal(contract.version, "1");
-  assert.equal(contract.healthContractVersion, "discovery-v1");
+  assert.equal(contract.healthContractVersion, "78b3c7c");
+  assert.equal(contract.capabilityPath, "/api/discovery/v1/contract");
   assert.equal(contract.authentication, "none");
   assert.equal(contract.qualification.repository, "verified");
   assert.equal(contract.qualification.production, "pending");

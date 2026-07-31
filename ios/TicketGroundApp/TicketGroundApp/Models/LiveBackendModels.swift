@@ -178,7 +178,7 @@ struct LiveAPIContract {
     let bootstrapPath: String = "/api/health"
 
     static let deployed = LiveAPIContract(
-        expectedResponseVersion: "discovery-v1",
+        expectedResponseVersion: "78b3c7c",
         publicHost: URL(string: "http://132.145.109.87:4174")!
     )
 
@@ -186,7 +186,8 @@ struct LiveAPIContract {
         for baseURL: URL,
         observedResponseVersion: String?,
         validatedStateResponse: Bool = false,
-        catalogRouteConfirmed: Bool = false
+        catalogRouteConfirmed: Bool = false,
+        discoveryRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
@@ -200,7 +201,8 @@ struct LiveAPIContract {
                     baseURL: baseURL,
                     diagnostics: diagnostics,
                     validatedStateResponse: validatedStateResponse,
-                    catalogRouteConfirmed: catalogRouteConfirmed
+                    catalogRouteConfirmed: catalogRouteConfirmed,
+                    discoveryRoutesConfirmed: discoveryRoutesConfirmed
                 )
             )
         })
@@ -212,7 +214,8 @@ struct LiveAPIContract {
         baseURL: URL,
         diagnostics: LiveAPIContractDiagnostics,
         validatedStateResponse: Bool,
-        catalogRouteConfirmed: Bool
+        catalogRouteConfirmed: Bool,
+        discoveryRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
@@ -221,6 +224,9 @@ struct LiveAPIContract {
             return .incompatible(expected: expected, observed: observed)
         case .compatible:
             guard endpoint != .catalog || catalogRouteConfirmed else {
+                return .unknown
+            }
+            guard ![.regions, .artist, .openCalendar].contains(endpoint) || discoveryRoutesConfirmed else {
                 return .unknown
             }
             switch endpoint.access {
@@ -299,6 +305,11 @@ struct LiveCatalog: Decodable, Equatable {
 
 protocol LiveDiscoveryVersioned {
     var version: String { get }
+}
+
+struct LiveDiscoveryContractStatus: Decodable, Equatable, LiveDiscoveryVersioned {
+    let version: String
+    let endpoints: [String]
 }
 
 struct LiveRegionDiscovery: Decodable, Equatable, LiveDiscoveryVersioned {

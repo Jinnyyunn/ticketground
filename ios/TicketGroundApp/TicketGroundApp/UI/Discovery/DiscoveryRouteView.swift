@@ -1172,10 +1172,10 @@ private struct CapabilityLedgerView: View {
                     identifier: "capability-ledger-auth"
                 )
                 statusCard(
-                    title: "계약이 없는 탐색 메뉴",
-                    detail: "지역·아티스트·티켓오픈 캘린더는 현재 공개 응답에 필요한 데이터가 없어 임의로 구성하지 않습니다. 홈의 공연 목록에서 지원되는 탐색을 이용해 주세요.",
-                    icon: "questionmark.circle",
-                    identifier: "capability-ledger-contract-missing"
+                    title: "공개 탐색",
+                    detail: "지역·아티스트·티켓오픈 캘린더는 버전 1 공개 Discovery 계약을 별도로 확인한 뒤 표시합니다.",
+                    icon: "checkmark.circle",
+                    identifier: "capability-ledger-discovery"
                 )
                 statusCard(
                     title: "거래 및 인증 기능",

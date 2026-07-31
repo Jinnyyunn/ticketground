@@ -7,7 +7,7 @@ test("public server serves the Next frontend and backend API on one port", async
 
   const health = await api(baseUrl, "/api/health");
   assert.equal(health.data.status, "UP");
-  assert.equal(health.data.version, "discovery-v1");
+  assert.equal(health.data.version, "78b3c7c");
 
   const home = await fetch(`${baseUrl}/`);
   assert.equal(home.status, 200);

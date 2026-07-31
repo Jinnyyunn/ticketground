@@ -68,7 +68,6 @@ enum AppRoute: Hashable, Codable {
 enum AppRouteConnectivity: String, Equatable, Hashable {
     case publicRead
     case externalGate
-    case contractMissing
     case intentionallyUnsupported
 }
 
@@ -995,13 +994,15 @@ private final class UITestLiveHomeAPIClient: APIClient {
             if scenario == .unavailable || (scenario == .recovering && healthRequestCount == 1) {
                 return json("{\"status\":\"ok\",\"version\":null}")
             }
-            return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "discovery-v1")\"}")
+            return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):
             return catalog(events: "[\(event)]")
         case ("/api/catalog", _):
             return scenario == .empty ? catalog(events: "[]") : catalog(events: "[\(event)]")
+        case ("/api/discovery/v1/contract", _):
+            return json("{\"version\":\"1\",\"endpoints\":[\"regions\",\"artists\",\"open-calendar\"]}")
         case ("/api/seat-map", _):
             return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
         case ("/api/discovery/v1/regions", _):
