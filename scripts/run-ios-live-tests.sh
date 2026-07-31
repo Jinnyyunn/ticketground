@@ -149,6 +149,7 @@ if [[ -n "$SHARED_DB" ]]; then
 fi
 DEVICE_ID=""
 SERVER_PID=""
+COMMAND_PID=""
 TEST_STATUS=0
 SIM_LOG="$EVIDENCE_DIR/simulator.log"
 XCODEBUILD_LOG="$EVIDENCE_DIR/xcodebuild.log"
@@ -158,6 +159,17 @@ cleanup() {
   local cleanup_status=$exit_status
   trap - EXIT INT TERM
   set +e
+  if [[ -n "$COMMAND_PID" ]] && kill -0 "$COMMAND_PID" 2>/dev/null; then
+    kill -TERM -- "-$COMMAND_PID" 2>/dev/null
+    for _ in $(seq 1 50); do
+      kill -0 "$COMMAND_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$COMMAND_PID" 2>/dev/null; then
+      kill -KILL -- "-$COMMAND_PID" 2>/dev/null
+    fi
+    wait "$COMMAND_PID" 2>/dev/null
+  fi
   if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
     kill -TERM "$SERVER_PID" 2>/dev/null
     for _ in $(seq 1 100); do
@@ -293,10 +305,14 @@ EOF
 }
 
 set +e
-xcodebuild -project "$PROJECT" -scheme "$SCHEME" -sdk iphonesimulator \
+perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' \
+  xcodebuild -project "$PROJECT" -scheme "$SCHEME" -sdk iphonesimulator \
   -destination "id=$DEVICE_ID" build-for-testing \
-  -derivedDataPath "$EVIDENCE_DIR/DerivedData" 2>&1 | tee "$XCODEBUILD_LOG"
-BUILD_STATUS=${PIPESTATUS[0]}
+  -derivedDataPath "$EVIDENCE_DIR/DerivedData" > >(tee "$XCODEBUILD_LOG") 2>&1 &
+COMMAND_PID=$!
+wait "$COMMAND_PID"
+BUILD_STATUS=$?
+COMMAND_PID=""
 set -e
 if ((BUILD_STATUS != 0)); then
   exit "$BUILD_STATUS"
@@ -310,9 +326,13 @@ fi
 inject_test_environment "$XCTESTRUN"
 
 set +e
-xcodebuild -xctestrun "$XCTESTRUN" -sdk iphonesimulator \
+perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' \
+  xcodebuild -xctestrun "$XCTESTRUN" -sdk iphonesimulator \
   -destination "id=$DEVICE_ID" test-without-building -only-testing:"$TEST_ONLY" \
-  -resultBundlePath "$RESULT_BUNDLE" -derivedDataPath "$EVIDENCE_DIR/DerivedData" 2>&1 | tee -a "$XCODEBUILD_LOG"
-TEST_STATUS=${PIPESTATUS[0]}
+  -resultBundlePath "$RESULT_BUNDLE" -derivedDataPath "$EVIDENCE_DIR/DerivedData" > >(tee -a "$XCODEBUILD_LOG") 2>&1 &
+COMMAND_PID=$!
+wait "$COMMAND_PID"
+TEST_STATUS=$?
+COMMAND_PID=""
 set -e
 exit "$TEST_STATUS"

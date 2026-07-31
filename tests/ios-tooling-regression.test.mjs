@@ -150,6 +150,9 @@ test("live iOS wrapper fails closed when cleanup postconditions are incomplete",
   assert.match(script, /cleanup_status=/);
   assert.match(script, /cleanup_marker="incomplete"/);
   assert.match(script, /trap - EXIT INT TERM/);
+  assert.match(script, /POSIX::setsid/);
+  assert.match(script, /kill -TERM -- "-\$COMMAND_PID"/);
+  assert.match(script, /kill -KILL -- "-\$COMMAND_PID"/);
   assert.match(script, /exit "\$cleanup_status"/);
 });
 
@@ -172,6 +175,21 @@ test("native app does not declare an invalid cleartext IP exception", async () =
 
   assert.doesNotMatch(plist, /NSExceptionAllowsInsecureHTTPLoads/);
   assert.doesNotMatch(plist, /132\.145\.109\.87/);
+});
+
+test("native app Release configuration permits operator-provided signing", async () => {
+  const project = await readFile(
+    path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp.xcodeproj/project.pbxproj"),
+    "utf8"
+  );
+  const releaseConfiguration = project
+    .split("\n")
+    .find((line) => line.includes("A10000000000000000000071 ="));
+
+  assert.ok(releaseConfiguration);
+  assert.match(releaseConfiguration, /CODE_SIGN_STYLE = Automatic/);
+  assert.doesNotMatch(releaseConfiguration, /CODE_SIGNING_ALLOWED = NO/);
+  assert.doesNotMatch(releaseConfiguration, /CODE_SIGNING_REQUIRED = NO/);
 });
 
 test("pull-request CI compiles and tests the native iOS project on macOS", async () => {
