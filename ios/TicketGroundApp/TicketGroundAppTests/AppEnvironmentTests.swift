@@ -129,6 +129,35 @@ final class AppEnvironmentTests: XCTestCase {
         )
     }
 
+    func testBundledAPIEndpointSupportsDistributionWithTestOverrides() {
+        XCTAssertEqual(
+            RuntimeConfiguration.configuredValue(
+                for: "TICKETGROUND_API_BASE_URL",
+                environmentValue: nil,
+                arguments: [],
+                bundledValue: "https://api.ticketground.test/"
+            ),
+            "https://api.ticketground.test/"
+        )
+        XCTAssertEqual(
+            RuntimeConfiguration.configuredValue(
+                for: "TICKETGROUND_API_BASE_URL",
+                environmentValue: "https://environment.ticketground.test/",
+                arguments: ["-TICKETGROUND_API_BASE_URL", "https://argument.ticketground.test/"],
+                bundledValue: "https://bundle.ticketground.test/"
+            ),
+            "https://environment.ticketground.test/"
+        )
+        XCTAssertNil(
+            RuntimeConfiguration.configuredValue(
+                for: "TICKETGROUND_API_BASE_URL",
+                environmentValue: nil,
+                arguments: [],
+                bundledValue: "$(TICKETGROUND_API_BASE_URL)"
+            )
+        )
+    }
+
     func testDisabledLiveClientSurfacesInvalidBaseURL() async {
         let client = DisabledLiveAPIClient(error: .invalidBaseURL)
 

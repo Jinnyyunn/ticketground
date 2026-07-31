@@ -201,15 +201,34 @@ test("native app bundle declares distribution version keys", async () => {
     path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp.xcodeproj/project.pbxproj"),
     "utf8"
   );
+  const appIconContents = JSON.parse(await readFile(
+    path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp/Assets.xcassets/AppIcon.appiconset/Contents.json"),
+    "utf8"
+  ));
+  const appIcon = await readFile(
+    path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png")
+  );
 
   assert.match(plist, /<key>CFBundleShortVersionString<\/key>\s*<string>\$\(MARKETING_VERSION\)<\/string>/);
   assert.match(plist, /<key>CFBundleVersion<\/key>\s*<string>\$\(CURRENT_PROJECT_VERSION\)<\/string>/);
+  assert.match(plist, /<key>TicketgroundAPIBaseURL<\/key>\s*<string>\$\(TICKETGROUND_API_BASE_URL\)<\/string>/);
   for (const configurationID of ["A10000000000000000000070", "A10000000000000000000071"]) {
     const configuration = project.split("\n").find((line) => line.includes(`${configurationID} =`));
     assert.ok(configuration);
+    assert.match(configuration, /ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon/);
     assert.match(configuration, /MARKETING_VERSION = 1\.0/);
     assert.match(configuration, /CURRENT_PROJECT_VERSION = 1/);
+    assert.match(configuration, /TICKETGROUND_API_BASE_URL = ""/);
   }
+  assert.ok(appIconContents.images.some((image) =>
+    image.filename === "AppIcon.png"
+    && image.idiom === "universal"
+    && image.platform === "ios"
+    && image.size === "1024x1024"
+  ));
+  assert.equal(appIcon.readUInt32BE(16), 1_024);
+  assert.equal(appIcon.readUInt32BE(20), 1_024);
+  assert.equal(appIcon[25], 2, "App Store icon must be opaque RGB PNG");
 });
 
 test("published Berlin Philharmonic poster stays within the native response limit", async () => {
@@ -226,6 +245,7 @@ test("pull-request CI compiles and tests the native iOS project on macOS", async
   assert.match(workflow, /runs-on: macos-/);
   assert.match(workflow, /xcodebuild[\s\S]*TicketGroundAppTests/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testHomeRankingAndOpenCalendar/);
+  assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testLiveStateOnlyHomeCanRetryCatalogAdmission/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testLiveCatalogRoutesUseOneUnavailableSurface/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testAdmittedLiveCatalogShowsReadOnlySeatMap/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods/);

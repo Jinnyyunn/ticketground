@@ -928,15 +928,33 @@ enum RuntimeConfiguration {
         return url
     }
 
+    static func configuredValue(
+        for key: String,
+        environmentValue: String?,
+        arguments: [String],
+        bundledValue: String?
+    ) -> String? {
+        let argumentValue = arguments.firstIndex(of: "-\(key)")
+            .flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+        return [environmentValue, argumentValue, bundledValue]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty && !$0.contains("$(") }
+    }
+
     private static func value(for key: String) -> String? {
-        if let environmentValue = ProcessInfo.processInfo.environment[key], !environmentValue.isEmpty {
-            return environmentValue
+        let bundleKey = [
+            "TICKETGROUND_API_BASE_URL": "TicketgroundAPIBaseURL",
+            "TICKETGROUND_ASSET_BASE_URL": "TicketgroundAssetBaseURL"
+        ][key]
+        let bundledValue = bundleKey.flatMap {
+            Bundle.main.object(forInfoDictionaryKey: $0) as? String
         }
-        let arguments = ProcessInfo.processInfo.arguments
-        guard let index = arguments.firstIndex(of: "-\(key)"), arguments.indices.contains(index + 1) else {
-            return nil
-        }
-        return arguments[index + 1]
+        return configuredValue(
+            for: key,
+            environmentValue: ProcessInfo.processInfo.environment[key],
+            arguments: ProcessInfo.processInfo.arguments,
+            bundledValue: bundledValue
+        )
     }
 }
 
