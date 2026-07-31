@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export function createPersistence({
@@ -7,6 +7,7 @@ export function createPersistence({
   hash,
   now,
   sortJson,
+  chmodImpl = chmod,
   writeFileImpl = writeFile,
   renameImpl = rename
 }) {
@@ -18,6 +19,7 @@ export function createPersistence({
     const snapshot = JSON.stringify(db, null, 2);
     const save = saveQueue.then(async () => {
       await writeFileImpl(pendingPath, snapshot, "utf8");
+      await chmodImpl(pendingPath, 0o600);
       await renameImpl(pendingPath, dbPath);
     });
     saveQueue = save.catch(() => {});
