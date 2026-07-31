@@ -87,7 +87,7 @@ struct DiscoverySearchView: View {
                     )
                     .accessibilityIdentifier("search-empty")
                 } else {
-                    LazyVStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                         Text(query.isEmpty ? "추천 공연" : "검색 결과")
                             .font(.title2.weight(.black))
                         ForEach(results) { result in
@@ -792,7 +792,7 @@ private struct LiveDiscoveryRouteView: View {
                     )
                     .accessibilityIdentifier("live-catalog-empty")
                 } else {
-                    VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                    LazyVStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                         Text("LIVE catalog · \(events.count)개")
                             .font(.title2.weight(.black))
                             .foregroundStyle(TicketgroundColor.ink)
