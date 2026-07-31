@@ -158,8 +158,9 @@ test("simulator wrapper fails closed when device cleanup is incomplete", async (
 
   assert.match(script, /cleanup_exit_status=/);
   assert.match(script, /trap - EXIT INT TERM/);
-  assert.match(script, /pkill -TERM -P "\$COMMAND_PID"/);
-  assert.match(script, /kill -KILL "\$COMMAND_PID"/);
+  assert.match(script, /POSIX::setsid/);
+  assert.match(script, /kill -TERM -- "-\$COMMAND_PID"/);
+  assert.match(script, /kill -KILL -- "-\$COMMAND_PID"/);
   assert.match(script, /exit "\$cleanup_exit_status"/);
 });
 
@@ -180,6 +181,7 @@ test("pull-request CI compiles and tests the native iOS project on macOS", async
   assert.match(workflow, /xcodebuild[\s\S]*TicketGroundAppTests/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testHomeRankingAndOpenCalendar/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testLiveCatalogRoutesUseOneUnavailableSurface/);
+  assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testAdmittedLiveCatalogShowsReadOnlySeatMap/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods/);
 });
 
