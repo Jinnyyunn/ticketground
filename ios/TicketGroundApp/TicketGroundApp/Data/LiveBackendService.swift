@@ -196,8 +196,9 @@ final class LiveBackendService {
                 bypassCapability: true,
                 as: LiveDiscoveryContractStatus.self
             )
+            let requiredEndpoints = Set(["regions", "artists", "open-calendar"])
             return response.version == Self.discoveryVersion
-                && Set(response.endpoints) == Set(["regions", "artists", "open-calendar"])
+                && requiredEndpoints.isSubset(of: Set(response.endpoints))
         } catch {
             return false
         }

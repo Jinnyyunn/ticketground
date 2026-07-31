@@ -373,7 +373,7 @@ final class LiveBackendServiceTests: XCTestCase {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8),
-            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar","venues"]}}"#.utf8),
             "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
