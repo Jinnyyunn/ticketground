@@ -40,6 +40,14 @@ test("artist discovery resolves persisted artist identities and rejects unknown 
   assert.equal(missing.error.code, "ARTIST_NOT_FOUND");
 });
 
+test("artist discovery rejects malformed percent escapes as a client error", async (t) => {
+  const server = await startServer(t);
+
+  const response = await api(server.baseUrl, "/api/discovery/v1/artists/%", null, 400);
+
+  assert.equal(response.error.code, "INVALID_ARTIST_SLUG");
+});
+
 test("open calendar derives stable opening dates from persisted performance dates", async (t) => {
   const server = await startServer(t);
 

@@ -72,6 +72,14 @@ function requireBody(body, keys) {
   }
 }
 
+function decodeArtistSlug(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw httpError(400, "INVALID_ARTIST_SLUG", "아티스트 식별자를 확인해주세요.");
+  }
+}
+
 async function parseBody(req) {
   const chunks = [];
   let size = 0;
@@ -128,7 +136,7 @@ async function handleApi(req, res, db, surface) {
     };
   }
   if (req.method === "GET" && artistDiscoveryMatch) {
-    return publicArtist(db, decodeURIComponent(artistDiscoveryMatch[1]));
+    return publicArtist(db, decodeArtistSlug(artistDiscoveryMatch[1]));
   }
   if (req.method === "GET" && url.pathname === "/api/discovery/v1/open-calendar") {
     return publicOpenCalendar(db);
