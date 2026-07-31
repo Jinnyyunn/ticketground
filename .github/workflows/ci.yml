@@ -82,6 +82,7 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device-id }}" \
             -only-testing:TicketGroundAppTests/LiveBackendServiceTests \
             -only-testing:TicketGroundAppTests/AppEnvironmentTests \
+            -only-testing:TicketGroundAppTests/LoadingMediaTests \
             -only-testing:TicketGroundAppTests/TicketGroundAppTests \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testHomeRankingAndOpenCalendar \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveCatalogRoutesUseOneUnavailableSurface \

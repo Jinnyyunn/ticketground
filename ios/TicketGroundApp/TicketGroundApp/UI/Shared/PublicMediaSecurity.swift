@@ -42,8 +42,19 @@ struct MediaResourceResolver {
     private let approvedOrigins: Set<PublicMediaOrigin>
 
     init(baseURL: URL? = nil, approvedOrigins: [URL] = []) {
-        self.baseURL = baseURL
+        self.baseURL = Self.directoryURL(baseURL)
         self.approvedOrigins = Set(([baseURL].compactMap { $0 } + approvedOrigins).compactMap(PublicMediaOrigin.init))
+    }
+
+    private static func directoryURL(_ url: URL?) -> URL? {
+        guard let url,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        if !components.percentEncodedPath.hasSuffix("/") {
+            components.percentEncodedPath += "/"
+        }
+        return components.url
     }
 
     func resolve(_ reference: String?) -> URL? {

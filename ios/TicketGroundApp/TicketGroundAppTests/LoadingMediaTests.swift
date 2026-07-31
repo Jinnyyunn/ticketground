@@ -109,6 +109,17 @@ final class LoadingMediaTests: XCTestCase {
         )
     }
 
+    func testMediaResolverTreatsPathPrefixedBaseWithoutTrailingSlashAsDirectory() {
+        let resolver = MediaResourceResolver(
+            baseURL: URL(string: "https://media.ticketground.test/assets")!
+        )
+
+        XCTAssertEqual(
+            resolver.resolve("posters/show.jpg")?.absoluteString,
+            "https://media.ticketground.test/assets/posters/show.jpg"
+        )
+    }
+
     func testMediaResolverRejectsMissingUnsafeAndEscapingReferences() throws {
         let resolver = MediaResourceResolver(
             baseURL: URL(string: "https://media.ticketground.test/assets/")!
