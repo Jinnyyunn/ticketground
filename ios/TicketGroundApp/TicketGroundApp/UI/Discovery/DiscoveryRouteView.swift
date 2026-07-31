@@ -695,7 +695,7 @@ private struct LiveDiscoveryRouteView: View {
             case .loaded(let catalog):
                 catalogView(catalog)
             case .unavailable:
-                LiveCatalogUnavailableRouteView(route: route)
+                LiveCatalogUnavailableRouteView(route: route, retryCatalog: retry)
             case .failed(let presentation):
                 TicketgroundErrorSurface(
                     title: presentation.title,
@@ -897,8 +897,7 @@ private struct LiveDiscoveryRouteView: View {
 private struct LiveCatalogUnavailableRouteView: View {
     @Environment(AppContainer.self) private var container
     let route: AppRoute
-    @State private var stateSummary = "공개 상태는 홈 화면에서 확인할 수 있습니다."
-    @State private var reloadID = 0
+    let retryCatalog: () -> Void
 
     var body: some View {
         ScrollView {
@@ -916,12 +915,10 @@ private struct LiveCatalogUnavailableRouteView: View {
                 Text("GET /api/catalog 계약이 확인되지 않아 공연 정보를 추정하거나 표시하지 않습니다.")
                     .font(.body)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
-                Text(stateSummary)
+                Text("공개 상태는 홈 화면에서 확인할 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(TicketgroundColor.inkMuted)
-                Button("상태 다시 확인") {
-                    reloadID += 1
-                }
+                Button("공연 정보 다시 확인", action: retryCatalog)
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("live-catalog-unavailable-retry")
                 Button("홈으로") {
@@ -935,18 +932,6 @@ private struct LiveCatalogUnavailableRouteView: View {
         .accessibilityIdentifier("live-catalog-unavailable")
         .navigationTitle(routeTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: reloadID) {
-            await loadState()
-        }
-    }
-
-    private func loadState() async {
-        do {
-            let state = try await LiveBackendService(apiClient: container.environment.apiClient).getState()
-            stateSummary = "공개 상태: 공연 \(state.events.count)건 · 공연장 \(state.venues.count)곳"
-        } catch {
-            stateSummary = "공개 상태를 확인하지 못했습니다. 홈으로 돌아가 다시 시도해 주세요."
-        }
     }
 
     private var routeTitle: String {
@@ -1323,7 +1308,7 @@ private struct LiveSeatMapRouteView: View {
                 )
                 .accessibilityIdentifier("live-route-state")
             case .unavailable:
-                LiveCatalogUnavailableRouteView(route: route)
+                LiveCatalogUnavailableRouteView(route: route, retryCatalog: retry)
             case .loaded(let catalog):
                 seatMapBody(for: catalog)
             }
@@ -1372,7 +1357,8 @@ private struct LiveSeatMapRouteView: View {
     private func loadSeatMap() async {
         guard case .loading = catalogState else { return }
         do {
-            let catalog = try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog()
+            let service = LiveBackendService(apiClient: container.environment.apiClient)
+            let catalog = try await service.getCatalog()
             catalogState = .loaded(catalog)
             guard let event = event(in: catalog) else {
                 seatMapState = .failed("요청한 공연이 GET /api/catalog 결과에 없습니다.")
@@ -1380,7 +1366,7 @@ private struct LiveSeatMapRouteView: View {
             }
             seatMapState = .loading
             seatMapState = .loaded(
-                try await LiveBackendService(apiClient: container.environment.apiClient).getSeatMap(eventID: event.id)
+                try await service.getSeatMap(eventID: event.id)
             )
         } catch {
             if case .loaded = catalogState {
