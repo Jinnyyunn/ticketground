@@ -117,12 +117,15 @@ private final class RedirectingLiveAPIURLProtocol: URLProtocol {
 
 final class AppEnvironmentTests: XCTestCase {
     func testAPIBaseURLRejectsMalformedOperatorConfiguration() {
+        XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: nil))
         XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "not a valid API origin"))
         XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "ftp://ticketground.test"))
         XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "https:///missing-host"))
+        XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "http://132.145.109.87:4174"))
+        XCTAssertNil(RuntimeConfiguration.apiBaseURL(from: "https://api.ticketground.test/v1"))
         XCTAssertEqual(
-            RuntimeConfiguration.apiBaseURL(from: "https://api.ticketground.test/v1")?.absoluteString,
-            "https://api.ticketground.test/v1"
+            RuntimeConfiguration.apiBaseURL(from: "https://api.ticketground.test/")?.absoluteString,
+            "https://api.ticketground.test/"
         )
     }
 

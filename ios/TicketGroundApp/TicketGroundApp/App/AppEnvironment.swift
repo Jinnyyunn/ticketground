@@ -827,7 +827,7 @@ final class AppContainer {
     }
 
     static func live(
-        baseURL: URL = URL(string: "http://132.145.109.87:4174/")!,
+        baseURL: URL,
         assetBaseURL: URL? = nil,
         credentialStore: CredentialStore = KeychainCredentialStore()
     ) -> AppContainer {
@@ -903,12 +903,14 @@ enum RuntimeConfiguration {
     }
 
     static func apiBaseURL(from configured: String?) -> URL? {
-        let value = configured ?? "http://132.145.109.87:4174/"
+        guard let value = configured else { return nil }
         guard let components = URLComponents(string: value),
-              let scheme = components.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
+              components.scheme?.lowercased() == "https",
               let host = components.host,
-              !host.isEmpty else {
+              !host.isEmpty,
+              components.percentEncodedPath.isEmpty || components.percentEncodedPath == "/",
+              components.query == nil,
+              components.fragment == nil else {
             return nil
         }
         return components.url

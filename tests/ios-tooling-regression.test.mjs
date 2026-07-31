@@ -153,6 +153,24 @@ test("live iOS wrapper fails closed when cleanup postconditions are incomplete",
   assert.match(script, /exit "\$cleanup_status"/);
 });
 
+test("simulator wrapper fails closed when device cleanup is incomplete", async () => {
+  const script = await readFile(path.join(repoRoot, "scripts/run-ios-sim-test.sh"), "utf8");
+
+  assert.match(script, /cleanup_exit_status=/);
+  assert.match(script, /trap - EXIT INT TERM/);
+  assert.match(script, /exit "\$cleanup_exit_status"/);
+});
+
+test("native app does not declare an invalid cleartext IP exception", async () => {
+  const plist = await readFile(
+    path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp/Info.plist"),
+    "utf8"
+  );
+
+  assert.doesNotMatch(plist, /NSExceptionAllowsInsecureHTTPLoads/);
+  assert.doesNotMatch(plist, /132\.145\.109\.87/);
+});
+
 test("pull-request CI compiles and tests the native iOS project on macOS", async () => {
   const workflow = await readFile(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
 

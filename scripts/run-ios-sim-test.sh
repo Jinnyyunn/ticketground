@@ -60,6 +60,8 @@ SIMULATOR_LOG="$EVIDENCE_DIR/simulator.log"
 XCODEBUILD_LOG="$EVIDENCE_DIR/xcodebuild.log"
 cleanup() {
   local exit_status=$?
+  local cleanup_exit_status=$exit_status
+  trap - EXIT INT TERM
   set +e
   if [[ -n "$COMMAND_PID" ]]; then
     wait "$COMMAND_PID" 2>/dev/null
@@ -72,19 +74,23 @@ cleanup() {
   if [[ -z "$APP_PATH" ]]; then
     APP_PATH=$(find "$EVIDENCE_DIR" -type d -name '*.app' -print -quit)
   fi
-  local cleanup_status="incomplete"
+  local device_cleanup="incomplete"
   if [[ -n "$DEVICE_ID" ]] && ! xcrun simctl list devices | grep -q "$DEVICE_ID"; then
-    cleanup_status="complete"
+    device_cleanup="complete"
+  else
+    cleanup_exit_status=1
   fi
   {
     printf 'device-id=%s\n' "$DEVICE_ID"
     printf 'destination-id=%s\n' "$DEVICE_ID"
     printf 'app-path=%s\n' "$APP_PATH"
-    printf 'device-cleanup=%s\n' "$cleanup_status"
+    printf 'device-cleanup=%s\n' "$device_cleanup"
   } > "$SIMULATOR_LOG"
-  return "$exit_status"
+  exit "$cleanup_exit_status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 DEVICE_ID=$(xcrun simctl create "TicketGround-iOS-${PPID}-$$" "$DEVICE_TYPE" "$RUNTIME")
 xcrun simctl boot "$DEVICE_ID" >/dev/null
