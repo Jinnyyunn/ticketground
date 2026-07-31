@@ -33,3 +33,15 @@ This manifest is a user-authorized substitute for live backend characterization 
 ## Consumption rule
 
 Todo 3 may consume these fixtures only behind an explicit fixture-mode/data-source marker. A future live adapter requires a new authoritative characterization and real owner sign-off before it can be enabled.
+
+## 별도 공개 탐색 계약
+
+지역별 공연, 아티스트 공연, 티켓오픈 캘린더는 위 가상 fixture 계약에 포함하지 않는다. 이 세 화면은 실제 공개 카탈로그를 소비하는 버전 `1` 계약이며, 상세 정의는 `native-ios-discovery-api-v1.json`에 고정한다.
+
+| Method | Path | 응답 | 인증 |
+| --- | --- | --- | --- |
+| GET | `/api/discovery/v1/regions` | `version`, 지역별 공개 공연 그룹 | 없음 |
+| GET | `/api/discovery/v1/artists/{slug}` | `version`, 아티스트 식별 정보와 공개 공연 | 없음 |
+| GET | `/api/discovery/v1/open-calendar` | `version`, 공개 티켓오픈 일정 | 없음 |
+
+저장된 공개 카탈로그가 유일한 공연 원본이다. iOS 클라이언트는 응답 버전이 `1`이 아니면 계약 오류로 처리하며, 로딩·빈 결과·아티스트 404·서버 오류·재시도 상태를 구분한다. 저장소 테스트와 `ios-native` CI는 내부 구현을 검증하지만 실제 공개 서버의 배포 및 TLS qualification은 별도 운영 증거가 필요하다.

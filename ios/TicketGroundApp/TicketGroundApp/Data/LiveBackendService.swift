@@ -1,6 +1,7 @@
 import Foundation
 
 final class LiveBackendService {
+    private static let discoveryVersion = "1"
     private let apiClient: APIClient
     private let decoder: JSONDecoder
     private let contract: LiveAPIContract
@@ -81,6 +82,30 @@ final class LiveBackendService {
         try await get(APIRequest(path: "/api/catalog"), endpoint: .catalog, as: LiveCatalog.self)
     }
 
+    func getRegions() async throws -> LiveRegionDiscovery {
+        try await getDiscovery(
+            APIRequest(path: "/api/discovery/v1/regions"),
+            endpoint: .regions,
+            as: LiveRegionDiscovery.self
+        )
+    }
+
+    func getArtist(slug: String) async throws -> LiveArtistDiscovery {
+        try await getDiscovery(
+            APIRequest(path: "/api/discovery/v1/artists/\(pathValue(slug))"),
+            endpoint: .artist,
+            as: LiveArtistDiscovery.self
+        )
+    }
+
+    func getOpenCalendar() async throws -> LiveOpenCalendar {
+        try await getDiscovery(
+            APIRequest(path: "/api/discovery/v1/open-calendar"),
+            endpoint: .openCalendar,
+            as: LiveOpenCalendar.self
+        )
+    }
+
     func getSeatMap(eventID: String, performanceDateID: String) async throws -> LiveSeatMap {
         try await get(APIRequest(
             path: "/api/seat-map",
@@ -147,6 +172,18 @@ final class LiveBackendService {
         } catch {
             throw APIClientError.invalidResponse
         }
+    }
+
+    private func getDiscovery<Response: Decodable & LiveDiscoveryVersioned>(
+        _ request: APIRequest,
+        endpoint: LiveAPIEndpoint,
+        as type: Response.Type
+    ) async throws -> Response {
+        let response = try await get(request, endpoint: endpoint, as: type)
+        guard response.version == Self.discoveryVersion else {
+            throw APIClientError.invalidResponse
+        }
+        return response
     }
 
     private func data(

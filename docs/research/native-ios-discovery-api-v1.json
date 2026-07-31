@@ -1,0 +1,42 @@
+{
+  "contractId": "ticketground-public-discovery-v1",
+  "version": "1",
+  "authentication": "none",
+  "qualification": {
+    "repository": "verified",
+    "production": "pending"
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/discovery/v1/regions",
+      "success": {
+        "version": "string",
+        "regions": "array"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/v1/artists/{slug}",
+      "success": {
+        "version": "string",
+        "artist": "object",
+        "events": "array"
+      },
+      "errors": [
+        "INVALID_ARTIST_SLUG",
+        "ARTIST_NOT_FOUND"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/v1/open-calendar",
+      "success": {
+        "version": "string",
+        "entries": "array"
+      }
+    }
+  ],
+  "consumer": "ios/TicketGroundApp/TicketGroundApp/Data/LiveBackendService.swift",
+  "source": "persisted public catalog"
+}

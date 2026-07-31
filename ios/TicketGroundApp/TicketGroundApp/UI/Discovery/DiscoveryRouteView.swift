@@ -712,9 +712,9 @@ private struct LiveDiscoveryRouteView: View {
             LiveWatchlistRouteView()
         case .help, .inquiry:
             LiveSupportRouteView(route: route)
-        case .region, .open:
-            LiveUnsupportedRouteView(route: route)
-        case .signup, .resale, .transfer, .cancel, .checkout, .reservation, .artist:
+        case .region, .artist, .open:
+            LiveDiscoveryContractView(route: route)
+        case .signup, .resale, .transfer, .cancel, .checkout, .reservation:
             LiveUnsupportedRouteView(route: route)
         default:
             LiveUnsupportedRouteView(route: route)
@@ -1052,6 +1052,11 @@ private struct LiveMenuRouteView: View {
                     liveMenuLink(title: "실시간 예매 랭킹", icon: "chart.bar", route: .ranking, identifier: "live-menu-ranking")
                 }
 
+                menuSection(title: "공연 탐색", detail: "지역과 티켓오픈 일정으로 찾아보세요") {
+                    liveMenuLink(title: "지역별 공연", icon: "mappin.and.ellipse", route: .region, identifier: "live-menu-region")
+                    liveMenuLink(title: "티켓오픈 캘린더", icon: "calendar", route: .open, identifier: "live-menu-open-calendar")
+                }
+
                 menuSection(title: "카테고리", detail: "관심 있는 공연을 찾아보세요") {
                     ForEach(categories) { category in
                         liveMenuLink(title: category.title, icon: category.icon, route: category.route, identifier: category.id)
@@ -1268,6 +1273,17 @@ private struct LiveCatalogDetailView: View {
             .buttonStyle(.borderedProminent)
             .tint(TicketgroundColor.accent)
             .accessibilityIdentifier("live-seat-map-link")
+
+            if let artistSlug = event.artistSlug {
+                NavigationLink(value: AppRoute.artist(slug: artistSlug)) {
+                    Label("아티스트 공연 보기", systemImage: "music.mic")
+                        .font(.headline.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.bordered)
+                .tint(TicketgroundColor.accent)
+                .accessibilityIdentifier("live-artist-link")
+            }
         }
     }
 }

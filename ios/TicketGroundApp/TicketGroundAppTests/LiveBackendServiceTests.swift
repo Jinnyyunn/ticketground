@@ -101,6 +101,62 @@ final class LiveBackendServiceTests: XCTestCase {
         })
     }
 
+    func testDiscoveryEndpointsDecodeVersionedPublicResponses() async throws {
+        let event = #"{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venue":"Arena","soldCount":4}"#
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[{"slug":"seoul","name":"서울","eventCount":1,"events":[\#(event)]}]}}"#.utf8),
+            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[\#(event)]}}"#.utf8),
+            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[{"opensAt":"2026-08-20T10:00:00.000Z","saleState":"OPEN_SOON","event":\#(event)}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = compatibleService(for: client)
+
+        let regions = try await service.getRegions()
+        let artist = try await service.getArtist(slug: "iu")
+        let calendar = try await service.getOpenCalendar()
+
+        XCTAssertEqual(regions.version, "1")
+        XCTAssertEqual(regions.regions.first?.slug, "seoul")
+        XCTAssertEqual(artist.artist.name, "IU")
+        XCTAssertEqual(calendar.entries.first?.event.slug, "neon-stage")
+        XCTAssertEqual(
+            Set(LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path)),
+            Set(LiveBackendServiceURLProtocol.responses.keys)
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == nil
+        })
+    }
+
+    func testDiscoveryEndpointRejectsUnexpectedContractVersion() async {
+        LiveBackendServiceURLProtocol.responses["/api/discovery/v1/regions"] =
+            Data(#"{"ok":true,"data":{"version":"2","regions":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await compatibleService(for: client).getRegions()
+            XCTFail("Expected discovery contract mismatch")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testSurfacesBackendErrorAsAPIClientError() async {
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":false,"error":{"code":"BACKEND_DOWN","message":"Backend unavailable"}}"#.utf8)
 

@@ -10,6 +10,9 @@ enum LiveAPIEndpoint: Hashable {
     case health
     case state
     case catalog
+    case regions
+    case artist
+    case openCalendar
     case seatMap
     case session
     case tickets
@@ -33,6 +36,9 @@ enum LiveAPIEndpoint: Hashable {
         .health,
         .state,
         .catalog,
+        .regions,
+        .artist,
+        .openCalendar,
         .seatMap,
         .session,
         .tickets,
@@ -61,7 +67,8 @@ enum LiveAPIEndpoint: Hashable {
             return .post
         case .unknown(let method, _):
             return method
-        case .health, .state, .catalog, .seatMap, .session, .tickets, .watchlist, .supportThreads:
+        case .health, .state, .catalog, .regions, .artist, .openCalendar,
+             .seatMap, .session, .tickets, .watchlist, .supportThreads:
             return .get
         }
     }
@@ -71,6 +78,9 @@ enum LiveAPIEndpoint: Hashable {
         case .health: return "/api/health"
         case .state: return "/api/state"
         case .catalog: return "/api/catalog"
+        case .regions: return "/api/discovery/v1/regions"
+        case .artist: return "/api/discovery/v1/artists/{slug}"
+        case .openCalendar: return "/api/discovery/v1/open-calendar"
         case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
         case .session: return "/api/users/{userId}/session"
         case .tickets: return "/api/users/{userId}/tickets"
@@ -94,7 +104,7 @@ enum LiveAPIEndpoint: Hashable {
 
     var access: LiveAPIEndpointAccess {
         switch self {
-        case .health, .state, .catalog, .seatMap:
+        case .health, .state, .catalog, .regions, .artist, .openCalendar, .seatMap:
             return .publicRead
         case .session, .tickets, .watchlist, .supportThreads:
             return .authenticatedRead
@@ -285,6 +295,44 @@ struct LiveCatalog: Decodable, Equatable {
     let venues: [LiveCatalogVenue]?
     let nextCursor: String?
     let total: Int?
+}
+
+protocol LiveDiscoveryVersioned {
+    var version: String { get }
+}
+
+struct LiveRegionDiscovery: Decodable, Equatable, LiveDiscoveryVersioned {
+    let version: String
+    let regions: [LiveRegionGroup]
+}
+
+struct LiveRegionGroup: Decodable, Equatable {
+    let slug: String
+    let name: String
+    let eventCount: Int
+    let events: [LiveBackendCatalogEvent]
+}
+
+struct LiveArtistDiscovery: Decodable, Equatable, LiveDiscoveryVersioned {
+    let version: String
+    let artist: LiveArtistIdentity
+    let events: [LiveBackendCatalogEvent]
+}
+
+struct LiveArtistIdentity: Decodable, Equatable {
+    let slug: String
+    let name: String
+}
+
+struct LiveOpenCalendar: Decodable, Equatable, LiveDiscoveryVersioned {
+    let version: String
+    let entries: [LiveOpenCalendarEntry]
+}
+
+struct LiveOpenCalendarEntry: Decodable, Equatable {
+    let opensAt: String
+    let saleState: String?
+    let event: LiveBackendCatalogEvent
 }
 
 struct LiveCatalogVenue: Decodable, Equatable {
