@@ -172,7 +172,8 @@ async function handleApi(req, res, db, surface) {
     return seatMap(db, {
       category: url.searchParams.get("category"),
       venueId: url.searchParams.get("venueId"),
-      eventId: url.searchParams.get("eventId")
+      eventId: url.searchParams.get("eventId"),
+      performanceDateId: url.searchParams.get("performanceDateId")
     });
   }
   if (req.method === "GET" && seatMapMatch) return venueMapForEvent(db, decodeURIComponent(seatMapMatch[1]));

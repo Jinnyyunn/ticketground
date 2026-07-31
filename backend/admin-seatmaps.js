@@ -74,9 +74,16 @@ function resolveVenue(db, venueId) {
   return venue;
 }
 
-function seatMap(db, { category, venueId, eventId }) {
+function seatMap(db, { category, venueId, eventId, performanceDateId }) {
   const event = eventId ? db.events.find((item) => item.id === eventId) : db.events[0];
   if (!event) throw httpError(404, "EVENT_NOT_FOUND", "공연을 찾을 수 없습니다.");
+  if (!performanceDateId) {
+    throw httpError(400, "MISSING_FIELD", "performanceDateId 값이 필요합니다.");
+  }
+  const performanceDate = event.dates?.find((item) => item.id === performanceDateId);
+  if (!performanceDate) {
+    throw httpError(404, "EVENT_DATE_NOT_FOUND", "예매 날짜를 찾을 수 없습니다.");
+  }
   const venue = venueId ? resolveVenue(db, venueId) : resolveVenue(db, event.venueId);
   const adminVenue = adminVenueRecord(venue);
   const zones = event.zones.map((zone) => ({
@@ -84,10 +91,15 @@ function seatMap(db, { category, venueId, eventId }) {
     name: zone.name,
     price: zone.faceValue,
     available: db.tickets.filter((ticket) =>
-      ticket.eventId === event.id && ticket.zoneId === zone.id && ticket.status === "ON_SALE"
+      ticket.eventId === event.id
+      && ticket.performanceDateId === performanceDate.id
+      && ticket.zoneId === zone.id
+      && ticket.status === "ON_SALE"
     ).length
   }));
-  const eventTickets = db.tickets.filter((ticket) => ticket.eventId === event.id);
+  const eventTickets = db.tickets.filter((ticket) =>
+    ticket.eventId === event.id && ticket.performanceDateId === performanceDate.id
+  );
   const seats = eventTickets.map((ticket, index) => {
     const zone = event.zones.find((item) => item.id === ticket.zoneId);
     const angle = (index / Math.max(eventTickets.length, 1)) * Math.PI * 2 - Math.PI / 2;
@@ -113,7 +125,7 @@ function seatMap(db, { category, venueId, eventId }) {
   });
   return {
     category: category || adminVenue.category,
-    date: event.dates?.[0]?.startsAt || event.date,
+    date: performanceDate.startsAt,
     event: {
       id: event.id,
       title: event.title,

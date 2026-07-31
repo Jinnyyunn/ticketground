@@ -1294,6 +1294,7 @@ private struct LiveCatalogEventRow: View {
 
 private enum LiveSeatMapRouteState {
     case loading
+    case awaitingPerformance
     case loaded(LiveSeatMap)
     case failed(String)
 }
@@ -1303,6 +1304,7 @@ private struct LiveSeatMapRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var catalogState: LiveCatalogRouteState = .loading
     @State private var seatMapState: LiveSeatMapRouteState = .loading
+    @State private var selectedPerformanceDateID: String?
     @State private var reloadID = 0
 
     var body: some View {
@@ -1344,6 +1346,10 @@ private struct LiveSeatMapRouteView: View {
                 case .loading:
                     TicketgroundLoadingSurface(title: "좌석 현황 불러오는 중")
                         .accessibilityIdentifier("live-seat-map-loading")
+                case .awaitingPerformance:
+                    if let event = event(in: catalog) {
+                        performanceSelector(for: event)
+                    }
                 case .failed(let message):
                     TicketgroundErrorSurface(
                         title: "좌석 현황을 표시할 수 없습니다",
@@ -1353,6 +1359,9 @@ private struct LiveSeatMapRouteView: View {
                     )
                     .accessibilityIdentifier("live-seat-map-error")
                 case .loaded(let seatMap):
+                    if let event = event(in: catalog), performanceOptions(for: event).count > 1 {
+                        performanceSelector(for: event)
+                    }
                     LiveSeatMapContent(seatMap: seatMap)
                 }
             }
@@ -1376,10 +1385,17 @@ private struct LiveSeatMapRouteView: View {
                 seatMapState = .failed("요청한 공연이 GET /api/catalog 결과에 없습니다.")
                 return
             }
-            seatMapState = .loading
-            seatMapState = .loaded(
-                try await service.getSeatMap(eventID: event.id)
-            )
+            let options = performanceOptions(for: event)
+            guard !options.isEmpty else {
+                seatMapState = .failed("좌석 현황을 조회할 공연 회차 정보가 없습니다.")
+                return
+            }
+            guard options.count == 1, let performanceDateID = options.first?.id else {
+                seatMapState = .awaitingPerformance
+                return
+            }
+            selectedPerformanceDateID = performanceDateID
+            await loadSeatMap(eventID: event.id, performanceDateID: performanceDateID)
         } catch {
             if case .loaded = catalogState {
                 seatMapState = .failed("GET /api/seat-map?eventId=... 요청에 실패했습니다: \(error.localizedDescription)")
@@ -1391,9 +1407,69 @@ private struct LiveSeatMapRouteView: View {
         }
     }
 
+    private func loadSeatMap(eventID: String, performanceDateID: String) async {
+        do {
+            seatMapState = .loading
+            let service = LiveBackendService(apiClient: container.environment.apiClient)
+            seatMapState = .loaded(
+                try await service.getSeatMap(
+                    eventID: eventID,
+                    performanceDateID: performanceDateID
+                )
+            )
+        } catch {
+            seatMapState = .failed(
+                "GET /api/seat-map?eventId=...&performanceDateId=... 요청에 실패했습니다: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func performanceSelector(for event: LiveBackendCatalogEvent) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text("관람 회차")
+                .font(.headline.weight(.black))
+            Text("좌석 현황을 확인할 회차를 선택해주세요.")
+                .font(.subheadline)
+                .foregroundStyle(TicketgroundColor.inkMuted)
+            ForEach(performanceOptions(for: event), id: \.id) { option in
+                Button(option.label) {
+                    selectedPerformanceDateID = option.id
+                    Task {
+                        await loadSeatMap(eventID: event.id, performanceDateID: option.id)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(
+                    selectedPerformanceDateID == option.id
+                        ? TicketgroundColor.accent
+                        : TicketgroundColor.inkMuted
+                )
+                .accessibilityIdentifier("live-seat-performance-\(option.id)")
+            }
+        }
+        .accessibilityIdentifier("live-seat-performance-selector")
+    }
+
+    private func performanceOptions(
+        for event: LiveBackendCatalogEvent
+    ) -> [(id: String, label: String)] {
+        (event.dates ?? []).compactMap { performance in
+            guard let id = performance.id else { return nil }
+            return (
+                id: id,
+                label: performance.label
+                    ?? performance.startsAt
+                    ?? performance.date
+                    ?? id
+            )
+        }
+    }
+
     private func retry() {
         catalogState = .loading
         seatMapState = .loading
+        selectedPerformanceDateID = nil
         reloadID += 1
     }
 
@@ -1460,7 +1536,7 @@ private struct LiveSeatMapContent: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            LazyVStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                 Text("좌석별 상태")
                     .font(.headline.weight(.black))
                 ForEach(seatMap.seats, id: \.id) { seat in

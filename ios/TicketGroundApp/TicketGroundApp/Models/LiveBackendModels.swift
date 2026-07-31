@@ -71,7 +71,7 @@ enum LiveAPIEndpoint: Hashable {
         case .health: return "/api/health"
         case .state: return "/api/state"
         case .catalog: return "/api/catalog"
-        case .seatMap: return "/api/seat-map?eventId={eventId}"
+        case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
         case .session: return "/api/users/{userId}/session"
         case .tickets: return "/api/users/{userId}/tickets"
         case .watchlist: return "/api/users/{userId}/watchlist"

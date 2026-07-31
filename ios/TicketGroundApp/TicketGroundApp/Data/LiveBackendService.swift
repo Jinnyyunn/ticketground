@@ -81,10 +81,13 @@ final class LiveBackendService {
         try await get(APIRequest(path: "/api/catalog"), endpoint: .catalog, as: LiveCatalog.self)
     }
 
-    func getSeatMap(eventID: String) async throws -> LiveSeatMap {
+    func getSeatMap(eventID: String, performanceDateID: String) async throws -> LiveSeatMap {
         try await get(APIRequest(
             path: "/api/seat-map",
-            query: [APIRequestQuery(name: "eventId", value: eventID)]
+            query: [
+                APIRequestQuery(name: "eventId", value: eventID),
+                APIRequestQuery(name: "performanceDateId", value: performanceDateID)
+            ]
         ), endpoint: .seatMap, as: LiveSeatMap.self)
     }
 
