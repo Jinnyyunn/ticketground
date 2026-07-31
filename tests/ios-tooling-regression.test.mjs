@@ -192,6 +192,26 @@ test("native app Release configuration permits operator-provided signing", async
   assert.doesNotMatch(releaseConfiguration, /CODE_SIGNING_REQUIRED = NO/);
 });
 
+test("native app bundle declares distribution version keys", async () => {
+  const plist = await readFile(
+    path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp/Info.plist"),
+    "utf8"
+  );
+  const project = await readFile(
+    path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp.xcodeproj/project.pbxproj"),
+    "utf8"
+  );
+
+  assert.match(plist, /<key>CFBundleShortVersionString<\/key>\s*<string>\$\(MARKETING_VERSION\)<\/string>/);
+  assert.match(plist, /<key>CFBundleVersion<\/key>\s*<string>\$\(CURRENT_PROJECT_VERSION\)<\/string>/);
+  for (const configurationID of ["A10000000000000000000070", "A10000000000000000000071"]) {
+    const configuration = project.split("\n").find((line) => line.includes(`${configurationID} =`));
+    assert.ok(configuration);
+    assert.match(configuration, /MARKETING_VERSION = 1\.0/);
+    assert.match(configuration, /CURRENT_PROJECT_VERSION = 1/);
+  }
+});
+
 test("published Berlin Philharmonic poster stays within the native response limit", async () => {
   const poster = await readFile(
     path.join(repoRoot, "public/images/real-posters/berlin-phil.jpg")
