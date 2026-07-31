@@ -64,6 +64,14 @@ cleanup() {
   trap - EXIT INT TERM
   set +e
   if [[ -n "$COMMAND_PID" ]]; then
+    pkill -TERM -P "$COMMAND_PID" 2>/dev/null
+    kill -TERM "$COMMAND_PID" 2>/dev/null
+    for _ in $(seq 1 50); do
+      kill -0 "$COMMAND_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    pkill -KILL -P "$COMMAND_PID" 2>/dev/null
+    kill -KILL "$COMMAND_PID" 2>/dev/null
     wait "$COMMAND_PID" 2>/dev/null
   fi
   if [[ -n "$DEVICE_ID" ]]; then

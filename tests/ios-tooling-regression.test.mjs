@@ -158,6 +158,8 @@ test("simulator wrapper fails closed when device cleanup is incomplete", async (
 
   assert.match(script, /cleanup_exit_status=/);
   assert.match(script, /trap - EXIT INT TERM/);
+  assert.match(script, /pkill -TERM -P "\$COMMAND_PID"/);
+  assert.match(script, /kill -KILL "\$COMMAND_PID"/);
   assert.match(script, /exit "\$cleanup_exit_status"/);
 });
 
