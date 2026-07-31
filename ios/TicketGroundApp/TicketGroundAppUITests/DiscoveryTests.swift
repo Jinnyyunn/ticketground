@@ -323,7 +323,7 @@ final class DiscoveryTests: XCTestCase {
         artist.buttons["discovery-featured-cta"].tap()
         XCTAssertTrue(artist.buttons["live-artist-link"].waitForExistence(timeout: 10))
         artist.buttons["live-artist-link"].tap()
-        XCTAssertTrue(anyElement(artist, identifier: "live-discovery-artist-neon-artist").waitForExistence(timeout: 10))
+        XCTAssertTrue(artist.staticTexts["Neon Artist"].waitForExistence(timeout: 10))
     }
 
     func testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates() {
@@ -333,7 +333,7 @@ final class DiscoveryTests: XCTestCase {
         empty.buttons["header-mypage"].tap()
         XCTAssertTrue(empty.buttons["live-menu-region"].waitForExistence(timeout: 10))
         empty.buttons["live-menu-region"].tap()
-        XCTAssertTrue(anyElement(empty, identifier: "live-discovery-empty").waitForExistence(timeout: 10))
+        XCTAssertTrue(empty.staticTexts["현재 공개된 지역별 공연이 없습니다."].waitForExistence(timeout: 10))
 
         let notFound = liveApp(homeScenario: "discoveryNotFound")
         notFound.launch()
@@ -341,7 +341,7 @@ final class DiscoveryTests: XCTestCase {
         notFound.buttons["discovery-featured-cta"].tap()
         XCTAssertTrue(notFound.buttons["live-artist-link"].waitForExistence(timeout: 10))
         notFound.buttons["live-artist-link"].tap()
-        XCTAssertTrue(anyElement(notFound, identifier: "live-discovery-not-found").waitForExistence(timeout: 10))
+        XCTAssertTrue(notFound.staticTexts["아티스트를 찾을 수 없습니다"].waitForExistence(timeout: 10))
 
         let failure = liveApp(homeScenario: "discoveryFailure")
         failure.launch()
@@ -349,7 +349,7 @@ final class DiscoveryTests: XCTestCase {
         failure.buttons["header-mypage"].tap()
         XCTAssertTrue(failure.buttons["live-menu-region"].waitForExistence(timeout: 10))
         failure.buttons["live-menu-region"].tap()
-        XCTAssertTrue(anyElement(failure, identifier: "live-discovery-error").waitForExistence(timeout: 10))
+        XCTAssertTrue(failure.staticTexts["공연 정보를 불러올 수 없습니다"].waitForExistence(timeout: 10))
     }
 
     func testLiveLoginDoesNotCreateFixtureUser() {
