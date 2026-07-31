@@ -162,6 +162,20 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(app.buttons["live-seat-map-link"].exists)
     }
 
+    func testLiveStateOnlyHomeCanRetryCatalogAdmission() {
+        let app = liveApp(homeScenario: "recovering")
+        app.launch()
+
+        XCTAssertTrue(anyElement(app, identifier: "live-state-home").waitForExistence(timeout: 10))
+        let retry = app.buttons["live-state-home-retry"]
+        XCTAssertTrue(retry.exists)
+        retry.tap()
+
+        XCTAssertTrue(app.staticTexts["LIVE BACKEND"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Neon Stage"].exists)
+        XCTAssertFalse(anyElement(app, identifier: "live-state-home").exists)
+    }
+
     func testLiveHomeShowsAdmittedCatalogContent() {
         let app = liveApp(homeScenario: "catalog")
         app.launch()

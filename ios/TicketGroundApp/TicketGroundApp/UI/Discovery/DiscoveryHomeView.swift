@@ -24,6 +24,7 @@ struct DiscoveryHomeView: View {
 
 struct LiveStateOnlyHomeView: View {
     let state: LiveState
+    let retryCatalog: () -> Void
 
     var body: some View {
         TicketgroundSurface(tone: .standard) {
@@ -49,6 +50,9 @@ struct LiveStateOnlyHomeView: View {
                 Text("GET /api/catalog 계약이 확인되지 않아 공연 정보를 추정하거나 표시하지 않습니다.")
                     .font(.footnote)
                     .foregroundStyle(TicketgroundColor.inkMuted)
+                Button("공연 정보 다시 확인", action: retryCatalog)
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("live-state-home-retry")
             }
         }
         .accessibilityIdentifier("live-state-home")

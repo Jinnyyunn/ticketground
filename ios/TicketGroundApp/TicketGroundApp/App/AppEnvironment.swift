@@ -947,12 +947,14 @@ private enum UITestLiveHomeScenario: String {
     case rateLimited
     case incompatible
     case unavailable
+    case recovering
 }
 
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
     let baseURL: URL? = URL(string: "http://ui-test.ticketground.invalid/")
     private let scenario: UITestLiveHomeScenario
+    private var healthRequestCount = 0
 
     init(scenario: UITestLiveHomeScenario) {
         self.scenario = scenario
@@ -967,7 +969,8 @@ private final class UITestLiveHomeAPIClient: APIClient {
         }
         switch (request.path, request.query) {
         case ("/api/health", _):
-            if scenario == .unavailable {
+            healthRequestCount += 1
+            if scenario == .unavailable || (scenario == .recovering && healthRequestCount == 1) {
                 return json("{\"status\":\"ok\",\"version\":null}")
             }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")

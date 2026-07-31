@@ -33,7 +33,13 @@ struct ContentView: View {
                             if let discoveryContent {
                                 DiscoveryHomeView(content: discoveryContent)
                             } else if let liveState {
-                                LiveStateOnlyHomeView(state: liveState)
+                                LiveStateOnlyHomeView(
+                                    state: liveState,
+                                    retryCatalog: {
+                                        self.liveState = nil
+                                        discoveryReloadRequest += 1
+                                    }
+                                )
                             } else if discoveryLoadEmpty {
                                 TicketgroundEmptySurface(
                                     title: "공연이 없습니다",
