@@ -32,6 +32,7 @@ struct LiveStateOnlyHomeView: View {
                 Text("공개 상태 조회")
                     .font(.title2.weight(.black))
                     .foregroundStyle(TicketgroundColor.ink)
+                    .accessibilityIdentifier("live-state-home")
                 Text("GET /api/state 응답")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(TicketgroundColor.accent)
@@ -55,7 +56,6 @@ struct LiveStateOnlyHomeView: View {
                     .accessibilityIdentifier("live-state-home-retry")
             }
         }
-        .accessibilityIdentifier("live-state-home")
     }
 }
 
