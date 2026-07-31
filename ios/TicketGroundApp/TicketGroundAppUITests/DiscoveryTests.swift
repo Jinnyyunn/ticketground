@@ -106,7 +106,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["menu-screen-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["menu-login"].exists)
         XCTAssertTrue(app.buttons["menu-signup"].exists)
-        XCTAssertTrue(app.switches["menu-theme-toggle"].exists)
+        XCTAssertFalse(app.switches["menu-theme-toggle"].exists)
         XCTAssertTrue(app.buttons["menu-category-concert"].exists)
         XCTAssertTrue(app.buttons["menu-category-musical"].exists)
         XCTAssertTrue(app.buttons["menu-calendar"].exists)
@@ -230,6 +230,9 @@ final class DiscoveryTests: XCTestCase {
         search.textFields["live-search-input"].typeText("\n")
         XCTAssertTrue(search.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(search, identifier: "live-catalog-unavailable").exists)
+        search.buttons["live-catalog-event-link-live-neon"].tap()
+        XCTAssertTrue(search.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(search, identifier: "live-seat-map").exists)
 
         let ranking = liveApp(homeScenario: "catalog")
         ranking.launch()

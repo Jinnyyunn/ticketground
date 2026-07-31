@@ -305,7 +305,6 @@ struct DiscoveryLoginView: View {
 
 struct DiscoveryMenuView: View {
     @Environment(AppContainer.self) private var container
-    @State private var lightMode = true
 
     private struct MenuItem: Identifiable {
         let id: String
@@ -412,19 +411,6 @@ struct DiscoveryMenuView: View {
 
                 menuSection(title: "서비스 안내", detail: "현재 연결 상태를 확인하세요") {
                     menuLink(title: "서비스 연결 현황", icon: "checklist", route: .capabilityLedger, identifier: "menu-capability-ledger")
-                }
-
-                TicketgroundSurface(tone: .muted) {
-                    HStack {
-                        Label("화면 모드", systemImage: lightMode ? "sun.max" : "moon")
-                            .font(.subheadline.weight(.bold))
-                        Spacer()
-                        Toggle("라이트 모드", isOn: $lightMode)
-                            .labelsHidden()
-                            .tint(TicketgroundColor.accent)
-                            .accessibilityIdentifier("menu-theme-toggle")
-                            .accessibilityLabel("라이트 모드")
-                    }
                 }
 
                 Text("웹 서비스와 동일한 메뉴 구조 · fixture 모드")
@@ -580,6 +566,7 @@ struct DiscoveryCalendarGrid: View {
 
     var body: some View {
         let entriesByDay = Dictionary(grouping: calendar, by: \.day)
+        let leadingEmptyDays = DiscoveryCalendarLayout.leadingEmptyDays(year: 2026, month: 7)
         VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
             Text("월별 캘린더")
                 .font(.title2.weight(.black))
@@ -591,6 +578,11 @@ struct DiscoveryCalendarGrid: View {
                         .foregroundStyle(TicketgroundColor.inkMuted)
                         .frame(maxWidth: .infinity, minHeight: 32)
                         .background(TicketgroundColor.surfaceMuted)
+                }
+                ForEach(0..<leadingEmptyDays, id: \.self) { _ in
+                    Color.clear
+                        .frame(minHeight: 84)
+                        .accessibilityHidden(true)
                 }
                 ForEach(1...31, id: \.self) { day in
                     VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
@@ -626,9 +618,21 @@ struct DiscoveryCalendarGrid: View {
     }
 }
 
+enum DiscoveryCalendarLayout {
+    static func leadingEmptyDays(year: Int, month: Int) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        guard let firstDay = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else {
+            return 0
+        }
+        return (calendar.component(.weekday, from: firstDay) + 5) % 7
+    }
+}
+
 private enum LiveCatalogRouteState {
     case loading
     case loaded(LiveCatalog)
+    case unavailable
     case failed(PublicReadPresentation)
 }
 
@@ -690,6 +694,8 @@ private struct LiveDiscoveryRouteView: View {
                     .accessibilityIdentifier("live-route-state")
             case .loaded(let catalog):
                 catalogView(catalog)
+            case .unavailable:
+                LiveCatalogUnavailableRouteView(route: route)
             case .failed(let presentation):
                 TicketgroundErrorSurface(
                     title: presentation.title,
@@ -784,7 +790,11 @@ private struct LiveDiscoveryRouteView: View {
         do {
             state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog())
         } catch {
-            state = .failed(PublicReadPresentation.resolve(error))
+            if error as? APIClientError == .capabilityUnavailable(endpoint: .catalog, state: .unknown) {
+                state = .unavailable
+            } else {
+                state = .failed(PublicReadPresentation.resolve(error))
+            }
         }
     }
 
@@ -1251,7 +1261,7 @@ private struct LiveCatalogEventRow: View {
     @Environment(AppContainer.self) private var container
 
     var body: some View {
-        NavigationLink(value: AppRoute.queue(slug: event.slug ?? event.id)) {
+        NavigationLink(value: AppRoute.goods(slug: event.slug ?? event.id)) {
             HStack(alignment: .top, spacing: TicketgroundSpacing.md) {
                 TicketgroundMediaImage(
                     resource: container.environment.apiClient.resolveResource(event.image),
@@ -1312,6 +1322,8 @@ private struct LiveSeatMapRouteView: View {
                     action: retry
                 )
                 .accessibilityIdentifier("live-route-state")
+            case .unavailable:
+                LiveCatalogUnavailableRouteView(route: route)
             case .loaded(let catalog):
                 seatMapBody(for: catalog)
             }
@@ -1373,6 +1385,8 @@ private struct LiveSeatMapRouteView: View {
         } catch {
             if case .loaded = catalogState {
                 seatMapState = .failed("GET /api/seat-map?eventId=... 요청에 실패했습니다: \(error.localizedDescription)")
+            } else if error as? APIClientError == .capabilityUnavailable(endpoint: .catalog, state: .unknown) {
+                catalogState = .unavailable
             } else {
                 catalogState = .failed(PublicReadPresentation.resolve(error))
             }

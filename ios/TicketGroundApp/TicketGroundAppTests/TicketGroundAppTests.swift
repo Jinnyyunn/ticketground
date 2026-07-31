@@ -18,4 +18,8 @@ final class TicketGroundAppTests: XCTestCase {
             .accessibilityExtraExtraExtraLarge
         )
     }
+
+    func testJuly2026CalendarStartsOnWednesday() {
+        XCTAssertEqual(DiscoveryCalendarLayout.leadingEmptyDays(year: 2026, month: 7), 2)
+    }
 }
