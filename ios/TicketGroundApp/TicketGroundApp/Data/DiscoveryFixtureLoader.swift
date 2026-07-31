@@ -22,18 +22,16 @@ enum DiscoveryFixtureLoader {
 
     static func loadLive(using apiClient: APIClient) async throws -> LiveDiscoveryHomeContent {
         let service = LiveBackendService(apiClient: apiClient)
-        let state = try await service.getState()
-        let catalog: LiveCatalog
         do {
-            catalog = try await service.getCatalog()
+            let catalog = try await service.getCatalog()
+            guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
+            return .catalog(try map(catalog.events, using: apiClient))
         } catch let error as APIClientError {
             guard error == .capabilityUnavailable(endpoint: .catalog, state: .unknown) else {
                 throw error
             }
-            return .stateOnly(state)
+            return .stateOnly(try await service.getState())
         }
-        guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
-        return .catalog(try map(catalog.events, using: apiClient))
     }
 
     private static func map(_ body: DiscoveryFixtureBody) throws -> DiscoveryContent {
@@ -106,7 +104,6 @@ enum DiscoveryFixtureLoader {
             .prefix(10)
             .enumerated()
             .map { index, event in try ranking(event, rank: index + 1, using: apiClient) }
-        let openingSoon = try events.prefix(4).map { try opening($0) }
         let shortcuts = [
             DiscoveryShortcut(label: "지방 공연", helper: "부산·대구·광주", route: .region),
             DiscoveryShortcut(label: "대학로", helper: "소극장 신작", route: .genre(name: "musical")),
@@ -115,8 +112,7 @@ enum DiscoveryFixtureLoader {
             DiscoveryShortcut(label: "오픈캘린더", helper: "D-3 알림", route: .open),
             DiscoveryShortcut(label: "당일 공연", helper: "오늘 입장 가능", route: .search)
         ]
-        let calendar = try events.prefix(4).map { try calendarLive($0) }
-        return DiscoveryContent(categories: categories, featured: featured, supporting: supporting, rankings: rankings, openingSoon: openingSoon, shortcuts: shortcuts, calendar: calendar)
+        return DiscoveryContent(categories: categories, featured: featured, supporting: supporting, rankings: rankings, openingSoon: [], shortcuts: shortcuts, calendar: [])
     }
 
     private static func featuredLive(_ event: LiveBackendCatalogEvent, eyebrow: String, using apiClient: APIClient) throws -> DiscoveryFeatured {
@@ -142,34 +138,6 @@ enum DiscoveryFixtureLoader {
             delta: "-",
             route: .goods(slug: event.slug ?? event.id),
             imageResource: apiClient.resolveResource(event.image)
-        )
-    }
-
-    private static func opening(_ event: LiveBackendCatalogEvent) throws -> DiscoveryOpening {
-        let components = event.date?.split(separator: "-") ?? []
-        let month = components.count > 1 ? String(Int(components[1]) ?? 0) : "-"
-        let day = components.count > 2 ? String(Int(components[2].prefix(2)) ?? 0) : "-"
-        return DiscoveryOpening(
-            month: month,
-            day: day,
-            time: event.date?.split(separator: "T").last.map { String($0.prefix(5)) } ?? "-",
-            title: event.title,
-            round: event.sale?.note ?? "일반예매",
-            dday: event.sale?.label ?? "오픈 예정",
-            genre: displayCategory(event.category),
-            route: .goods(slug: event.slug ?? event.id),
-            alertRoute: .watchlist
-        )
-    }
-
-    private static func calendarLive(_ event: LiveBackendCatalogEvent) throws -> DiscoveryCalendar {
-        let day = Int(event.date?.split(separator: "-").last?.prefix(2) ?? "") ?? 0
-        return DiscoveryCalendar(
-            day: day,
-            title: event.title,
-            genre: displayCategory(event.category),
-            openingStatus: event.sale?.note ?? "일반예매",
-            route: .goods(slug: event.slug ?? event.id)
         )
     }
 

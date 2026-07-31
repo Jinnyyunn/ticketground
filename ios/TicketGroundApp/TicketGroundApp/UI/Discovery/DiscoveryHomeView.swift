@@ -10,8 +10,10 @@ struct DiscoveryHomeView: View {
                 .padding(.top, TicketgroundSpacing.xl)
             DiscoveryRankingSection(rankings: content.rankings)
                 .padding(.top, TicketgroundSpacing.xxl)
-            DiscoveryOpeningSection(openingSoon: content.openingSoon)
-                .padding(.top, TicketgroundSpacing.xxl)
+            if !content.openingSoon.isEmpty {
+                DiscoveryOpeningSection(openingSoon: content.openingSoon)
+                    .padding(.top, TicketgroundSpacing.xxl)
+            }
             DiscoveryShortcutsSection(shortcuts: content.shortcuts)
                 .padding(.top, TicketgroundSpacing.xxl)
         }
