@@ -326,6 +326,16 @@ final class LiveBackendServiceTests: XCTestCase {
             incompatible.state(for: .catalog),
             .incompatible(expected: LiveAPIContract.deployed.expectedResponseVersion, observed: "future-contract")
         )
+
+        let legacy = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: "78b3c7c",
+            catalogRouteConfirmed: true
+        )
+        XCTAssertEqual(
+            legacy.state(for: .regions),
+            .incompatible(expected: "discovery-v1", observed: "78b3c7c")
+        )
     }
 
     func testCapabilityMapRequiresExplicitCatalogRouteConfirmation() {
@@ -352,7 +362,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testCatalogAdmissionUsesHealthThenBoundedCatalogProbe() async throws {
         LiveBackendServiceURLProtocol.responses = [
-            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"discovery-v1"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8),
             "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
         ]
@@ -381,7 +391,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testLiveHomeLoadsHealthyCatalogWithoutDependingOnState() async throws {
         LiveBackendServiceURLProtocol.responses = [
-            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"discovery-v1"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
             "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19","period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
         ]
@@ -452,7 +462,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         LiveBackendServiceURLProtocol.responses = [
-            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"discovery-v1"}}"#.utf8),
             "/api/catalog?limit=1": Data("{".utf8)
         ]
         let service = LiveBackendService(apiClient: client)
@@ -476,7 +486,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testCatalogAdmissionAcceptsEmptyProbeAndReturnsEmptyCatalog() async throws {
         LiveBackendServiceURLProtocol.responses = [
-            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"discovery-v1"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
             "/api/catalog": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
         ]
@@ -963,7 +973,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testLiveHomeSurfacesTransientCatalogFailureAfterSuccessfulAdmission() async {
         LiveBackendServiceURLProtocol.responses = [
-            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"discovery-v1"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
             "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         ]

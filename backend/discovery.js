@@ -3,9 +3,25 @@ const OPEN_LEAD_TIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 const REGION_BY_ADDRESS_PREFIX = new Map([
   ["서울특별시", { slug: "seoul", name: "서울" }],
+  ["부산광역시", { slug: "busan", name: "부산" }],
+  ["대구광역시", { slug: "daegu", name: "대구" }],
   ["경기도", { slug: "gyeonggi", name: "경기" }],
   ["인천광역시", { slug: "incheon", name: "인천" }],
-  ["경상남도", { slug: "gyeongnam", name: "경남" }]
+  ["광주광역시", { slug: "gwangju", name: "광주" }],
+  ["대전광역시", { slug: "daejeon", name: "대전" }],
+  ["울산광역시", { slug: "ulsan", name: "울산" }],
+  ["세종특별자치시", { slug: "sejong", name: "세종" }],
+  ["강원도", { slug: "gangwon", name: "강원" }],
+  ["강원특별자치도", { slug: "gangwon", name: "강원" }],
+  ["충청북도", { slug: "chungbuk", name: "충북" }],
+  ["충청남도", { slug: "chungnam", name: "충남" }],
+  ["전라북도", { slug: "jeonbuk", name: "전북" }],
+  ["전북특별자치도", { slug: "jeonbuk", name: "전북" }],
+  ["전라남도", { slug: "jeonnam", name: "전남" }],
+  ["경상북도", { slug: "gyeongbuk", name: "경북" }],
+  ["경상남도", { slug: "gyeongnam", name: "경남" }],
+  ["제주도", { slug: "jeju", name: "제주" }],
+  ["제주특별자치도", { slug: "jeju", name: "제주" }]
 ]);
 
 export function createDiscoveryBackend({ httpError, publicCatalog }) {
@@ -18,8 +34,7 @@ export function createDiscoveryBackend({ httpError, publicCatalog }) {
     const venuesById = new Map(currentCatalog.venues.map((venue) => [venue.id, venue]));
     const regionsBySlug = new Map();
     for (const event of currentCatalog.events) {
-      const addressPrefix = venuesById.get(event.venueId)?.address?.split(/\s+/, 1)[0];
-      const region = REGION_BY_ADDRESS_PREFIX.get(addressPrefix);
+      const region = regionForAddress(venuesById.get(event.venueId)?.address);
       if (!region) continue;
       const existing = regionsBySlug.get(region.slug) || { ...region, events: [] };
       existing.events.push(event);
@@ -34,11 +49,11 @@ export function createDiscoveryBackend({ httpError, publicCatalog }) {
   }
 
   function publicArtist(db, requestedSlug) {
-    const slug = String(requestedSlug || "").trim().toLowerCase();
-    if (!/^[a-z0-9-]+$/.test(slug)) {
+    const slug = String(requestedSlug || "").trim();
+    const normalizedSlug = normalizeIdentity(slug);
+    if (!normalizedSlug || slug.length > 200 || /[\u0000-\u001f\u007f]/u.test(slug)) {
       throw httpError(400, "INVALID_ARTIST_SLUG", "아티스트 식별자를 확인해주세요.");
     }
-    const normalizedSlug = normalizeIdentity(slug);
     const events = catalog(db).events.filter((event) => {
       const identities = [event.artistSlug, ...(event.casts || [])]
         .filter(Boolean)
@@ -83,4 +98,13 @@ export function createDiscoveryBackend({ httpError, publicCatalog }) {
 
 function normalizeIdentity(value) {
   return String(value || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function regionForAddress(address) {
+  const prefix = String(address || "").trim().split(/\s+/, 1)[0];
+  if (!prefix) return null;
+  const known = REGION_BY_ADDRESS_PREFIX.get(prefix);
+  if (known) return known;
+  const slug = normalizeIdentity(prefix);
+  return slug ? { slug, name: prefix } : null;
 }

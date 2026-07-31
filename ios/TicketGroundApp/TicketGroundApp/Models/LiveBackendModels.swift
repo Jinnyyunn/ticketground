@@ -178,7 +178,7 @@ struct LiveAPIContract {
     let bootstrapPath: String = "/api/health"
 
     static let deployed = LiveAPIContract(
-        expectedResponseVersion: "78b3c7c",
+        expectedResponseVersion: "discovery-v1",
         publicHost: URL(string: "http://132.145.109.87:4174")!
     )
 

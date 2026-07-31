@@ -1,6 +1,7 @@
 {
   "contractId": "ticketground-public-discovery-v1",
   "version": "1",
+  "healthContractVersion": "discovery-v1",
   "authentication": "none",
   "qualification": {
     "repository": "verified",

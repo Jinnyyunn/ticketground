@@ -172,8 +172,12 @@ struct LiveDiscoveryContractView: View {
             default:
                 state = .failed(PublicReadPresentation.resolve(APIClientError.invalidResponse))
             }
-        } catch APIClientError.server(status: 404, _, _) {
-            state = .notFound
+        } catch let error as APIClientError {
+            if case .server(status: 404, _, _) = error, case .artist = route {
+                state = .notFound
+            } else {
+                state = .failed(PublicReadPresentation.resolve(error))
+            }
         } catch {
             state = .failed(PublicReadPresentation.resolve(error))
         }

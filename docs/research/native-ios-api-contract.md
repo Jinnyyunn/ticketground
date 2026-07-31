@@ -45,3 +45,5 @@ Todo 3 may consume these fixtures only behind an explicit fixture-mode/data-sour
 | GET | `/api/discovery/v1/open-calendar` | `version`, 공개 티켓오픈 일정 | 없음 |
 
 저장된 공개 카탈로그가 유일한 공연 원본이다. iOS 클라이언트는 응답 버전이 `1`이 아니면 계약 오류로 처리하며, 로딩·빈 결과·아티스트 404·서버 오류·재시도 상태를 구분한다. 저장소 테스트와 `ios-native` CI는 내부 구현을 검증하지만 실제 공개 서버의 배포 및 TLS qualification은 별도 운영 증거가 필요하다.
+
+신규 탐색 경로가 없는 이전 서버를 사용 가능으로 오판하지 않도록 `/api/health`의 호환성 버전은 `discovery-v1`이다. 서버와 iOS 앱이 이 값을 함께 확인한 경우에만 공개 탐색 경로를 활성화한다.

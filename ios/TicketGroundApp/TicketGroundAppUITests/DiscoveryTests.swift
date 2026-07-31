@@ -343,6 +343,14 @@ final class DiscoveryTests: XCTestCase {
         notFound.buttons["live-artist-link"].tap()
         XCTAssertTrue(notFound.staticTexts["아티스트를 찾을 수 없습니다"].waitForExistence(timeout: 10))
 
+        let routeNotFound = liveApp(homeScenario: "discoveryRouteNotFound")
+        routeNotFound.launch()
+        XCTAssertTrue(routeNotFound.buttons["header-mypage"].waitForExistence(timeout: 10))
+        routeNotFound.buttons["header-mypage"].tap()
+        XCTAssertTrue(routeNotFound.buttons["live-menu-region"].waitForExistence(timeout: 10))
+        routeNotFound.buttons["live-menu-region"].tap()
+        XCTAssertTrue(routeNotFound.staticTexts["공연 정보를 불러올 수 없습니다"].waitForExistence(timeout: 10))
+
         let failure = liveApp(homeScenario: "discoveryFailure")
         failure.launch()
         XCTAssertTrue(failure.buttons["header-mypage"].waitForExistence(timeout: 10))
