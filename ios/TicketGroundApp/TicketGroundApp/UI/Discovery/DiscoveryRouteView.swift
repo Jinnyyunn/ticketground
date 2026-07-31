@@ -638,9 +638,11 @@ private enum LiveCatalogRouteState {
 
 enum LiveCatalogRouteMatcher {
     static func detailEvents(slug: String, in catalog: LiveCatalog) -> [LiveBackendCatalogEvent] {
-        catalog.events.filter { event in
-            event.id == slug || event.slug == slug || normalizedSlug(event.title) == normalizedSlug(slug)
+        let exactMatches = catalog.events.filter { event in
+            event.id == slug || event.slug == slug
         }
+        guard exactMatches.isEmpty else { return exactMatches }
+        return catalog.events.filter { normalizedSlug($0.title) == normalizedSlug(slug) }
     }
 
     static func placeEvents(slug: String?, in catalog: LiveCatalog) -> [LiveBackendCatalogEvent] {
@@ -1394,7 +1396,7 @@ private struct LiveSeatMapRouteView: View {
 
     private func event(in catalog: LiveCatalog) -> LiveBackendCatalogEvent? {
         guard let slug = routeSlug else { return nil }
-        return catalog.events.first { $0.id == slug || $0.slug == slug || $0.title == slug }
+        return LiveCatalogRouteMatcher.detailEvents(slug: slug, in: catalog).first
     }
 
     private func loadSeatMap() async {
