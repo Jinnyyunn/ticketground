@@ -227,6 +227,7 @@ actor TicketgroundImageRepository {
     private let session: URLSession
     private let limits: Limits
     private var cache: [URL: CacheEntry] = [:]
+    private var inFlight: [URL: Task<UIImage, Error>] = [:]
     private var cacheOrder: [URL] = []
     private var cacheBytes = 0
 
@@ -240,7 +241,25 @@ actor TicketgroundImageRepository {
             touch(url)
             return cached.image
         }
+        if let request = inFlight[url] {
+            return try await request.value
+        }
 
+        let request = Task {
+            try await downloadImage(for: url)
+        }
+        inFlight[url] = request
+        do {
+            let image = try await request.value
+            inFlight[url] = nil
+            return image
+        } catch {
+            inFlight[url] = nil
+            throw error
+        }
+    }
+
+    private func downloadImage(for url: URL) async throws -> UIImage {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.httpShouldHandleCookies = false
         request.setValue(nil, forHTTPHeaderField: "Authorization")

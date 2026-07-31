@@ -220,6 +220,24 @@ final class LoadingMediaTests: XCTestCase {
         XCTAssertNotNil(cachedImage)
     }
 
+    func testImageRepositoryCoalescesConcurrentRequestsForTheSameURL() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MediaURLProtocol.self]
+        let repository = TicketgroundImageRepository(session: URLSession(configuration: configuration))
+        let url = URL(string: "https://media.ticketground.test/shared-poster.png")!
+        MediaURLProtocol.stubs[url.path] = .init(
+            data: Self.onePixelPNG,
+            statusCode: 200,
+            contentType: "image/png"
+        )
+
+        async let first = repository.image(for: url)
+        async let second = repository.image(for: url)
+        _ = try await (first, second)
+
+        XCTAssertEqual(MediaURLProtocol.requestCount, 1)
+    }
+
     func testImageRepositoryDoesNotCacheOfflineFailure() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MediaURLProtocol.self]
