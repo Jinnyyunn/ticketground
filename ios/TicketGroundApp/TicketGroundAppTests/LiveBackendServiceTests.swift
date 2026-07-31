@@ -353,6 +353,7 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(content.shortcuts.first { $0.label == "대학로" }?.route, .place(slug: "대학로"))
         XCTAssertEqual(content.shortcuts.first { $0.label == "VIP석" }?.route, .genre(name: "vip"))
         XCTAssertTrue(Set(content.shortcuts.map(\.label)).isDisjoint(with: ["당일 공연", "지방 공연", "양도", "오픈캘린더"]))
+        XCTAssertTrue(Set(content.categories.map(\.label)).isDisjoint(with: ["티켓 양도", "캘린더"]))
         XCTAssertFalse(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
     }
 
