@@ -5,6 +5,7 @@ import { createBootpayBackend } from "./bootpay.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
+import { createDiscoveryBackend } from "./discovery.js";
 import { createEngagementBackend } from "./engagement.js";
 import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
@@ -33,6 +34,10 @@ export async function createTicketgroundApp(options) {
   const dtos = createDtoBackend({
     saleSummary: catalog.saleSummary,
     verifyLedger: persistence.verifyLedger
+  });
+  const discovery = createDiscoveryBackend({
+    httpError: runtime.httpError,
+    publicCatalog: dtos.publicCatalog
   });
   let groupBooking;
   const admin = createAdminBackend({
@@ -129,6 +134,7 @@ export async function createTicketgroundApp(options) {
   const apiRouter = createApiRouter({
     ...admin,
     ...commerce,
+    ...discovery,
     ...engagement,
     ...groupBooking,
     ...identity,

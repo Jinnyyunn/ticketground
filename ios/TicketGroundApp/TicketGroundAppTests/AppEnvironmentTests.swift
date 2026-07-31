@@ -219,9 +219,11 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(routes.map(\.classification).count, routes.count)
         XCTAssertEqual(
             Set(routes.map { $0.classification.connectivity }),
-            [.publicRead, .externalGate, .contractMissing, .intentionallyUnsupported]
+            [.publicRead, .externalGate, .intentionallyUnsupported]
         )
-        XCTAssertEqual(AppRoute.region.classification.connectivity, .contractMissing)
+        XCTAssertEqual(AppRoute.region.classification.connectivity, .publicRead)
+        XCTAssertEqual(AppRoute.artist(slug: "artist").classification.connectivity, .publicRead)
+        XCTAssertEqual(AppRoute.open.classification.connectivity, .publicRead)
         XCTAssertEqual(AppRoute.login.classification.connectivity, .externalGate)
         XCTAssertEqual(AppRoute.checkout(slug: "checkout").classification.connectivity, .intentionallyUnsupported)
         XCTAssertEqual(AppRoute.booking(slug: "booking").classification.connectivity, .publicRead)

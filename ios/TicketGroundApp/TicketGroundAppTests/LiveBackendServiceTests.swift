@@ -101,6 +101,62 @@ final class LiveBackendServiceTests: XCTestCase {
         })
     }
 
+    func testDiscoveryEndpointsDecodeVersionedPublicResponses() async throws {
+        let event = #"{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venue":"Arena","soldCount":4}"#
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[{"slug":"seoul","name":"서울","eventCount":1,"events":[\#(event)]}]}}"#.utf8),
+            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[\#(event)]}}"#.utf8),
+            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[{"opensAt":"2026-08-20T10:00:00.000Z","saleState":"OPEN_SOON","event":\#(event)}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = compatibleService(for: client)
+
+        let regions = try await service.getRegions()
+        let artist = try await service.getArtist(slug: "iu")
+        let calendar = try await service.getOpenCalendar()
+
+        XCTAssertEqual(regions.version, "1")
+        XCTAssertEqual(regions.regions.first?.slug, "seoul")
+        XCTAssertEqual(artist.artist.name, "IU")
+        XCTAssertEqual(calendar.entries.first?.event.slug, "neon-stage")
+        XCTAssertEqual(
+            Set(LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path)),
+            Set(LiveBackendServiceURLProtocol.responses.keys)
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == nil
+        })
+    }
+
+    func testDiscoveryEndpointRejectsUnexpectedContractVersion() async {
+        LiveBackendServiceURLProtocol.responses["/api/discovery/v1/regions"] =
+            Data(#"{"ok":true,"data":{"version":"2","regions":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await compatibleService(for: client).getRegions()
+            XCTFail("Expected discovery contract mismatch")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testSurfacesBackendErrorAsAPIClientError() async {
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":false,"error":{"code":"BACKEND_DOWN","message":"Backend unavailable"}}"#.utf8)
 
@@ -270,6 +326,25 @@ final class LiveBackendServiceTests: XCTestCase {
             incompatible.state(for: .catalog),
             .incompatible(expected: LiveAPIContract.deployed.expectedResponseVersion, observed: "future-contract")
         )
+
+        let legacy = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: "78b3c7c",
+            catalogRouteConfirmed: true
+        )
+        XCTAssertEqual(legacy.diagnostics.compatibility, .compatible)
+        XCTAssertEqual(legacy.state(for: .catalog), .available)
+        XCTAssertEqual(legacy.state(for: .regions), .unknown)
+
+        let discoveryConfirmed = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "http://132.145.109.87:4174/")!,
+            observedResponseVersion: "78b3c7c",
+            catalogRouteConfirmed: true,
+            discoveryRoutesConfirmed: true
+        )
+        XCTAssertEqual(discoveryConfirmed.state(for: .regions), .available)
+        XCTAssertEqual(discoveryConfirmed.state(for: .artist), .available)
+        XCTAssertEqual(discoveryConfirmed.state(for: .openCalendar), .available)
     }
 
     func testCapabilityMapRequiresExplicitCatalogRouteConfirmation() {
@@ -298,6 +373,7 @@ final class LiveBackendServiceTests: XCTestCase {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar","venues"]}}"#.utf8),
             "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
@@ -309,14 +385,16 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        let catalog = try await LiveBackendService(apiClient: client).getCatalog()
+        let service = LiveBackendService(apiClient: client)
+        let catalog = try await service.getCatalog()
 
         XCTAssertEqual(catalog.events.map(\.id), ["event-1"])
+        XCTAssertEqual(service.capabilityMap.state(for: .regions), .available)
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/catalog"]
+            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
         )
         XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
             $0.value(forHTTPHeaderField: "Authorization") == nil
@@ -438,11 +516,12 @@ final class LiveBackendServiceTests: XCTestCase {
 
         XCTAssertTrue(catalog.events.isEmpty)
         XCTAssertEqual(service.capabilityMap.state(for: .catalog), .available)
+        XCTAssertEqual(service.capabilityMap.state(for: .regions), .unknown)
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/catalog"]
+            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
         )
     }
 
@@ -989,7 +1068,8 @@ final class LiveBackendServiceTests: XCTestCase {
         let map = LiveAPIContract.deployed.capabilityMap(
             for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
             observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
-            catalogRouteConfirmed: true
+            catalogRouteConfirmed: true,
+            discoveryRoutesConfirmed: true
         )
         let states = authenticatedReads
             ? Dictionary(uniqueKeysWithValues: LiveAPIEndpoint.known.map { endpoint in

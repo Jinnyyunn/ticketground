@@ -1,6 +1,7 @@
 import Foundation
 
 final class LiveBackendService {
+    private static let discoveryVersion = "1"
     private let apiClient: APIClient
     private let decoder: JSONDecoder
     private let contract: LiveAPIContract
@@ -57,11 +58,13 @@ final class LiveBackendService {
             bypassCapability: true,
             as: LiveCatalog.self
         )
+        let discoveryRoutesConfirmed = await probeDiscoveryContract()
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
             validatedStateResponse: false,
-            catalogRouteConfirmed: true
+            catalogRouteConfirmed: true,
+            discoveryRoutesConfirmed: discoveryRoutesConfirmed
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -79,6 +82,30 @@ final class LiveBackendService {
 
     func getCatalog() async throws -> LiveCatalog {
         try await get(APIRequest(path: "/api/catalog"), endpoint: .catalog, as: LiveCatalog.self)
+    }
+
+    func getRegions() async throws -> LiveRegionDiscovery {
+        try await getDiscovery(
+            APIRequest(path: "/api/discovery/v1/regions"),
+            endpoint: .regions,
+            as: LiveRegionDiscovery.self
+        )
+    }
+
+    func getArtist(slug: String) async throws -> LiveArtistDiscovery {
+        try await getDiscovery(
+            APIRequest(path: "/api/discovery/v1/artists/\(pathValue(slug))"),
+            endpoint: .artist,
+            as: LiveArtistDiscovery.self
+        )
+    }
+
+    func getOpenCalendar() async throws -> LiveOpenCalendar {
+        try await getDiscovery(
+            APIRequest(path: "/api/discovery/v1/open-calendar"),
+            endpoint: .openCalendar,
+            as: LiveOpenCalendar.self
+        )
     }
 
     func getSeatMap(eventID: String, performanceDateID: String) async throws -> LiveSeatMap {
@@ -146,6 +173,34 @@ final class LiveBackendService {
             return try decoder.decode(type, from: data)
         } catch {
             throw APIClientError.invalidResponse
+        }
+    }
+
+    private func getDiscovery<Response: Decodable & LiveDiscoveryVersioned>(
+        _ request: APIRequest,
+        endpoint: LiveAPIEndpoint,
+        as type: Response.Type
+    ) async throws -> Response {
+        let response = try await get(request, endpoint: endpoint, as: type)
+        guard response.version == Self.discoveryVersion else {
+            throw APIClientError.invalidResponse
+        }
+        return response
+    }
+
+    private func probeDiscoveryContract() async -> Bool {
+        do {
+            let response = try await get(
+                APIRequest(path: "/api/discovery/v1/contract"),
+                endpoint: .health,
+                bypassCapability: true,
+                as: LiveDiscoveryContractStatus.self
+            )
+            let requiredEndpoints = Set(["regions", "artists", "open-calendar"])
+            return response.version == Self.discoveryVersion
+                && requiredEndpoints.isSubset(of: Set(response.endpoints))
+        } catch {
+            return false
         }
     }
 

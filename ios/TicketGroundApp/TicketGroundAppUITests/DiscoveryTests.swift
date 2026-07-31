@@ -299,6 +299,67 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(app.buttons["live-seat-hold"].exists)
     }
 
+    func testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes() {
+        let region = liveApp(homeScenario: "catalog")
+        region.launch()
+        XCTAssertTrue(region.buttons["header-mypage"].waitForExistence(timeout: 10))
+        region.buttons["header-mypage"].tap()
+        XCTAssertTrue(region.buttons["live-menu-region"].waitForExistence(timeout: 10))
+        region.buttons["live-menu-region"].tap()
+        XCTAssertTrue(anyElement(region, identifier: "live-discovery-region-seoul").waitForExistence(timeout: 10))
+        XCTAssertTrue(region.staticTexts["Neon Stage"].exists)
+
+        let calendar = liveApp(homeScenario: "catalog")
+        calendar.launch()
+        XCTAssertTrue(calendar.buttons["header-mypage"].waitForExistence(timeout: 10))
+        calendar.buttons["header-mypage"].tap()
+        XCTAssertTrue(calendar.buttons["live-menu-open-calendar"].waitForExistence(timeout: 10))
+        calendar.buttons["live-menu-open-calendar"].tap()
+        XCTAssertTrue(anyElement(calendar, identifier: "live-discovery-open-live-neon").waitForExistence(timeout: 10))
+
+        let artist = liveApp(homeScenario: "catalog")
+        artist.launch()
+        XCTAssertTrue(artist.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        artist.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(artist.buttons["live-artist-link"].waitForExistence(timeout: 10))
+        artist.buttons["live-artist-link"].tap()
+        XCTAssertTrue(artist.staticTexts["Neon Artist"].waitForExistence(timeout: 10))
+    }
+
+    func testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates() {
+        let empty = liveApp(homeScenario: "empty")
+        empty.launch()
+        XCTAssertTrue(empty.buttons["header-mypage"].waitForExistence(timeout: 10))
+        empty.buttons["header-mypage"].tap()
+        XCTAssertTrue(empty.buttons["live-menu-region"].waitForExistence(timeout: 10))
+        empty.buttons["live-menu-region"].tap()
+        XCTAssertTrue(empty.staticTexts["현재 공개된 지역별 공연이 없습니다."].waitForExistence(timeout: 10))
+
+        let notFound = liveApp(homeScenario: "discoveryNotFound")
+        notFound.launch()
+        XCTAssertTrue(notFound.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        notFound.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(notFound.buttons["live-artist-link"].waitForExistence(timeout: 10))
+        notFound.buttons["live-artist-link"].tap()
+        XCTAssertTrue(notFound.staticTexts["아티스트를 찾을 수 없습니다"].waitForExistence(timeout: 10))
+
+        let routeNotFound = liveApp(homeScenario: "discoveryRouteNotFound")
+        routeNotFound.launch()
+        XCTAssertTrue(routeNotFound.buttons["header-mypage"].waitForExistence(timeout: 10))
+        routeNotFound.buttons["header-mypage"].tap()
+        XCTAssertTrue(routeNotFound.buttons["live-menu-region"].waitForExistence(timeout: 10))
+        routeNotFound.buttons["live-menu-region"].tap()
+        XCTAssertTrue(routeNotFound.staticTexts["공연 정보를 불러올 수 없습니다"].waitForExistence(timeout: 10))
+
+        let failure = liveApp(homeScenario: "discoveryFailure")
+        failure.launch()
+        XCTAssertTrue(failure.buttons["header-mypage"].waitForExistence(timeout: 10))
+        failure.buttons["header-mypage"].tap()
+        XCTAssertTrue(failure.buttons["live-menu-region"].waitForExistence(timeout: 10))
+        failure.buttons["live-menu-region"].tap()
+        XCTAssertTrue(failure.staticTexts["공연 정보를 불러올 수 없습니다"].waitForExistence(timeout: 10))
+    }
+
     func testLiveLoginDoesNotCreateFixtureUser() {
         let app = liveApp()
         app.launch()
@@ -452,6 +513,8 @@ final class DiscoveryTests: XCTestCase {
             "live-menu-watchlist",
             "live-menu-search",
             "live-menu-ranking",
+            "live-menu-region",
+            "live-menu-open-calendar",
             "live-menu-help",
             "live-menu-inquiry",
             "live-menu-category-concert",
@@ -459,7 +522,6 @@ final class DiscoveryTests: XCTestCase {
         ] {
             XCTAssertTrue(app.buttons[identifier].exists, identifier)
         }
-        XCTAssertFalse(app.buttons["live-menu-open-calendar"].exists)
         XCTAssertFalse(app.staticTexts["fixture-state-happy"].exists)
         XCTAssertFalse(app.staticTexts["fixture"].exists)
 
@@ -487,7 +549,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["capability-ledger-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["공개 공연 및 좌석 조회"].exists)
         XCTAssertTrue(app.staticTexts["공개 미디어 원본"].exists)
-        XCTAssertTrue(app.staticTexts["계약이 없는 탐색 메뉴"].exists)
+        XCTAssertTrue(app.staticTexts["공개 탐색"].exists)
         XCTAssertTrue(app.staticTexts["거래 및 인증 기능"].exists)
         XCTAssertTrue(app.buttons["capability-ledger-home"].exists)
         XCTAssertTrue(app.buttons["capability-ledger-login"].exists)

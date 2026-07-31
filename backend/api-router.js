@@ -26,6 +26,9 @@ export function createApiRouter({
   notifyWatchlist,
   purchaseResale,
   publicCatalog,
+  publicArtist,
+  publicOpenCalendar,
+  publicRegions,
   publicDirectTransferResult,
   publicPurchaseResult,
   publicResaleDrawResult,
@@ -69,6 +72,14 @@ function requireBody(body, keys) {
   }
 }
 
+function decodeArtistSlug(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw httpError(400, "INVALID_ARTIST_SLUG", "아티스트 식별자를 확인해주세요.");
+  }
+}
+
 async function parseBody(req) {
   const chunks = [];
   let size = 0;
@@ -96,6 +107,7 @@ async function handleApi(req, res, db, surface) {
   const userIdentityMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/identity$/);
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
+  const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
 
@@ -115,6 +127,19 @@ async function handleApi(req, res, db, surface) {
       throw httpError(400, "INVALID_LIMIT", "limit은 1 이상 100 이하의 정수여야 합니다.");
     }
     return publicCatalog(db, { limit });
+  }
+  if (req.method === "GET" && url.pathname === "/api/discovery/v1/regions") return publicRegions(db);
+  if (req.method === "GET" && url.pathname === "/api/discovery/v1/contract") {
+    return {
+      version: "1",
+      endpoints: ["regions", "artists", "open-calendar"]
+    };
+  }
+  if (req.method === "GET" && artistDiscoveryMatch) {
+    return publicArtist(db, decodeArtistSlug(artistDiscoveryMatch[1]));
+  }
+  if (req.method === "GET" && url.pathname === "/api/discovery/v1/open-calendar") {
+    return publicOpenCalendar(db);
   }
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);

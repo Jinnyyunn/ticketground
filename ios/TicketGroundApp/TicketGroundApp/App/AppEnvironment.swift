@@ -68,7 +68,6 @@ enum AppRoute: Hashable, Codable {
 enum AppRouteConnectivity: String, Equatable, Hashable {
     case publicRead
     case externalGate
-    case contractMissing
     case intentionallyUnsupported
 }
 
@@ -80,12 +79,13 @@ struct AppRouteClassification: Equatable {
 extension AppRoute {
     var classification: AppRouteClassification {
         switch self {
-        case .home, .search, .ranking, .genre, .event, .place, .goods, .queue, .booking, .menu, .capabilityLedger:
+        case .home, .search, .ranking, .genre, .event, .place, .goods,
+             .queue, .booking, .menu, .capabilityLedger:
             return AppRouteClassification(connectivity: .publicRead, reason: "공개 공연 및 좌석 조회 계약")
+        case .region, .artist, .open:
+            return AppRouteClassification(connectivity: .publicRead, reason: "버전 1 공개 탐색 계약")
         case .login, .signup, .mypage, .watchlist, .help, .inquiry:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
-        case .region, .artist, .open:
-            return AppRouteClassification(connectivity: .contractMissing, reason: "공개 DTO와 조회 경로 계약 부재")
         case .checkout, .reservation, .cancel, .resale, .transfer:
             return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "거래별 HTTPS·인증·결제 계약 필요")
         }
@@ -966,6 +966,9 @@ private enum UITestLiveHomeScenario: String {
     case incompatible
     case unavailable
     case recovering
+    case discoveryNotFound
+    case discoveryFailure
+    case discoveryRouteNotFound
 }
 
 private final class UITestLiveHomeAPIClient: APIClient {
@@ -998,8 +1001,34 @@ private final class UITestLiveHomeAPIClient: APIClient {
             return catalog(events: "[\(event)]")
         case ("/api/catalog", _):
             return scenario == .empty ? catalog(events: "[]") : catalog(events: "[\(event)]")
+        case ("/api/discovery/v1/contract", _):
+            return json("{\"version\":\"1\",\"endpoints\":[\"regions\",\"artists\",\"open-calendar\"]}")
         case ("/api/seat-map", _):
             return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
+        case ("/api/discovery/v1/regions", _):
+            if scenario == .discoveryRouteNotFound {
+                throw APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "route not found")
+            }
+            if scenario == .discoveryFailure {
+                throw APIClientError.server(status: 503, code: "DISCOVERY_UNAVAILABLE", message: "discovery unavailable")
+            }
+            let regions = scenario == .empty
+                ? "[]"
+                : "[{\"slug\":\"seoul\",\"name\":\"서울\",\"eventCount\":1,\"events\":[\(event)]}]"
+            return json("{\"version\":\"1\",\"regions\":\(regions)}")
+        case ("/api/discovery/v1/artists/neon-artist", _):
+            if scenario == .discoveryNotFound {
+                throw APIClientError.server(status: 404, code: "ARTIST_NOT_FOUND", message: "artist not found")
+            }
+            return json("{\"version\":\"1\",\"artist\":{\"slug\":\"neon-artist\",\"name\":\"Neon Artist\"},\"events\":[\(event)]}")
+        case ("/api/discovery/v1/open-calendar", _):
+            if scenario == .discoveryFailure {
+                throw APIClientError.server(status: 503, code: "DISCOVERY_UNAVAILABLE", message: "discovery unavailable")
+            }
+            let entries = scenario == .empty
+                ? "[]"
+                : "[{\"opensAt\":\"2026-07-02T19:00:00.000Z\",\"saleState\":\"open\",\"event\":\(event)}]"
+            return json("{\"version\":\"1\",\"entries\":\(entries)}")
         default:
             throw APIClientError.invalidResponse
         }
@@ -1010,7 +1039,7 @@ private final class UITestLiveHomeAPIClient: APIClient {
     }
 
     private var event: String {
-        "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
+        "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}],\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
     }
 
     private func catalog(events: String) -> Data {
