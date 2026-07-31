@@ -91,4 +91,5 @@ jobs:
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogShowsReadOnlySeatMap \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveMenuOpensCapabilityLedger \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry

@@ -549,7 +549,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["capability-ledger-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["공개 공연 및 좌석 조회"].exists)
         XCTAssertTrue(app.staticTexts["공개 미디어 원본"].exists)
-        XCTAssertTrue(app.staticTexts["계약이 없는 탐색 메뉴"].exists)
+        XCTAssertTrue(app.staticTexts["공개 탐색"].exists)
         XCTAssertTrue(app.staticTexts["거래 및 인증 기능"].exists)
         XCTAssertTrue(app.buttons["capability-ledger-home"].exists)
         XCTAssertTrue(app.buttons["capability-ledger-login"].exists)
