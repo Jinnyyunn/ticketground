@@ -664,6 +664,15 @@ enum LiveCatalogRouteMatcher {
         return values.contains { normalizedSlug($0).contains(normalizedQuery) }
     }
 
+    static func hasPriceGrade(_ grade: String, event: LiveBackendCatalogEvent) -> Bool {
+        let normalizedGrade = normalizedSlug(grade)
+        return (event.prices ?? []).contains { price in
+            [price.grade, price.seat]
+                .compactMap { $0 }
+                .contains { normalizedSlug($0).contains(normalizedGrade) }
+        }
+    }
+
     private static func normalizedSlug(_ value: String) -> String {
         value.lowercased().filter { $0.isLetter || $0.isNumber }
     }
@@ -845,6 +854,11 @@ private struct LiveDiscoveryRouteView: View {
         case .ranking:
             return sortedEvents(catalog.events)
         case .genre(let name):
+            if normalizedGenre(name) == "vip" {
+                return sortedEvents(catalog.events.filter {
+                    LiveCatalogRouteMatcher.hasPriceGrade("vip", event: $0)
+                })
+            }
             return sortedEvents(catalog.events.filter { normalizedGenre($0.category) == normalizedGenre(name) })
         case .search:
             return sortedEvents(catalog.events.filter { event in
@@ -903,6 +917,7 @@ private struct LiveDiscoveryRouteView: View {
         case "exhibition": return "전시"
         case "child", "children", "family": return "아동"
         case "sports": return "스포츠"
+        case "vip": return "VIP석"
         default: return value
         }
     }

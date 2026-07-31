@@ -108,7 +108,7 @@ enum DiscoveryFixtureLoader {
             DiscoveryShortcut(label: "지방 공연", helper: "부산·대구·광주", route: .region),
             DiscoveryShortcut(label: "대학로", helper: "소극장 신작", route: .genre(name: "musical")),
             DiscoveryShortcut(label: "양도", helper: "공식 풀 거래", route: .resale),
-            DiscoveryShortcut(label: "VIP석", helper: "등급별 보기", route: .ranking),
+            DiscoveryShortcut(label: "VIP석", helper: "등급별 보기", route: .genre(name: "vip")),
             DiscoveryShortcut(label: "오픈캘린더", helper: "D-3 알림", route: .open)
         ]
         return DiscoveryContent(categories: categories, featured: featured, supporting: supporting, rankings: rankings, openingSoon: [], shortcuts: shortcuts, calendar: [])

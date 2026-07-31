@@ -350,6 +350,7 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(content.rankings.first?.date, "2026.09.19")
         XCTAssertTrue(content.openingSoon.isEmpty)
         XCTAssertTrue(content.calendar.isEmpty)
+        XCTAssertEqual(content.shortcuts.first { $0.label == "VIP석" }?.route, .genre(name: "vip"))
         XCTAssertFalse(content.shortcuts.contains { $0.label == "당일 공연" })
         XCTAssertFalse(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
     }
@@ -534,6 +535,16 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertTrue(LiveCatalogRouteMatcher.matchesSearch(query: "옥주현", event: event))
         XCTAssertTrue(LiveCatalogRouteMatcher.matchesSearch(query: "ok-joo-hyun", event: event))
         XCTAssertFalse(LiveCatalogRouteMatcher.matchesSearch(query: "다른 배우", event: event))
+    }
+
+    func testPriceGradeMatcherExcludesNonVIPCatalogEvents() throws {
+        let catalog = try JSONDecoder().decode(
+            LiveCatalog.self,
+            from: Data(#"{"events":[{"id":"vip-event","title":"VIP Concert","venue":"Arena","prices":[{"grade":"VIP","seat":"VIP석","price":190000}],"soldCount":4},{"id":"pass-event","title":"Standing Festival","venue":"Park","prices":[{"grade":"PASS","seat":"일반 입장","price":99000}],"soldCount":2}]}"#.utf8)
+        )
+
+        XCTAssertTrue(LiveCatalogRouteMatcher.hasPriceGrade("vip", event: catalog.events[0]))
+        XCTAssertFalse(LiveCatalogRouteMatcher.hasPriceGrade("vip", event: catalog.events[1]))
     }
 
     func testAccountStatusTextDoesNotExposeBackendUserIdentifier() {
