@@ -527,6 +527,18 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(events.map(\.id), ["event-1"])
     }
 
+    func testDetailRoutePrefersExactIdentifierOverTitleFallback() throws {
+        let catalog = try JSONDecoder().decode(
+            LiveCatalog.self,
+            from: Data(#"{"events":[{"id":"earlier-event","slug":"earlier-event","title":"target-event","venue":"Hall","soldCount":4},{"id":"target-event","slug":"target-event","title":"Actual Target","venue":"Arena","soldCount":1}]}"#.utf8)
+        )
+
+        XCTAssertEqual(
+            LiveCatalogRouteMatcher.detailEvents(slug: "target-event", in: catalog).map(\.id),
+            ["target-event"]
+        )
+    }
+
     func testPlaceRouteMatchesDaehakroVenueName() throws {
         let catalog = try JSONDecoder().decode(
             LiveCatalog.self,

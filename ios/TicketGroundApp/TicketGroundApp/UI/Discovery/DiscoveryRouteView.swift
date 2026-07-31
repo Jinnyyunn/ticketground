@@ -637,6 +637,12 @@ private enum LiveCatalogRouteState {
 }
 
 enum LiveCatalogRouteMatcher {
+    static func detailEvents(slug: String, in catalog: LiveCatalog) -> [LiveBackendCatalogEvent] {
+        catalog.events.filter { event in
+            event.id == slug || event.slug == slug || normalizedSlug(event.title) == normalizedSlug(slug)
+        }
+    }
+
     static func placeEvents(slug: String?, in catalog: LiveCatalog) -> [LiveBackendCatalogEvent] {
         guard let slug, !slug.isEmpty else { return catalog.events }
         let normalizedRoute = normalizedSlug(slug)
@@ -873,9 +879,7 @@ private struct LiveDiscoveryRouteView: View {
         case .place(let slug):
             return sortedEvents(LiveCatalogRouteMatcher.placeEvents(slug: slug, in: catalog))
         case .event(let slug), .goods(let slug):
-            return catalog.events.filter { event in
-                event.id == slug || event.slug == slug || normalizedSlug(event.title) == normalizedSlug(slug)
-            }
+            return LiveCatalogRouteMatcher.detailEvents(slug: slug, in: catalog)
         default:
             return []
         }
