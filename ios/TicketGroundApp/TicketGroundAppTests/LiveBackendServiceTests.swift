@@ -350,6 +350,7 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(content.rankings.first?.date, "2026.09.19")
         XCTAssertTrue(content.openingSoon.isEmpty)
         XCTAssertTrue(content.calendar.isEmpty)
+        XCTAssertEqual(content.shortcuts.first { $0.label == "대학로" }?.route, .place(slug: "대학로"))
         XCTAssertEqual(content.shortcuts.first { $0.label == "VIP석" }?.route, .genre(name: "vip"))
         XCTAssertFalse(content.shortcuts.contains { $0.label == "당일 공연" })
         XCTAssertFalse(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
@@ -523,6 +524,18 @@ final class LiveBackendServiceTests: XCTestCase {
         let events = LiveCatalogRouteMatcher.placeEvents(slug: "venue-1", in: catalog)
 
         XCTAssertEqual(events.map(\.id), ["event-1"])
+    }
+
+    func testPlaceRouteMatchesDaehakroVenueName() throws {
+        let catalog = try JSONDecoder().decode(
+            LiveCatalog.self,
+            from: Data(#"{"events":[{"id":"daehakro","title":"소극장 신작","venue":"대학로 자유극장","soldCount":4},{"id":"other-musical","title":"대형 뮤지컬","venue":"LG아트센터","soldCount":8}]}"#.utf8)
+        )
+
+        XCTAssertEqual(
+            LiveCatalogRouteMatcher.placeEvents(slug: "대학로", in: catalog).map(\.id),
+            ["daehakro"]
+        )
     }
 
     func testSearchMatchesCastAndArtistSlug() throws {
