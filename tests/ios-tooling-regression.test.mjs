@@ -127,7 +127,7 @@ test("semantic readiness probe is terminated at the advertised timeout", async (
   const directory = await mkdtemp(path.join(tmpdir(), "ticketground-ios-probe-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const probe = path.join(directory, "probe.sh");
-  await writeFile(probe, "#!/usr/bin/env bash\nsleep 30\n");
+  await writeFile(probe, "#!/usr/bin/env bash\ntrap '' TERM\nsleep 6\n");
 
   const startedAt = Date.now();
   const result = run("bash", [
@@ -149,7 +149,8 @@ test("live iOS wrapper fails closed when cleanup postconditions are incomplete",
 
   assert.match(script, /cleanup_status=/);
   assert.match(script, /cleanup_marker="incomplete"/);
-  assert.match(script, /return "\$cleanup_status"/);
+  assert.match(script, /trap - EXIT INT TERM/);
+  assert.match(script, /exit "\$cleanup_status"/);
 });
 
 test("pull-request CI compiles and tests the native iOS project on macOS", async () => {
@@ -158,6 +159,8 @@ test("pull-request CI compiles and tests the native iOS project on macOS", async
   assert.match(workflow, /runs-on: macos-/);
   assert.match(workflow, /xcodebuild[\s\S]*TicketGroundAppTests/);
   assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testHomeRankingAndOpenCalendar/);
+  assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testLiveCatalogRoutesUseOneUnavailableSurface/);
+  assert.match(workflow, /TicketGroundAppUITests\/DiscoveryTests\/testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods/);
 });
 
 async function fixtureValidationRoot(t) {

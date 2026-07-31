@@ -83,4 +83,6 @@ jobs:
             -only-testing:TicketGroundAppTests/LiveBackendServiceTests \
             -only-testing:TicketGroundAppTests/AppEnvironmentTests \
             -only-testing:TicketGroundAppTests/TicketGroundAppTests \
-            -only-testing:TicketGroundAppUITests/DiscoveryTests/testHomeRankingAndOpenCalendar
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testHomeRankingAndOpenCalendar \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveCatalogRoutesUseOneUnavailableSurface \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogEnablesSearchRankingGenreAndGoods

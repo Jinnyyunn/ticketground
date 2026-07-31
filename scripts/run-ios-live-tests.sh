@@ -156,6 +156,7 @@ XCODEBUILD_LOG="$EVIDENCE_DIR/xcodebuild.log"
 cleanup() {
   local exit_status=$?
   local cleanup_status=$exit_status
+  trap - EXIT INT TERM
   set +e
   if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
     kill -TERM "$SERVER_PID" 2>/dev/null
@@ -210,9 +211,11 @@ cleanup() {
     printf 'cleanup=%s\n' "$cleanup_marker"
   } | tee -a "$SIM_LOG"
   rm -rf "$RUN_DIR"
-  return "$cleanup_status"
+  exit "$cleanup_status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ -n "$SHARED_DB" ]]; then
   cp "$SHARED_DB" "$TEMP_DB"

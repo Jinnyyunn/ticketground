@@ -41,6 +41,13 @@ run_probe() {
   while kill -0 "$probe_pid" 2>/dev/null; do
     if ((SECONDS >= DEADLINE)); then
       kill -TERM -- "-$probe_pid" 2>/dev/null || kill -TERM "$probe_pid" 2>/dev/null
+      for _ in $(seq 1 10); do
+        kill -0 "$probe_pid" 2>/dev/null || break
+        sleep 0.1
+      done
+      if kill -0 "$probe_pid" 2>/dev/null; then
+        kill -KILL -- "-$probe_pid" 2>/dev/null || kill -KILL "$probe_pid" 2>/dev/null
+      fi
       wait "$probe_pid" 2>/dev/null
       return 124
     fi
