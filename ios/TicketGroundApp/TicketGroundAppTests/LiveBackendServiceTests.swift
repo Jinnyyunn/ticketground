@@ -14,11 +14,13 @@ private final class LiveBackendServiceURLProtocol: URLProtocol {
     override func startLoading() {
         Self.requests.append(request)
         let key = request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") } ?? ""
+        let methodKey = "\(request.httpMethod ?? "GET") \(key)"
         if let errorCode = Self.errors[key] {
             client?.urlProtocol(self, didFailWithError: URLError(errorCode))
             return
         }
-        let data = Self.responses[key]
+        let data = Self.responses[methodKey]
+            ?? Self.responses[key]
             ?? Self.responses["*"]
             ?? Data(#"{"ok":false,"error":{"code":"MISSING_FIXTURE","message":"Missing test fixture"}}"#.utf8)
         let statusCode = Self.statusCodes[key] ?? 200
@@ -53,7 +55,7 @@ final class LiveBackendServiceTests: XCTestCase {
             "/api/me": Data(#"{"ok":true,"data":{"id":"user-1","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8),
             "/api/me/tickets": Data(#"{"ok":true,"data":[{"id":"ticket-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","seatLabel":"A-01","status":"OWNED","available":false,"faceValue":99000,"minPrice":49500,"maxPrice":106920,"transferCount":0,"maxTransferCount":1,"issuedAt":"2026-09-19T19:00:00+09:00","virtualQr":{"type":"virtual","issuedAt":"2026-09-19T18:00:00+09:00"},"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","performance":{"id":"date-1","label":"9월 19일 공연","startsAt":"2026-09-19T19:00:00+09:00"}},"payment":{"amount":105000,"method":"CREDIT_CARD","status":"CAPTURED"}}]}"#.utf8),
             "/api/users/user-1/watchlist": Data(#"{"ok":true,"data":[{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[{"id":"job-1","type":"BOOKING_D3","title":"예매 오픈 D-3 알림","status":"SCHEDULED","scheduledAt":"2026-08-19T19:00:00+09:00"}]}]}"#.utf8),
-            "/api/support/threads?userId=user-1": Data(#"{"ok":true,"data":[{"id":"thread-1","userId":"user-1","subject":"문의","status":"OPEN","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","actorId":"user-1","role":"CUSTOMER","body":"도와주세요","at":"2026-07-15T00:00:00Z"}]}]}"#.utf8)
+            "/api/me/support/threads": Data(#"{"ok":true,"data":[{"id":"thread-1","subject":"문의","status":"OPEN","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","role":"CUSTOMER","body":"도와주세요","at":"2026-07-15T00:00:00Z"}]}]}"#.utf8)
         ]
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -297,6 +299,85 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(request.url?.path, "/api/me/profile")
         XCTAssertEqual(request.httpMethod, "PATCH")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
+    }
+
+    func testSupportProbeAndPublicContentDoNotDependOnCatalog() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c","capabilities":["native-account-v1","native-support-v1"]}}"#.utf8),
+            "/api/support/public": Data(#"{"ok":true,"data":{"version":"1","faqs":[{"id":"booking","question":"예매 내역은 어디에서 확인하나요?","answer":"마이페이지에서 확인합니다."}],"notices":[{"id":"secure","title":"안전한 문의","body":"본인 문의만 확인할 수 있습니다."}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        let probe = try await service.diagnoseSupportContract()
+        let content = try await service.getPublicSupport()
+
+        XCTAssertEqual(probe.capabilities.state(for: .publicSupport), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .supportThreads), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .supportMessages), .available)
+        XCTAssertEqual(content.faqs.first?.id, "booking")
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            ["/api/health", "/api/support/public"]
+        )
+    }
+
+    func testNativeSupportRequestsUseBearerPrincipalAndIdempotency() async throws {
+        let thread = #"{"id":"thread-1","subject":"결제 문의","status":"OPEN","category":"PAYMENT","createdAt":"2026-08-02T00:00:00Z","updatedAt":"2026-08-02T00:00:00Z","messages":[{"id":"message-1","role":"CUSTOMER","body":"확인해주세요.","at":"2026-08-02T00:00:00Z"}]}"#
+        LiveBackendServiceURLProtocol.responses = [
+            "GET /api/me/support/threads": Data(#"{"ok":true,"data":[\#(thread)]}"#.utf8),
+            "POST /api/me/support/threads": Data(#"{"ok":true,"data":\#(thread)}"#.utf8),
+            "POST /api/me/support/messages": Data(#"{"ok":true,"data":\#(thread)}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeSupportRoutesConfirmed: true
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        _ = try await service.getSupportThreads(userID: "user-1")
+        _ = try await service.createSupportThread(
+            userID: "user-1",
+            subject: "결제 문의",
+            message: "확인해주세요.",
+            idempotencyKey: "support-create"
+        )
+        _ = try await service.addSupportMessage(
+            userID: "user-1",
+            threadID: "thread-1",
+            message: "추가 문의",
+            idempotencyKey: "support-reply"
+        )
+
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            ["/api/me/support/threads", "/api/me/support/threads", "/api/me/support/messages"]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        XCTAssertNil(LiveBackendServiceURLProtocol.requests[1].url?.query)
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[1].value(forHTTPHeaderField: "X-Idempotency-Key"), "support-create")
+        XCTAssertNil(LiveBackendServiceURLProtocol.requests[2].url?.query)
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[2].value(forHTTPHeaderField: "X-Idempotency-Key"), "support-reply")
     }
 
     func testDecodesUnknownSupportStatusAndRoleAsUnknown() throws {
@@ -746,7 +827,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testMutationContractMatchesDeployedRouterPaths() {
         XCTAssertEqual(LiveAPIEndpoint.supportMessages.method, .post)
-        XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/support/messages")
+        XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/me/support/messages")
         XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.method, .post)
         XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.pathTemplate, "/api/watchlist")
         XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.method, .post)
@@ -850,8 +931,8 @@ final class LiveBackendServiceTests: XCTestCase {
         for status in [401, 403, 409, 422, 429] {
             let code = "ACTION_\(status)"
             let message = "Mutation rejected: \(status)"
-            LiveBackendServiceURLProtocol.responses["/api/support/messages"] = Data(#"{"ok":false,"error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8)
-            LiveBackendServiceURLProtocol.statusCodes["/api/support/messages"] = status
+            LiveBackendServiceURLProtocol.responses["/api/me/support/messages"] = Data(#"{"ok":false,"error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8)
+            LiveBackendServiceURLProtocol.statusCodes["/api/me/support/messages"] = status
 
             do {
                 _ = try await mutationReadyService(for: client).perform(.supportMessage(
@@ -879,8 +960,8 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testAuthenticatedActionDefinitionsMatchDocumentedPathsAndOwners() throws {
         let actions: [(LiveAuthenticatedAction, String, String)] = [
-            (.supportThread(userID: "user-1", message: "문의", idempotencyKey: "thread"), "/api/support/threads", "userId"),
-            (.supportMessage(userID: "user-1", threadID: "thread-1", message: "답변", idempotencyKey: "message"), "/api/support/messages", "actorId"),
+            (.supportThread(userID: "user-1", message: "문의", idempotencyKey: "thread"), "/api/me/support/threads", "__bearer__"),
+            (.supportMessage(userID: "user-1", threadID: "thread-1", message: "답변", idempotencyKey: "message"), "/api/me/support/messages", "__bearer__"),
             (.watchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "watch"), "/api/watchlist", "userId"),
             (.watchlistNotification(userID: "user-1", eventID: "event-1", idempotencyKey: "notify"), "/api/watchlist/notify", "userId"),
             (.ticketPurchase(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "purchase"), "/api/tickets/buy", "userId"),
@@ -899,8 +980,14 @@ final class LiveBackendServiceTests: XCTestCase {
             XCTAssertEqual(request.path, path)
             XCTAssertEqual(request.idempotencyKey?.isEmpty, false)
             XCTAssertEqual(request.authentication, .required(userID: "user-1"))
-            XCTAssertEqual(request.ownerBinding, .jsonField(ownerField))
-            XCTAssertEqual(body[ownerField] as? String, "user-1")
+            if ownerField == "__bearer__" {
+                XCTAssertEqual(request.ownerBinding, .bearerPrincipal)
+                XCTAssertNil(body["userId"])
+                XCTAssertNil(body["actorId"])
+            } else {
+                XCTAssertEqual(request.ownerBinding, .jsonField(ownerField))
+                XCTAssertEqual(body[ownerField] as? String, "user-1")
+            }
         }
     }
 

@@ -564,6 +564,14 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(supportApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         supportApp.buttons["live-menu-help"].tap()
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support").waitForExistence(timeout: 20))
+        XCTAssertTrue(anyElement(supportApp, identifier: "live-support-public").waitForExistence(timeout: 20))
+        XCTAssertTrue(supportApp.staticTexts["자주 묻는 질문"].exists)
+        XCTAssertTrue(anyElement(supportApp, identifier: "live-support-login-required").exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "issue-99-live-support-cloudflare"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testLiveMenuOpensCapabilityLedger() {

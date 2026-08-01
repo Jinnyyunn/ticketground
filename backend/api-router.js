@@ -4,6 +4,7 @@ import { publicSessionUser } from "./session-user.js";
 export function createApiRouter({
   accountTicketsForUser,
   addSupportMessage,
+  addSupportMessageForPrincipal,
   authenticateNativeSession,
   adminHoldAdmissionCredential,
   acknowledgeOperatorAlerts,
@@ -18,6 +19,7 @@ export function createApiRouter({
   createAdminAccount,
   cancelResaleListing,
   createSupportThread,
+  createSupportThreadForPrincipal,
   createEventDraft,
   demoSession,
   directTransferAttempt,
@@ -35,6 +37,7 @@ export function createApiRouter({
   nativeSession,
   purchaseResale,
   publicCatalog,
+  publicSupportContent,
   publicArtist,
   publicOpenCalendar,
   publicRegions,
@@ -56,6 +59,7 @@ export function createApiRouter({
   startPortOneDanalVerification,
   submitGroupBookingRequest,
   supportThreadForUser,
+  supportThreadsForPrincipal,
   trustDevice,
   updateEventSale,
   updateEventVenue,
@@ -96,6 +100,20 @@ function requireDemoUserAPI() {
   if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
 }
 
+function requireDemoSupportAPI() {
+  const enabled = process.env.TIG_DEMO_SUPPORT_API === "1"
+    || (process.env.NODE_ENV !== "production" && process.env.TIG_NEXT_DEV === "1");
+  if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
+}
+
+function requireIdempotencyKey(req) {
+  const value = String(req.headers["x-idempotency-key"] || "").trim();
+  if (!value || value.length > 200) {
+    throw httpError(400, "IDEMPOTENCY_KEY_REQUIRED", "유효한 재시도 키가 필요합니다.");
+  }
+  return value;
+}
+
 async function parseBody(req) {
   const chunks = [];
   let size = 0;
@@ -132,8 +150,9 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1"] };
+    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1"] };
   }
+  if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") {
     const rawLimit = url.searchParams.get("limit");
@@ -169,6 +188,27 @@ async function handleApi(req, res, db, surface) {
       userId: authenticateNativeSession(db, req).user.id,
       name: body.name
     });
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/support/threads") {
+    return supportThreadsForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/support/threads") {
+    requireBody(body, ["message"]);
+    return createSupportThreadForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/support/messages") {
+    requireBody(body, ["threadId", "message"]);
+    return addSupportMessageForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
   }
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);
@@ -226,6 +266,7 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "GET" && userWatchlistMatch) return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
   if (req.method === "GET" && url.pathname === "/api/support/threads") {
+    requireDemoSupportAPI();
     const userId = url.searchParams.get("userId");
     if (!userId) throw httpError(400, "MISSING_FIELD", "userId 값이 필요합니다.");
     return supportThreadForUser(db, userId);
@@ -241,10 +282,12 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && seatMapMatch) return venueMapForEvent(db, decodeURIComponent(seatMapMatch[1]));
 
   if (req.method === "POST" && url.pathname === "/api/support/threads") {
+    requireDemoSupportAPI();
     requireBody(body, ["userId", "message"]);
     return createSupportThread(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/support/messages") {
+    requireDemoSupportAPI();
     requireBody(body, ["threadId", "actorId", "message"]);
     return addSupportMessage(db, body);
   }

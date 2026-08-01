@@ -1,6 +1,7 @@
 export function createEngagementBackend({
   appendLedger,
   findUser,
+  hmac,
   httpError,
   id,
   now,
@@ -141,21 +142,74 @@ export function createEngagementBackend({
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   }
 
-  function createSupportThread(db, { userId, subject, message, category }) {
+  function publicSupportContent() {
+    return {
+      version: "1",
+      faqs: [
+        { id: "booking", question: "예매 내역은 어디에서 확인하나요?", answer: "로그인 후 마이페이지의 예매내역에서 확인할 수 있습니다." },
+        { id: "cancel", question: "취소 가능 여부는 어떻게 확인하나요?", answer: "공연별 취소 정책과 예매 상세의 서버 상태를 확인해주세요." },
+        { id: "ticket", question: "모바일 티켓은 언제 표시되나요?", answer: "서버에서 예매가 확정된 뒤 모바일 티켓 상태가 표시됩니다." }
+      ],
+      notices: [
+        { id: "secure-support", title: "안전한 1:1 문의", body: "로그인 세션의 본인 문의만 조회하고 작성할 수 있습니다." },
+        { id: "reply-status", title: "답변 상태 안내", body: "문의 목록에서 답변 상태를 확인하세요." }
+      ]
+    };
+  }
+
+  function publicSupportThread(thread) {
+    return {
+      id: thread.id,
+      subject: thread.subject,
+      status: thread.status,
+      category: thread.category,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+      messages: thread.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        body: message.body,
+        at: message.at
+      }))
+    };
+  }
+
+  function supportIdempotency(kind, userId, key, payload) {
+    return {
+      keyDigest: hmac(`support:${kind}:${userId}:${key}`),
+      requestDigest: hmac(`support:${kind}:payload:${JSON.stringify(payload)}`)
+    };
+  }
+
+  function createSupportThread(db, { userId, subject, message, category, idempotencyKey }) {
     const user = findUser(db, userId);
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "문의 내용을 입력해주세요.");
     const allowedCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"];
     const normalizedCategory = allowedCategories.includes(String(category || "").toUpperCase()) ? String(category).toUpperCase() : "GENERAL";
+    const cleanSubject = String(subject || "1:1 실시간 문의").trim().slice(0, 80) || "1:1 실시간 문의";
+    const idempotency = idempotencyKey
+      ? supportIdempotency("thread", user.id, idempotencyKey, { subject: cleanSubject, message: cleanMessage, category: normalizedCategory })
+      : null;
+    if (idempotency) {
+      const existing = db.supportThreads.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
+      if (existing) {
+        if (existing.idempotency.requestDigest !== idempotency.requestDigest) {
+          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 문의 내용이 전달되었습니다.");
+        }
+        return existing;
+      }
+    }
     const thread = {
       id: id("support"),
       userId: user.id,
-      subject: String(subject || "1:1 실시간 문의").trim().slice(0, 80) || "1:1 실시간 문의",
+      subject: cleanSubject,
       status: "OPEN",
       priority: "NORMAL",
       category: normalizedCategory,
       createdAt: now(),
       updatedAt: now(),
+      ...(idempotency ? { idempotency } : {}),
       messages: [
         {
           id: id("msg"),
@@ -185,7 +239,7 @@ export function createEngagementBackend({
     return thread;
   }
 
-  function addSupportMessage(db, { threadId, actorId, role, message }) {
+  function addSupportMessage(db, { threadId, actorId, role, message, idempotencyKey }) {
     const thread = db.supportThreads.find((item) => item.id === threadId);
     if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
     const cleanMessage = String(message || "").trim();
@@ -195,12 +249,25 @@ export function createEngagementBackend({
       throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
     }
     if (normalizedRole === "CUSTOMER") findUser(db, actorId);
+    const idempotency = idempotencyKey
+      ? supportIdempotency("message", actorId, idempotencyKey, { threadId, message: cleanMessage })
+      : null;
+    if (idempotency) {
+      const existing = thread.messages.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
+      if (existing) {
+        if (existing.idempotency.requestDigest !== idempotency.requestDigest) {
+          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 메시지가 전달되었습니다.");
+        }
+        return thread;
+      }
+    }
     const entry = {
       id: id("msg"),
       actorId: normalizedRole === "ADMIN" ? "ADMIN" : actorId,
       role: normalizedRole,
       body: cleanMessage.slice(0, 1000),
-      at: now()
+      at: now(),
+      ...(idempotency ? { idempotency } : {})
     };
     thread.messages.push(entry);
     thread.status = normalizedRole === "ADMIN" ? "ANSWERED" : "OPEN";
@@ -236,11 +303,36 @@ export function createEngagementBackend({
     return thread;
   }
 
+  function supportThreadsForPrincipal(db, userId) {
+    return supportThreadForUser(db, userId).map(publicSupportThread);
+  }
+
+  function createSupportThreadForPrincipal(db, userId, body, idempotencyKey) {
+    return publicSupportThread(createSupportThread(db, { ...body, userId, idempotencyKey }));
+  }
+
+  function addSupportMessageForPrincipal(db, userId, body, idempotencyKey) {
+    const thread = db.supportThreads.find((item) => item.id === body.threadId);
+    if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
+    if (thread.userId !== userId) throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
+    return publicSupportThread(addSupportMessage(db, {
+      threadId: body.threadId,
+      actorId: userId,
+      role: "CUSTOMER",
+      message: body.message,
+      idempotencyKey
+    }));
+  }
+
   return {
     addSupportMessage,
+    addSupportMessageForPrincipal,
     createSupportThread,
+    createSupportThreadForPrincipal,
     notifyWatchlist,
+    publicSupportContent,
     supportThreadForUser,
+    supportThreadsForPrincipal,
     updateSupportStatus,
     upsertWatchlist,
     userWatchlist

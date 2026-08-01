@@ -13,6 +13,7 @@ enum LiveAPIEndpoint: Hashable {
     case regions
     case artist
     case openCalendar
+    case publicSupport
     case seatMap
     case session
     case tickets
@@ -39,6 +40,7 @@ enum LiveAPIEndpoint: Hashable {
         .regions,
         .artist,
         .openCalendar,
+        .publicSupport,
         .seatMap,
         .session,
         .tickets,
@@ -68,7 +70,7 @@ enum LiveAPIEndpoint: Hashable {
         case .unknown(let method, _):
             return method
         case .health, .state, .catalog, .regions, .artist, .openCalendar,
-             .seatMap, .session, .tickets, .watchlist, .supportThreads:
+             .publicSupport, .seatMap, .session, .tickets, .watchlist, .supportThreads:
             return .get
         }
     }
@@ -81,13 +83,14 @@ enum LiveAPIEndpoint: Hashable {
         case .regions: return "/api/discovery/v1/regions"
         case .artist: return "/api/discovery/v1/artists/{slug}"
         case .openCalendar: return "/api/discovery/v1/open-calendar"
+        case .publicSupport: return "/api/support/public"
         case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
         case .session: return "/api/me"
         case .tickets: return "/api/me/tickets"
         case .watchlist: return "/api/users/{userId}/watchlist"
-        case .supportThreads: return "/api/support/threads?userId={userId}"
-        case .supportThreadMutation: return "/api/support/threads"
-        case .supportMessages: return "/api/support/messages"
+        case .supportThreads: return "/api/me/support/threads"
+        case .supportThreadMutation: return "/api/me/support/threads"
+        case .supportMessages: return "/api/me/support/messages"
         case .watchlistMutation: return "/api/watchlist"
         case .watchlistNotification: return "/api/watchlist/notify"
         case .ticketPurchase: return "/api/tickets/buy"
@@ -104,7 +107,7 @@ enum LiveAPIEndpoint: Hashable {
 
     var access: LiveAPIEndpointAccess {
         switch self {
-        case .health, .state, .catalog, .regions, .artist, .openCalendar, .seatMap:
+        case .health, .state, .catalog, .regions, .artist, .openCalendar, .publicSupport, .seatMap:
             return .publicRead
         case .session, .tickets, .watchlist, .supportThreads:
             return .authenticatedRead
@@ -189,7 +192,8 @@ struct LiveAPIContract {
         validatedStateResponse: Bool = false,
         catalogRouteConfirmed: Bool = false,
         discoveryRoutesConfirmed: Bool = false,
-        nativeAccountRoutesConfirmed: Bool = false
+        nativeAccountRoutesConfirmed: Bool = false,
+        nativeSupportRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
@@ -205,7 +209,8 @@ struct LiveAPIContract {
                     validatedStateResponse: validatedStateResponse,
                     catalogRouteConfirmed: catalogRouteConfirmed,
                     discoveryRoutesConfirmed: discoveryRoutesConfirmed,
-                    nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed
+                    nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed,
+                    nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed
                 )
             )
         })
@@ -219,7 +224,8 @@ struct LiveAPIContract {
         validatedStateResponse: Bool,
         catalogRouteConfirmed: Bool,
         discoveryRoutesConfirmed: Bool,
-        nativeAccountRoutesConfirmed: Bool
+        nativeAccountRoutesConfirmed: Bool,
+        nativeSupportRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
@@ -233,6 +239,9 @@ struct LiveAPIContract {
             guard ![.regions, .artist, .openCalendar].contains(endpoint) || discoveryRoutesConfirmed else {
                 return .unknown
             }
+            guard endpoint != .publicSupport || nativeSupportRoutesConfirmed else {
+                return .unknown
+            }
             switch endpoint.access {
             case .publicRead:
                 return .available
@@ -240,11 +249,19 @@ struct LiveAPIContract {
                 guard baseURL.scheme?.lowercased() == "https" else {
                     return .blocked(.requiresHTTPS)
                 }
-                return nativeAccountRoutesConfirmed && [.session, .tickets].contains(endpoint)
+                if nativeAccountRoutesConfirmed && [.session, .tickets].contains(endpoint) {
+                    return .available
+                }
+                return nativeSupportRoutesConfirmed && endpoint == .supportThreads
                     ? .available
                     : .blocked(.serverAuthorizationUnverified)
             case .mutation:
-                return baseURL.scheme?.lowercased() == "https" ? .blocked(.unsupportedMutation) : .blocked(.requiresHTTPS)
+                guard baseURL.scheme?.lowercased() == "https" else {
+                    return .blocked(.requiresHTTPS)
+                }
+                return nativeSupportRoutesConfirmed && [.supportThreadMutation, .supportMessages].contains(endpoint)
+                    ? .available
+                    : .blocked(.unsupportedMutation)
             }
         }
     }
@@ -632,11 +649,30 @@ struct LiveNotificationJob: Decodable, Equatable {
 
 struct LiveSupportThread: Decodable, Equatable {
     let id: String
-    let userId: String
     let subject: String
     let status: LiveSupportStatus
+    let category: String?
+    let createdAt: String?
     let updatedAt: String
     let messages: [LiveSupportMessage]
+}
+
+struct LivePublicSupport: Decodable, Equatable {
+    let version: String
+    let faqs: [LiveSupportFAQ]
+    let notices: [LiveSupportNotice]
+}
+
+struct LiveSupportFAQ: Decodable, Equatable {
+    let id: String
+    let question: String
+    let answer: String
+}
+
+struct LiveSupportNotice: Decodable, Equatable {
+    let id: String
+    let title: String
+    let body: String
 }
 
 enum LiveSupportStatus: String, Decodable, Equatable {
@@ -653,7 +689,6 @@ enum LiveSupportStatus: String, Decodable, Equatable {
 
 struct LiveSupportMessage: Decodable, Equatable {
     let id: String
-    let actorId: String
     let role: LiveSupportRole
     let body: String
     let at: String
@@ -749,12 +784,12 @@ enum LiveAuthenticatedAction: Equatable {
         let idempotencyKey: String
         switch self {
         case let .supportThread(userID, message, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "message": message]
+            owner = (userID, "__bearer__")
+            body = ["message": message]
             idempotencyKey = key
         case let .supportMessage(userID, threadID, message, key):
-            owner = (userID, "actorId")
-            body = ["threadId": threadID, "actorId": userID, "message": message]
+            owner = (userID, "__bearer__")
+            body = ["threadId": threadID, "message": message]
             idempotencyKey = key
         case let .watchlist(userID, eventID, key):
             owner = (userID, "userId")
@@ -805,7 +840,7 @@ enum LiveAuthenticatedAction: Equatable {
             body: .json(try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])),
             idempotencyKey: idempotencyKey,
             authentication: .required(userID: owner.id),
-            ownerBinding: .jsonField(owner.field)
+            ownerBinding: owner.field == "__bearer__" ? .bearerPrincipal : .jsonField(owner.field)
         )
     }
 }

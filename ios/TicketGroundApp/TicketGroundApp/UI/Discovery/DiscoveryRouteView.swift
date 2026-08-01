@@ -2104,6 +2104,13 @@ private struct LiveSupportRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveSupportState = .loading
     @State private var reloadID = 0
+    @State private var publicSupport: LivePublicSupport?
+    @State private var admittedCapabilityMap: LiveCapabilityMap?
+    @State private var subject = ""
+    @State private var message = ""
+    @State private var submissionKey = UUID().uuidString
+    @State private var isSubmitting = false
+    @State private var submissionError: String?
 
     var body: some View {
         ScrollView {
@@ -2112,39 +2119,41 @@ private struct LiveSupportRouteView: View {
                     .font(.caption.weight(.black))
                     .foregroundStyle(TicketgroundColor.accent)
                     .accessibilityIdentifier("live-support")
+                if let publicSupport {
+                    publicSupportContent(publicSupport)
+                }
                 switch state {
                 case .loading:
-                    LiveRouteMessageView(title: routeTitle, message: "GET /api/support/threads?userId={userId} 요청을 준비하는 중입니다.", identifier: "live-support-loading")
+                    LiveRouteMessageView(title: routeTitle, message: "고객센터 정보를 불러오는 중입니다.", identifier: "live-support-loading")
                 case .capability(let capability):
                     LiveAccountCapabilitySurface(
                         state: capability,
                         title: routeTitle,
-                        loginMessage: "고객센터와 1:1 문의는 실제 로그인 세션이 필요합니다.",
+                        loginMessage: "1:1 문의 작성과 내역 확인에는 로그인이 필요합니다.",
                         identifier: "live-support",
                         retry: { reloadID += 1 }
                     )
                 case .loaded(let threads):
+                    supportComposer(existingThreads: threads)
                     if threads.isEmpty {
-                        LiveRouteMessageView(title: "문의 내역이 없습니다", message: "GET /api/support/threads 결과가 비어 있습니다.", identifier: "live-support-empty")
+                        LiveRouteMessageView(title: "문의 내역이 없습니다", message: "새 문의를 작성하면 이곳에서 답변 상태를 확인할 수 있습니다.", identifier: "live-support-empty")
                     } else {
                         VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                             ForEach(threads, id: \.id) { thread in
-                                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                                    Text(thread.subject)
-                                        .font(.headline.weight(.bold))
-                                    Text(supportStatus(thread.status))
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(TicketgroundColor.accent)
-                                    if let message = thread.messages.last {
-                                        Text(message.body)
-                                            .font(.subheadline)
-                                            .foregroundStyle(TicketgroundColor.inkSecondary)
+                                Group {
+                                    if let admittedCapabilityMap {
+                                        NavigationLink {
+                                            LiveSupportThreadDetailView(
+                                                initialThread: thread,
+                                                capabilityMap: admittedCapabilityMap
+                                            )
+                                        } label: {
+                                            supportThreadRow(thread)
+                                        }
+                                    } else {
+                                        supportThreadRow(thread)
                                     }
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(TicketgroundSpacing.md)
-                                .background(TicketgroundColor.surfaceMuted)
-                                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
                                 .accessibilityIdentifier("live-support-thread-\(thread.id)")
                             }
                         }
@@ -2171,14 +2180,16 @@ private struct LiveSupportRouteView: View {
                 session: container.environment.sessionStore.current,
                 baseURL: apiClient.baseURL
             )
-            guard initialState == .retry else {
+            guard initialState != .httpsRequired else {
                 state = .capability(initialState)
                 return
             }
 
             let service = LiveBackendService(apiClient: apiClient)
             do {
-                let probe = try await service.diagnosePublicContract()
+                let probe = try await service.diagnoseSupportContract()
+                publicSupport = try await service.getPublicSupport()
+                admittedCapabilityMap = probe.capabilities
                 let resolvedState = LiveAccountCapabilityState.resolve(
                     for: .support,
                     capabilityMap: probe.capabilities,
@@ -2204,12 +2215,221 @@ private struct LiveSupportRouteView: View {
         }
     }
 
+    @ViewBuilder
+    private func publicSupportContent(_ content: LivePublicSupport) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text("자주 묻는 질문")
+                .font(.headline.weight(.black))
+            ForEach(content.faqs, id: \.id) { faq in
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                    Text(faq.question).font(.subheadline.weight(.bold))
+                    Text(faq.answer).font(.caption).foregroundStyle(TicketgroundColor.inkMuted)
+                }
+            }
+            Text("공지사항")
+                .font(.headline.weight(.black))
+            ForEach(content.notices, id: \.id) { notice in
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                    HStack(spacing: TicketgroundSpacing.xs) {
+                        Text("공지")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(TicketgroundColor.accent)
+                        Text(notice.title).font(.subheadline.weight(.bold))
+                    }
+                    Text(notice.body).font(.caption).foregroundStyle(TicketgroundColor.inkMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(TicketgroundSpacing.sm)
+                .background(TicketgroundColor.surface)
+                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+            }
+        }
+        .padding(TicketgroundSpacing.lg)
+        .background(TicketgroundColor.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+        .accessibilityIdentifier("live-support-public")
+    }
+
+    @ViewBuilder
+    private func supportComposer(existingThreads: [LiveSupportThread]) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text("새 1:1 문의").font(.headline.weight(.black))
+            TextField("문의 제목", text: $subject)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("live-support-subject")
+            TextField("문의 내용", text: $message, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(3...6)
+                .accessibilityIdentifier("live-support-message")
+            Button {
+                Task { await submitThread(existingThreads: existingThreads) }
+            } label: {
+                Text(isSubmitting ? "전송 중" : "문의 보내기")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isSubmitting || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("live-support-submit")
+            if let submissionError {
+                Text(submissionError).font(.caption).foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func supportThreadRow(_ thread: LiveSupportThread) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+            Text(thread.subject).font(.headline.weight(.bold))
+            Text(supportStatus(thread.status))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(TicketgroundColor.accent)
+            if let latestMessage = thread.messages.last {
+                Text(latestMessage.body)
+                    .font(.subheadline)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TicketgroundSpacing.md)
+        .background(TicketgroundColor.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+    }
+
+    @MainActor
+    private func submitThread(existingThreads: [LiveSupportThread]) async {
+        guard let userID = container.environment.sessionStore.current?.userID,
+              let admittedCapabilityMap else {
+            state = .capability(.loginRequired)
+            return
+        }
+        isSubmitting = true
+        submissionError = nil
+        defer { isSubmitting = false }
+        do {
+            let service = LiveBackendService(
+                apiClient: container.environment.apiClient,
+                initialCapabilityMap: admittedCapabilityMap
+            )
+            let created = try await service.createSupportThread(
+                userID: userID,
+                subject: subject,
+                message: message,
+                idempotencyKey: submissionKey
+            )
+            state = .loaded([created] + existingThreads.filter { $0.id != created.id })
+            subject = ""
+            message = ""
+            submissionKey = UUID().uuidString
+        } catch let error as APIClientError {
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                state = .capability(.loginRequired)
+            } else {
+                submissionError = error.localizedDescription
+            }
+        } catch {
+            submissionError = "문의를 전송하지 못했습니다. 다시 시도해 주세요."
+        }
+    }
+
     private var routeTitle: String {
         route == .inquiry ? "1:1 문의 · LIVE" : "고객센터 · LIVE"
     }
 
     private func supportStatus(_ status: LiveSupportStatus) -> String {
         switch status {
+        case .open: return "답변 대기"
+        case .answered: return "답변 완료"
+        case .closed: return "종료"
+        case .unknown: return "상태 확인 중"
+        }
+    }
+}
+
+private struct LiveSupportThreadDetailView: View {
+    @Environment(AppContainer.self) private var container
+    @State private var thread: LiveSupportThread
+    @State private var reply = ""
+    @State private var replyKey = UUID().uuidString
+    @State private var isSending = false
+    @State private var errorMessage: String?
+    let capabilityMap: LiveCapabilityMap
+
+    init(initialThread: LiveSupportThread, capabilityMap: LiveCapabilityMap) {
+        _thread = State(initialValue: initialThread)
+        self.capabilityMap = capabilityMap
+    }
+
+    var body: some View {
+        List {
+            Section("문의") {
+                LabeledContent("제목", value: thread.subject)
+                LabeledContent("상태", value: statusText)
+            }
+            Section("대화") {
+                ForEach(thread.messages, id: \.id) { message in
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                        Text(message.role == .admin ? "고객센터" : "나")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(TicketgroundColor.accent)
+                        Text(message.body)
+                    }
+                }
+            }
+            Section("답글") {
+                TextField("추가 문의 내용", text: $reply, axis: .vertical)
+                    .lineLimit(3...6)
+                    .accessibilityIdentifier("live-support-reply")
+                Button(isSending ? "전송 중" : "답글 보내기") {
+                    Task { await sendReply() }
+                }
+                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("live-support-reply-submit")
+                if let errorMessage {
+                    Text(errorMessage).foregroundStyle(.red)
+                }
+            }
+        }
+        .navigationTitle("문의 상세")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("live-support-detail")
+    }
+
+    @MainActor
+    private func sendReply() async {
+        guard let userID = container.environment.sessionStore.current?.userID else {
+            errorMessage = "로그인이 필요합니다."
+            return
+        }
+        isSending = true
+        errorMessage = nil
+        defer { isSending = false }
+        do {
+            let service = LiveBackendService(
+                apiClient: container.environment.apiClient,
+                initialCapabilityMap: capabilityMap
+            )
+            thread = try await service.addSupportMessage(
+                userID: userID,
+                threadID: thread.id,
+                message: reply,
+                idempotencyKey: replyKey
+            )
+            reply = ""
+            replyKey = UUID().uuidString
+        } catch let error as APIClientError {
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                errorMessage = "세션이 만료되었습니다. 다시 로그인해 주세요."
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        } catch {
+            errorMessage = "답글을 전송하지 못했습니다. 다시 시도해 주세요."
+        }
+    }
+
+    private var statusText: String {
+        switch thread.status {
         case .open: return "답변 대기"
         case .answered: return "답변 완료"
         case .closed: return "종료"

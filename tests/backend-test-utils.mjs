@@ -52,6 +52,7 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_APP_ATTESTATION_SECRET: appAttestationSecret,
       TIG_PORTONE_IDENTITY_TEST_MODE: "1",
       TIG_DEMO_PROFILE_API: "1",
+      TIG_DEMO_SUPPORT_API: "1",
       TIG_SECRET: "backend-test-runtime-secret",
       ...env
     },
