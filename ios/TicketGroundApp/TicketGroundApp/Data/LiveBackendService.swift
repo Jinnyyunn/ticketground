@@ -45,7 +45,8 @@ final class LiveBackendService {
             validatedStateResponse: false,
             catalogRouteConfirmed: false,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true
+            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
         )
         guard capabilities.diagnostics.compatibility == .compatible else {
             return LiveAPIContractProbe(
@@ -68,7 +69,8 @@ final class LiveBackendService {
             catalogRouteConfirmed: true,
             discoveryRoutesConfirmed: discoveryRoutesConfirmed,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true
+            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -87,7 +89,25 @@ final class LiveBackendService {
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: health.version,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true
+            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
+        )
+        return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
+    }
+
+    func diagnoseWatchlistContract() async throws -> LiveAPIContractProbe {
+        let health = try await get(
+            APIRequest(path: contract.bootstrapPath),
+            endpoint: .health,
+            bypassCapability: true,
+            as: LiveAPIHealth.self
+        )
+        capabilities = contract.capabilityMap(
+            for: apiClient.baseURL ?? contract.publicHost,
+            observedResponseVersion: health.version,
+            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
+            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
         )
         return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
     }
@@ -183,9 +203,47 @@ final class LiveBackendService {
 
     func getWatchlist(userID: String) async throws -> [LiveWatchlistItem] {
         try await get(
-            authenticatedRequest(path: "/api/users/\(pathValue(userID))/watchlist", userID: userID),
+            principalRequest(path: "/api/me/watchlist", userID: userID),
             endpoint: .watchlist,
             as: [LiveWatchlistItem].self
+        )
+    }
+
+    func upsertWatchlist(
+        userID: String,
+        eventID: String,
+        channels: [String],
+        calendarEnabled: Bool,
+        notificationEnabled: Bool
+    ) async throws -> LiveWatchlistItem {
+        let body = try JSONEncoder().encode(LiveWatchlistPreferences(
+            channels: channels,
+            calendarEnabled: calendarEnabled,
+            notificationEnabled: notificationEnabled
+        ))
+        return try await get(
+            APIRequest(
+                method: .put,
+                path: "/api/me/watchlist/\(pathValue(eventID))",
+                body: .json(body),
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .watchlistUpsert,
+            as: LiveWatchlistItem.self
+        )
+    }
+
+    func deleteWatchlist(userID: String, eventID: String) async throws -> LiveWatchlistDeletion {
+        try await get(
+            APIRequest(
+                method: .delete,
+                path: "/api/me/watchlist/\(pathValue(eventID))",
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .watchlistDelete,
+            as: LiveWatchlistDeletion.self
         )
     }
 
@@ -331,10 +389,6 @@ final class LiveBackendService {
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
-    private func authenticatedRequest(path: String, userID: String) -> APIRequest {
-        APIRequest(path: path, authentication: .required(userID: userID))
-    }
-
     private func principalRequest(path: String, userID: String) -> APIRequest {
         APIRequest(
             path: path,
@@ -342,4 +396,10 @@ final class LiveBackendService {
             ownerBinding: .bearerPrincipal
         )
     }
+}
+
+private struct LiveWatchlistPreferences: Encodable {
+    let channels: [String]
+    let calendarEnabled: Bool
+    let notificationEnabled: Bool
 }

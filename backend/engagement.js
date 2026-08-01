@@ -21,6 +21,28 @@ export function createEngagementBackend({
       .sort((a, b) => new Date(a.event?.date || a.createdAt) - new Date(b.event?.date || b.createdAt));
   }
 
+  function publicWatchlistItem(db, watch) {
+    return {
+      id: watch.id,
+      eventId: watch.eventId,
+      channels: watch.channels,
+      calendarEnabled: watch.calendarEnabled,
+      notificationEnabled: watch.notificationEnabled,
+      createdAt: watch.createdAt,
+      updatedAt: watch.updatedAt,
+      event: db.events.find((event) => event.id === watch.eventId) || null,
+      notificationJobs: db.notificationJobs.filter((job) => job.watchlistId === watch.id)
+    };
+  }
+
+  function userWatchlistForPrincipal(db, userId) {
+    findUser(db, userId);
+    return db.watchlist
+      .filter((item) => item.userId === userId)
+      .map((item) => publicWatchlistItem(db, item))
+      .sort((a, b) => new Date(a.event?.date || a.createdAt) - new Date(b.event?.date || b.createdAt));
+  }
+
   function notificationScheduleForEvent(event) {
     const firstStartsAt = primaryDate(event).startsAt;
     return {
@@ -67,6 +89,17 @@ export function createEngagementBackend({
     return jobs;
   }
 
+  function cancelWatchlistNotifications(db, watch) {
+    const jobs = db.notificationJobs.filter((job) => job.watchlistId === watch.id);
+    for (const job of jobs) {
+      if (job.status === "SCHEDULED") {
+        job.status = "CANCELED";
+        job.updatedAt = now();
+      }
+    }
+    return jobs;
+  }
+
   function upsertWatchlist(db, { userId, eventId, channels = ["APP_PUSH"], calendarEnabled = true, notificationEnabled = true }) {
     const user = findUser(db, userId);
     const event = db.events.find((item) => item.id === eventId);
@@ -93,15 +126,58 @@ export function createEngagementBackend({
       watch.notificationEnabled = Boolean(notificationEnabled);
       watch.updatedAt = now();
     }
-    const jobs = watch.notificationEnabled ? scheduleWatchlistNotifications(db, watch) : [];
+    const jobs = watch.notificationEnabled
+      ? scheduleWatchlistNotifications(db, watch)
+      : cancelWatchlistNotifications(db, watch);
     appendLedger(db, user.id, "WATCHLIST_UPSERTED", {
       watchlistId: watch.id,
       eventId: event.id,
       channels: cleanChannels,
       calendarEnabled: watch.calendarEnabled,
-      scheduledJobs: jobs.length
+      scheduledJobs: jobs.filter((job) => job.status === "SCHEDULED").length,
+      canceledJobs: jobs.filter((job) => job.status === "CANCELED").length
     });
     return { watchlist: watch, event, notificationJobs: jobs };
+  }
+
+  function upsertWatchlistForPrincipal(db, userId, eventId, preferences) {
+    if (preferences === null || typeof preferences !== "object" || Array.isArray(preferences)) {
+      throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+    }
+    for (const field of ["calendarEnabled", "notificationEnabled"]) {
+      if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
+        throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+      }
+    }
+    let normalizedPreferences = preferences;
+    if (Object.hasOwn(preferences, "channels")) {
+      const supportedChannels = new Set(["APP_PUSH", "EMAIL", "KAKAO", "SMS"]);
+      const channels = preferences.channels;
+      if (!Array.isArray(channels) || channels.length === 0 || channels.some((channel) => (
+        typeof channel !== "string" || !supportedChannels.has(channel.toUpperCase())
+      ))) {
+        throw httpError(400, "INVALID_WATCHLIST_CHANNELS", "관심공연 알림 채널을 확인해주세요.");
+      }
+      normalizedPreferences = {
+        ...preferences,
+        channels: [...new Set(channels.map((channel) => channel.toUpperCase()))]
+      };
+    }
+    const result = upsertWatchlist(db, { ...normalizedPreferences, userId, eventId });
+    return publicWatchlistItem(db, result.watchlist);
+  }
+
+  function removeWatchlistForPrincipal(db, userId, eventId) {
+    findUser(db, userId);
+    const index = db.watchlist.findIndex((item) => item.userId === userId && item.eventId === eventId);
+    if (index < 0) return { deleted: true, eventId };
+    const [watch] = db.watchlist.splice(index, 1);
+    cancelWatchlistNotifications(db, watch);
+    appendLedger(db, userId, "WATCHLIST_REMOVED", {
+      watchlistId: watch.id,
+      eventId
+    });
+    return { deleted: true, eventId };
   }
 
   function notifyWatchlist(db, { watchlistId, userId, eventId, type = "STATUS_CHANGE", dispatchNow = false }) {
@@ -334,10 +410,13 @@ export function createEngagementBackend({
     createSupportThreadForPrincipal,
     notifyWatchlist,
     publicSupportContent,
+    removeWatchlistForPrincipal,
     supportThreadForUser,
     supportThreadsForPrincipal,
     updateSupportStatus,
     upsertWatchlist,
+    upsertWatchlistForPrincipal,
+    userWatchlistForPrincipal,
     userWatchlist
   };
 }

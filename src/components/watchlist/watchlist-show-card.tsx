@@ -19,12 +19,14 @@ export type WatchShow = {
 };
 
 export function WatchlistShowCard({
+  backendAvailable,
   enabled,
   onRecordNotification,
   onToggle,
   priority = false,
   show,
 }: {
+  readonly backendAvailable: boolean;
   readonly enabled: boolean;
   readonly onRecordNotification: () => void;
   readonly onToggle: () => void;
@@ -71,9 +73,9 @@ export function WatchlistShowCard({
             <Link href={`/goods/${show.slug}`} className="inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-black text-ink hover:border-line-strong">
               상세보기
             </Link>
-            <WatchlistToggleButton active={enabled} label={`${show.title} 알림`} onToggle={onToggle} />
+            <WatchlistToggleButton active={enabled} disabled={!backendAvailable} label={`${show.title} 알림`} onToggle={onToggle} />
             {enabled && (
-              <button type="button" onClick={onRecordNotification} className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-black text-on-ink">
+              <button type="button" disabled={!backendAvailable} onClick={onRecordNotification} className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-black text-on-ink disabled:cursor-not-allowed disabled:opacity-50">
                 즉시 알림 기록
               </button>
             )}

@@ -1381,6 +1381,8 @@ private struct LiveCatalogDetailView: View {
             .background(TicketgroundColor.surfaceMuted)
             .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
 
+            LiveWatchlistCTA(event: event)
+
             NavigationLink(value: AppRoute.queue(slug: event.slug ?? event.id)) {
                 Label("좌석 현황 조회", systemImage: "square.grid.2x2")
                     .font(.headline.weight(.bold))
@@ -1987,10 +1989,272 @@ enum LiveAccountDisplay {
     }
 }
 
+private struct LiveWatchlistCTA: View {
+    let event: LiveBackendCatalogEvent
+    @Environment(AppContainer.self) private var container
+    @State private var capability: LiveAccountCapabilityState?
+    @State private var admittedCapabilityMap: LiveCapabilityMap?
+    @State private var isWatched = false
+    @State private var isLoading = true
+    @State private var isMutating = false
+    @State private var errorMessage: String?
+    @State private var reloadID = 0
+
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView("관심공연 상태 확인 중")
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .accessibilityIdentifier("live-watchlist-cta-loading")
+            } else if let capability {
+                LiveAccountCapabilitySurface(
+                    state: capability,
+                    title: "관심공연을 변경할 수 없습니다",
+                    loginMessage: "로그인하면 이 공연을 관심공연에 저장할 수 있습니다.",
+                    identifier: "live-watchlist-cta",
+                    retry: { reloadID += 1 }
+                )
+            } else {
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                    Button {
+                        Task { await toggleWatchlist() }
+                    } label: {
+                        Label(isWatched ? "관심공연 해제" : "관심공연 추가", systemImage: isWatched ? "heart.fill" : "heart")
+                            .font(.headline.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(TicketgroundColor.accent)
+                    .disabled(isMutating)
+                    .accessibilityIdentifier("live-watchlist-cta-toggle")
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("live-watchlist-cta-error")
+                    }
+                }
+            }
+        }
+        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
+            await loadWatchlistState()
+        }
+    }
+
+    @MainActor
+    private func loadWatchlistState() async {
+        isLoading = true
+        errorMessage = nil
+        admittedCapabilityMap = nil
+        let generation = LiveWatchlistGeneration(
+            userID: container.environment.sessionStore.current?.userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID
+        )
+        let apiClient = container.environment.apiClient
+        let initialMap = LiveAPIContract.deployed.capabilityMap(
+            for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
+            observedResponseVersion: nil
+        )
+        let initialState = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: initialMap,
+            session: container.environment.sessionStore.current,
+            baseURL: apiClient.baseURL
+        )
+        guard initialState == .retry else {
+            capability = initialState
+            isLoading = false
+            return
+        }
+        let service = LiveBackendService(apiClient: apiClient)
+        let probe: LiveAPIContractProbe
+        do {
+            probe = try await service.diagnoseWatchlistContract()
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            capability = .retry
+            isLoading = false
+            return
+        }
+        let resolved = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: probe.capabilities,
+            session: container.environment.sessionStore.current,
+            baseURL: apiClient.baseURL
+        )
+        guard case .available(let userID) = resolved else {
+            capability = resolved
+            isLoading = false
+            return
+        }
+        do {
+            let items = try await service.getWatchlist(userID: userID)
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            admittedCapabilityMap = probe.capabilities
+            isWatched = items.contains { $0.eventId == event.id }
+            capability = nil
+            isLoading = false
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            applyWatchlistError(error, capabilityMap: probe.capabilities)
+            isLoading = false
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            capability = .retry
+            isLoading = false
+        }
+    }
+
+    @MainActor
+    private func toggleWatchlist() async {
+        guard !isMutating,
+              let userID = container.environment.sessionStore.current?.userID,
+              let admittedCapabilityMap else { return }
+        let generation = LiveWatchlistGeneration(
+            userID: userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID
+        )
+        isWatched.toggle()
+        isMutating = true
+        errorMessage = nil
+        defer { isMutating = false }
+        let service = LiveBackendService(
+            apiClient: container.environment.apiClient,
+            initialCapabilityMap: admittedCapabilityMap
+        )
+        do {
+            if isWatched {
+                _ = try await service.upsertWatchlist(
+                    userID: userID,
+                    eventID: event.id,
+                    channels: ["APP_PUSH"],
+                    calendarEnabled: false,
+                    notificationEnabled: true
+                )
+            } else {
+                _ = try await service.deleteWatchlist(userID: userID, eventID: event.id)
+            }
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                capability = .loginRequired
+            } else {
+                await reconcileWatchlistState(using: service, userID: userID, generation: generation)
+            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            await reconcileWatchlistState(using: service, userID: userID, generation: generation)
+        }
+    }
+
+    @MainActor
+    private func reconcileWatchlistState(
+        using service: LiveBackendService,
+        userID: String,
+        generation: LiveWatchlistGeneration
+    ) async {
+        do {
+            let items = try await service.getWatchlist(userID: userID)
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            isWatched = items.contains { $0.eventId == event.id }
+            errorMessage = "변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                capability = .loginRequired
+            } else {
+                capability = .retry
+            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            capability = .retry
+        }
+    }
+
+    @MainActor
+    private func applyWatchlistError(_ error: APIClientError, capabilityMap: LiveCapabilityMap) {
+        let resolved = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: capabilityMap,
+            session: container.environment.sessionStore.current,
+            baseURL: container.environment.apiClient.baseURL,
+            requestError: error
+        )
+        if case .server(status: 401, _, _) = error {
+            container.environment.sessionStore.logout()
+        }
+        capability = resolved
+    }
+}
+
 private struct LiveWatchlistRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveWatchlistState = .loading
     @State private var reloadID = 0
+    @State private var admittedCapabilityMap: LiveCapabilityMap?
+    @State private var inFlightEventIDs: Set<String> = []
+    @State private var mutationError: String?
 
     var body: some View {
         ScrollView {
@@ -2001,7 +2265,7 @@ private struct LiveWatchlistRouteView: View {
                     .accessibilityIdentifier("live-watchlist")
                 switch state {
                 case .loading:
-                    LiveRouteMessageView(title: "관심공연", message: "GET /api/users/{userId}/watchlist 요청을 준비하는 중입니다.", identifier: "live-watchlist-loading")
+                    LiveRouteMessageView(title: "관심공연", message: "계정에 저장된 관심공연을 불러오는 중입니다.", identifier: "live-watchlist-loading")
                 case .capability(let capability):
                     LiveAccountCapabilitySurface(
                         state: capability,
@@ -2012,84 +2276,352 @@ private struct LiveWatchlistRouteView: View {
                     )
                 case .loaded(let items):
                     if items.isEmpty {
-                        LiveRouteMessageView(title: "관심공연이 없습니다", message: "GET /api/users/{userId}/watchlist 결과가 비어 있습니다.", identifier: "live-watchlist-empty")
+                        LiveRouteMessageView(title: "관심공연이 없습니다", message: "공연 상세에서 관심공연을 추가하면 여기에 표시됩니다.", identifier: "live-watchlist-empty")
                     } else {
                         VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                             Text("관심공연 \(items.count)개")
                                 .font(.title2.weight(.black))
+                                .accessibilityIdentifier("live-watchlist-items")
                             ForEach(items, id: \.id) { item in
-                                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                                    Text(item.event?.title ?? item.eventId)
-                                        .font(.headline.weight(.bold))
-                                    Text(item.event?.venue ?? "공연장 정보 없음")
-                                        .font(.subheadline)
-                                        .foregroundStyle(TicketgroundColor.inkMuted)
-                                    Text("알림 \(item.notificationEnabled ? "켜짐" : "꺼짐") · 캘린더 \(item.calendarEnabled ? "연동" : "미연동")")
-                                        .font(.caption)
-                                        .foregroundStyle(TicketgroundColor.inkMuted)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(TicketgroundSpacing.md)
-                                .background(TicketgroundColor.surfaceMuted)
-                                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-                                .accessibilityIdentifier("live-watchlist-item-\(item.id)")
+                                watchlistCard(item)
                             }
                         }
-                        .accessibilityIdentifier("live-watchlist-items")
                     }
+                }
+                if let mutationError {
+                    Text(mutationError)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("live-watchlist-mutation-error")
                 }
             }
             .padding(TicketgroundSpacing.xl)
         }
         .navigationTitle("관심공연")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
-            if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
-                state = .capability(testState)
-                return
-            }
-            let apiClient = container.environment.apiClient
-            let capabilityMap = LiveAPIContract.deployed.capabilityMap(
-                for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
-                observedResponseVersion: nil
-            )
-            let initialState = LiveAccountCapabilityState.resolve(
-                for: .watchlist,
-                capabilityMap: capabilityMap,
-                session: container.environment.sessionStore.current,
-                baseURL: apiClient.baseURL
-            )
-            guard initialState == .retry else {
-                state = .capability(initialState)
-                return
-            }
+        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
+            await loadWatchlist()
+        }
+    }
 
-            let service = LiveBackendService(apiClient: apiClient)
-            do {
-                let probe = try await service.diagnosePublicContract()
-                let resolvedState = LiveAccountCapabilityState.resolve(
-                    for: .watchlist,
-                    capabilityMap: probe.capabilities,
-                    session: container.environment.sessionStore.current,
-                    baseURL: apiClient.baseURL
-                )
-                guard case .available(let userID) = resolvedState else {
-                    state = .capability(resolvedState)
-                    return
+    @ViewBuilder
+    private func watchlistCard(_ item: LiveWatchlistItem) -> some View {
+        let isInFlight = inFlightEventIDs.contains(item.eventId)
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text(item.event?.title ?? item.eventId)
+                .font(.headline.weight(.bold))
+                .accessibilityIdentifier("live-watchlist-item-\(item.id)")
+            Text(item.event?.venue ?? "공연장 정보 없음")
+                .font(.subheadline)
+                .foregroundStyle(TicketgroundColor.inkMuted)
+            HStack(spacing: TicketgroundSpacing.sm) {
+                Button(item.notificationEnabled ? "오픈 알림 끄기" : "오픈 알림 켜기") {
+                    Task { await setPreferences(item, notificationEnabled: !item.notificationEnabled) }
                 }
-                state = .loaded(try await service.getWatchlist(userID: userID))
-            } catch let error as APIClientError {
-                state = .capability(LiveAccountCapabilityState.resolve(
-                    for: .watchlist,
-                    capabilityMap: capabilityMap,
-                    session: container.environment.sessionStore.current,
-                    baseURL: apiClient.baseURL,
-                    requestError: error
-                ))
-            } catch {
+                .buttonStyle(.bordered)
+                .disabled(isInFlight)
+                .accessibilityIdentifier("live-watchlist-notification-\(item.eventId)")
+                Button(item.calendarEnabled ? "캘린더 해제" : "캘린더 연동") {
+                    Task { await setPreferences(item, calendarEnabled: !item.calendarEnabled) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isInFlight)
+                .accessibilityIdentifier("live-watchlist-calendar-\(item.eventId)")
+            }
+            Button("관심공연 삭제", role: .destructive) {
+                Task { await deleteItem(item) }
+            }
+            .disabled(isInFlight)
+            .accessibilityIdentifier("live-watchlist-delete-\(item.eventId)")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TicketgroundSpacing.md)
+        .background(TicketgroundColor.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+    }
+
+    @MainActor
+    private func loadWatchlist() async {
+        state = .loading
+        admittedCapabilityMap = nil
+        inFlightEventIDs.removeAll()
+        mutationError = nil
+        let generation = LiveWatchlistGeneration(
+            userID: container.environment.sessionStore.current?.userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID
+        )
+        if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
+            state = .capability(testState)
+            return
+        }
+        let apiClient = container.environment.apiClient
+        let initialMap = LiveAPIContract.deployed.capabilityMap(
+            for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
+            observedResponseVersion: nil
+        )
+        let initialState = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: initialMap,
+            session: container.environment.sessionStore.current,
+            baseURL: apiClient.baseURL
+        )
+        guard initialState == .retry else {
+            state = .capability(initialState)
+            return
+        }
+        let service = LiveBackendService(apiClient: apiClient)
+        let probe: LiveAPIContractProbe
+        do {
+            probe = try await service.diagnoseWatchlistContract()
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            state = .capability(.retry)
+            return
+        }
+        let resolved = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: probe.capabilities,
+            session: container.environment.sessionStore.current,
+            baseURL: apiClient.baseURL
+        )
+        guard case .available(let userID) = resolved else {
+            state = .capability(resolved)
+            return
+        }
+        do {
+            let items = try await service.getWatchlist(userID: userID)
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            admittedCapabilityMap = probe.capabilities
+            state = .loaded(items)
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            applyLoadError(error, capabilityMap: probe.capabilities)
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            state = .capability(.retry)
+        }
+    }
+
+    @MainActor
+    private func setPreferences(
+        _ item: LiveWatchlistItem,
+        notificationEnabled: Bool? = nil,
+        calendarEnabled: Bool? = nil
+    ) async {
+        guard !inFlightEventIDs.contains(item.eventId),
+              let userID = container.environment.sessionStore.current?.userID,
+              let admittedCapabilityMap,
+              case .loaded(let currentItems) = state else { return }
+        let generation = LiveWatchlistGeneration(
+            userID: userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID
+        )
+        let optimistic = copyingWatchlistItem(
+            item,
+            notificationEnabled: notificationEnabled ?? item.notificationEnabled,
+            calendarEnabled: calendarEnabled ?? item.calendarEnabled
+        )
+        state = .loaded(replacingWatchlistItem(optimistic, in: currentItems))
+        inFlightEventIDs.insert(item.eventId)
+        mutationError = nil
+        defer { inFlightEventIDs.remove(item.eventId) }
+        let service = LiveBackendService(
+            apiClient: container.environment.apiClient,
+            initialCapabilityMap: admittedCapabilityMap
+        )
+        do {
+            let updated = try await service.upsertWatchlist(
+                userID: userID,
+                eventID: item.eventId,
+                channels: item.channels,
+                calendarEnabled: optimistic.calendarEnabled,
+                notificationEnabled: optimistic.notificationEnabled
+            )
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ), case .loaded(let latestItems) = state else { return }
+            state = .loaded(replacingWatchlistItem(updated, in: latestItems))
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                state = .capability(.loginRequired)
+            } else {
+                await reconcileItems(
+                    using: service,
+                    userID: userID,
+                    generation: generation,
+                    message: "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+                )
+            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            await reconcileItems(
+                using: service,
+                userID: userID,
+                generation: generation,
+                message: "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+            )
+        }
+    }
+
+    @MainActor
+    private func reconcileItems(
+        using service: LiveBackendService,
+        userID: String,
+        generation: LiveWatchlistGeneration,
+        message: String
+    ) async {
+        do {
+            let items = try await service.getWatchlist(userID: userID)
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            state = .loaded(items)
+            mutationError = message
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                state = .capability(.loginRequired)
+            } else {
                 state = .capability(.retry)
             }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            state = .capability(.retry)
         }
+    }
+
+    @MainActor
+    private func deleteItem(_ item: LiveWatchlistItem) async {
+        guard !inFlightEventIDs.contains(item.eventId),
+              let userID = container.environment.sessionStore.current?.userID,
+              let admittedCapabilityMap,
+              case .loaded(let currentItems) = state,
+              currentItems.contains(where: { $0.id == item.id }) else { return }
+        let generation = LiveWatchlistGeneration(
+            userID: userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID
+        )
+        state = .loaded(currentItems.filter { $0.id != item.id })
+        inFlightEventIDs.insert(item.eventId)
+        mutationError = nil
+        defer { inFlightEventIDs.remove(item.eventId) }
+        let service = LiveBackendService(
+            apiClient: container.environment.apiClient,
+            initialCapabilityMap: admittedCapabilityMap
+        )
+        do {
+            _ = try await service.deleteWatchlist(userID: userID, eventID: item.eventId)
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                state = .capability(.loginRequired)
+            } else {
+                await reconcileItems(
+                    using: service,
+                    userID: userID,
+                    generation: generation,
+                    message: "삭제 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+                )
+            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            await reconcileItems(
+                using: service,
+                userID: userID,
+                generation: generation,
+                message: "삭제 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+            )
+        }
+    }
+
+    @MainActor
+    private func applyLoadError(_ error: APIClientError, capabilityMap: LiveCapabilityMap) {
+        let resolved = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: capabilityMap,
+            session: container.environment.sessionStore.current,
+            baseURL: container.environment.apiClient.baseURL,
+            requestError: error
+        )
+        if case .server(status: 401, _, _) = error {
+            container.environment.sessionStore.logout()
+        }
+        state = .capability(resolved)
     }
 }
 
@@ -2097,6 +2629,42 @@ private enum LiveWatchlistState {
     case loading
     case capability(LiveAccountCapabilityState)
     case loaded([LiveWatchlistItem])
+}
+
+private struct LiveWatchlistGeneration {
+    let userID: String?
+    let sessionRevision: Int
+    let reloadID: Int
+
+    func isCurrent(userID: String?, sessionRevision: Int, reloadID: Int, isCancelled: Bool) -> Bool {
+        !isCancelled
+            && self.userID == userID
+            && self.sessionRevision == sessionRevision
+            && self.reloadID == reloadID
+    }
+}
+
+private func copyingWatchlistItem(
+    _ item: LiveWatchlistItem,
+    notificationEnabled: Bool,
+    calendarEnabled: Bool
+) -> LiveWatchlistItem {
+    LiveWatchlistItem(
+        id: item.id,
+        userId: item.userId,
+        eventId: item.eventId,
+        channels: item.channels,
+        calendarEnabled: calendarEnabled,
+        notificationEnabled: notificationEnabled,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        event: item.event,
+        notificationJobs: item.notificationJobs
+    )
+}
+
+private func replacingWatchlistItem(_ replacement: LiveWatchlistItem, in items: [LiveWatchlistItem]) -> [LiveWatchlistItem] {
+    items.map { $0.id == replacement.id ? replacement : $0 }
 }
 
 private struct LiveSupportRouteView: View {

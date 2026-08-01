@@ -23,6 +23,8 @@ enum LiveAPIEndpoint: Hashable {
     case supportMessages
     case watchlistMutation
     case watchlistNotification
+    case watchlistUpsert
+    case watchlistDelete
     case ticketPurchase
     case googleAuthentication
     case identityStart
@@ -50,6 +52,8 @@ enum LiveAPIEndpoint: Hashable {
         .supportMessages,
         .watchlistMutation,
         .watchlistNotification,
+        .watchlistUpsert,
+        .watchlistDelete,
         .ticketPurchase,
         .googleAuthentication,
         .identityStart,
@@ -62,6 +66,10 @@ enum LiveAPIEndpoint: Hashable {
 
     var method: APIRequestMethod {
         switch self {
+        case .watchlistUpsert:
+            return .put
+        case .watchlistDelete:
+            return .delete
         case .supportThreadMutation, .supportMessages, .watchlistMutation,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
@@ -87,12 +95,14 @@ enum LiveAPIEndpoint: Hashable {
         case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
         case .session: return "/api/me"
         case .tickets: return "/api/me/tickets"
-        case .watchlist: return "/api/users/{userId}/watchlist"
+        case .watchlist: return "/api/me/watchlist"
         case .supportThreads: return "/api/me/support/threads"
         case .supportThreadMutation: return "/api/me/support/threads"
         case .supportMessages: return "/api/me/support/messages"
         case .watchlistMutation: return "/api/watchlist"
         case .watchlistNotification: return "/api/watchlist/notify"
+        case .watchlistUpsert: return "/api/me/watchlist/{eventId}"
+        case .watchlistDelete: return "/api/me/watchlist/{eventId}"
         case .ticketPurchase: return "/api/tickets/buy"
         case .googleAuthentication: return "/api/auth/google"
         case .identityStart: return "/api/identity/portone-danal/start"
@@ -114,7 +124,7 @@ enum LiveAPIEndpoint: Hashable {
         case .supportThreadMutation, .supportMessages, .watchlistMutation,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
-             .ticketQR, .virtualQR:
+             .ticketQR, .virtualQR, .watchlistUpsert, .watchlistDelete:
             return .mutation
         case .unknown:
             return .mutation
@@ -193,7 +203,8 @@ struct LiveAPIContract {
         catalogRouteConfirmed: Bool = false,
         discoveryRoutesConfirmed: Bool = false,
         nativeAccountRoutesConfirmed: Bool = false,
-        nativeSupportRoutesConfirmed: Bool = false
+        nativeSupportRoutesConfirmed: Bool = false,
+        nativeWatchlistRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
@@ -210,7 +221,8 @@ struct LiveAPIContract {
                     catalogRouteConfirmed: catalogRouteConfirmed,
                     discoveryRoutesConfirmed: discoveryRoutesConfirmed,
                     nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed,
-                    nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed
+                    nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed,
+                    nativeWatchlistRoutesConfirmed: nativeWatchlistRoutesConfirmed
                 )
             )
         })
@@ -225,7 +237,8 @@ struct LiveAPIContract {
         catalogRouteConfirmed: Bool,
         discoveryRoutesConfirmed: Bool,
         nativeAccountRoutesConfirmed: Bool,
-        nativeSupportRoutesConfirmed: Bool
+        nativeSupportRoutesConfirmed: Bool,
+        nativeWatchlistRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
@@ -252,6 +265,9 @@ struct LiveAPIContract {
                 if nativeAccountRoutesConfirmed && [.session, .tickets].contains(endpoint) {
                     return .available
                 }
+                if nativeWatchlistRoutesConfirmed && endpoint == .watchlist {
+                    return .available
+                }
                 return nativeSupportRoutesConfirmed && endpoint == .supportThreads
                     ? .available
                     : .blocked(.serverAuthorizationUnverified)
@@ -259,9 +275,13 @@ struct LiveAPIContract {
                 guard baseURL.scheme?.lowercased() == "https" else {
                     return .blocked(.requiresHTTPS)
                 }
-                return nativeSupportRoutesConfirmed && [.supportThreadMutation, .supportMessages].contains(endpoint)
-                    ? .available
-                    : .blocked(.unsupportedMutation)
+                if nativeSupportRoutesConfirmed && [.supportThreadMutation, .supportMessages].contains(endpoint) {
+                    return .available
+                }
+                if nativeWatchlistRoutesConfirmed && [.watchlistUpsert, .watchlistDelete].contains(endpoint) {
+                    return .available
+                }
+                return .blocked(.unsupportedMutation)
             }
         }
     }
@@ -630,6 +650,11 @@ struct LiveWatchlistItem: Decodable, Equatable {
     let notificationJobs: [LiveNotificationJob]
 }
 
+struct LiveWatchlistDeletion: Decodable, Equatable {
+    let deleted: Bool
+    let eventId: String
+}
+
 struct LiveWatchlistEvent: Decodable, Equatable {
     let id: String
     let title: String
@@ -766,8 +791,7 @@ enum LiveAuthenticatedAction: Equatable {
         switch self {
         case .supportThread: return .supportThreadMutation
         case .supportMessage: return .supportMessages
-        case .watchlist: return .watchlistMutation
-        case .watchlistNotification: return .watchlistNotification
+        case .watchlist, .watchlistNotification: return .watchlistUpsert
         case .ticketPurchase: return .ticketPurchase
         case .identityStart: return .identityStart
         case .identityConfirm: return .identityConfirm
@@ -791,13 +815,21 @@ enum LiveAuthenticatedAction: Equatable {
             owner = (userID, "__bearer__")
             body = ["threadId": threadID, "message": message]
             idempotencyKey = key
-        case let .watchlist(userID, eventID, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "eventId": eventID]
+        case let .watchlist(userID, _, key):
+            owner = (userID, "__bearer__")
+            body = [
+                "channels": ["APP_PUSH"],
+                "calendarEnabled": false,
+                "notificationEnabled": true
+            ]
             idempotencyKey = key
-        case let .watchlistNotification(userID, eventID, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "eventId": eventID]
+        case let .watchlistNotification(userID, _, key):
+            owner = (userID, "__bearer__")
+            body = [
+                "channels": ["APP_PUSH"],
+                "calendarEnabled": false,
+                "notificationEnabled": true
+            ]
             idempotencyKey = key
         case let .ticketPurchase(userID, ticketID, key):
             owner = (userID, "userId")
@@ -834,9 +866,22 @@ enum LiveAuthenticatedAction: Equatable {
               JSONSerialization.isValidJSONObject(body) else {
             throw APIClientError.invalidResponse
         }
+        let path: String
+        switch self {
+        case .watchlist(_, let eventID, _), .watchlistNotification(_, let eventID, _):
+            let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+            guard !eventID.isEmpty,
+                  let encodedEventID = eventID.addingPercentEncoding(withAllowedCharacters: allowed),
+                  !encodedEventID.isEmpty else {
+                throw APIClientError.invalidResponse
+            }
+            path = endpoint.pathTemplate.replacingOccurrences(of: "{eventId}", with: encodedEventID)
+        default:
+            path = endpoint.pathTemplate
+        }
         return APIRequest(
-            method: .post,
-            path: endpoint.pathTemplate,
+            method: endpoint.method,
+            path: path,
             body: .json(try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])),
             idempotencyKey: idempotencyKey,
             authentication: .required(userID: owner.id),

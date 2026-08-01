@@ -46,6 +46,7 @@ export function createApiRouter({
   publicResaleDrawResult,
   publicResalePool,
   publicState,
+  removeWatchlistForPrincipal,
   publicTicketsForUser,
   publicIdentityStatus,
   socialAuthCallback,
@@ -71,7 +72,9 @@ export function createApiRouter({
   updateUserStatus,
   updateUserStatuses,
   upsertWatchlist,
+  upsertWatchlistForPrincipal,
   userWatchlist,
+  userWatchlistForPrincipal,
   venueMapForEvent,
   verifyAppAttestation,
   verifyLedger,
@@ -94,6 +97,14 @@ function decodeArtistSlug(value) {
   }
 }
 
+function decodeEventId(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw httpError(400, "INVALID_EVENT_ID", "공연 식별자를 확인해주세요.");
+  }
+}
+
 function requireDemoUserAPI() {
   const enabled = process.env.TIG_DEMO_PROFILE_API === "1"
     || (process.env.NODE_ENV !== "production" && process.env.TIG_NEXT_DEV === "1");
@@ -102,6 +113,12 @@ function requireDemoUserAPI() {
 
 function requireDemoSupportAPI() {
   const enabled = process.env.TIG_DEMO_SUPPORT_API === "1"
+    || (process.env.NODE_ENV !== "production" && process.env.TIG_NEXT_DEV === "1");
+  if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
+}
+
+function requireDemoWatchlistAPI() {
+  const enabled = process.env.TIG_DEMO_WATCHLIST_API === "1"
     || (process.env.NODE_ENV !== "production" && process.env.TIG_NEXT_DEV === "1");
   if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
 }
@@ -134,13 +151,14 @@ async function parseBody(req) {
 
 async function handleApi(req, res, db, surface) {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const body = req.method === "POST" || req.method === "PATCH" ? await parseBody(req) : {};
+  const body = ["POST", "PUT", "PATCH"].includes(req.method) ? await parseBody(req) : {};
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
   const userProfileMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/profile$/);
   const userIdentityMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/identity$/);
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
+  const principalWatchlistMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
@@ -150,7 +168,7 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1"] };
+    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1"] };
   }
   if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
@@ -181,6 +199,24 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "GET" && url.pathname === "/api/me/tickets") {
     return accountTicketsForUser(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/watchlist") {
+    return userWatchlistForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "PUT" && principalWatchlistMatch) {
+    return upsertWatchlistForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      decodeEventId(principalWatchlistMatch[1]),
+      body
+    );
+  }
+  if (req.method === "DELETE" && principalWatchlistMatch) {
+    return removeWatchlistForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      decodeEventId(principalWatchlistMatch[1])
+    );
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
     requireBody(body, ["name"]);
@@ -264,7 +300,10 @@ async function handleApi(req, res, db, surface) {
     requireDemoUserAPI();
     return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
   }
-  if (req.method === "GET" && userWatchlistMatch) return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
+  if (req.method === "GET" && userWatchlistMatch) {
+    requireDemoWatchlistAPI();
+    return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
+  }
   if (req.method === "GET" && url.pathname === "/api/support/threads") {
     requireDemoSupportAPI();
     const userId = url.searchParams.get("userId");
@@ -328,10 +367,12 @@ async function handleApi(req, res, db, surface) {
     return confirmPortOneDanalVerification(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist") {
+    requireDemoWatchlistAPI();
     requireBody(body, ["userId", "eventId"]);
     return upsertWatchlist(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist/notify") {
+    requireDemoWatchlistAPI();
     return notifyWatchlist(db, body);
   }
   if (req.method === "POST" && userProfileMatch) {
