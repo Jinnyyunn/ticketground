@@ -192,6 +192,15 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(container.environment.mode, .fixture)
     }
 
+    func testLoginCompletionReturnsNavigationToHome() {
+        let container = AppContainer.fixture()
+        container.navigationPath = [.menu, .login]
+
+        container.completeLoginNavigation()
+
+        XCTAssertTrue(container.navigationPath.isEmpty)
+    }
+
     func testMalformedLinkAndMissingKeychain() {
         let credentials = InMemoryCredentialStore()
         let session = SessionStore(credentialStore: credentials)
