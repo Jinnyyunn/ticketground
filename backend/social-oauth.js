@@ -96,6 +96,13 @@ function nativeHandoffRedirect(provider, code, headers) {
   return oauthRedirect(url.toString(), headers);
 }
 
+function nativeFailureRedirect(provider, error, headers) {
+  const url = new URL("ticketground://auth/social/callback");
+  url.searchParams.set("provider", provider);
+  url.searchParams.set("error", error);
+  return oauthRedirect(url.toString(), headers);
+}
+
 async function readJsonResponse(response) {
   try {
     return await response.json();
@@ -219,19 +226,35 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
     return oauthRedirect(url.toString(), { "Set-Cookie": stateCookie(provider, state, secureCookie) });
   }
 
+  function socialAuthPreflight(req, provider) {
+    return {
+      provider,
+      ready: providerConfig(provider, req, "callback") !== null
+    };
+  }
+
   async function socialAuthCallback(db, req, provider, params) {
     const secureCookie = isSecureRequest(req);
     const clearCookie = setCookieHeaders(clearStateCookie(provider, secureCookie));
-    const config = providerConfig(provider, req, "callback");
-    if (!config) return loginRedirect({ socialError: `${provider}_not_configured` }, clearCookie);
-    if (params.get("error")) return loginRedirect({ socialError: `${provider}_denied` }, clearCookie);
-
     const code = params.get("code") || "";
     const state = params.get("state") || "";
     const cookieState = cookieValue(req, stateCookieName(provider));
     const statePayload = verifyState(provider, state, cookieState, hmac, currentTimeMs);
+    const trustedStatePayload = statePayload
+      || verifyState(provider, cookieState, cookieState, hmac, currentTimeMs);
+    const failureRedirect = (error) => {
+      if (trustedStatePayload?.client === "ios") {
+        return nativeFailureRedirect(provider, error, clearCookie);
+      }
+      return loginRedirect({ socialError: `${provider}_${error}` }, clearCookie);
+    };
+    const config = providerConfig(provider, req, "callback");
+    if (!config) return failureRedirect("not_configured");
+    if (params.get("error")) {
+      return failureRedirect(statePayload ? "denied" : "state_invalid");
+    }
     if (!code || !statePayload) {
-      return loginRedirect({ socialError: `${provider}_state_invalid` }, clearCookie);
+      return failureRedirect("state_invalid");
     }
 
     try {
@@ -257,7 +280,7 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
         socialProvider: provider
       }, setCookieHeaders(clearStateCookie(provider, secureCookie), socialSessionCookie(provider, token, secureCookie)));
     } catch {
-      return loginRedirect({ socialError: `${provider}_callback_failed` }, clearCookie);
+      return failureRedirect("callback_failed");
     }
   }
 
@@ -284,6 +307,7 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
 
   return {
     socialAuthCallback,
+    socialAuthPreflight,
     socialAuthSession,
     socialAuthStart
   };

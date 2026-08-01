@@ -270,6 +270,103 @@ final class TicketGroundAppTests: XCTestCase {
         XCTAssertThrowsError(try SocialLoginCoordinator.handoffCode(from: wrongPath, provider: .kakao)) { error in
             XCTAssertEqual(error as? SocialLoginError, .invalidCallback)
         }
+
+        for (errorCode, expectedError) in [
+            ("not_configured", SocialLoginError.providerNotConfigured(.kakao)),
+            ("denied", SocialLoginError.providerDenied(.kakao)),
+            ("state_invalid", SocialLoginError.providerStateInvalid(.kakao)),
+            ("callback_failed", SocialLoginError.providerCallbackFailed(.kakao))
+        ] {
+            let failure = URL(
+                string: "ticketground://auth/social/callback?provider=kakao&error=\(errorCode)"
+            )!
+            XCTAssertThrowsError(
+                try SocialLoginCoordinator.handoffCode(from: failure, provider: .kakao)
+            ) { error in
+                XCTAssertEqual(error as? SocialLoginError, expectedError)
+            }
+        }
+    }
+
+    @MainActor
+    func testSocialCoordinatorReportsMissingConfigurationBeforeBrowserStarts() async {
+        let readiness = StubSocialReadinessChecker(
+            result: .failure(.providerNotConfigured(.naver))
+        )
+        let authenticator = StubSocialWebAuthenticator(
+            result: .success(URL(
+                string: "ticketground://auth/social/callback?provider=naver&code=unused"
+            )!)
+        )
+        let coordinator = SocialLoginCoordinator(
+            provider: .naver,
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            readinessChecker: readiness,
+            authenticator: authenticator,
+            sessionExchanger: StubSocialSessionExchanger()
+        )
+
+        await coordinator.signIn()
+
+        XCTAssertEqual(readiness.providers, [.naver])
+        XCTAssertTrue(authenticator.startURLs.isEmpty)
+        XCTAssertEqual(
+            coordinator.state,
+            .failed(
+                provider: .naver,
+                message: SocialLoginError.providerNotConfigured(.naver).localizedDescription
+            )
+        )
+    }
+
+    @MainActor
+    func testSocialCoordinatorMapsAppFailureCallbackWithoutExchangingSession() async {
+        let readiness = StubSocialReadinessChecker(result: .success(()))
+        let authenticator = StubSocialWebAuthenticator(
+            result: .success(URL(
+                string: "ticketground://auth/social/callback?provider=kakao&error=denied"
+            )!)
+        )
+        let exchanger = StubSocialSessionExchanger()
+        let coordinator = SocialLoginCoordinator(
+            provider: .kakao,
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            readinessChecker: readiness,
+            authenticator: authenticator,
+            sessionExchanger: exchanger
+        )
+
+        await coordinator.signIn()
+
+        XCTAssertEqual(
+            coordinator.state,
+            .failed(
+                provider: .kakao,
+                message: SocialLoginError.providerDenied(.kakao).localizedDescription
+            )
+        )
+        XCTAssertTrue(exchanger.exchanges.isEmpty)
+    }
+
+    func testSocialReadinessClientMapsUnavailableProvider() async {
+        let apiClient = GoogleExchangeAPIClient(
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            response: Data(#"{"provider":"kakao","ready":false}"#.utf8)
+        )
+        let client = SocialNativeSessionClient(
+            apiClient: apiClient,
+            sessionStore: SessionStore(credentialStore: InMemoryCredentialStore())
+        )
+
+        do {
+            try await client.requireReady(provider: .kakao)
+            XCTFail("Expected missing Kakao configuration")
+        } catch let error as SocialLoginError {
+            XCTAssertEqual(error, .providerNotConfigured(.kakao))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(apiClient.requests.map(\.path), ["/api/auth/kakao/preflight"])
     }
 
     @MainActor
@@ -281,6 +378,7 @@ final class TicketGroundAppTests: XCTestCase {
         let coordinator = SocialLoginCoordinator(
             provider: .kakao,
             baseURL: URL(string: "https://api.ticketground.test")!,
+            readinessChecker: StubSocialReadinessChecker(result: .success(())),
             authenticator: StubSocialWebAuthenticator(result: .failure(.cancelled)),
             sessionExchanger: exchanger
         )
@@ -375,9 +473,25 @@ final class TicketGroundAppTests: XCTestCase {
 @MainActor
 private final class StubSocialWebAuthenticator: SocialWebAuthenticating {
     private let result: Result<URL, SocialLoginError>
+    private(set) var startURLs: [URL] = []
 
     init(result: Result<URL, SocialLoginError>) { self.result = result }
-    func authenticate(startURL: URL, callbackScheme: String) async throws -> URL { try result.get() }
+    func authenticate(startURL: URL, callbackScheme: String) async throws -> URL {
+        startURLs.append(startURL)
+        return try result.get()
+    }
+}
+
+private final class StubSocialReadinessChecker: SocialProviderReadinessChecking {
+    private let result: Result<Void, SocialLoginError>
+    private(set) var providers: [SocialLoginProvider] = []
+
+    init(result: Result<Void, SocialLoginError>) { self.result = result }
+
+    func requireReady(provider: SocialLoginProvider) async throws {
+        providers.append(provider)
+        try result.get()
+    }
 }
 
 private final class StubSocialSessionExchanger: SocialSessionExchanging {

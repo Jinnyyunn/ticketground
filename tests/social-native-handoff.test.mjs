@@ -8,6 +8,7 @@ import { api, startServer } from "./backend-test-utils.mjs";
 import {
   configureSocialEnv,
   cookieHeaderFromSetCookie,
+  createDirectSocialBackend,
   PROVIDERS,
   redirected,
 } from "./social-auth-test-helpers.mjs";
@@ -43,6 +44,53 @@ async function completeIosLogin(baseUrl, provider) {
   assert.ok(code, `${provider} handoff code is present`);
   return code;
 }
+
+function assertAppFailureLocation(location, provider, error) {
+  const callbackUrl = new URL(location, "http://ticketground.local");
+  assert.equal(callbackUrl.protocol, "ticketground:");
+  assert.equal(callbackUrl.host, "auth");
+  assert.equal(callbackUrl.pathname, "/social/callback");
+  assert.deepEqual(
+    [...callbackUrl.searchParams.entries()].sort(),
+    [["error", error], ["provider", provider]],
+  );
+}
+
+async function assertAppFailureCallback(response, provider, error) {
+  assertAppFailureLocation(await redirected(response), provider, error);
+}
+
+test("public social preflight reports missing configuration without exposing provider values", async (t) => {
+  // Given: Kakao has no deploy-time OAuth configuration.
+  configureSocialEnv(t, false);
+  const { baseUrl } = await startServer(t);
+
+  // When: an app checks readiness before opening a browser.
+  const response = await fetch(`${baseUrl}/api/auth/kakao/preflight`);
+
+  // Then: only the provider and a false readiness boolean are exposed.
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    data: { provider: "kakao", ready: false },
+  });
+});
+
+test("public social preflight reports callback-ready provider configuration", async (t) => {
+  // Given: Naver has the complete callback configuration required for login.
+  configureSocialEnv(t, true);
+  const { baseUrl } = await startServer(t);
+
+  // When: an app checks readiness before opening a browser.
+  const response = await fetch(`${baseUrl}/api/auth/naver/preflight`);
+
+  // Then: the public contract reports readiness without any configuration values.
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    data: { provider: "naver", ready: true },
+  });
+});
 
 test("iOS social callback persists only a provider-bound handoff hash", async (t) => {
   // Given: a configured Kakao OAuth flow started explicitly for iOS.
@@ -129,7 +177,7 @@ test("native handoff expires after five minutes", async (t) => {
   assert.equal(persisted.nativeSessions.length, 0);
 });
 
-test("iOS state mismatch issues no user or handoff", async (t) => {
+test("iOS state mismatch returns through the app callback and issues no user or handoff", async (t) => {
   // Given: a configured Naver OAuth flow started for iOS.
   configureSocialEnv(t, true);
   const dataDir = await mkdtemp(path.join(tmpdir(), "ticketground-social-handoff-state-"));
@@ -144,12 +192,88 @@ test("iOS state mismatch issues no user or handoff", async (t) => {
     { headers: { cookie }, redirect: "manual" },
   );
 
-  // Then: the browser returns to the safe web error and nothing is issued.
-  const location = new URL(await redirected(response), server.baseUrl);
-  assert.equal(location.pathname, "/login");
-  assert.equal(location.searchParams.get("socialError"), "naver_state_invalid");
+  // Then: the trusted cookie-bound iOS flow returns a safe app error and nothing is issued.
+  await assertAppFailureCallback(response, "naver", "state_invalid");
   const persisted = JSON.parse(await readFile(dbPath, "utf8"));
   assert.equal(persisted.nativeAuthHandoffs.length, 0);
   assert.equal(persisted.users.some((user) => user.name === PROVIDERS.naver.userName), false);
   assert.equal(persisted.nativeSessions.length, 0);
+});
+
+test("iOS provider denial returns through the fixed app callback", async (t) => {
+  // Given: a signed, cookie-bound Kakao iOS flow.
+  configureSocialEnv(t, true);
+  const server = await startServer(t);
+  const { cookie, state } = await startIosLogin(server.baseUrl, "kakao");
+
+  // When: the provider denies access and returns the signed state.
+  const response = await fetch(
+    `${server.baseUrl}/api/auth/kakao/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+    { headers: { cookie }, redirect: "manual" },
+  );
+
+  // Then: the app receives a safe provider-specific denial callback.
+  await assertAppFailureCallback(response, "kakao", "denied");
+});
+
+test("iOS configuration loss after start returns through the fixed app callback", async (t) => {
+  // Given: a signed Naver iOS flow whose callback secret is removed after start.
+  configureSocialEnv(t, true);
+  const { backend, db } = createDirectSocialBackend();
+  const request = {
+    url: "/api/auth/naver/start?client=ios",
+    headers: { host: "api.ticketground.test" },
+  };
+  const start = backend.socialAuthStart(request, "naver");
+  const state = new URL(start.redirect).searchParams.get("state");
+  assert.ok(state, "naver state is present");
+  process.env.TIG_NAVER_CLIENT_SECRET = "";
+
+  // When: the provider callback reaches the now-unconfigured backend.
+  const response = await backend.socialAuthCallback(
+    db,
+    {
+      headers: {
+        host: "api.ticketground.test",
+        cookie: cookieHeaderFromSetCookie(start.headers["Set-Cookie"]),
+      },
+    },
+    "naver",
+    new URLSearchParams({ code: PROVIDERS.naver.code, state }),
+  );
+
+  // Then: the app receives a safe configuration failure callback.
+  assertAppFailureLocation(response.redirect, "naver", "not_configured");
+});
+
+test("iOS provider callback failure returns through the fixed app callback", async (t) => {
+  // Given: a signed Kakao iOS flow and a provider token exchange failure.
+  configureSocialEnv(t, true);
+  const { backend, db } = createDirectSocialBackend();
+  const request = {
+    url: "/api/auth/kakao/start?client=ios",
+    headers: { host: "api.ticketground.test" },
+  };
+  const start = backend.socialAuthStart(request, "kakao");
+  const state = new URL(start.redirect).searchParams.get("state");
+  assert.ok(state, "kakao state is present");
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => Response.json({ error: "invalid_grant" }, { status: 401 });
+
+  // When: the backend cannot exchange the provider callback code.
+  const response = await backend.socialAuthCallback(
+    db,
+    {
+      headers: {
+        host: "api.ticketground.test",
+        cookie: cookieHeaderFromSetCookie(start.headers["Set-Cookie"]),
+      },
+    },
+    "kakao",
+    new URLSearchParams({ code: "provider-rejected-code", state }),
+  );
+
+  // Then: the app receives a safe callback failure without a handoff code.
+  assertAppFailureLocation(response.redirect, "kakao", "callback_failed");
 });

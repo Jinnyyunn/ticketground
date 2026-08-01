@@ -11,7 +11,12 @@ protocol SocialSessionExchanging: AnyObject {
     func exchange(provider: SocialLoginProvider, code: String) async throws -> SocialSessionUser
 }
 
+protocol SocialProviderReadinessChecking: AnyObject {
+    func requireReady(provider: SocialLoginProvider) async throws
+}
+
 extension SocialNativeSessionClient: SocialSessionExchanging {}
+extension SocialNativeSessionClient: SocialProviderReadinessChecking {}
 
 enum SocialLoginState: Equatable {
     case idle
@@ -28,6 +33,7 @@ final class SocialLoginCoordinator {
 
     private let provider: SocialLoginProvider
     private let baseURL: URL
+    private let readinessChecker: SocialProviderReadinessChecking
     private let authenticator: SocialWebAuthenticating
     private let sessionExchanger: SocialSessionExchanging
     private(set) var state: SocialLoginState = .idle
@@ -35,11 +41,13 @@ final class SocialLoginCoordinator {
     init(
         provider: SocialLoginProvider,
         baseURL: URL,
+        readinessChecker: SocialProviderReadinessChecking,
         authenticator: SocialWebAuthenticating,
         sessionExchanger: SocialSessionExchanging
     ) {
         self.provider = provider
         self.baseURL = baseURL
+        self.readinessChecker = readinessChecker
         self.authenticator = authenticator
         self.sessionExchanger = sessionExchanger
     }
@@ -48,6 +56,7 @@ final class SocialLoginCoordinator {
         state = .loading(provider: provider)
         do {
             let startURL = try Self.startURL(baseURL: baseURL, provider: provider)
+            try await readinessChecker.requireReady(provider: provider)
             let callbackURL = try await authenticator.authenticate(
                 startURL: startURL,
                 callbackScheme: Self.callbackScheme
@@ -97,18 +106,31 @@ final class SocialLoginCoordinator {
               let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false) else {
             throw SocialLoginError.invalidCallback
         }
-        let providerValues = components.queryItems?.filter { $0.name == "provider" } ?? []
-        let codeValues = components.queryItems?.filter { $0.name == "code" } ?? []
-        guard providerValues.count == 1, codeValues.count == 1 else {
+        let queryItems = components.queryItems ?? []
+        let providerValues = queryItems.filter { $0.name == "provider" }
+        let codeValues = queryItems.filter { $0.name == "code" }
+        let errorValues = queryItems.filter { $0.name == "error" }
+        guard queryItems.count == 2, providerValues.count == 1 else {
             throw SocialLoginError.invalidCallback
         }
         guard providerValues[0].value == provider.rawValue else {
             throw SocialLoginError.providerMismatch
         }
-        guard let code = codeValues[0].value, !code.isEmpty else {
+        if codeValues.count == 1, errorValues.isEmpty,
+           let code = codeValues[0].value, !code.isEmpty {
+            return code
+        }
+        guard codeValues.isEmpty, errorValues.count == 1,
+              let error = errorValues[0].value else {
             throw SocialLoginError.invalidCallback
         }
-        return code
+        switch error {
+        case "not_configured": throw SocialLoginError.providerNotConfigured(provider)
+        case "denied": throw SocialLoginError.providerDenied(provider)
+        case "state_invalid": throw SocialLoginError.providerStateInvalid(provider)
+        case "callback_failed": throw SocialLoginError.providerCallbackFailed(provider)
+        default: throw SocialLoginError.invalidCallback
+        }
     }
 }
 

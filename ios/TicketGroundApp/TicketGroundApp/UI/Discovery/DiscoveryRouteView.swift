@@ -322,14 +322,16 @@ struct DiscoveryLoginView: View {
         }
         socialSigningInProvider = provider
         providerMessage = nil
+        let sessionClient = SocialNativeSessionClient(
+            apiClient: container.environment.apiClient,
+            sessionStore: container.environment.sessionStore
+        )
         let coordinator = SocialLoginCoordinator(
             provider: provider,
             baseURL: baseURL,
+            readinessChecker: sessionClient,
             authenticator: SocialWebAuthenticator(),
-            sessionExchanger: SocialNativeSessionClient(
-                apiClient: container.environment.apiClient,
-                sessionStore: container.environment.sessionStore
-            )
+            sessionExchanger: sessionClient
         )
         Task {
             await coordinator.signIn()

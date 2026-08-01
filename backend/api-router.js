@@ -44,6 +44,7 @@ export function createApiRouter({
   publicTicketsForUser,
   publicIdentityStatus,
   socialAuthCallback,
+  socialAuthPreflight,
   socialAuthSession,
   socialAuthStart,
   approveGroupBookingRequest,
@@ -152,6 +153,8 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
+  if (req.method === "GET" && url.pathname === "/api/auth/kakao/preflight") return socialAuthPreflight(req, "kakao");
+  if (req.method === "GET" && url.pathname === "/api/auth/naver/preflight") return socialAuthPreflight(req, "naver");
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/callback") return socialAuthCallback(db, req, "kakao", url.searchParams);
   if (req.method === "GET" && url.pathname === "/api/auth/naver/callback") return socialAuthCallback(db, req, "naver", url.searchParams);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/session") return socialAuthSession(db, req, "kakao");
