@@ -115,6 +115,16 @@ final class TicketGroundAppTests: XCTestCase {
         XCTAssertNotEqual(sessionStore.revision, firstRevision)
     }
 
+    func testSupportSessionBindingRejectsInitialAndReplySessionDrift() {
+        let binding = LiveSupportSessionBinding(userID: "user-1", revision: 7)
+
+        XCTAssertTrue(binding.isCurrent(userID: "user-1", revision: 7, isCancelled: false))
+        XCTAssertFalse(binding.isCurrent(userID: "user-1", revision: 8, isCancelled: false))
+        XCTAssertFalse(binding.isCurrent(userID: "user-2", revision: 7, isCancelled: false))
+        XCTAssertFalse(binding.isCurrent(userID: nil, revision: 7, isCancelled: false))
+        XCTAssertFalse(binding.isCurrent(userID: "user-1", revision: 7, isCancelled: true))
+    }
+
     func testSupportRequestStageInvalidatesOnlyPrivateUnauthorizedResponse() {
         XCTAssertFalse(LiveSupportRequestStage.publicProbe.invalidatesSession(status: 401))
         XCTAssertTrue(LiveSupportRequestStage.privateThreads.invalidatesSession(status: 401))

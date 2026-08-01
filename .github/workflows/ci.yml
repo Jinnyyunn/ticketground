@@ -93,4 +93,5 @@ jobs:
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveMenuOpensCapabilityLedger \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry \
-            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedSupportProtectsDraftsAndExpiredSessions
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedSupportProtectsDraftsAndExpiredSessions \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testCreateLogoutDismissesSupportDetail

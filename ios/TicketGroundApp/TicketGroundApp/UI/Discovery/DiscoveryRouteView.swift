@@ -2146,7 +2146,10 @@ private struct LiveSupportRouteView: View {
                                             LiveSupportThreadDetailView(
                                                 initialThread: thread,
                                                 capabilityMap: admittedCapabilityMap,
-                                                sessionRevision: container.environment.sessionStore.revision,
+                                                sessionBinding: LiveSupportSessionBinding(
+                                                    userID: container.environment.sessionStore.current?.userID,
+                                                    revision: container.environment.sessionStore.revision
+                                                ),
                                                 onThreadUpdated: updateSupportThread
                                             )
                                         } label: {
@@ -2499,18 +2502,18 @@ private struct LiveSupportThreadDetailView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     let capabilityMap: LiveCapabilityMap
-    let sessionRevision: Int
+    let sessionBinding: LiveSupportSessionBinding
     let onThreadUpdated: (LiveSupportThread) -> Void
 
     init(
         initialThread: LiveSupportThread,
         capabilityMap: LiveCapabilityMap,
-        sessionRevision: Int,
+        sessionBinding: LiveSupportSessionBinding,
         onThreadUpdated: @escaping (LiveSupportThread) -> Void
     ) {
         _thread = State(initialValue: initialThread)
         self.capabilityMap = capabilityMap
-        self.sessionRevision = sessionRevision
+        self.sessionBinding = sessionBinding
         self.onThreadUpdated = onThreadUpdated
     }
 
@@ -2551,10 +2554,11 @@ private struct LiveSupportThreadDetailView: View {
         .navigationTitle("문의 상세")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("live-support-detail")
-        .onChange(of: container.environment.sessionStore.revision) { _, currentRevision in
-            if currentRevision != sessionRevision {
-                dismiss()
-            }
+        .onAppear {
+            dismissIfSessionChanged()
+        }
+        .onChange(of: container.environment.sessionStore.revision) { _, _ in
+            dismissIfSessionChanged()
         }
         .onChange(of: reply) { _, _ in
             if !isSending { replyKey = UUID().uuidString }
@@ -2563,8 +2567,14 @@ private struct LiveSupportThreadDetailView: View {
 
     @MainActor
     private func sendReply() async {
-        guard let userID = container.environment.sessionStore.current?.userID else {
+        guard let userID = sessionBinding.userID,
+              sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+              ) else {
             errorMessage = "로그인이 필요합니다."
+            dismiss()
             return
         }
         isSending = true
@@ -2575,16 +2585,27 @@ private struct LiveSupportThreadDetailView: View {
                 apiClient: container.environment.apiClient,
                 initialCapabilityMap: capabilityMap
             )
-            thread = try await service.addSupportMessage(
+            let updatedThread = try await service.addSupportMessage(
                 userID: userID,
                 threadID: thread.id,
                 message: reply,
                 idempotencyKey: replyKey
             )
+            guard sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            thread = updatedThread
             onThreadUpdated(thread)
             reply = ""
             replyKey = UUID().uuidString
         } catch let error as APIClientError {
+            guard sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+            ) else { return }
             if case .server(status: 401, _, _) = error {
                 container.environment.sessionStore.logout()
                 dismiss()
@@ -2592,7 +2613,22 @@ private struct LiveSupportThreadDetailView: View {
                 errorMessage = error.localizedDescription
             }
         } catch {
+            guard sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+            ) else { return }
             errorMessage = "답글을 전송하지 못했습니다. 다시 시도해 주세요."
+        }
+    }
+
+    private func dismissIfSessionChanged() {
+        if !sessionBinding.isCurrent(
+            userID: container.environment.sessionStore.current?.userID,
+            revision: container.environment.sessionStore.revision,
+            isCancelled: false
+        ) {
+            dismiss()
         }
     }
 
@@ -2624,6 +2660,18 @@ struct LiveSupportLoadGeneration: Equatable {
             && self.userID == userID
             && self.sessionRevision == sessionRevision
             && self.reloadID == reloadID
+    }
+}
+
+struct LiveSupportSessionBinding: Equatable {
+    let userID: String?
+    let revision: Int
+
+    func isCurrent(userID: String?, revision: Int, isCancelled: Bool) -> Bool {
+        !isCancelled
+            && self.userID != nil
+            && self.userID == userID
+            && self.revision == revision
     }
 }
 
