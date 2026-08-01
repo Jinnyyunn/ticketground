@@ -883,6 +883,7 @@ final class SessionStore {
     private let credentialStore: CredentialStore
     private(set) var current: NativeSession?
     private(set) var restoredSessionPendingValidation: NativeSession?
+    private(set) var revision = 0
 
     init(credentialStore: CredentialStore) {
         self.credentialStore = credentialStore
@@ -890,6 +891,7 @@ final class SessionStore {
     }
 
     func restore() {
+        revision &+= 1
         guard let storedCredential = credentialStore.read(),
               !storedCredential.credential.isEmpty,
               !storedCredential.serverUserID.isEmpty else {
@@ -906,11 +908,13 @@ final class SessionStore {
 
     func confirmRestoredSession(_ session: NativeSession) {
         guard restoredSessionPendingValidation == session else { return }
+        revision &+= 1
         current = session
         restoredSessionPendingValidation = nil
     }
 
     func discardRestoredSession() {
+        revision &+= 1
         credentialStore.delete()
         restoredSessionPendingValidation = nil
         current = nil
@@ -918,6 +922,7 @@ final class SessionStore {
 
     func saveNativeCredential(_ credential: String, serverUserID: String) {
         guard !credential.isEmpty, !serverUserID.isEmpty else { return }
+        revision &+= 1
         credentialStore.save(StoredCredential(
             credential: credential,
             serverUserID: serverUserID
@@ -928,11 +933,13 @@ final class SessionStore {
 
     func setFixtureUser(_ userID: String) {
         guard !userID.isEmpty else { return }
+        revision &+= 1
         current = NativeSession(userID: userID, credential: nil)
         restoredSessionPendingValidation = nil
     }
 
     func logout() {
+        revision &+= 1
         credentialStore.delete()
         current = nil
         restoredSessionPendingValidation = nil
@@ -1003,10 +1010,14 @@ final class AppContainer {
     }
 
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
-        AppContainer(environment: AppEnvironment(
+        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
+        if scenario == .supportAuthenticated {
+            sessionStore.saveNativeCredential("ui-test-support-credential", serverUserID: "ui-test-support-user")
+        }
+        return AppContainer(environment: AppEnvironment(
             mode: .live,
             apiClient: UITestLiveHomeAPIClient(scenario: scenario),
-            sessionStore: SessionStore(credentialStore: InMemoryCredentialStore())
+            sessionStore: sessionStore
         ))
     }
 }
@@ -1098,6 +1109,8 @@ enum RuntimeConfiguration {
 
 private enum UITestLiveHomeScenario: String {
     case catalog
+    case support
+    case supportAuthenticated
     case empty
     case offline
     case rateLimited
@@ -1111,9 +1124,15 @@ private enum UITestLiveHomeScenario: String {
 
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
-    let baseURL: URL? = URL(string: "http://ui-test.ticketground.invalid/")
+    var baseURL: URL? {
+        URL(string: scenario == .support || scenario == .supportAuthenticated
+            ? "https://ui-test.ticketground.invalid/"
+            : "http://ui-test.ticketground.invalid/")
+    }
     private let scenario: UITestLiveHomeScenario
     private var healthRequestCount = 0
+    private var supportMessageRequestCount = 0
+    private var publicSupportRequestCount = 0
 
     init(scenario: UITestLiveHomeScenario) {
         self.scenario = scenario
@@ -1132,7 +1151,30 @@ private final class UITestLiveHomeAPIClient: APIClient {
             if scenario == .unavailable || (scenario == .recovering && healthRequestCount == 1) {
                 return json("{\"status\":\"ok\",\"version\":null}")
             }
+            if scenario == .support || scenario == .supportAuthenticated {
+                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-support-v1\"]}")
+            }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
+        case ("/api/support/public", _) where scenario == .support || scenario == .supportAuthenticated:
+            publicSupportRequestCount += 1
+            if scenario == .supportAuthenticated && publicSupportRequestCount > 1 {
+                try await Task.sleep(for: .seconds(15))
+            }
+            return json("{\"version\":\"1\",\"faqs\":[{\"id\":\"booking\",\"question\":\"예매 내역은 어디에서 확인하나요?\",\"answer\":\"로그인 후 마이페이지에서 확인할 수 있습니다.\"}],\"notices\":[{\"id\":\"secure\",\"title\":\"안전한 1:1 문의\",\"body\":\"로그인 세션의 본인 문의만 확인할 수 있습니다.\"}]}")
+        case ("/api/me/support/threads", _) where scenario == .supportAuthenticated && request.method == .get:
+            if supportMessageRequestCount > 0 {
+                return json("[{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:03:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:03:00Z\"}]},{\"id\":\"support-newer\",\"subject\":\"좌석 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:02:00Z\",\"updatedAt\":\"2026-08-02T00:02:00Z\",\"messages\":[{\"id\":\"message-newer\",\"role\":\"CUSTOMER\",\"body\":\"좌석 확인\",\"at\":\"2026-08-02T00:02:00Z\"}]}]")
+            }
+            return json("[{\"id\":\"support-newer\",\"subject\":\"좌석 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:02:00Z\",\"updatedAt\":\"2026-08-02T00:02:00Z\",\"messages\":[{\"id\":\"message-newer\",\"role\":\"CUSTOMER\",\"body\":\"좌석 확인\",\"at\":\"2026-08-02T00:02:00Z\"}]},{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:00:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"}]}]")
+        case ("/api/me/support/threads", _) where scenario == .supportAuthenticated && request.method == .post:
+            try await Task.sleep(for: .seconds(5))
+            throw APIClientError.server(status: 401, code: "NATIVE_SESSION_INVALID", message: "session expired")
+        case ("/api/me/support/messages", _) where scenario == .supportAuthenticated:
+            supportMessageRequestCount += 1
+            if supportMessageRequestCount == 1 {
+                return json("{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:03:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:03:00Z\"}]}")
+            }
+            throw APIClientError.server(status: 401, code: "NATIVE_SESSION_INVALID", message: "session expired")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):

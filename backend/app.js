@@ -74,6 +74,7 @@ export async function createTicketgroundApp(options) {
   const engagement = createEngagementBackend({
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
+    hash: runtime.hash,
     httpError: runtime.httpError,
     id: runtime.id,
     now: runtime.now,

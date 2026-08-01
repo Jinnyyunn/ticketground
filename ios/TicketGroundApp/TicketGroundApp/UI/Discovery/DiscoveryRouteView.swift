@@ -2104,6 +2104,13 @@ private struct LiveSupportRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveSupportState = .loading
     @State private var reloadID = 0
+    @State private var publicSupport: LivePublicSupport?
+    @State private var admittedCapabilityMap: LiveCapabilityMap?
+    @State private var subject = ""
+    @State private var message = ""
+    @State private var submissionKey = UUID().uuidString
+    @State private var isSubmitting = false
+    @State private var submissionError: String?
 
     var body: some View {
         ScrollView {
@@ -2112,39 +2119,46 @@ private struct LiveSupportRouteView: View {
                     .font(.caption.weight(.black))
                     .foregroundStyle(TicketgroundColor.accent)
                     .accessibilityIdentifier("live-support")
+                if let publicSupport {
+                    publicSupportContent(publicSupport)
+                }
                 switch state {
                 case .loading:
-                    LiveRouteMessageView(title: routeTitle, message: "GET /api/support/threads?userId={userId} 요청을 준비하는 중입니다.", identifier: "live-support-loading")
+                    LiveRouteMessageView(title: routeTitle, message: "고객센터 정보를 불러오는 중입니다.", identifier: "live-support-loading")
                 case .capability(let capability):
                     LiveAccountCapabilitySurface(
                         state: capability,
                         title: routeTitle,
-                        loginMessage: "고객센터와 1:1 문의는 실제 로그인 세션이 필요합니다.",
+                        loginMessage: "1:1 문의 작성과 내역 확인에는 로그인이 필요합니다.",
                         identifier: "live-support",
                         retry: { reloadID += 1 }
                     )
                 case .loaded(let threads):
+                    supportComposer()
                     if threads.isEmpty {
-                        LiveRouteMessageView(title: "문의 내역이 없습니다", message: "GET /api/support/threads 결과가 비어 있습니다.", identifier: "live-support-empty")
+                        LiveRouteMessageView(title: "문의 내역이 없습니다", message: "새 문의를 작성하면 이곳에서 답변 상태를 확인할 수 있습니다.", identifier: "live-support-empty")
                     } else {
                         VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                             ForEach(threads, id: \.id) { thread in
-                                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                                    Text(thread.subject)
-                                        .font(.headline.weight(.bold))
-                                    Text(supportStatus(thread.status))
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(TicketgroundColor.accent)
-                                    if let message = thread.messages.last {
-                                        Text(message.body)
-                                            .font(.subheadline)
-                                            .foregroundStyle(TicketgroundColor.inkSecondary)
+                                Group {
+                                    if let admittedCapabilityMap {
+                                        NavigationLink {
+                                            LiveSupportThreadDetailView(
+                                                initialThread: thread,
+                                                capabilityMap: admittedCapabilityMap,
+                                                sessionBinding: LiveSupportSessionBinding(
+                                                    userID: container.environment.sessionStore.current?.userID,
+                                                    revision: container.environment.sessionStore.revision
+                                                ),
+                                                onThreadUpdated: updateSupportThread
+                                            )
+                                        } label: {
+                                            supportThreadRow(thread)
+                                        }
+                                    } else {
+                                        supportThreadRow(thread)
                                     }
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(TicketgroundSpacing.md)
-                                .background(TicketgroundColor.surfaceMuted)
-                                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
                                 .accessibilityIdentifier("live-support-thread-\(thread.id)")
                             }
                         }
@@ -2153,13 +2167,19 @@ private struct LiveSupportRouteView: View {
             }
             .padding(TicketgroundSpacing.xl)
         }
+        .scrollDismissesKeyboard(.immediately)
         .navigationTitle(routeTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
+        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
             if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
                 state = .capability(testState)
                 return
             }
+            let generation = LiveSupportLoadGeneration(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID
+            )
             let apiClient = container.environment.apiClient
             let capabilityMap = LiveAPIContract.deployed.capabilityMap(
                 for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
@@ -2171,41 +2191,296 @@ private struct LiveSupportRouteView: View {
                 session: container.environment.sessionStore.current,
                 baseURL: apiClient.baseURL
             )
-            guard initialState == .retry else {
+            guard initialState != .httpsRequired else {
                 state = .capability(initialState)
                 return
             }
 
+            if container.environment.sessionStore.current == nil {
+                admittedCapabilityMap = nil
+                state = .capability(.loginRequired)
+            }
+
             let service = LiveBackendService(apiClient: apiClient)
+            let probe: LiveAPIContractProbe
+            let loadedPublicSupport: LivePublicSupport
             do {
-                let probe = try await service.diagnosePublicContract()
-                let resolvedState = LiveAccountCapabilityState.resolve(
-                    for: .support,
-                    capabilityMap: probe.capabilities,
-                    session: container.environment.sessionStore.current,
-                    baseURL: apiClient.baseURL
-                )
-                guard case .available(let userID) = resolvedState else {
-                    state = .capability(resolvedState)
-                    return
-                }
-                state = .loaded(try await service.getSupportThreads(userID: userID))
+                probe = try await service.diagnoseSupportContract()
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
+                loadedPublicSupport = try await service.getPublicSupport()
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
             } catch let error as APIClientError {
-                state = .capability(LiveAccountCapabilityState.resolve(
-                    for: .support,
-                    capabilityMap: capabilityMap,
-                    session: container.environment.sessionStore.current,
-                    baseURL: apiClient.baseURL,
-                    requestError: error
-                ))
+                applySupportLoadError(
+                    error,
+                    stage: .publicProbe,
+                    generation: generation,
+                    capabilityMap: capabilityMap
+                )
+                return
             } catch {
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
+                state = .capability(.retry)
+                return
+            }
+
+            publicSupport = loadedPublicSupport
+            admittedCapabilityMap = probe.capabilities
+            let resolvedState = LiveAccountCapabilityState.resolve(
+                for: .support,
+                capabilityMap: probe.capabilities,
+                session: container.environment.sessionStore.current,
+                baseURL: apiClient.baseURL
+            )
+            guard case .available(let userID) = resolvedState else {
+                state = .capability(resolvedState)
+                return
+            }
+            do {
+                let loadedThreads = try await service.getSupportThreads(userID: userID)
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
+                state = .loaded(loadedThreads)
+            } catch let error as APIClientError {
+                applySupportLoadError(
+                    error,
+                    stage: .privateThreads,
+                    generation: generation,
+                    capabilityMap: probe.capabilities
+                )
+            } catch {
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
                 state = .capability(.retry)
             }
+        }
+        .onChange(of: subject) { _, _ in
+            if !isSubmitting { submissionKey = UUID().uuidString }
+        }
+        .onChange(of: message) { _, _ in
+            if !isSubmitting { submissionKey = UUID().uuidString }
+        }
+    }
+
+    @ViewBuilder
+    private func publicSupportContent(_ content: LivePublicSupport) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text("자주 묻는 질문")
+                .font(.headline.weight(.black))
+            ForEach(content.faqs, id: \.id) { faq in
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                    Text(faq.question).font(.subheadline.weight(.bold))
+                    Text(faq.answer).font(.caption).foregroundStyle(TicketgroundColor.inkMuted)
+                }
+            }
+            Text("공지사항")
+                .font(.headline.weight(.black))
+            ForEach(content.notices, id: \.id) { notice in
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                    HStack(spacing: TicketgroundSpacing.xs) {
+                        Text("공지")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(TicketgroundColor.accent)
+                        Text(notice.title).font(.subheadline.weight(.bold))
+                    }
+                    Text(notice.body).font(.caption).foregroundStyle(TicketgroundColor.inkMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(TicketgroundSpacing.sm)
+                .background(TicketgroundColor.surface)
+                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+            }
+        }
+        .padding(TicketgroundSpacing.lg)
+        .background(TicketgroundColor.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+        .accessibilityIdentifier("live-support-public")
+    }
+
+    @ViewBuilder
+    private func supportComposer() -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text("새 1:1 문의").font(.headline.weight(.black))
+            TextField("문의 제목", text: $subject)
+                .textFieldStyle(.roundedBorder)
+                .disabled(isSubmitting)
+                .accessibilityIdentifier("live-support-subject")
+            TextField("문의 내용", text: $message, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(3...6)
+                .disabled(isSubmitting)
+                .accessibilityIdentifier("live-support-message")
+            if subject.utf16.count > 80 {
+                Text("문의 제목은 80자 이하로 입력해주세요.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("live-support-subject-limit")
+            }
+            if message.utf16.count > 1000 {
+                Text("문의 내용은 1,000자 이하로 입력해주세요.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+            }
+            Text("제목 \(subject.utf16.count)/80 · 내용 \(message.utf16.count)/1,000")
+                .font(.caption)
+                .foregroundStyle(subject.utf16.count > 80 || message.utf16.count > 1000 ? .red : TicketgroundColor.inkMuted)
+            Button {
+                Task { await submitThread() }
+            } label: {
+                Text(isSubmitting ? "전송 중" : "문의 보내기")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(
+                isSubmitting
+                    || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || subject.utf16.count > 80
+                    || message.utf16.count > 1000
+            )
+            .accessibilityIdentifier("live-support-submit")
+            if let submissionError {
+                Text(submissionError).font(.caption).foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func supportThreadRow(_ thread: LiveSupportThread) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+            Text(thread.subject).font(.headline.weight(.bold))
+            Text(supportStatus(thread.status))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(TicketgroundColor.accent)
+            if let latestMessage = thread.messages.last {
+                Text(latestMessage.body)
+                    .font(.subheadline)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TicketgroundSpacing.md)
+        .background(TicketgroundColor.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+    }
+
+    private func updateSupportThread(_ updatedThread: LiveSupportThread) {
+        guard case .loaded(let threads) = state else { return }
+        state = .loaded(puttingSupportThreadFirst(updatedThread, in: threads))
+    }
+
+    @MainActor
+    private func submitThread() async {
+        guard let userID = container.environment.sessionStore.current?.userID,
+              let admittedCapabilityMap else {
+            state = .capability(.loginRequired)
+            return
+        }
+        let generation = LiveSupportLoadGeneration(
+            userID: userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID
+        )
+        isSubmitting = true
+        submissionError = nil
+        defer { isSubmitting = false }
+        do {
+            let service = LiveBackendService(
+                apiClient: container.environment.apiClient,
+                initialCapabilityMap: admittedCapabilityMap
+            )
+            let created = try await service.createSupportThread(
+                userID: userID,
+                subject: subject,
+                message: message,
+                idempotencyKey: submissionKey
+            )
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ), case .loaded(let currentThreads) = state else { return }
+            state = .loaded(puttingSupportThreadFirst(created, in: currentThreads))
+            subject = ""
+            message = ""
+            submissionKey = UUID().uuidString
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                state = .capability(.loginRequired)
+            } else {
+                submissionError = error.localizedDescription
+            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            submissionError = "문의를 전송하지 못했습니다. 다시 시도해 주세요."
         }
     }
 
     private var routeTitle: String {
         route == .inquiry ? "1:1 문의 · LIVE" : "고객센터 · LIVE"
+    }
+
+    @MainActor
+    private func applySupportLoadError(
+        _ error: APIClientError,
+        stage: LiveSupportRequestStage,
+        generation: LiveSupportLoadGeneration,
+        capabilityMap: LiveCapabilityMap
+    ) {
+        guard generation.isCurrent(
+            userID: container.environment.sessionStore.current?.userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID,
+            isCancelled: Task.isCancelled
+        ) else { return }
+        let resolvedState = LiveAccountCapabilityState.resolve(
+            for: .support,
+            capabilityMap: capabilityMap,
+            session: container.environment.sessionStore.current,
+            baseURL: container.environment.apiClient.baseURL,
+            requestError: error
+        )
+        if case .server(let status, _, _) = error {
+            if stage.invalidatesSession(status: status) {
+                container.environment.sessionStore.logout()
+            }
+            state = .capability(stage == .publicProbe && status == 401 ? .retry : resolvedState)
+            return
+        }
+        state = .capability(resolvedState)
     }
 
     private func supportStatus(_ status: LiveSupportStatus) -> String {
@@ -2216,6 +2491,204 @@ private struct LiveSupportRouteView: View {
         case .unknown: return "상태 확인 중"
         }
     }
+}
+
+private struct LiveSupportThreadDetailView: View {
+    @Environment(AppContainer.self) private var container
+    @Environment(\.dismiss) private var dismiss
+    @State private var thread: LiveSupportThread
+    @State private var reply = ""
+    @State private var replyKey = UUID().uuidString
+    @State private var isSending = false
+    @State private var errorMessage: String?
+    let capabilityMap: LiveCapabilityMap
+    let sessionBinding: LiveSupportSessionBinding
+    let onThreadUpdated: (LiveSupportThread) -> Void
+
+    init(
+        initialThread: LiveSupportThread,
+        capabilityMap: LiveCapabilityMap,
+        sessionBinding: LiveSupportSessionBinding,
+        onThreadUpdated: @escaping (LiveSupportThread) -> Void
+    ) {
+        _thread = State(initialValue: initialThread)
+        self.capabilityMap = capabilityMap
+        self.sessionBinding = sessionBinding
+        self.onThreadUpdated = onThreadUpdated
+    }
+
+    var body: some View {
+        List {
+            Section("문의") {
+                LabeledContent("제목", value: thread.subject)
+                LabeledContent("상태", value: statusText)
+            }
+            Section("대화") {
+                ForEach(thread.messages, id: \.id) { message in
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                        Text(roleLabel(message.role))
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(TicketgroundColor.accent)
+                        Text(message.body)
+                    }
+                }
+            }
+            Section("답글") {
+                TextField("추가 문의 내용", text: $reply, axis: .vertical)
+                    .lineLimit(3...6)
+                    .disabled(isSending)
+                    .accessibilityIdentifier("live-support-reply")
+                Text("\(reply.utf16.count)/1,000")
+                    .font(.caption)
+                    .foregroundStyle(reply.utf16.count > 1000 ? .red : TicketgroundColor.inkMuted)
+                Button(isSending ? "전송 중" : "답글 보내기") {
+                    Task { await sendReply() }
+                }
+                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reply.utf16.count > 1000)
+                .accessibilityIdentifier("live-support-reply-submit")
+                if let errorMessage {
+                    Text(errorMessage).foregroundStyle(.red)
+                }
+            }
+        }
+        .navigationTitle("문의 상세")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("live-support-detail")
+        .onAppear {
+            dismissIfSessionChanged()
+        }
+        .onChange(of: container.environment.sessionStore.revision) { _, _ in
+            dismissIfSessionChanged()
+        }
+        .onChange(of: reply) { _, _ in
+            if !isSending { replyKey = UUID().uuidString }
+        }
+    }
+
+    @MainActor
+    private func sendReply() async {
+        guard let userID = sessionBinding.userID,
+              sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+              ) else {
+            errorMessage = "로그인이 필요합니다."
+            dismiss()
+            return
+        }
+        isSending = true
+        errorMessage = nil
+        defer { isSending = false }
+        do {
+            let service = LiveBackendService(
+                apiClient: container.environment.apiClient,
+                initialCapabilityMap: capabilityMap
+            )
+            let updatedThread = try await service.addSupportMessage(
+                userID: userID,
+                threadID: thread.id,
+                message: reply,
+                idempotencyKey: replyKey
+            )
+            guard sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            thread = updatedThread
+            onThreadUpdated(thread)
+            reply = ""
+            replyKey = UUID().uuidString
+        } catch let error as APIClientError {
+            guard sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                dismiss()
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        } catch {
+            guard sessionBinding.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                revision: container.environment.sessionStore.revision,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            errorMessage = "답글을 전송하지 못했습니다. 다시 시도해 주세요."
+        }
+    }
+
+    private func dismissIfSessionChanged() {
+        if !sessionBinding.isCurrent(
+            userID: container.environment.sessionStore.current?.userID,
+            revision: container.environment.sessionStore.revision,
+            isCancelled: false
+        ) {
+            dismiss()
+        }
+    }
+
+    private var statusText: String {
+        switch thread.status {
+        case .open: return "답변 대기"
+        case .answered: return "답변 완료"
+        case .closed: return "종료"
+        case .unknown: return "상태 확인 중"
+        }
+    }
+
+    private func roleLabel(_ role: LiveSupportRole) -> String {
+        switch role {
+        case .customer: return "나"
+        case .admin: return "고객센터"
+        case .unknown: return "발신자 확인 중"
+        }
+    }
+}
+
+struct LiveSupportLoadGeneration: Equatable {
+    let userID: String?
+    let sessionRevision: Int
+    let reloadID: Int
+
+    func isCurrent(userID: String?, sessionRevision: Int, reloadID: Int, isCancelled: Bool) -> Bool {
+        !isCancelled
+            && self.userID == userID
+            && self.sessionRevision == sessionRevision
+            && self.reloadID == reloadID
+    }
+}
+
+struct LiveSupportSessionBinding: Equatable {
+    let userID: String?
+    let revision: Int
+
+    func isCurrent(userID: String?, revision: Int, isCancelled: Bool) -> Bool {
+        !isCancelled
+            && self.userID != nil
+            && self.userID == userID
+            && self.revision == revision
+    }
+}
+
+enum LiveSupportRequestStage: Equatable {
+    case publicProbe
+    case privateThreads
+
+    func invalidatesSession(status: Int) -> Bool {
+        self == .privateThreads && status == 401
+    }
+}
+
+func puttingSupportThreadFirst(
+    _ thread: LiveSupportThread,
+    in currentThreads: [LiveSupportThread]
+) -> [LiveSupportThread] {
+    [thread] + currentThreads.filter { $0.id != thread.id }
 }
 
 private enum LiveSupportState {

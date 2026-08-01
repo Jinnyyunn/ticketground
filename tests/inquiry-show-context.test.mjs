@@ -33,3 +33,31 @@ test("inquiry backend thread resolves Les Miserables show context", async (t) =>
     await page.close();
   }
 });
+
+test("inquiry composer stays disabled until backend availability is confirmed", async (t) => {
+  const server = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 960 }, deviceScaleFactor: 1 });
+  let releaseAvailability;
+  const availabilityPending = new Promise((resolve) => {
+    releaseAvailability = resolve;
+  });
+  await page.route("**/api/support/threads?**", async (route) => {
+    await availabilityPending;
+    await route.continue();
+  });
+
+  try {
+    await page.goto(`${server.baseUrl}/inquiry`, { waitUntil: "domcontentloaded" });
+    const compose = page.getByTestId("inquiry-compose");
+    await compose.waitFor({ timeout: 8000 });
+
+    assert.equal(await compose.isDisabled(), true);
+    assert.equal(await page.getByTestId("inquiry-send").isDisabled(), true);
+  } finally {
+    releaseAvailability();
+    await page.close();
+  }
+});
