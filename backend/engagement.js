@@ -185,9 +185,11 @@ export function createEngagementBackend({
     const user = findUser(db, userId);
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "문의 내용을 입력해주세요.");
+    if (cleanMessage.length > 1000) throw httpError(422, "SUPPORT_MESSAGE_TOO_LONG", "문의 내용은 1,000자 이하로 입력해주세요.");
     const allowedCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"];
     const normalizedCategory = allowedCategories.includes(String(category || "").toUpperCase()) ? String(category).toUpperCase() : "GENERAL";
-    const cleanSubject = String(subject || "1:1 실시간 문의").trim().slice(0, 80) || "1:1 실시간 문의";
+    const cleanSubject = String(subject || "1:1 실시간 문의").trim() || "1:1 실시간 문의";
+    if (cleanSubject.length > 80) throw httpError(422, "SUPPORT_SUBJECT_TOO_LONG", "문의 제목은 80자 이하로 입력해주세요.");
     const idempotency = idempotencyKey
       ? supportIdempotency("thread", user.id, idempotencyKey, { subject: cleanSubject, message: cleanMessage, category: normalizedCategory })
       : null;
@@ -215,7 +217,7 @@ export function createEngagementBackend({
           id: id("msg"),
           actorId: user.id,
           role: "CUSTOMER",
-          body: cleanMessage.slice(0, 1000),
+          body: cleanMessage,
           at: now()
         }
       ]
@@ -244,6 +246,7 @@ export function createEngagementBackend({
     if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "메시지를 입력해주세요.");
+    if (cleanMessage.length > 1000) throw httpError(422, "SUPPORT_MESSAGE_TOO_LONG", "메시지는 1,000자 이하로 입력해주세요.");
     const normalizedRole = role === "ADMIN" ? "ADMIN" : "CUSTOMER";
     if (normalizedRole === "CUSTOMER" && actorId !== thread.userId) {
       throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
@@ -265,7 +268,7 @@ export function createEngagementBackend({
       id: id("msg"),
       actorId: normalizedRole === "ADMIN" ? "ADMIN" : actorId,
       role: normalizedRole,
-      body: cleanMessage.slice(0, 1000),
+      body: cleanMessage,
       at: now(),
       ...(idempotency ? { idempotency } : {})
     };

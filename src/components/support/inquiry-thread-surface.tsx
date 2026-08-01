@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { InquiryMessage, InquiryThread, Reservation, TicketShow } from "@/types";
-import { addSupportMessage, createSupportThread, getSupportThreads, type ApiSupportThread } from "@/lib/ticketground-api";
+import { addSupportMessage, createSupportThread, getSupportThreads, TicketgroundApiError, type ApiSupportThread } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 
 type InquiryThreadSurfaceProps = {
@@ -71,11 +71,12 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
   const [selectedId, setSelectedId] = useState(initialThreads[0]?.id ?? "");
   const [draft, setDraft] = useState("");
   const [backendStatus, setBackendStatus] = useState("문의 내역 동기화 중");
+  const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
   const [sending, setSending] = useState(false);
   const selectedThread = useMemo(() => threads.find((thread) => thread.id === selectedId) ?? threads[0], [selectedId, threads]);
   const reservation = reservations.find((item) => item.id === selectedThread?.reservationId);
   const show = shows.find((item) => item.slug === selectedThread?.showSlug);
-  const canSend = draft.trim().length > 0;
+  const canSend = backendAvailable !== false && draft.trim().length > 0 && draft.length <= 1000;
 
   async function refreshBackendThreads() {
     try {
@@ -85,9 +86,15 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
         setThreads(mapped);
         setSelectedId(mapped[0]?.id ?? "");
       }
+      setBackendAvailable(true);
       setBackendStatus(backendThreads.length ? `${backendThreads.length}건의 문의 동기화` : "저장된 문의가 없어 새 문의 작성 대기");
     } catch (error) {
-      setBackendStatus(error instanceof Error ? error.message : "문의를 불러오지 못했습니다.");
+      if (error instanceof TicketgroundApiError && error.status === 404) {
+        setBackendAvailable(false);
+        setBackendStatus("웹 문의는 현재 비활성화되어 있습니다. Ticketground iOS 앱의 고객센터를 이용해주세요.");
+      } else {
+        setBackendStatus(error instanceof Error ? error.message : "문의를 불러오지 못했습니다.");
+      }
     }
   }
 
@@ -198,6 +205,8 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
+              disabled={backendAvailable === false}
+              maxLength={1000}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
@@ -205,7 +214,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
                 }
               }}
               className="min-h-[108px] rounded-lg border border-line bg-card p-3 font-normal text-ink focus-visible:outline-2 focus-visible:outline-link"
-              placeholder="문의 내용을 입력하세요. Shift+Enter로 줄바꿈"
+              placeholder={backendAvailable === false ? "iOS 앱의 고객센터에서 문의해주세요." : "문의 내용을 입력하세요. Shift+Enter로 줄바꿈"}
               data-testid="inquiry-compose"
             />
           </label>

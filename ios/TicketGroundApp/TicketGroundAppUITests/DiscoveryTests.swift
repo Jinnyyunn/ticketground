@@ -596,6 +596,50 @@ final class DiscoveryTests: XCTestCase {
         add(attachment)
     }
 
+    func testAuthenticatedSupportProtectsDraftsAndExpiredSessions() {
+        let app = liveApp(homeScenario: "supportAuthenticated")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-help"].tap()
+
+        let subject = app.textFields["live-support-subject"]
+        XCTAssertTrue(subject.waitForExistence(timeout: 20))
+        subject.tap()
+        subject.typeText(String(repeating: "a", count: 81))
+        let message = app.textFields["live-support-message"]
+        message.tap()
+        message.typeText("body")
+        XCTAssertFalse(app.buttons["live-support-submit"].isEnabled)
+        XCTAssertTrue(app.staticTexts["제목 81/80 · 내용 4/1,000"].exists)
+        XCTAssertTrue(app.staticTexts["live-support-subject-limit"].exists)
+        XCTAssertTrue(app.staticTexts["live-support-subject-limit"].isHittable)
+
+        let composerAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        composerAttachment.name = "issue-99-authenticated-composer-limit"
+        composerAttachment.lifetime = .keepAlways
+        add(composerAttachment)
+
+        let thread = anyElement(app, identifier: "live-support-thread-support-ui")
+        XCTAssertTrue(thread.waitForExistence(timeout: 10))
+        thread.tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-support-detail").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["발신자 확인 중"].exists)
+
+        let detailAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        detailAttachment.name = "issue-99-authenticated-unknown-sender"
+        detailAttachment.lifetime = .keepAlways
+        add(detailAttachment)
+
+        let reply = app.textFields["live-support-reply"]
+        reply.tap()
+        reply.typeText("추가 문의")
+        app.buttons["live-support-reply-submit"].tap()
+        XCTAssertFalse(anyElement(app, identifier: "live-support-detail").waitForExistence(timeout: 3))
+        XCTAssertTrue(anyElement(app, identifier: "live-support-login-required").waitForExistence(timeout: 10))
+    }
+
     func testLiveMenuOpensCapabilityLedger() {
         let app = liveApp()
         app.launch()

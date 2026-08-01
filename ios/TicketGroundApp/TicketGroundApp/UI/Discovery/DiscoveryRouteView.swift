@@ -2162,6 +2162,7 @@ private struct LiveSupportRouteView: View {
             }
             .padding(TicketgroundSpacing.xl)
         }
+        .scrollDismissesKeyboard(.immediately)
         .navigationTitle(routeTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
@@ -2202,16 +2203,26 @@ private struct LiveSupportRouteView: View {
                 }
                 state = .loaded(try await service.getSupportThreads(userID: userID))
             } catch let error as APIClientError {
-                state = .capability(LiveAccountCapabilityState.resolve(
+                let resolvedState = LiveAccountCapabilityState.resolve(
                     for: .support,
                     capabilityMap: capabilityMap,
                     session: container.environment.sessionStore.current,
                     baseURL: apiClient.baseURL,
                     requestError: error
-                ))
+                )
+                if resolvedState == .loginRequired {
+                    container.environment.sessionStore.logout()
+                }
+                state = .capability(resolvedState)
             } catch {
                 state = .capability(.retry)
             }
+        }
+        .onChange(of: subject) { _, _ in
+            if !isSubmitting { submissionKey = UUID().uuidString }
+        }
+        .onChange(of: message) { _, _ in
+            if !isSubmitting { submissionKey = UUID().uuidString }
         }
     }
 
@@ -2256,11 +2267,27 @@ private struct LiveSupportRouteView: View {
             Text("새 1:1 문의").font(.headline.weight(.black))
             TextField("문의 제목", text: $subject)
                 .textFieldStyle(.roundedBorder)
+                .disabled(isSubmitting)
                 .accessibilityIdentifier("live-support-subject")
             TextField("문의 내용", text: $message, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(3...6)
+                .disabled(isSubmitting)
                 .accessibilityIdentifier("live-support-message")
+            if subject.count > 80 {
+                Text("문의 제목은 80자 이하로 입력해주세요.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("live-support-subject-limit")
+            }
+            if message.count > 1000 {
+                Text("문의 내용은 1,000자 이하로 입력해주세요.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+            }
+            Text("제목 \(subject.count)/80 · 내용 \(message.count)/1,000")
+                .font(.caption)
+                .foregroundStyle(subject.count > 80 || message.count > 1000 ? .red : TicketgroundColor.inkMuted)
             Button {
                 Task { await submitThread(existingThreads: existingThreads) }
             } label: {
@@ -2268,7 +2295,12 @@ private struct LiveSupportRouteView: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isSubmitting || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(
+                isSubmitting
+                    || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || subject.count > 80
+                    || message.count > 1000
+            )
             .accessibilityIdentifier("live-support-submit")
             if let submissionError {
                 Text(submissionError).font(.caption).foregroundStyle(.red)
@@ -2347,6 +2379,7 @@ private struct LiveSupportRouteView: View {
 
 private struct LiveSupportThreadDetailView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.dismiss) private var dismiss
     @State private var thread: LiveSupportThread
     @State private var reply = ""
     @State private var replyKey = UUID().uuidString
@@ -2368,7 +2401,7 @@ private struct LiveSupportThreadDetailView: View {
             Section("대화") {
                 ForEach(thread.messages, id: \.id) { message in
                     VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                        Text(message.role == .admin ? "고객센터" : "나")
+                        Text(roleLabel(message.role))
                             .font(.caption.weight(.bold))
                             .foregroundStyle(TicketgroundColor.accent)
                         Text(message.body)
@@ -2378,11 +2411,15 @@ private struct LiveSupportThreadDetailView: View {
             Section("답글") {
                 TextField("추가 문의 내용", text: $reply, axis: .vertical)
                     .lineLimit(3...6)
+                    .disabled(isSending)
                     .accessibilityIdentifier("live-support-reply")
+                Text("\(reply.count)/1,000")
+                    .font(.caption)
+                    .foregroundStyle(reply.count > 1000 ? .red : TicketgroundColor.inkMuted)
                 Button(isSending ? "전송 중" : "답글 보내기") {
                     Task { await sendReply() }
                 }
-                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reply.count > 1000)
                 .accessibilityIdentifier("live-support-reply-submit")
                 if let errorMessage {
                     Text(errorMessage).foregroundStyle(.red)
@@ -2392,6 +2429,9 @@ private struct LiveSupportThreadDetailView: View {
         .navigationTitle("문의 상세")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("live-support-detail")
+        .onChange(of: reply) { _, _ in
+            if !isSending { replyKey = UUID().uuidString }
+        }
     }
 
     @MainActor
@@ -2419,7 +2459,7 @@ private struct LiveSupportThreadDetailView: View {
         } catch let error as APIClientError {
             if case .server(status: 401, _, _) = error {
                 container.environment.sessionStore.logout()
-                errorMessage = "세션이 만료되었습니다. 다시 로그인해 주세요."
+                dismiss()
             } else {
                 errorMessage = error.localizedDescription
             }
@@ -2434,6 +2474,14 @@ private struct LiveSupportThreadDetailView: View {
         case .answered: return "답변 완료"
         case .closed: return "종료"
         case .unknown: return "상태 확인 중"
+        }
+    }
+
+    private func roleLabel(_ role: LiveSupportRole) -> String {
+        switch role {
+        case .customer: return "나"
+        case .admin: return "고객센터"
+        case .unknown: return "발신자 확인 중"
         }
     }
 }

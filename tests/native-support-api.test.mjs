@@ -132,6 +132,51 @@ test("native support mutations are idempotent and reject cross-account replies",
   assert.equal(forbidden.error.code, "SUPPORT_FORBIDDEN");
 });
 
+test("native support rejects oversized fields instead of truncating them", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t);
+  const login = await nativeLogin(server);
+
+  const longSubject = await request(server, "/api/me/support/threads", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "support-long-subject",
+    body: { subject: "가".repeat(81), message: "문의" },
+    status: 422
+  });
+  assert.equal(longSubject.error.code, "SUPPORT_SUBJECT_TOO_LONG");
+
+  const longMessage = await request(server, "/api/me/support/threads", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "support-long-message",
+    body: { subject: "문의", message: "가".repeat(1001) },
+    status: 422
+  });
+  assert.equal(longMessage.error.code, "SUPPORT_MESSAGE_TOO_LONG");
+
+  const valid = await request(server, "/api/me/support/threads", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "support-valid-before-long-reply",
+    body: { subject: "문의", message: "정상 본문" }
+  });
+  const longReply = await request(server, "/api/me/support/messages", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "support-long-reply",
+    body: { threadId: valid.data.id, message: "가".repeat(1001) },
+    status: 422
+  });
+  assert.equal(longReply.error.code, "SUPPORT_MESSAGE_TOO_LONG");
+
+  const threads = await request(server, "/api/me/support/threads", {
+    authorization: login.authorization
+  });
+  assert.equal(threads.data.length, 1);
+  assert.equal(threads.data[0].messages.length, 1);
+});
+
 test("production disables legacy caller-selected support routes", async (t) => {
   configureGoogleEnv(t, true);
   const server = await startServer(t, { env: { TIG_DEMO_SUPPORT_API: "" } });
