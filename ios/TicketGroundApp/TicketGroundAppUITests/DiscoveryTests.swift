@@ -557,7 +557,7 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account").waitForExistence(timeout: 20))
 
-        let supportApp = liveApp()
+        let supportApp = liveApp(homeScenario: "support")
         supportApp.launch()
         XCTAssertTrue(supportApp.buttons["header-mypage"].waitForExistence(timeout: 10))
         supportApp.buttons["header-mypage"].tap()
@@ -566,7 +566,29 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support").waitForExistence(timeout: 20))
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support-public").waitForExistence(timeout: 20))
         XCTAssertTrue(supportApp.staticTexts["자주 묻는 질문"].exists)
+        XCTAssertTrue(supportApp.staticTexts["공지사항"].exists)
+        XCTAssertTrue(supportApp.staticTexts["안전한 1:1 문의"].exists)
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support-login-required").exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "issue-99-support-ci-fixture"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testConfiguredLiveSupportRendersPublicContentAndLoginGate() {
+        let app = liveApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-help"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-support").waitForExistence(timeout: 20))
+        XCTAssertTrue(anyElement(app, identifier: "live-support-public").waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["자주 묻는 질문"].exists)
+        XCTAssertTrue(app.staticTexts["공지사항"].exists)
+        XCTAssertTrue(app.staticTexts["안전한 1:1 문의"].exists)
+        XCTAssertTrue(anyElement(app, identifier: "live-support-login-required").exists)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "issue-99-live-support-cloudflare"

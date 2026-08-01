@@ -1098,6 +1098,7 @@ enum RuntimeConfiguration {
 
 private enum UITestLiveHomeScenario: String {
     case catalog
+    case support
     case empty
     case offline
     case rateLimited
@@ -1111,7 +1112,11 @@ private enum UITestLiveHomeScenario: String {
 
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
-    let baseURL: URL? = URL(string: "http://ui-test.ticketground.invalid/")
+    var baseURL: URL? {
+        URL(string: scenario == .support
+            ? "https://ui-test.ticketground.invalid/"
+            : "http://ui-test.ticketground.invalid/")
+    }
     private let scenario: UITestLiveHomeScenario
     private var healthRequestCount = 0
 
@@ -1132,7 +1137,12 @@ private final class UITestLiveHomeAPIClient: APIClient {
             if scenario == .unavailable || (scenario == .recovering && healthRequestCount == 1) {
                 return json("{\"status\":\"ok\",\"version\":null}")
             }
+            if scenario == .support {
+                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-support-v1\"]}")
+            }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
+        case ("/api/support/public", _) where scenario == .support:
+            return json("{\"version\":\"1\",\"faqs\":[{\"id\":\"booking\",\"question\":\"예매 내역은 어디에서 확인하나요?\",\"answer\":\"로그인 후 마이페이지에서 확인할 수 있습니다.\"}],\"notices\":[{\"id\":\"secure\",\"title\":\"안전한 1:1 문의\",\"body\":\"로그인 세션의 본인 문의만 확인할 수 있습니다.\"}]}")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):
