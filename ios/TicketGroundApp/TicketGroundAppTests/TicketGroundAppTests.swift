@@ -95,12 +95,24 @@ final class TicketGroundAppTests: XCTestCase {
     }
 
     func testSupportLoadGenerationRejectsCancelledAndExpiredSession() {
-        let generation = LiveSupportLoadGeneration(userID: "user-1", reloadID: 4)
+        let generation = LiveSupportLoadGeneration(userID: "user-1", sessionRevision: 7, reloadID: 4)
 
-        XCTAssertTrue(generation.isCurrent(userID: "user-1", reloadID: 4, isCancelled: false))
-        XCTAssertFalse(generation.isCurrent(userID: nil, reloadID: 4, isCancelled: false))
-        XCTAssertFalse(generation.isCurrent(userID: "user-1", reloadID: 5, isCancelled: false))
-        XCTAssertFalse(generation.isCurrent(userID: "user-1", reloadID: 4, isCancelled: true))
+        XCTAssertTrue(generation.isCurrent(userID: "user-1", sessionRevision: 7, reloadID: 4, isCancelled: false))
+        XCTAssertFalse(generation.isCurrent(userID: nil, sessionRevision: 7, reloadID: 4, isCancelled: false))
+        XCTAssertFalse(generation.isCurrent(userID: "user-1", sessionRevision: 8, reloadID: 4, isCancelled: false))
+        XCTAssertFalse(generation.isCurrent(userID: "user-1", sessionRevision: 7, reloadID: 5, isCancelled: false))
+        XCTAssertFalse(generation.isCurrent(userID: "user-1", sessionRevision: 7, reloadID: 4, isCancelled: true))
+    }
+
+    func testSessionRevisionChangesWhenSameUserLogsOutAndBackIn() {
+        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
+        sessionStore.saveNativeCredential("first-session", serverUserID: "user-1")
+        let firstRevision = sessionStore.revision
+
+        sessionStore.logout()
+        sessionStore.saveNativeCredential("second-session", serverUserID: "user-1")
+
+        XCTAssertNotEqual(sessionStore.revision, firstRevision)
     }
 
     func testSupportRequestStageInvalidatesOnlyPrivateUnauthorizedResponse() {

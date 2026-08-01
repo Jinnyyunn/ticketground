@@ -2166,13 +2166,14 @@ private struct LiveSupportRouteView: View {
         .scrollDismissesKeyboard(.immediately)
         .navigationTitle(routeTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
+        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
             if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
                 state = .capability(testState)
                 return
             }
             let generation = LiveSupportLoadGeneration(
                 userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID
             )
             let apiClient = container.environment.apiClient
@@ -2203,12 +2204,14 @@ private struct LiveSupportRouteView: View {
                 probe = try await service.diagnoseSupportContract()
                 guard generation.isCurrent(
                     userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
                     reloadID: reloadID,
                     isCancelled: Task.isCancelled
                 ) else { return }
                 loadedPublicSupport = try await service.getPublicSupport()
                 guard generation.isCurrent(
                     userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
                     reloadID: reloadID,
                     isCancelled: Task.isCancelled
                 ) else { return }
@@ -2223,6 +2226,7 @@ private struct LiveSupportRouteView: View {
             } catch {
                 guard generation.isCurrent(
                     userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
                     reloadID: reloadID,
                     isCancelled: Task.isCancelled
                 ) else { return }
@@ -2246,6 +2250,7 @@ private struct LiveSupportRouteView: View {
                 let loadedThreads = try await service.getSupportThreads(userID: userID)
                 guard generation.isCurrent(
                     userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
                     reloadID: reloadID,
                     isCancelled: Task.isCancelled
                 ) else { return }
@@ -2260,6 +2265,7 @@ private struct LiveSupportRouteView: View {
             } catch {
                 guard generation.isCurrent(
                     userID: container.environment.sessionStore.current?.userID,
+                    sessionRevision: container.environment.sessionStore.revision,
                     reloadID: reloadID,
                     isCancelled: Task.isCancelled
                 ) else { return }
@@ -2386,7 +2392,11 @@ private struct LiveSupportRouteView: View {
             state = .capability(.loginRequired)
             return
         }
-        let generation = LiveSupportLoadGeneration(userID: userID, reloadID: reloadID)
+        let generation = LiveSupportLoadGeneration(
+            userID: userID,
+            sessionRevision: container.environment.sessionStore.revision,
+            reloadID: reloadID
+        )
         isSubmitting = true
         submissionError = nil
         defer { isSubmitting = false }
@@ -2403,6 +2413,7 @@ private struct LiveSupportRouteView: View {
             )
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ), case .loaded(let currentThreads) = state else { return }
@@ -2413,6 +2424,7 @@ private struct LiveSupportRouteView: View {
         } catch let error as APIClientError {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
@@ -2425,6 +2437,7 @@ private struct LiveSupportRouteView: View {
         } catch {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
@@ -2445,6 +2458,7 @@ private struct LiveSupportRouteView: View {
     ) {
         guard generation.isCurrent(
             userID: container.environment.sessionStore.current?.userID,
+            sessionRevision: container.environment.sessionStore.revision,
             reloadID: reloadID,
             isCancelled: Task.isCancelled
         ) else { return }
@@ -2593,10 +2607,14 @@ private struct LiveSupportThreadDetailView: View {
 
 struct LiveSupportLoadGeneration: Equatable {
     let userID: String?
+    let sessionRevision: Int
     let reloadID: Int
 
-    func isCurrent(userID: String?, reloadID: Int, isCancelled: Bool) -> Bool {
-        !isCancelled && self.userID == userID && self.reloadID == reloadID
+    func isCurrent(userID: String?, sessionRevision: Int, reloadID: Int, isCancelled: Bool) -> Bool {
+        !isCancelled
+            && self.userID == userID
+            && self.sessionRevision == sessionRevision
+            && self.reloadID == reloadID
     }
 }
 

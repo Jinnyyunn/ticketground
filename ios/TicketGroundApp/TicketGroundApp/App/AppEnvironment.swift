@@ -883,6 +883,7 @@ final class SessionStore {
     private let credentialStore: CredentialStore
     private(set) var current: NativeSession?
     private(set) var restoredSessionPendingValidation: NativeSession?
+    private(set) var revision = 0
 
     init(credentialStore: CredentialStore) {
         self.credentialStore = credentialStore
@@ -890,6 +891,7 @@ final class SessionStore {
     }
 
     func restore() {
+        revision &+= 1
         guard let storedCredential = credentialStore.read(),
               !storedCredential.credential.isEmpty,
               !storedCredential.serverUserID.isEmpty else {
@@ -906,11 +908,13 @@ final class SessionStore {
 
     func confirmRestoredSession(_ session: NativeSession) {
         guard restoredSessionPendingValidation == session else { return }
+        revision &+= 1
         current = session
         restoredSessionPendingValidation = nil
     }
 
     func discardRestoredSession() {
+        revision &+= 1
         credentialStore.delete()
         restoredSessionPendingValidation = nil
         current = nil
@@ -918,6 +922,7 @@ final class SessionStore {
 
     func saveNativeCredential(_ credential: String, serverUserID: String) {
         guard !credential.isEmpty, !serverUserID.isEmpty else { return }
+        revision &+= 1
         credentialStore.save(StoredCredential(
             credential: credential,
             serverUserID: serverUserID
@@ -928,11 +933,13 @@ final class SessionStore {
 
     func setFixtureUser(_ userID: String) {
         guard !userID.isEmpty else { return }
+        revision &+= 1
         current = NativeSession(userID: userID, credential: nil)
         restoredSessionPendingValidation = nil
     }
 
     func logout() {
+        revision &+= 1
         credentialStore.delete()
         current = nil
         restoredSessionPendingValidation = nil
