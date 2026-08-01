@@ -1011,7 +1011,7 @@ final class AppContainer {
 
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated {
+        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry {
             let suffix = scenario == .supportAuthenticated ? "support" : "watchlist"
             sessionStore.saveNativeCredential("ui-test-\(suffix)-credential", serverUserID: "ui-test-\(suffix)-user")
         }
@@ -1113,6 +1113,7 @@ private enum UITestLiveHomeScenario: String {
     case support
     case supportAuthenticated
     case watchlistAuthenticated
+    case watchlistRetry
     case empty
     case offline
     case rateLimited
@@ -1127,7 +1128,7 @@ private enum UITestLiveHomeScenario: String {
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
     var baseURL: URL? {
-        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated
+        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry
             ? "https://ui-test.ticketground.invalid/"
             : "http://ui-test.ticketground.invalid/")
     }
@@ -1136,6 +1137,7 @@ private final class UITestLiveHomeAPIClient: APIClient {
     private var supportMessageRequestCount = 0
     private var publicSupportRequestCount = 0
     private var watchlistMutationRequestCount = 0
+    private var watchlistReadRequestCount = 0
     private var watchlistPresent = false
     private var watchlistNotificationEnabled = true
     private var watchlistCalendarEnabled = false
@@ -1160,7 +1162,7 @@ private final class UITestLiveHomeAPIClient: APIClient {
             if scenario == .support || scenario == .supportAuthenticated {
                 return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-support-v1\"]}")
             }
-            if scenario == .watchlistAuthenticated {
+            if scenario == .watchlistAuthenticated || scenario == .watchlistRetry {
                 return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-watchlist-v1\"]}")
             }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
@@ -1184,6 +1186,12 @@ private final class UITestLiveHomeAPIClient: APIClient {
                 return json("{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:03:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:03:00Z\"}]}")
             }
             throw APIClientError.server(status: 401, code: "NATIVE_SESSION_INVALID", message: "session expired")
+        case ("/api/me/watchlist", _) where scenario == .watchlistRetry && request.method == .get:
+            watchlistReadRequestCount += 1
+            if watchlistReadRequestCount == 1 {
+                throw APIClientError.server(status: 503, code: "WATCHLIST_UNAVAILABLE", message: "temporary failure")
+            }
+            return json("[]")
         case ("/api/me/watchlist", _) where scenario == .watchlistAuthenticated && request.method == .get:
             return json(watchlistPresent ? "[\(watchlistItem)]" : "[]")
         case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistAuthenticated && request.method == .put:

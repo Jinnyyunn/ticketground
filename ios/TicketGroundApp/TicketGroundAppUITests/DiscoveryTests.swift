@@ -695,6 +695,18 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-empty").waitForExistence(timeout: 10))
     }
 
+    func testWatchlistDetailRetryReloadsServerState() {
+        let app = liveApp(homeScenario: "watchlistRetry")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-cta-retry").waitForExistence(timeout: 20))
+        app.buttons["state-error-action"].tap()
+        XCTAssertTrue(app.buttons["live-watchlist-cta-toggle"].waitForExistence(timeout: 20))
+        XCTAssertFalse(anyElement(app, identifier: "live-watchlist-cta-retry").exists)
+    }
+
     func testLiveHTTPSWatchlistQualification() throws {
         guard let apiBaseURL = ProcessInfo.processInfo.environment["TICKETGROUND_LIVE_QUALIFICATION_URL"],
               !apiBaseURL.isEmpty else {

@@ -1998,6 +1998,7 @@ private struct LiveWatchlistCTA: View {
     @State private var isLoading = true
     @State private var isMutating = false
     @State private var errorMessage: String?
+    @State private var reloadID = 0
 
     var body: some View {
         Group {
@@ -2011,7 +2012,7 @@ private struct LiveWatchlistCTA: View {
                     title: "관심공연을 변경할 수 없습니다",
                     loginMessage: "로그인하면 이 공연을 관심공연에 저장할 수 있습니다.",
                     identifier: "live-watchlist-cta",
-                    retry: {}
+                    retry: { reloadID += 1 }
                 )
             } else {
                 VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
@@ -2035,7 +2036,7 @@ private struct LiveWatchlistCTA: View {
                 }
             }
         }
-        .task(id: container.environment.sessionStore.revision) {
+        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
             await loadWatchlistState()
         }
     }
@@ -2048,7 +2049,7 @@ private struct LiveWatchlistCTA: View {
         let generation = LiveWatchlistGeneration(
             userID: container.environment.sessionStore.current?.userID,
             sessionRevision: container.environment.sessionStore.revision,
-            reloadID: 0
+            reloadID: reloadID
         )
         let apiClient = container.environment.apiClient
         let initialMap = LiveAPIContract.deployed.capabilityMap(
@@ -2072,7 +2073,7 @@ private struct LiveWatchlistCTA: View {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
-                reloadID: 0,
+                reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
             let resolved = LiveAccountCapabilityState.resolve(
@@ -2090,7 +2091,7 @@ private struct LiveWatchlistCTA: View {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
-                reloadID: 0,
+                reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
             admittedCapabilityMap = probe.capabilities
@@ -2101,7 +2102,7 @@ private struct LiveWatchlistCTA: View {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
-                reloadID: 0,
+                reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
             applyWatchlistError(error, capabilityMap: initialMap)
@@ -2110,7 +2111,7 @@ private struct LiveWatchlistCTA: View {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
-                reloadID: 0,
+                reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
             capability = .retry
@@ -2126,7 +2127,7 @@ private struct LiveWatchlistCTA: View {
         let generation = LiveWatchlistGeneration(
             userID: userID,
             sessionRevision: container.environment.sessionStore.revision,
-            reloadID: 0
+            reloadID: reloadID
         )
         let previous = isWatched
         isWatched.toggle()
@@ -2152,14 +2153,14 @@ private struct LiveWatchlistCTA: View {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
-                reloadID: 0,
+                reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
         } catch let error as APIClientError {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
-                reloadID: 0,
+                reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
             isWatched = previous
@@ -2173,7 +2174,7 @@ private struct LiveWatchlistCTA: View {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
-                reloadID: 0,
+                reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
             isWatched = previous

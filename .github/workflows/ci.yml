@@ -95,4 +95,5 @@ jobs:
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedSupportProtectsDraftsAndExpiredSessions \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testCreateLogoutDismissesSupportDetail \
-            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedWatchlistSynchronizesDetailPreferencesAndRollback
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedWatchlistSynchronizesDetailPreferencesAndRollback \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistDetailRetryReloadsServerState

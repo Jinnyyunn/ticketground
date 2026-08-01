@@ -134,7 +134,8 @@ export function createEngagementBackend({
       eventId: event.id,
       channels: cleanChannels,
       calendarEnabled: watch.calendarEnabled,
-      scheduledJobs: jobs.length
+      scheduledJobs: jobs.filter((job) => job.status === "SCHEDULED").length,
+      canceledJobs: jobs.filter((job) => job.status === "CANCELED").length
     });
     return { watchlist: watch, event, notificationJobs: jobs };
   }
@@ -147,7 +148,7 @@ export function createEngagementBackend({
   function removeWatchlistForPrincipal(db, userId, eventId) {
     findUser(db, userId);
     const index = db.watchlist.findIndex((item) => item.userId === userId && item.eventId === eventId);
-    if (index < 0) throw httpError(404, "WATCHLIST_NOT_FOUND", "관심 공연을 찾을 수 없습니다.");
+    if (index < 0) return { deleted: true, eventId };
     const [watch] = db.watchlist.splice(index, 1);
     cancelWatchlistNotifications(db, watch);
     appendLedger(db, userId, "WATCHLIST_REMOVED", {

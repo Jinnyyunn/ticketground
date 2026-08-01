@@ -4,10 +4,12 @@ import { cn } from "@/lib/utils";
 
 export function WatchlistToggleButton({
   active,
+  disabled = false,
   label,
   onToggle,
 }: {
   readonly active: boolean;
+  readonly disabled?: boolean;
   readonly label: string;
   readonly onToggle: () => void;
 }) {
@@ -16,9 +18,10 @@ export function WatchlistToggleButton({
       type="button"
       aria-label={`${label} ${active ? "켜짐" : "꺼짐"}`}
       aria-pressed={active}
+      disabled={disabled}
       onClick={onToggle}
       className={cn(
-        "inline-flex h-10 min-w-28 items-center justify-center rounded-lg border px-4 text-sm font-black focus-visible:ring-3 focus-visible:ring-ring/50",
+        "inline-flex h-10 min-w-28 items-center justify-center rounded-lg border px-4 text-sm font-black focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
         active ? "border-ink bg-ink text-on-ink" : "border-line-strong bg-card text-ink",
       )}
     >

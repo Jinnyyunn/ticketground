@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { api, startServer } from "./backend-test-utils.mjs";
+import { adminApi, api, startServer } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 async function nativeLogin(server) {
@@ -90,6 +90,10 @@ test("native watchlist binds reads and preferences to the bearer principal", asy
   });
   assert.equal(disabled.data.notificationEnabled, false);
   assert.ok(disabled.data.notificationJobs.every((job) => job.status === "CANCELED"));
+  const ledger = await adminApi(server, "/api/ledger");
+  const preferenceEntry = ledger.data.find((entry) => entry.action === "WATCHLIST_UPSERTED");
+  assert.equal(preferenceEntry.payload.scheduledJobs, 0);
+  assert.equal(preferenceEntry.payload.canceledJobs, 2);
 });
 
 test("native watchlist persists across restart and delete cancels scheduled jobs", async (t) => {
@@ -121,6 +125,12 @@ test("native watchlist persists across restart and delete cancels scheduled jobs
   });
   assert.deepEqual(removed.data, { deleted: true, eventId: eventID });
 
+  const retried = await request(secondServer, `/api/me/watchlist/${eventID}`, {
+    authorization: login.authorization,
+    method: "DELETE"
+  });
+  assert.deepEqual(retried.data, { deleted: true, eventId: eventID });
+
   const empty = await request(secondServer, "/api/me/watchlist", {
     authorization: login.authorization
   });
@@ -141,12 +151,11 @@ test("native watchlist cannot delete another user's event", async (t) => {
     notificationEnabled: true
   });
 
-  const forbidden = await request(server, `/api/me/watchlist/${eventID}`, {
+  const absentForPrincipal = await request(server, `/api/me/watchlist/${eventID}`, {
     authorization: login.authorization,
-    method: "DELETE",
-    status: 404
+    method: "DELETE"
   });
-  assert.equal(forbidden.error.code, "WATCHLIST_NOT_FOUND");
+  assert.deepEqual(absentForPrincipal.data, { deleted: true, eventId: eventID });
 
   const victim = await request(server, "/api/users/user_fan_a/watchlist");
   assert.deepEqual(victim.data.map((item) => item.eventId), [eventID]);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, CheckCircle2 } from "lucide-react";
-import { DEMO_EVENT_ID, getWatchlist, notifyWatchlist, upsertWatchlist } from "@/lib/ticketground-api";
+import { DEMO_EVENT_ID, getWatchlist, notifyWatchlist, TicketgroundApiError, upsertWatchlist } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { WatchlistShowCard, type WatchShow } from "./watchlist-show-card";
 import { WatchlistToggleButton } from "./watchlist-toggle-button";
@@ -52,6 +52,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   const [showAlerts, setShowAlerts] = useState(() => new Set(shows.filter((show) => show.defaultEnabled).map((show) => show.slug)));
   const [channelAlerts, setChannelAlerts] = useState(() => new Set(channels.filter((channel) => channel.defaultEnabled).map((channel) => channel.id)));
   const [backendStatus, setBackendStatus] = useState("관심공연 동기화 중");
+  const [backendAvailable, setBackendAvailable] = useState(false);
 
   function selectedBackendChannels(nextChannelAlerts = channelAlerts) {
     return channels
@@ -62,8 +63,10 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   async function refreshWatchlist() {
     try {
       const watchlist = await getWatchlist();
+      setBackendAvailable(true);
       setBackendStatus(watchlist.length ? `${watchlist.length}건의 관심공연 저장됨` : "저장된 관심공연이 아직 없습니다.");
     } catch (error) {
+      setBackendAvailable(false);
       setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
     }
   }
@@ -73,11 +76,17 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
     getWatchlist()
       .then((watchlist) => {
         if (!mounted) return;
+        setBackendAvailable(true);
         setBackendStatus(watchlist.length ? `${watchlist.length}건의 관심공연 저장됨` : "저장된 관심공연이 아직 없습니다.");
       })
       .catch((error: unknown) => {
         if (!mounted) return;
-        setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
+        setBackendAvailable(false);
+        if (error instanceof TicketgroundApiError && error.status === 404) {
+          setBackendStatus("웹 관심공연은 안전한 로그인 연동 준비 중입니다. iOS 앱에서 이용해주세요.");
+        } else {
+          setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
+        }
       });
     return () => {
       mounted = false;
@@ -85,6 +94,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   }, []);
 
   const toggleShow = (slug: string) => {
+    if (!backendAvailable) return;
     setShowAlerts((current) => {
       const next = new Set(current);
       if (next.has(slug)) next.delete(slug);
@@ -105,6 +115,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   };
 
   const toggleChannel = (id: ChannelId) => {
+    if (!backendAvailable) return;
     setChannelAlerts((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -121,6 +132,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   };
 
   async function recordNotification() {
+    if (!backendAvailable) return;
     setBackendStatus("알림 기록 중");
     try {
       const result = await notifyWatchlist(DEMO_EVENT_ID);
@@ -138,7 +150,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
         <p className="mt-3 max-w-2xl text-sm text-ink-3">
           관심공연별 D-3와 당일 알림 상태를 확인하고 알림 채널을 저장합니다.
         </p>
-        <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink-3" aria-live="polite">{backendStatus}</p>
+        <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink-3" aria-live="polite" data-backend-available={backendAvailable}>{backendStatus}</p>
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -147,6 +159,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
             const enabled = showAlerts.has(show.slug);
             return (
               <WatchlistShowCard
+                backendAvailable={backendAvailable}
                 key={show.slug}
                 enabled={enabled}
                 onRecordNotification={recordNotification}
@@ -197,6 +210,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
                   </div>
                   <WatchlistToggleButton
                     active={channelAlerts.has(channel.id)}
+                    disabled={!backendAvailable}
                     label={`${channel.label} 수신`}
                     onToggle={() => toggleChannel(channel.id)}
                   />
