@@ -2171,6 +2171,10 @@ private struct LiveSupportRouteView: View {
                 state = .capability(testState)
                 return
             }
+            let generation = LiveSupportLoadGeneration(
+                userID: container.environment.sessionStore.current?.userID,
+                reloadID: reloadID
+            )
             let apiClient = container.environment.apiClient
             let capabilityMap = LiveAPIContract.deployed.capabilityMap(
                 for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
@@ -2195,7 +2199,18 @@ private struct LiveSupportRouteView: View {
             let service = LiveBackendService(apiClient: apiClient)
             do {
                 let probe = try await service.diagnoseSupportContract()
-                publicSupport = try await service.getPublicSupport()
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
+                let loadedPublicSupport = try await service.getPublicSupport()
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
+                publicSupport = loadedPublicSupport
                 admittedCapabilityMap = probe.capabilities
                 let resolvedState = LiveAccountCapabilityState.resolve(
                     for: .support,
@@ -2207,8 +2222,19 @@ private struct LiveSupportRouteView: View {
                     state = .capability(resolvedState)
                     return
                 }
-                state = .loaded(try await service.getSupportThreads(userID: userID))
+                let loadedThreads = try await service.getSupportThreads(userID: userID)
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
+                state = .loaded(loadedThreads)
             } catch let error as APIClientError {
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
                 let resolvedState = LiveAccountCapabilityState.resolve(
                     for: .support,
                     capabilityMap: capabilityMap,
@@ -2221,6 +2247,11 @@ private struct LiveSupportRouteView: View {
                 }
                 state = .capability(resolvedState)
             } catch {
+                guard generation.isCurrent(
+                    userID: container.environment.sessionStore.current?.userID,
+                    reloadID: reloadID,
+                    isCancelled: Task.isCancelled
+                ) else { return }
                 state = .capability(.retry)
             }
         }
@@ -2501,6 +2532,15 @@ private struct LiveSupportThreadDetailView: View {
         case .admin: return "고객센터"
         case .unknown: return "발신자 확인 중"
         }
+    }
+}
+
+struct LiveSupportLoadGeneration: Equatable {
+    let userID: String?
+    let reloadID: Int
+
+    func isCurrent(userID: String?, reloadID: Int, isCancelled: Bool) -> Bool {
+        !isCancelled && self.userID == userID && self.reloadID == reloadID
     }
 }
 

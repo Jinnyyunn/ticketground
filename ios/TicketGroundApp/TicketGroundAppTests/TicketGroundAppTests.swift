@@ -94,6 +94,15 @@ final class TicketGroundAppTests: XCTestCase {
         XCTAssertTrue(String(describing: ContentView.self).contains("ContentView"))
     }
 
+    func testSupportLoadGenerationRejectsCancelledAndExpiredSession() {
+        let generation = LiveSupportLoadGeneration(userID: "user-1", reloadID: 4)
+
+        XCTAssertTrue(generation.isCurrent(userID: "user-1", reloadID: 4, isCancelled: false))
+        XCTAssertFalse(generation.isCurrent(userID: nil, reloadID: 4, isCancelled: false))
+        XCTAssertFalse(generation.isCurrent(userID: "user-1", reloadID: 5, isCancelled: false))
+        XCTAssertFalse(generation.isCurrent(userID: "user-1", reloadID: 4, isCancelled: true))
+    }
+
     func testContentSizeOverrideIsLimitedToExplicitUITestValues() {
         XCTAssertNil(TicketGroundApp.requestedSizeCategory(environment: [:]))
         XCTAssertNil(TicketGroundApp.requestedSizeCategory(environment: [
