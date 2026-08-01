@@ -43,9 +43,14 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { credential, expiresAt };
   }
 
-  function nativeSession(db, req) {
+  function authenticateNativeSession(db, req) {
     const session = matchingSession(db, bearerCredential(req));
-    return { user: publicSessionUser(findUser(db, session.userId)) };
+    return { session, user: findUser(db, session.userId) };
+  }
+
+  function nativeSession(db, req) {
+    const { user } = authenticateNativeSession(db, req);
+    return { user: publicSessionUser(user) };
   }
 
   function nativeLogout(db, req) {
@@ -54,5 +59,5 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { revoked: true };
   }
 
-  return { issueNativeSession, nativeLogout, nativeSession };
+  return { authenticateNativeSession, issueNativeSession, nativeLogout, nativeSession };
 }

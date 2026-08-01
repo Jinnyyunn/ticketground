@@ -43,7 +43,8 @@ final class LiveBackendService {
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
             validatedStateResponse: false,
-            catalogRouteConfirmed: false
+            catalogRouteConfirmed: false,
+            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true
         )
         guard capabilities.diagnostics.compatibility == .compatible else {
             return LiveAPIContractProbe(
@@ -64,7 +65,8 @@ final class LiveBackendService {
             observedResponseVersion: version,
             validatedStateResponse: false,
             catalogRouteConfirmed: true,
-            discoveryRoutesConfirmed: discoveryRoutesConfirmed
+            discoveryRoutesConfirmed: discoveryRoutesConfirmed,
+            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -128,7 +130,7 @@ final class LiveBackendService {
 
     func getSession(userID: String) async throws -> LiveSession {
         try await get(
-            authenticatedRequest(path: "/api/users/\(pathValue(userID))/session", userID: userID),
+            principalRequest(path: "/api/me", userID: userID),
             endpoint: .session,
             as: LiveSession.self
         )
@@ -136,9 +138,24 @@ final class LiveBackendService {
 
     func getTickets(userID: String) async throws -> [LiveTicket] {
         try await get(
-            authenticatedRequest(path: "/api/users/\(pathValue(userID))/tickets", userID: userID),
+            principalRequest(path: "/api/me/tickets", userID: userID),
             endpoint: .tickets,
             as: [LiveTicket].self
+        )
+    }
+
+    func updateProfile(userID: String, name: String) async throws -> LiveSession {
+        let body = try JSONEncoder().encode(["name": name])
+        return try await get(
+            APIRequest(
+                method: .patch,
+                path: "/api/me/profile",
+                body: .json(body),
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .session,
+            as: LiveSession.self
         )
     }
 
@@ -252,5 +269,13 @@ final class LiveBackendService {
 
     private func authenticatedRequest(path: String, userID: String) -> APIRequest {
         APIRequest(path: path, authentication: .required(userID: userID))
+    }
+
+    private func principalRequest(path: String, userID: String) -> APIRequest {
+        APIRequest(
+            path: path,
+            authentication: .required(userID: userID),
+            ownerBinding: .bearerPrincipal
+        )
     }
 }

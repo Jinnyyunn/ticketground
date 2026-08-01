@@ -150,6 +150,7 @@ export async function createTicketgroundApp(options) {
     ...identity,
     ...nativeSession,
     ...session,
+    accountTicketsForUser: dtos.accountTicketsForUser,
     appendLedger: persistence.appendLedger,
     bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,

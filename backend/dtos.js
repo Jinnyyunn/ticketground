@@ -209,7 +209,38 @@ function publicTicketsForUser(db, userId) {
     .map(publicTicket);
 }
 
+function accountTicketsForUser(db, userId) {
+  return db.tickets
+    .filter((ticket) => ticket.ownerId === userId)
+    .map((ticket) => {
+      const event = db.events.find((item) => item.id === ticket.eventId);
+      const performance = event?.dates?.find((item) => item.id === ticket.performanceDateId);
+      const payment = db.paymentTransactions
+        .filter((item) => item.ticketId === ticket.id && item.userId === userId)
+        .at(-1);
+      return {
+        ...publicTicket(ticket),
+        event: event ? {
+          id: event.id,
+          title: event.title,
+          venue: event.venue,
+          performance: performance ? {
+            id: performance.id,
+            label: performance.label,
+            startsAt: performance.startsAt
+          } : null
+        } : null,
+        payment: payment ? {
+          amount: payment.amount,
+          method: payment.method,
+          status: payment.status
+        } : null
+      };
+    });
+}
+
   return {
+    accountTicketsForUser,
     adminTicket,
     publicCatalog,
     publicDirectTransferResult,

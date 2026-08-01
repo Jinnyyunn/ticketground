@@ -116,8 +116,8 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     user.name = nextName;
     user.profileConfirmedAt = now();
     appendLedger(db, user.id, "DEMO_PROFILE_UPDATED", {
-      previousName,
-      nextName,
+      previousNameDigest: hmac(`profile_name:${previousName}`),
+      nextNameDigest: hmac(`profile_name:${nextName}`),
       updatedAt: now(),
       policy: "demo-session-profile-edit"
     });
