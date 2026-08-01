@@ -1124,6 +1124,7 @@ private final class UITestLiveHomeAPIClient: APIClient {
     }
     private let scenario: UITestLiveHomeScenario
     private var healthRequestCount = 0
+    private var supportMessageRequestCount = 0
 
     init(scenario: UITestLiveHomeScenario) {
         self.scenario = scenario
@@ -1149,8 +1150,15 @@ private final class UITestLiveHomeAPIClient: APIClient {
         case ("/api/support/public", _) where scenario == .support || scenario == .supportAuthenticated:
             return json("{\"version\":\"1\",\"faqs\":[{\"id\":\"booking\",\"question\":\"예매 내역은 어디에서 확인하나요?\",\"answer\":\"로그인 후 마이페이지에서 확인할 수 있습니다.\"}],\"notices\":[{\"id\":\"secure\",\"title\":\"안전한 1:1 문의\",\"body\":\"로그인 세션의 본인 문의만 확인할 수 있습니다.\"}]}")
         case ("/api/me/support/threads", _) where scenario == .supportAuthenticated && request.method == .get:
+            if supportMessageRequestCount > 0 {
+                return json("[{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:01:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:01:00Z\"}]}]")
+            }
             return json("[{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:00:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"}]}]")
         case ("/api/me/support/messages", _) where scenario == .supportAuthenticated:
+            supportMessageRequestCount += 1
+            if supportMessageRequestCount == 1 {
+                return json("{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:01:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:01:00Z\"}]}")
+            }
             throw APIClientError.server(status: 401, code: "NATIVE_SESSION_INVALID", message: "session expired")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")

@@ -636,6 +636,17 @@ final class DiscoveryTests: XCTestCase {
         reply.tap()
         reply.typeText("추가 문의")
         app.buttons["live-support-reply-submit"].tap()
+        XCTAssertTrue(app.staticTexts["추가 문의"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-support-thread-support-ui").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["추가 문의"].exists)
+
+        anyElement(app, identifier: "live-support-thread-support-ui").tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-support-detail").waitForExistence(timeout: 10))
+        let expiredReply = app.textFields["live-support-reply"]
+        expiredReply.tap()
+        expiredReply.typeText("세션 만료")
+        app.buttons["live-support-reply-submit"].tap()
         XCTAssertFalse(anyElement(app, identifier: "live-support-detail").waitForExistence(timeout: 3))
         XCTAssertTrue(anyElement(app, identifier: "live-support-login-required").waitForExistence(timeout: 10))
     }

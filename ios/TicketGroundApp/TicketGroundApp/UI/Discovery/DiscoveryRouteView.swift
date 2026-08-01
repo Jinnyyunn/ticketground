@@ -2145,7 +2145,8 @@ private struct LiveSupportRouteView: View {
                                         NavigationLink {
                                             LiveSupportThreadDetailView(
                                                 initialThread: thread,
-                                                capabilityMap: admittedCapabilityMap
+                                                capabilityMap: admittedCapabilityMap,
+                                                onThreadUpdated: updateSupportThread
                                             )
                                         } label: {
                                             supportThreadRow(thread)
@@ -2326,6 +2327,11 @@ private struct LiveSupportRouteView: View {
         .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
     }
 
+    private func updateSupportThread(_ updatedThread: LiveSupportThread) {
+        guard case .loaded(let threads) = state else { return }
+        state = .loaded(threads.map { $0.id == updatedThread.id ? updatedThread : $0 })
+    }
+
     @MainActor
     private func submitThread(existingThreads: [LiveSupportThread]) async {
         guard let userID = container.environment.sessionStore.current?.userID,
@@ -2386,10 +2392,16 @@ private struct LiveSupportThreadDetailView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     let capabilityMap: LiveCapabilityMap
+    let onThreadUpdated: (LiveSupportThread) -> Void
 
-    init(initialThread: LiveSupportThread, capabilityMap: LiveCapabilityMap) {
+    init(
+        initialThread: LiveSupportThread,
+        capabilityMap: LiveCapabilityMap,
+        onThreadUpdated: @escaping (LiveSupportThread) -> Void
+    ) {
         _thread = State(initialValue: initialThread)
         self.capabilityMap = capabilityMap
+        self.onThreadUpdated = onThreadUpdated
     }
 
     var body: some View {
@@ -2454,6 +2466,7 @@ private struct LiveSupportThreadDetailView: View {
                 message: reply,
                 idempotencyKey: replyKey
             )
+            onThreadUpdated(thread)
             reply = ""
             replyKey = UUID().uuidString
         } catch let error as APIClientError {

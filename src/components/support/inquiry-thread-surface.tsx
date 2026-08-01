@@ -91,7 +91,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
     } catch (error) {
       if (error instanceof TicketgroundApiError && error.status === 404) {
         setBackendAvailable(false);
-        setBackendStatus("웹 문의는 현재 비활성화되어 있습니다. Ticketground iOS 앱의 고객센터를 이용해주세요.");
+        setBackendStatus("웹 1:1 문의는 안전한 인증 채널을 준비 중입니다. 운영 HTTPS endpoint가 구성된 iOS 앱에서 이용할 수 있습니다.");
       } else {
         setBackendStatus(error instanceof Error ? error.message : "문의를 불러오지 못했습니다.");
       }
@@ -214,7 +214,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
                 }
               }}
               className="min-h-[108px] rounded-lg border border-line bg-card p-3 font-normal text-ink focus-visible:outline-2 focus-visible:outline-link"
-              placeholder={backendAvailable === false ? "iOS 앱의 고객센터에서 문의해주세요." : "문의 내용을 입력하세요. Shift+Enter로 줄바꿈"}
+              placeholder={backendAvailable === false ? "안전한 문의 채널을 준비 중입니다." : "문의 내용을 입력하세요. Shift+Enter로 줄바꿈"}
               data-testid="inquiry-compose"
             />
           </label>
