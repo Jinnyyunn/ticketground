@@ -76,7 +76,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
   const selectedThread = useMemo(() => threads.find((thread) => thread.id === selectedId) ?? threads[0], [selectedId, threads]);
   const reservation = reservations.find((item) => item.id === selectedThread?.reservationId);
   const show = shows.find((item) => item.slug === selectedThread?.showSlug);
-  const canSend = backendAvailable !== false && draft.trim().length > 0 && draft.length <= 1000;
+  const canSend = backendAvailable === true && draft.trim().length > 0 && draft.length <= 1000;
 
   async function refreshBackendThreads() {
     try {
@@ -104,7 +104,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
 
   async function sendMessage() {
     const body = draft.trim();
-    if (!body || !selectedThread) return;
+    if (backendAvailable !== true || !body || !selectedThread) return;
     setSending(true);
     setBackendStatus("문의 전송 중");
     const at = new Date().toISOString();
@@ -205,7 +205,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              disabled={backendAvailable === false}
+              disabled={backendAvailable !== true}
               maxLength={1000}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
@@ -214,7 +214,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
                 }
               }}
               className="min-h-[108px] rounded-lg border border-line bg-card p-3 font-normal text-ink focus-visible:outline-2 focus-visible:outline-link"
-              placeholder={backendAvailable === false ? "안전한 문의 채널을 준비 중입니다." : "문의 내용을 입력하세요. Shift+Enter로 줄바꿈"}
+              placeholder={backendAvailable === true ? "문의 내용을 입력하세요. Shift+Enter로 줄바꿈" : "안전한 문의 채널을 확인 중입니다."}
               data-testid="inquiry-compose"
             />
           </label>

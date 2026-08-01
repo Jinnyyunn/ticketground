@@ -2187,6 +2187,11 @@ private struct LiveSupportRouteView: View {
                 return
             }
 
+            if container.environment.sessionStore.current == nil {
+                admittedCapabilityMap = nil
+                state = .capability(.loginRequired)
+            }
+
             let service = LiveBackendService(apiClient: apiClient)
             do {
                 let probe = try await service.diagnoseSupportContract()
@@ -2329,7 +2334,7 @@ private struct LiveSupportRouteView: View {
 
     private func updateSupportThread(_ updatedThread: LiveSupportThread) {
         guard case .loaded(let threads) = state else { return }
-        state = .loaded(threads.map { $0.id == updatedThread.id ? updatedThread : $0 })
+        state = .loaded([updatedThread] + threads.filter { $0.id != updatedThread.id })
     }
 
     @MainActor
