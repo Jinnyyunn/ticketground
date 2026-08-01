@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { api, startServer } from "./backend-test-utils.mjs";
@@ -130,6 +133,44 @@ test("native support mutations are idempotent and reject cross-account replies",
     status: 403
   });
   assert.equal(forbidden.error.code, "SUPPORT_FORBIDDEN");
+});
+
+test("native support idempotency survives runtime secret rotation", async (t) => {
+  configureGoogleEnv(t, true);
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-support-rotation-"));
+  const dbPath = path.join(tempDir, "db.json");
+  t.after(() => rm(tempDir, { recursive: true, force: true }));
+
+  const firstServer = await startServer(t, {
+    dbPath,
+    env: { TIG_SECRET: "support-runtime-secret-before-rotation" }
+  });
+  const login = await nativeLogin(firstServer);
+  const body = { subject: "재시작 문의", message: "같은 요청입니다." };
+  const first = await request(firstServer, "/api/me/support/threads", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "support-create-across-rotation",
+    body
+  });
+  await firstServer.stop();
+
+  const secondServer = await startServer(t, {
+    dbPath,
+    env: { TIG_SECRET: "support-runtime-secret-after-rotation" }
+  });
+  const retry = await request(secondServer, "/api/me/support/threads", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "support-create-across-rotation",
+    body
+  });
+  const threads = await request(secondServer, "/api/me/support/threads", {
+    authorization: login.authorization
+  });
+
+  assert.equal(retry.data.id, first.data.id);
+  assert.equal(threads.data.length, 1);
 });
 
 test("native support rejects oversized fields instead of truncating them", async (t) => {

@@ -1,7 +1,7 @@
 export function createEngagementBackend({
   appendLedger,
   findUser,
-  hmac,
+  hash,
   httpError,
   id,
   now,
@@ -176,8 +176,8 @@ export function createEngagementBackend({
 
   function supportIdempotency(kind, userId, key, payload) {
     return {
-      keyDigest: hmac(`support:${kind}:${userId}:${key}`),
-      requestDigest: hmac(`support:${kind}:payload:${JSON.stringify(payload)}`)
+      keyDigest: hash(`support:${kind}:${userId}:${key}`),
+      requestDigest: hash(`support:${kind}:payload:${JSON.stringify(payload)}`)
     };
   }
 
