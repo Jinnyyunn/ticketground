@@ -2274,20 +2274,20 @@ private struct LiveSupportRouteView: View {
                 .lineLimit(3...6)
                 .disabled(isSubmitting)
                 .accessibilityIdentifier("live-support-message")
-            if subject.count > 80 {
+            if subject.utf16.count > 80 {
                 Text("문의 제목은 80자 이하로 입력해주세요.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("live-support-subject-limit")
             }
-            if message.count > 1000 {
+            if message.utf16.count > 1000 {
                 Text("문의 내용은 1,000자 이하로 입력해주세요.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.red)
             }
-            Text("제목 \(subject.count)/80 · 내용 \(message.count)/1,000")
+            Text("제목 \(subject.utf16.count)/80 · 내용 \(message.utf16.count)/1,000")
                 .font(.caption)
-                .foregroundStyle(subject.count > 80 || message.count > 1000 ? .red : TicketgroundColor.inkMuted)
+                .foregroundStyle(subject.utf16.count > 80 || message.utf16.count > 1000 ? .red : TicketgroundColor.inkMuted)
             Button {
                 Task { await submitThread(existingThreads: existingThreads) }
             } label: {
@@ -2298,8 +2298,8 @@ private struct LiveSupportRouteView: View {
             .disabled(
                 isSubmitting
                     || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || subject.count > 80
-                    || message.count > 1000
+                    || subject.utf16.count > 80
+                    || message.utf16.count > 1000
             )
             .accessibilityIdentifier("live-support-submit")
             if let submissionError {
@@ -2413,13 +2413,13 @@ private struct LiveSupportThreadDetailView: View {
                     .lineLimit(3...6)
                     .disabled(isSending)
                     .accessibilityIdentifier("live-support-reply")
-                Text("\(reply.count)/1,000")
+                Text("\(reply.utf16.count)/1,000")
                     .font(.caption)
-                    .foregroundStyle(reply.count > 1000 ? .red : TicketgroundColor.inkMuted)
+                    .foregroundStyle(reply.utf16.count > 1000 ? .red : TicketgroundColor.inkMuted)
                 Button(isSending ? "전송 중" : "답글 보내기") {
                     Task { await sendReply() }
                 }
-                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reply.count > 1000)
+                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reply.utf16.count > 1000)
                 .accessibilityIdentifier("live-support-reply-submit")
                 if let errorMessage {
                     Text(errorMessage).foregroundStyle(.red)

@@ -146,6 +146,15 @@ test("native support rejects oversized fields instead of truncating them", async
   });
   assert.equal(longSubject.error.code, "SUPPORT_SUBJECT_TOO_LONG");
 
+  const longEmojiSubject = await request(server, "/api/me/support/threads", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "support-long-emoji-subject",
+    body: { subject: "😀".repeat(41), message: "문의" },
+    status: 422
+  });
+  assert.equal(longEmojiSubject.error.code, "SUPPORT_SUBJECT_TOO_LONG");
+
   const longMessage = await request(server, "/api/me/support/threads", {
     authorization: login.authorization,
     method: "POST",
