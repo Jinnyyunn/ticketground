@@ -55,6 +55,16 @@ test("native watchlist binds reads and preferences to the bearer principal", asy
   });
   assert.equal(malformedEvent.error.code, "INVALID_EVENT_ID");
 
+  const invalidPreferences = await request(server, "/api/me/watchlist/event_kpop_001", {
+    authorization: login.authorization,
+    method: "PUT",
+    body: { calendarEnabled: "false", notificationEnabled: "false" },
+    status: 400
+  });
+  assert.equal(invalidPreferences.error.code, "INVALID_WATCHLIST_PREFERENCES");
+  const unchanged = await request(server, "/api/me/watchlist", { authorization: login.authorization });
+  assert.deepEqual(unchanged.data, []);
+
   const created = await request(server, `/api/me/watchlist/${eventID}`, {
     authorization: login.authorization,
     method: "PUT",

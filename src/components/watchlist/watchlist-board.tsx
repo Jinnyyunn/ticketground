@@ -53,6 +53,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   const [channelAlerts, setChannelAlerts] = useState(() => new Set(channels.filter((channel) => channel.defaultEnabled).map((channel) => channel.id)));
   const [backendStatus, setBackendStatus] = useState("관심공연 동기화 중");
   const [backendAvailable, setBackendAvailable] = useState(false);
+  const [backendRetryAvailable, setBackendRetryAvailable] = useState(false);
 
   function selectedBackendChannels(nextChannelAlerts = channelAlerts) {
     return channels
@@ -61,13 +62,20 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
   }
 
   async function refreshWatchlist() {
+    setBackendStatus("관심공연 동기화 중");
+    setBackendRetryAvailable(false);
     try {
       const watchlist = await getWatchlist();
       setBackendAvailable(true);
       setBackendStatus(watchlist.length ? `${watchlist.length}건의 관심공연 저장됨` : "저장된 관심공연이 아직 없습니다.");
     } catch (error) {
       setBackendAvailable(false);
-      setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
+      if (error instanceof TicketgroundApiError && error.status === 404) {
+        setBackendStatus("웹 관심공연은 안전한 로그인 연동 준비 중입니다. iOS 앱에서 이용해주세요.");
+      } else {
+        setBackendRetryAvailable(true);
+        setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
+      }
     }
   }
 
@@ -77,6 +85,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
       .then((watchlist) => {
         if (!mounted) return;
         setBackendAvailable(true);
+        setBackendRetryAvailable(false);
         setBackendStatus(watchlist.length ? `${watchlist.length}건의 관심공연 저장됨` : "저장된 관심공연이 아직 없습니다.");
       })
       .catch((error: unknown) => {
@@ -85,6 +94,7 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
         if (error instanceof TicketgroundApiError && error.status === 404) {
           setBackendStatus("웹 관심공연은 안전한 로그인 연동 준비 중입니다. iOS 앱에서 이용해주세요.");
         } else {
+          setBackendRetryAvailable(true);
           setBackendStatus(backendStatusMessage(error, "관심공연을 불러오지 못했습니다."));
         }
       });
@@ -150,7 +160,14 @@ export function WatchlistBoard({ shows }: { readonly shows: readonly WatchShow[]
         <p className="mt-3 max-w-2xl text-sm text-ink-3">
           관심공연별 D-3와 당일 알림 상태를 확인하고 알림 채널을 저장합니다.
         </p>
-        <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink-3" aria-live="polite" data-backend-available={backendAvailable}>{backendStatus}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink-3" aria-live="polite" data-backend-available={backendAvailable}>
+          <p>{backendStatus}</p>
+          {backendRetryAvailable && (
+            <button type="button" onClick={() => void refreshWatchlist()} className="rounded-lg border border-line-strong bg-card px-3 py-2 text-ink">
+              다시 시도
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">

@@ -141,6 +141,11 @@ export function createEngagementBackend({
   }
 
   function upsertWatchlistForPrincipal(db, userId, eventId, preferences) {
+    for (const field of ["calendarEnabled", "notificationEnabled"]) {
+      if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
+        throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+      }
+    }
     const result = upsertWatchlist(db, { ...preferences, userId, eventId });
     return publicWatchlistItem(db, result.watchlist);
   }
