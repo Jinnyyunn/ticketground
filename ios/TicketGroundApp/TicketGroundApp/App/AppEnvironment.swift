@@ -1166,6 +1166,9 @@ private final class UITestLiveHomeAPIClient: APIClient {
                 return json("[{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:03:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:03:00Z\"}]},{\"id\":\"support-newer\",\"subject\":\"좌석 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:02:00Z\",\"updatedAt\":\"2026-08-02T00:02:00Z\",\"messages\":[{\"id\":\"message-newer\",\"role\":\"CUSTOMER\",\"body\":\"좌석 확인\",\"at\":\"2026-08-02T00:02:00Z\"}]}]")
             }
             return json("[{\"id\":\"support-newer\",\"subject\":\"좌석 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:02:00Z\",\"updatedAt\":\"2026-08-02T00:02:00Z\",\"messages\":[{\"id\":\"message-newer\",\"role\":\"CUSTOMER\",\"body\":\"좌석 확인\",\"at\":\"2026-08-02T00:02:00Z\"}]},{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:00:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"}]}]")
+        case ("/api/me/support/threads", _) where scenario == .supportAuthenticated && request.method == .post:
+            try await Task.sleep(for: .seconds(5))
+            throw APIClientError.server(status: 401, code: "NATIVE_SESSION_INVALID", message: "session expired")
         case ("/api/me/support/messages", _) where scenario == .supportAuthenticated:
             supportMessageRequestCount += 1
             if supportMessageRequestCount == 1 {

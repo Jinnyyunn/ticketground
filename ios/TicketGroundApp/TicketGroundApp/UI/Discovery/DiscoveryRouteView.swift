@@ -2146,6 +2146,7 @@ private struct LiveSupportRouteView: View {
                                             LiveSupportThreadDetailView(
                                                 initialThread: thread,
                                                 capabilityMap: admittedCapabilityMap,
+                                                sessionRevision: container.environment.sessionStore.revision,
                                                 onThreadUpdated: updateSupportThread
                                             )
                                         } label: {
@@ -2498,15 +2499,18 @@ private struct LiveSupportThreadDetailView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     let capabilityMap: LiveCapabilityMap
+    let sessionRevision: Int
     let onThreadUpdated: (LiveSupportThread) -> Void
 
     init(
         initialThread: LiveSupportThread,
         capabilityMap: LiveCapabilityMap,
+        sessionRevision: Int,
         onThreadUpdated: @escaping (LiveSupportThread) -> Void
     ) {
         _thread = State(initialValue: initialThread)
         self.capabilityMap = capabilityMap
+        self.sessionRevision = sessionRevision
         self.onThreadUpdated = onThreadUpdated
     }
 
@@ -2547,6 +2551,11 @@ private struct LiveSupportThreadDetailView: View {
         .navigationTitle("문의 상세")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("live-support-detail")
+        .onChange(of: container.environment.sessionStore.revision) { _, currentRevision in
+            if currentRevision != sessionRevision {
+                dismiss()
+            }
+        }
         .onChange(of: reply) { _, _ in
             if !isSending { replyKey = UUID().uuidString }
         }

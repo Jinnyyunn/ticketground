@@ -657,6 +657,36 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(app, identifier: "live-support-login-required").waitForExistence(timeout: 10))
     }
 
+    func testCreateLogoutDismissesSupportDetail() {
+        let app = liveApp(homeScenario: "supportAuthenticated")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-help"].tap()
+
+        let subject = app.textFields["live-support-subject"]
+        XCTAssertTrue(subject.waitForExistence(timeout: 20))
+        subject.tap()
+        subject.typeText("새 문의")
+        let message = app.textFields["live-support-message"]
+        message.tap()
+        message.typeText("세션 만료 확인")
+        app.buttons["live-support-submit"].tap()
+
+        let thread = anyElement(app, identifier: "live-support-thread-support-ui")
+        XCTAssertTrue(thread.waitForExistence(timeout: 10))
+        thread.tap()
+        let detail = anyElement(app, identifier: "live-support-detail")
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        let dismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: detail
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed)
+        XCTAssertTrue(anyElement(app, identifier: "live-support-login-required").waitForExistence(timeout: 10))
+    }
+
     func testLiveMenuOpensCapabilityLedger() {
         let app = liveApp()
         app.launch()
