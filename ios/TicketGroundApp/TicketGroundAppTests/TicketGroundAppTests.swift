@@ -1,6 +1,94 @@
 import XCTest
 @testable import TicketGroundApp
 
+private final class HandoffRedirectURLProtocol: URLProtocol {
+    private static let lock = NSLock()
+    private static var redirectIssued = false
+    private static var redirectURL: URL?
+    private static var requests: [URLRequest] = []
+
+    private let stateLock = NSLock()
+    private var stopped = false
+
+    static func reset(redirectURL: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.redirectURL = redirectURL
+        redirectIssued = false
+        requests = []
+    }
+
+    static func capturedRequests() -> [URLRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let redirect = Self.record(request)
+        guard redirect.shouldRedirect, let redirectURL = redirect.url else {
+            respondWithSuccess()
+            return
+        }
+        guard let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://api.ticketground.test")!,
+            statusCode: 307,
+            httpVersion: nil,
+            headerFields: ["Location": redirectURL.absoluteString]
+        ) else { return }
+        var proposedRequest = request
+        proposedRequest.url = redirectURL
+        client?.urlProtocol(self, wasRedirectedTo: proposedRequest, redirectResponse: response)
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.finishRejectedRedirect(with: response)
+        }
+    }
+
+    override func stopLoading() {
+        stateLock.lock()
+        stopped = true
+        stateLock.unlock()
+    }
+
+    private static func record(_ request: URLRequest) -> (shouldRedirect: Bool, url: URL?) {
+        lock.lock()
+        defer { lock.unlock() }
+        requests.append(request)
+        guard !redirectIssued else { return (false, redirectURL) }
+        redirectIssued = true
+        return (true, redirectURL)
+    }
+
+    private func finishRejectedRedirect(with response: HTTPURLResponse) {
+        stateLock.lock()
+        guard !stopped else {
+            stateLock.unlock()
+            return
+        }
+        stopped = true
+        stateLock.unlock()
+
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    private func respondWithSuccess() {
+        guard let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "http://credential-capture.test")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        ) else { return }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"ok":true,"data":{"user":{"id":"captured","name":"Captured","status":"ACTIVE","trustScore":0,"profileConfirmed":false},"session":{"credential":"captured","expiresAt":"2026-09-01T00:00:00.000Z"}}}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
 final class TicketGroundAppTests: XCTestCase {
     func testAppTargetLoads() {
         XCTAssertTrue(String(describing: ContentView.self).contains("ContentView"))
@@ -250,6 +338,37 @@ final class TicketGroundAppTests: XCTestCase {
         }
         XCTAssertNil(sessionStore.current)
         XCTAssertNil(credentials.read())
+    }
+
+    func testSocialNativeExchangeDoesNotForwardHandoffCodeAcrossRedirect() async throws {
+        let redirectURL = URL(string: "http://credential-capture.test/handoff")!
+        HandoffRedirectURLProtocol.reset(redirectURL: redirectURL)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [HandoffRedirectURLProtocol.self]
+        let apiClient = LiveAPIClient(
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            assetBaseURL: nil,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let client = SocialNativeSessionClient(
+            apiClient: apiClient,
+            sessionStore: SessionStore(credentialStore: InMemoryCredentialStore())
+        )
+
+        do {
+            _ = try await client.exchange(provider: .naver, code: "one-use-code")
+            XCTFail("Expected redirect rejection")
+        } catch let error as SocialLoginError {
+            XCTAssertEqual(error, .network)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let requests = HandoffRedirectURLProtocol.capturedRequests()
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests.first?.url?.scheme, "https")
+        XCTAssertFalse(requests.contains { $0.url == redirectURL })
     }
 }
 

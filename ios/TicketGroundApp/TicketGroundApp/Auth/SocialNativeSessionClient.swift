@@ -72,7 +72,7 @@ final class SocialNativeSessionClient {
         ])
         let data: Data
         do {
-            data = try await apiClient.data(for: APIRequest(
+            data = try await apiClient.dataRejectingRedirects(for: APIRequest(
                 method: .post,
                 path: "/api/auth/native/handoff",
                 body: .json(body)
