@@ -1,21 +1,12 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createSocialOAuthBackend } from "./social-oauth.js";
+import { publicSessionUser } from "./session-user.js";
 
 const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
 
-export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, now, stableId }) {
-  function publicSessionUser(user) {
-    return {
-      id: user.id,
-      name: user.name,
-      status: user.status,
-      trustScore: user.trustScore,
-      profileConfirmed: Boolean(user.profileConfirmedAt)
-    };
-  }
-
+export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, issueNativeSession, now, stableId }) {
   const socialOAuth = createSocialOAuthBackend({
     appendLedger,
     currentTimeMs,
@@ -79,9 +70,10 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
         ticketgroundUserId: "google_user_test"
       };
     }
+    const audience = googleClientId();
     try {
       const { payload } = await jwtVerify(token, GOOGLE_JWKS, {
-        audience: googleClientId(),
+        audience,
         issuer: GOOGLE_ISSUERS
       });
       return payload;
@@ -101,6 +93,17 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       authenticatedAt: now()
     });
     return publicSessionUser(user);
+  }
+
+  async function googleNativeSession(db, { credential }) {
+    const user = googleSessionUser(db, await verifyGoogleCredential(credential));
+    const session = issueNativeSession(db, user.id);
+    appendLedger(db, user.id, "GOOGLE_NATIVE_SESSION_CREATED", {
+      provider: "google",
+      authenticatedAt: now(),
+      expiresAt: session.expiresAt
+    });
+    return { user: publicSessionUser(user), session };
   }
 
   function updateDemoProfile(db, { userId, name }) {
@@ -123,6 +126,7 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
 
   return {
     demoSession,
+    googleNativeSession,
     googleSession,
     socialAuthCallback: socialOAuth.socialAuthCallback,
     socialAuthSession: socialOAuth.socialAuthSession,

@@ -10,6 +10,7 @@ import { createEngagementBackend } from "./engagement.js";
 import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
+import { createNativeSessionBackend } from "./native-session.js";
 import { createPersistence } from "./persistence.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
@@ -80,12 +81,21 @@ export async function createTicketgroundApp(options) {
     primaryDate: catalog.primaryDate,
     stableId: runtime.stableId
   });
+  const nativeSession = createNativeSessionBackend({
+    currentTimeMs: runtime.currentTimeMs,
+    findUser: runtime.findUser,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    now: runtime.now,
+    randomHex: runtime.randomHex
+  });
   const session = createSessionBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
     findUser: runtime.findUser,
     hmac: runtime.hmac,
     httpError: runtime.httpError,
+    issueNativeSession: nativeSession.issueNativeSession,
     now: runtime.now,
     stableId: runtime.stableId
   });
@@ -138,6 +148,7 @@ export async function createTicketgroundApp(options) {
     ...engagement,
     ...groupBooking,
     ...identity,
+    ...nativeSession,
     ...session,
     appendLedger: persistence.appendLedger,
     bootpayConfig: bootpay.bootpayConfig,

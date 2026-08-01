@@ -30,6 +30,7 @@ function normalizeDb(db) {
   db.paymentTransactions ||= [];
   db.groupBookingRequests ||= [];
   db.adminAccounts ||= [];
+  db.nativeSessions ||= [];
   db.ledger ||= [];
 
   if (!db.venues?.length) {
@@ -171,6 +172,7 @@ function seedDb() {
     paymentTransactions: [],
     groupBookingRequests: [],
     adminAccounts: [],
+    nativeSessions: [],
     ledger: []
   };
   for (const event of db.events) {

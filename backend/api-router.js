@@ -18,12 +18,15 @@ export function createApiRouter({
   directTransferAttempt,
   drawPool,
   googleSession,
+  googleNativeSession,
   httpError,
   confirmPortOneDanalVerification,
   issueQr,
   joinPool,
   listForResale,
   notifyWatchlist,
+  nativeLogout,
+  nativeSession,
   purchaseResale,
   publicCatalog,
   publicArtist,
@@ -214,6 +217,16 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/auth/google") {
     requireBody(body, ["credential"]);
     return googleSession(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/auth/google/native") {
+    requireBody(body, ["credential"]);
+    return googleNativeSession(db, body);
+  }
+  if (req.method === "GET" && url.pathname === "/api/auth/native/session") {
+    return nativeSession(db, req);
+  }
+  if (req.method === "POST" && url.pathname === "/api/auth/native/logout") {
+    return nativeLogout(db, req);
   }
   if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/start") {
     requireBody(body, ["userId", "phone"]);
