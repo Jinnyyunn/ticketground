@@ -2067,26 +2067,39 @@ private struct LiveWatchlistCTA: View {
             isLoading = false
             return
         }
+        let service = LiveBackendService(apiClient: apiClient)
+        let probe: LiveAPIContractProbe
         do {
-            let service = LiveBackendService(apiClient: apiClient)
-            let probe = try await service.diagnoseWatchlistContract()
+            probe = try await service.diagnoseWatchlistContract()
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
-            let resolved = LiveAccountCapabilityState.resolve(
-                for: .watchlist,
-                capabilityMap: probe.capabilities,
-                session: container.environment.sessionStore.current,
-                baseURL: apiClient.baseURL
-            )
-            guard case .available(let userID) = resolved else {
-                capability = resolved
-                isLoading = false
-                return
-            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            capability = .retry
+            isLoading = false
+            return
+        }
+        let resolved = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: probe.capabilities,
+            session: container.environment.sessionStore.current,
+            baseURL: apiClient.baseURL
+        )
+        guard case .available(let userID) = resolved else {
+            capability = resolved
+            isLoading = false
+            return
+        }
+        do {
             let items = try await service.getWatchlist(userID: userID)
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
@@ -2105,7 +2118,7 @@ private struct LiveWatchlistCTA: View {
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
-            applyWatchlistError(error, capabilityMap: initialMap)
+            applyWatchlistError(error, capabilityMap: probe.capabilities)
             isLoading = false
         } catch {
             guard generation.isCurrent(
@@ -2129,16 +2142,15 @@ private struct LiveWatchlistCTA: View {
             sessionRevision: container.environment.sessionStore.revision,
             reloadID: reloadID
         )
-        let previous = isWatched
         isWatched.toggle()
         isMutating = true
         errorMessage = nil
         defer { isMutating = false }
+        let service = LiveBackendService(
+            apiClient: container.environment.apiClient,
+            initialCapabilityMap: admittedCapabilityMap
+        )
         do {
-            let service = LiveBackendService(
-                apiClient: container.environment.apiClient,
-                initialCapabilityMap: admittedCapabilityMap
-            )
             if isWatched {
                 _ = try await service.upsertWatchlist(
                     userID: userID,
@@ -2163,12 +2175,11 @@ private struct LiveWatchlistCTA: View {
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
-            isWatched = previous
             if case .server(status: 401, _, _) = error {
                 container.environment.sessionStore.logout()
                 capability = .loginRequired
             } else {
-                errorMessage = "관심공연 변경에 실패했습니다. 서버 상태로 복구했습니다."
+                await reconcileWatchlistState(using: service, userID: userID, generation: generation)
             }
         } catch {
             guard generation.isCurrent(
@@ -2177,8 +2188,47 @@ private struct LiveWatchlistCTA: View {
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
-            isWatched = previous
-            errorMessage = "관심공연 변경에 실패했습니다. 서버 상태로 복구했습니다."
+            await reconcileWatchlistState(using: service, userID: userID, generation: generation)
+        }
+    }
+
+    @MainActor
+    private func reconcileWatchlistState(
+        using service: LiveBackendService,
+        userID: String,
+        generation: LiveWatchlistGeneration
+    ) async {
+        do {
+            let items = try await service.getWatchlist(userID: userID)
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            isWatched = items.contains { $0.eventId == event.id }
+            errorMessage = "변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                capability = .loginRequired
+            } else {
+                capability = .retry
+            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            capability = .retry
         }
     }
 
@@ -2320,25 +2370,37 @@ private struct LiveWatchlistRouteView: View {
             state = .capability(initialState)
             return
         }
+        let service = LiveBackendService(apiClient: apiClient)
+        let probe: LiveAPIContractProbe
         do {
-            let service = LiveBackendService(apiClient: apiClient)
-            let probe = try await service.diagnoseWatchlistContract()
+            probe = try await service.diagnoseWatchlistContract()
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
-            let resolved = LiveAccountCapabilityState.resolve(
-                for: .watchlist,
-                capabilityMap: probe.capabilities,
-                session: container.environment.sessionStore.current,
-                baseURL: apiClient.baseURL
-            )
-            guard case .available(let userID) = resolved else {
-                state = .capability(resolved)
-                return
-            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            state = .capability(.retry)
+            return
+        }
+        let resolved = LiveAccountCapabilityState.resolve(
+            for: .watchlist,
+            capabilityMap: probe.capabilities,
+            session: container.environment.sessionStore.current,
+            baseURL: apiClient.baseURL
+        )
+        guard case .available(let userID) = resolved else {
+            state = .capability(resolved)
+            return
+        }
+        do {
             let items = try await service.getWatchlist(userID: userID)
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
@@ -2355,7 +2417,7 @@ private struct LiveWatchlistRouteView: View {
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
-            applyLoadError(error, capabilityMap: initialMap)
+            applyLoadError(error, capabilityMap: probe.capabilities)
         } catch {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
@@ -2421,10 +2483,11 @@ private struct LiveWatchlistRouteView: View {
                 container.environment.sessionStore.logout()
                 state = .capability(.loginRequired)
             } else {
-                await reconcilePreferences(
+                await reconcileItems(
                     using: service,
                     userID: userID,
-                    generation: generation
+                    generation: generation,
+                    message: "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
                 )
             }
         } catch {
@@ -2434,19 +2497,21 @@ private struct LiveWatchlistRouteView: View {
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
             ) else { return }
-            await reconcilePreferences(
+            await reconcileItems(
                 using: service,
                 userID: userID,
-                generation: generation
+                generation: generation,
+                message: "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
             )
         }
     }
 
     @MainActor
-    private func reconcilePreferences(
+    private func reconcileItems(
         using service: LiveBackendService,
         userID: String,
-        generation: LiveWatchlistGeneration
+        generation: LiveWatchlistGeneration,
+        message: String
     ) async {
         do {
             let items = try await service.getWatchlist(userID: userID)
@@ -2457,7 +2522,7 @@ private struct LiveWatchlistRouteView: View {
                 isCancelled: Task.isCancelled
             ) else { return }
             state = .loaded(items)
-            mutationError = "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+            mutationError = message
         } catch let error as APIClientError {
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
@@ -2488,7 +2553,7 @@ private struct LiveWatchlistRouteView: View {
               let userID = container.environment.sessionStore.current?.userID,
               let admittedCapabilityMap,
               case .loaded(let currentItems) = state,
-              let removedIndex = currentItems.firstIndex(where: { $0.id == item.id }) else { return }
+              currentItems.contains(where: { $0.id == item.id }) else { return }
         let generation = LiveWatchlistGeneration(
             userID: userID,
             sessionRevision: container.environment.sessionStore.revision,
@@ -2498,11 +2563,11 @@ private struct LiveWatchlistRouteView: View {
         inFlightEventIDs.insert(item.eventId)
         mutationError = nil
         defer { inFlightEventIDs.remove(item.eventId) }
+        let service = LiveBackendService(
+            apiClient: container.environment.apiClient,
+            initialCapabilityMap: admittedCapabilityMap
+        )
         do {
-            let service = LiveBackendService(
-                apiClient: container.environment.apiClient,
-                initialCapabilityMap: admittedCapabilityMap
-            )
             _ = try await service.deleteWatchlist(userID: userID, eventID: item.eventId)
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
@@ -2516,14 +2581,17 @@ private struct LiveWatchlistRouteView: View {
                 sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
-            ), case .loaded(var latestItems) = state else { return }
-            latestItems.insert(item, at: min(removedIndex, latestItems.endIndex))
-            state = .loaded(latestItems)
+            ) else { return }
             if case .server(status: 401, _, _) = error {
                 container.environment.sessionStore.logout()
                 state = .capability(.loginRequired)
             } else {
-                mutationError = "삭제에 실패해 관심공연을 복구했습니다."
+                await reconcileItems(
+                    using: service,
+                    userID: userID,
+                    generation: generation,
+                    message: "삭제 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+                )
             }
         } catch {
             guard generation.isCurrent(
@@ -2531,10 +2599,13 @@ private struct LiveWatchlistRouteView: View {
                 sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
-            ), case .loaded(var latestItems) = state else { return }
-            latestItems.insert(item, at: min(removedIndex, latestItems.endIndex))
-            state = .loaded(latestItems)
-            mutationError = "삭제에 실패해 관심공연을 복구했습니다."
+            ) else { return }
+            await reconcileItems(
+                using: service,
+                userID: userID,
+                generation: generation,
+                message: "삭제 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+            )
         }
     }
 

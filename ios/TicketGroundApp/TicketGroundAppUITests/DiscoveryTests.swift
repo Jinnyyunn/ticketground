@@ -711,6 +711,40 @@ final class DiscoveryTests: XCTestCase {
 
         XCTAssertTrue(app.buttons["오픈 알림 켜기"].waitForExistence(timeout: 10))
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-mutation-error").waitForExistence(timeout: 10))
+
+        app.buttons["live-watchlist-delete-live-neon"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-empty").waitForExistence(timeout: 10))
+    }
+
+    func testWatchlistDetailReconcilesCommittedServerStateAfterResponseLoss() {
+        let app = liveApp(homeScenario: "watchlistCTALost")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        let detailToggle = app.buttons["live-watchlist-cta-toggle"]
+        XCTAssertTrue(detailToggle.waitForExistence(timeout: 20))
+        XCTAssertEqual(detailToggle.label, "관심공연 추가")
+        detailToggle.tap()
+
+        XCTAssertTrue(app.buttons["관심공연 해제"].waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-cta-error").waitForExistence(timeout: 10))
+    }
+
+    func testWatchlistPublicProbeUnauthorizedPreservesNativeSession() {
+        let app = liveApp(homeScenario: "watchlistProbeUnauthorized")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-cta-retry").waitForExistence(timeout: 20))
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-watchlist"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-retry").waitForExistence(timeout: 20))
+        XCTAssertFalse(anyElement(app, identifier: "live-watchlist-login-required").exists)
     }
 
     func testWatchlistDetailRetryReloadsServerState() {

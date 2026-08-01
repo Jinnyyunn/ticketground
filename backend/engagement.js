@@ -149,7 +149,21 @@ export function createEngagementBackend({
         throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
       }
     }
-    const result = upsertWatchlist(db, { ...preferences, userId, eventId });
+    let normalizedPreferences = preferences;
+    if (Object.hasOwn(preferences, "channels")) {
+      const supportedChannels = new Set(["APP_PUSH", "EMAIL", "KAKAO", "SMS"]);
+      const channels = preferences.channels;
+      if (!Array.isArray(channels) || channels.length === 0 || channels.some((channel) => (
+        typeof channel !== "string" || !supportedChannels.has(channel.toUpperCase())
+      ))) {
+        throw httpError(400, "INVALID_WATCHLIST_CHANNELS", "관심공연 알림 채널을 확인해주세요.");
+      }
+      normalizedPreferences = {
+        ...preferences,
+        channels: [...new Set(channels.map((channel) => channel.toUpperCase()))]
+      };
+    }
+    const result = upsertWatchlist(db, { ...normalizedPreferences, userId, eventId });
     return publicWatchlistItem(db, result.watchlist);
   }
 

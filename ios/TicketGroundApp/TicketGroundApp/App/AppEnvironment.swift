@@ -1011,7 +1011,7 @@ final class AppContainer {
 
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry || scenario == .watchlistCommittedResponseLost {
+        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry || scenario == .watchlistCommittedResponseLost || scenario == .watchlistCTALost || scenario == .watchlistProbeUnauthorized {
             let suffix = scenario == .supportAuthenticated ? "support" : "watchlist"
             sessionStore.saveNativeCredential("ui-test-\(suffix)-credential", serverUserID: "ui-test-\(suffix)-user")
         }
@@ -1113,7 +1113,9 @@ private enum UITestLiveHomeScenario: String {
     case support
     case supportAuthenticated
     case watchlistAuthenticated
+    case watchlistCTALost
     case watchlistCommittedResponseLost
+    case watchlistProbeUnauthorized
     case watchlistRetry
     case empty
     case offline
@@ -1129,7 +1131,7 @@ private enum UITestLiveHomeScenario: String {
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
     var baseURL: URL? {
-        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistCommittedResponseLost || scenario == .watchlistRetry
+        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistProbeUnauthorized || scenario == .watchlistRetry
             ? "https://ui-test.ticketground.invalid/"
             : "http://ui-test.ticketground.invalid/")
     }
@@ -1160,13 +1162,16 @@ private final class UITestLiveHomeAPIClient: APIClient {
         switch (request.path, request.query) {
         case ("/api/health", _):
             healthRequestCount += 1
+            if scenario == .watchlistProbeUnauthorized && healthRequestCount > 2 {
+                throw APIClientError.server(status: 401, code: "GATEWAY_UNAUTHORIZED", message: "gateway rejected public probe")
+            }
             if scenario == .unavailable || (scenario == .recovering && healthRequestCount == 1) {
                 return json("{\"status\":\"ok\",\"version\":null}")
             }
             if scenario == .support || scenario == .supportAuthenticated {
                 return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-support-v1\"]}")
             }
-            if scenario == .watchlistAuthenticated || scenario == .watchlistCommittedResponseLost || scenario == .watchlistRetry {
+            if scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistRetry {
                 return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-watchlist-v1\"]}")
             }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
@@ -1196,8 +1201,14 @@ private final class UITestLiveHomeAPIClient: APIClient {
                 throw APIClientError.server(status: 503, code: "WATCHLIST_UNAVAILABLE", message: "temporary failure")
             }
             return json("[]")
-        case ("/api/me/watchlist", _) where (scenario == .watchlistAuthenticated || scenario == .watchlistCommittedResponseLost) && request.method == .get:
+        case ("/api/me/watchlist", _) where (scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost) && request.method == .get:
             return json(watchlistPresent ? "[\(watchlistItem)]" : "[]")
+        case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCTALost && request.method == .put:
+            let body = jsonBody(request)
+            watchlistPresent = true
+            watchlistNotificationEnabled = body["notificationEnabled"] as? Bool ?? true
+            watchlistCalendarEnabled = body["calendarEnabled"] as? Bool ?? false
+            throw APIClientError.server(status: 503, code: "WATCHLIST_RESPONSE_LOST", message: "response lost after commit")
         case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCommittedResponseLost && request.method == .put:
             let body = jsonBody(request)
             watchlistPresent = true
@@ -1218,6 +1229,9 @@ private final class UITestLiveHomeAPIClient: APIClient {
         case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistAuthenticated && request.method == .delete:
             watchlistPresent = false
             return json("{\"deleted\":true,\"eventId\":\"live-neon\"}")
+        case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCommittedResponseLost && request.method == .delete:
+            watchlistPresent = false
+            throw APIClientError.server(status: 503, code: "WATCHLIST_RESPONSE_LOST", message: "response lost after commit")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):

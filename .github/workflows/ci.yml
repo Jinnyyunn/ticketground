@@ -96,5 +96,7 @@ jobs:
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedSupportProtectsDraftsAndExpiredSessions \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testCreateLogoutDismissesSupportDetail \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedWatchlistSynchronizesDetailPreferencesAndRollback \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistDetailReconcilesCommittedServerStateAfterResponseLoss \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistPreferenceReconcilesCommittedServerStateAfterResponseLoss \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistPublicProbeUnauthorizedPreservesNativeSession \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistDetailRetryReloadsServerState

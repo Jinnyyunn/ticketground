@@ -72,6 +72,15 @@ test("native watchlist binds reads and preferences to the bearer principal", asy
     });
     assert.equal(invalidBody.error.code, "INVALID_WATCHLIST_PREFERENCES");
   }
+  for (const channels of ["SMS", [], [null], ["FAX"]]) {
+    const invalidChannels = await request(server, "/api/me/watchlist/event_kpop_001", {
+      authorization: login.authorization,
+      method: "PUT",
+      body: { channels },
+      status: 400
+    });
+    assert.equal(invalidChannels.error.code, "INVALID_WATCHLIST_CHANNELS");
+  }
   const unchanged = await request(server, "/api/me/watchlist", { authorization: login.authorization });
   assert.deepEqual(unchanged.data, []);
 
