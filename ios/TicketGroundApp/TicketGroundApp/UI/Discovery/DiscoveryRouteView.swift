@@ -304,6 +304,7 @@ struct DiscoveryLoginView: View {
             switch coordinator.state {
             case .signedIn(let userName):
                 providerMessage = "\(userName)님으로 로그인했습니다."
+                container.completeLoginNavigation()
             case .cancelled:
                 providerMessage = GoogleLoginError.cancelled.localizedDescription
             case .failed(let message):
@@ -339,6 +340,7 @@ struct DiscoveryLoginView: View {
             switch coordinator.state {
             case .signedIn(_, let userName):
                 providerMessage = "\(userName)님으로 로그인했습니다."
+                container.completeLoginNavigation()
             case .cancelled(let provider):
                 providerMessage = "\(provider.displayName) 인증을 취소했습니다.\n로그인 상태는 그대로입니다."
             case .failed(_, let message):

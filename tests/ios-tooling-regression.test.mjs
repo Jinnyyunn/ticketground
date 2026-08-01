@@ -192,6 +192,20 @@ test("native app Release configuration permits operator-provided signing", async
   assert.doesNotMatch(releaseConfiguration, /CODE_SIGNING_REQUIRED = NO/);
 });
 
+test("native app Debug configuration permits simulator keychain signing", async () => {
+  const project = await readFile(
+    path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp.xcodeproj/project.pbxproj"),
+    "utf8"
+  );
+  const debugConfiguration = project
+    .split("\n")
+    .find((line) => line.includes("A10000000000000000000070 ="));
+
+  assert.ok(debugConfiguration);
+  assert.doesNotMatch(debugConfiguration, /CODE_SIGNING_ALLOWED = NO/);
+  assert.doesNotMatch(debugConfiguration, /CODE_SIGNING_REQUIRED = NO/);
+});
+
 test("native app bundle declares distribution version keys", async () => {
   const plist = await readFile(
     path.join(repoRoot, "ios/TicketGroundApp/TicketGroundApp/Info.plist"),

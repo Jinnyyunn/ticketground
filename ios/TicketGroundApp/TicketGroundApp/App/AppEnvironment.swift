@@ -951,6 +951,10 @@ final class AppContainer {
         self.environment = environment
     }
 
+    func completeLoginNavigation() {
+        navigationPath.removeAll()
+    }
+
     static func fixture(credentialStore: CredentialStore = InMemoryCredentialStore()) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: credentialStore)
         return AppContainer(environment: AppEnvironment(
