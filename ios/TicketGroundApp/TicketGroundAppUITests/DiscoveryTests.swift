@@ -657,6 +657,74 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(app, identifier: "live-support-login-required").waitForExistence(timeout: 10))
     }
 
+    func testAuthenticatedWatchlistSynchronizesDetailPreferencesAndRollback() {
+        let app = liveApp(homeScenario: "watchlistAuthenticated")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        let detailToggle = app.buttons["live-watchlist-cta-toggle"]
+        XCTAssertTrue(detailToggle.waitForExistence(timeout: 20))
+        XCTAssertEqual(detailToggle.label, "관심공연 추가")
+        detailToggle.tap()
+        XCTAssertTrue(app.buttons["관심공연 해제"].waitForExistence(timeout: 10))
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-watchlist"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-items").waitForExistence(timeout: 20))
+
+        let notification = app.buttons["live-watchlist-notification-live-neon"]
+        XCTAssertTrue(notification.waitForExistence(timeout: 10))
+        XCTAssertEqual(notification.label, "오픈 알림 끄기")
+        notification.tap()
+        XCTAssertFalse(notification.isEnabled)
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-mutation-error").waitForExistence(timeout: 10))
+        XCTAssertEqual(notification.label, "오픈 알림 끄기")
+
+        notification.tap()
+        XCTAssertTrue(app.buttons["오픈 알림 켜기"].waitForExistence(timeout: 10))
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "issue-101-watchlist-synchronized"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["live-watchlist-delete-live-neon"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-empty").waitForExistence(timeout: 10))
+    }
+
+    func testLiveHTTPSWatchlistQualification() throws {
+        guard let apiBaseURL = ProcessInfo.processInfo.environment["TICKETGROUND_LIVE_QUALIFICATION_URL"],
+              !apiBaseURL.isEmpty else {
+            throw XCTSkip("TICKETGROUND_LIVE_QUALIFICATION_URL is required for live HTTPS qualification")
+        }
+        let app = UITestBootstrap.liveApp(apiBaseURL: apiBaseURL)
+        app.launch()
+
+        XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 20))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-cta-login-required").waitForExistence(timeout: 20))
+
+        let detailAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        detailAttachment.name = "issue-101-cloudflare-detail-login-gate"
+        detailAttachment.lifetime = .keepAlways
+        add(detailAttachment)
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-watchlist"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-login-required").waitForExistence(timeout: 20))
+
+        let routeAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        routeAttachment.name = "issue-101-cloudflare-watchlist-login-gate"
+        routeAttachment.lifetime = .keepAlways
+        add(routeAttachment)
+    }
+
     func testCreateLogoutDismissesSupportDetail() {
         let app = liveApp(homeScenario: "supportAuthenticated")
         app.launch()
