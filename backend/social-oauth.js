@@ -12,6 +12,7 @@ import {
   socialSessionCookieName,
   verifySocialSessionToken
 } from "./social-oauth-session.js";
+import { issueNativeAuthHandoff } from "./native-auth-handoff.js";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000;
 const SOCIAL_FETCH_TIMEOUT_MS = 8000;
@@ -65,9 +66,10 @@ function timingEqual(left, right) {
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function createState(provider, hmac, currentTimeMs) {
+function createState(provider, client, hmac, currentTimeMs) {
   const body = base64Url(JSON.stringify({
     provider,
+    client,
     nonce: crypto.randomBytes(16).toString("hex"),
     issuedAt: currentTimeMs()
   }));
@@ -75,15 +77,23 @@ function createState(provider, hmac, currentTimeMs) {
 }
 
 function verifyState(provider, state, cookieState, hmac, currentTimeMs) {
-  if (!state || !cookieState || !timingEqual(state, cookieState)) return false;
+  if (!state || !cookieState || !timingEqual(state, cookieState)) return null;
   const [body, signature] = state.split(".");
-  if (!body || !signature || !timingEqual(signature, signState(body, hmac))) return false;
+  if (!body || !signature || !timingEqual(signature, signState(body, hmac))) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
-    return payload.provider === provider && currentTimeMs() - Number(payload.issuedAt) <= STATE_MAX_AGE_MS;
+    if (payload.provider !== provider || currentTimeMs() - Number(payload.issuedAt) > STATE_MAX_AGE_MS) return null;
+    return payload;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function nativeHandoffRedirect(provider, code, headers) {
+  const url = new URL("ticketground://auth/social/callback");
+  url.searchParams.set("provider", provider);
+  url.searchParams.set("code", code);
+  return oauthRedirect(url.toString(), headers);
 }
 
 async function readJsonResponse(response) {
@@ -197,7 +207,9 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
   function socialAuthStart(req, provider) {
     const config = providerConfig(provider, req, "start");
     if (!config) return loginRedirect({ socialError: `${provider}_not_configured` });
-    const state = createState(provider, hmac, currentTimeMs);
+    const requestUrl = new URL(req.url || "/", `http://${req.headers.host}`);
+    const client = requestUrl.searchParams.get("client") === "ios" ? "ios" : "web";
+    const state = createState(provider, client, hmac, currentTimeMs);
     const secureCookie = isSecureRequest(req);
     const url = new URL(config.authorizeUrl);
     url.searchParams.set("response_type", "code");
@@ -217,7 +229,8 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
     const code = params.get("code") || "";
     const state = params.get("state") || "";
     const cookieState = cookieValue(req, stateCookieName(provider));
-    if (!code || !verifyState(provider, state, cookieState, hmac, currentTimeMs)) {
+    const statePayload = verifyState(provider, state, cookieState, hmac, currentTimeMs);
+    if (!code || !statePayload) {
       return loginRedirect({ socialError: `${provider}_state_invalid` }, clearCookie);
     }
 
@@ -227,6 +240,13 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
         provider,
         authenticatedAt: now()
       });
+      if (statePayload.client === "ios") {
+        return nativeHandoffRedirect(
+          provider,
+          issueNativeAuthHandoff(db, provider, user.id, now),
+          clearCookie,
+        );
+      }
       const token = createSocialSessionToken({
         currentTimeMs,
         hmac,
