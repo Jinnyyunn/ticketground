@@ -123,8 +123,10 @@ private struct DiscoverySearchResult: Identifiable {
 }
 
 struct DiscoveryLoginView: View {
+    @Environment(AppContainer.self) private var container
     @State private var selectedProvider: Provider?
     @State private var providerMessage: String?
+    @State private var googleSigningIn = false
 
     private struct Provider: Identifiable {
         let id: String
@@ -158,7 +160,12 @@ struct DiscoveryLoginView: View {
                 VStack(spacing: TicketgroundSpacing.sm) {
                     ForEach(providers, id: \.id) { provider in
                         Button {
-                            selectedProvider = provider
+                            if provider.id == "google"
+                                && !ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+                                startGoogleLogin()
+                            } else {
+                                selectedProvider = provider
+                            }
                         } label: {
                             HStack(spacing: TicketgroundSpacing.md) {
                                 providerMark(provider.id)
@@ -184,6 +191,7 @@ struct DiscoveryLoginView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .disabled(provider.id == "google" && googleSigningIn)
                         .accessibilityIdentifier("login-\(provider.id)")
                         .accessibilityLabel(provider.label)
                     }
@@ -202,6 +210,26 @@ struct DiscoveryLoginView: View {
                     .background(TicketgroundColor.surfaceMuted)
                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
                     .accessibilityIdentifier("login-provider-external-state")
+                }
+
+                if let session = container.environment.sessionStore.current {
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                        Text("TicketGround 로그인 완료")
+                            .font(.headline)
+                        Text("사용자: \(session.userID)")
+                            .font(.subheadline)
+                            .foregroundStyle(TicketgroundColor.inkMuted)
+                        Button("로그아웃") {
+                            logoutGoogleSession()
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("login-google-logout")
+                    }
+                    .padding(TicketgroundSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(TicketgroundColor.surfaceMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+                    .accessibilityIdentifier("login-google-session")
                 }
 
                 NavigationLink(value: AppRoute.signup) {
@@ -243,12 +271,56 @@ struct DiscoveryLoginView: View {
             .accessibilityIdentifier("login-provider-external-gate")
             Button("인증 요청 취소") {
                 guard let provider = selectedProvider else { return }
-                providerMessage = "\(provider.name) 로그인 요청을 취소했습니다. 로그인 상태는 변경되지 않았습니다."
+                providerMessage = "\(provider.name) 인증을 취소했습니다.\n로그인 상태는 그대로입니다."
                 selectedProvider = nil
             }
             .accessibilityIdentifier("login-provider-cancel")
         } message: {
-            Text("외부 인증 앱 또는 브라우저로 전환해야 합니다. 이 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다.")
+            Text("외부 인증 앱 또는 브라우저에서 인증합니다. TicketGround는 비밀번호를 수집하지 않습니다.")
+        }
+    }
+
+    private func startGoogleLogin() {
+        guard !googleSigningIn else { return }
+        googleSigningIn = true
+        providerMessage = nil
+        let coordinator = GoogleLoginCoordinator(
+            identityProvider: GoogleSignInProvider(),
+            sessionExchanger: GoogleNativeSessionClient(
+                apiClient: container.environment.apiClient,
+                sessionStore: container.environment.sessionStore
+            )
+        )
+        Task {
+            await coordinator.signIn()
+            googleSigningIn = false
+            switch coordinator.state {
+            case .signedIn(let userName):
+                providerMessage = "\(userName)님으로 로그인했습니다."
+            case .cancelled:
+                providerMessage = GoogleLoginError.cancelled.localizedDescription
+            case .failed(let message):
+                providerMessage = message
+            case .idle, .loading:
+                break
+            }
+        }
+    }
+
+    private func logoutGoogleSession() {
+        let identityProvider = GoogleSignInProvider()
+        let client = GoogleNativeSessionClient(
+            apiClient: container.environment.apiClient,
+            sessionStore: container.environment.sessionStore
+        )
+        Task {
+            do {
+                try await client.logout()
+                providerMessage = "로그아웃했습니다."
+            } catch {
+                providerMessage = "서버 연결을 확인할 수 없어 이 기기의 로그인 정보만 삭제했습니다."
+            }
+            identityProvider.signOut()
         }
     }
 

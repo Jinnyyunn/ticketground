@@ -182,7 +182,11 @@ final class AppEnvironmentTests: XCTestCase {
         ))
         container.navigationPath = [.goods(slug: "ticketground-day")]
 
-        XCTAssertEqual(session.current, NativeSession(userID: "server-user", credential: "native-credential"))
+        XCTAssertNil(session.current)
+        XCTAssertEqual(
+            session.restoredSessionPendingValidation,
+            NativeSession(userID: "server-user", credential: "native-credential")
+        )
         XCTAssertEqual(RouteResolver.resolve(path: "/goods/ticketground-day"), .goods(slug: "ticketground-day"))
         XCTAssertEqual(container.navigationPath.map(\.id), ["goods:ticketground-day"])
         XCTAssertEqual(container.environment.mode, .fixture)
@@ -379,10 +383,11 @@ final class AppEnvironmentTests: XCTestCase {
         initial.saveNativeCredential("native-credential", serverUserID: "server-user-42")
         let restored = SessionStore(credentialStore: credentials)
 
-        XCTAssertEqual(
-            restored.current,
-            NativeSession(userID: "server-user-42", credential: "native-credential")
-        )
+        let pending = NativeSession(userID: "server-user-42", credential: "native-credential")
+        XCTAssertNil(restored.current)
+        XCTAssertEqual(restored.restoredSessionPendingValidation, pending)
+        restored.confirmRestoredSession(pending)
+        XCTAssertEqual(restored.current, pending)
         XCTAssertEqual(
             credentials.read(),
             StoredCredential(credential: "native-credential", serverUserID: "server-user-42")
@@ -538,6 +543,82 @@ final class AppEnvironmentTests: XCTestCase {
         let request = try XCTUnwrap(LiveAPIURLProtocol.requests.first)
 
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
+    }
+
+    func testLiveAPIClientValidatesRestoredNativeSessionOwnerOverHTTPS() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        LiveAPIURLProtocol.responseData = Data(
+            #"{"data":{"user":{"id":"server-user-42"}}}"#.utf8
+        )
+        LiveAPIURLProtocol.statusCode = 200
+        LiveAPIURLProtocol.requests = []
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        try await client.validateNativeSession(
+            NativeSession(userID: "server-user-42", credential: "native-credential")
+        )
+        let request = try XCTUnwrap(LiveAPIURLProtocol.requests.first)
+
+        XCTAssertEqual(request.url?.path, "/api/auth/native/session")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
+    }
+
+    func testLiveAPIClientRejectsRestoredNativeSessionOwnerMismatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        LiveAPIURLProtocol.responseData = Data(
+            #"{"data":{"user":{"id":"another-user"}}}"#.utf8
+        )
+        LiveAPIURLProtocol.statusCode = 200
+        LiveAPIURLProtocol.requests = []
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            try await client.validateNativeSession(
+                NativeSession(userID: "server-user-42", credential: "native-credential")
+            )
+            XCTFail("Expected credential owner mismatch")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .credentialOwnerMismatch)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testLiveAPIClientDoesNotSendRestoredNativeSessionOverHTTP() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveAPIURLProtocol.self]
+        LiveAPIURLProtocol.requests = []
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://127.0.0.1:4174/")!,
+            assetBaseURL: URL(string: "http://127.0.0.1:4173/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            try await client.validateNativeSession(
+                NativeSession(userID: "server-user-42", credential: "native-credential")
+            )
+            XCTFail("Expected insecure credential transport error")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .insecureCredentialTransport)
+            XCTAssertTrue(LiveAPIURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testLiveAPIClientFollowsAuthenticatedRedirectOnlyForSameOriginMatchingOwner() async throws {

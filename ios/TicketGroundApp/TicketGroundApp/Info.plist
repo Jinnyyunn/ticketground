@@ -8,6 +8,15 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.139627104931-dirf0p822gah66vhc9jsvc9plkgj6tki</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -20,6 +29,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>GIDClientID</key>
+	<string>139627104931-dirf0p822gah66vhc9jsvc9plkgj6tki.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>139627104931-ms36h73qdavldvo8p0k5drj2hclmglod.apps.googleusercontent.com</string>
 	<key>TicketgroundAPIBaseURL</key>
 	<string>$(TICKETGROUND_API_BASE_URL)</string>
 	<key>TicketgroundAssetBaseURL</key>
