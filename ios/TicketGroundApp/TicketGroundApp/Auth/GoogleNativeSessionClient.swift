@@ -83,6 +83,24 @@ final class GoogleNativeSessionClient {
         try await apiClient.revokeNativeSession(current)
     }
 
+    @discardableResult
+    func validateRestoredSession() async -> Bool {
+        guard let restored = sessionStore.restoredSessionPendingValidation else { return false }
+        do {
+            try await apiClient.validateNativeSession(restored)
+            sessionStore.confirmRestoredSession(restored)
+            return true
+        } catch APIClientError.server(_, "NATIVE_SESSION_INVALID", _) {
+            sessionStore.discardRestoredSession()
+            return false
+        } catch APIClientError.credentialOwnerMismatch {
+            sessionStore.discardRestoredSession()
+            return false
+        } catch {
+            return false
+        }
+    }
+
     private func map(_ error: APIClientError) -> GoogleLoginError {
         switch error {
         case .insecureCredentialTransport: return .httpsRequired

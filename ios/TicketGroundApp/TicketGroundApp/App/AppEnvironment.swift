@@ -205,6 +205,7 @@ protocol APIClient: AnyObject {
     var baseURL: URL? { get }
     func data(for request: APIRequest) async throws -> Data
     func revokeNativeSession(_ session: NativeSession) async throws
+    func validateNativeSession(_ session: NativeSession) async throws
     func resolveResource(_ reference: String?) -> String?
 }
 
@@ -216,6 +217,10 @@ extension APIClient {
     }
 
     func revokeNativeSession(_ session: NativeSession) async throws {
+        throw APIClientError.liveTransportUnavailable
+    }
+
+    func validateNativeSession(_ session: NativeSession) async throws {
         throw APIClientError.liveTransportUnavailable
     }
 }
@@ -588,18 +593,58 @@ final class LiveAPIClient: APIClient {
         }
     }
 
+    private struct NativeSessionValidationResponse: Decodable {
+        struct Payload: Decodable {
+            struct User: Decodable {
+                let id: String
+            }
+
+            let user: User
+        }
+
+        let data: Payload
+    }
+
     func revokeNativeSession(_ nativeSession: NativeSession) async throws {
+        _ = try await nativeSessionRequest(
+            nativeSession,
+            method: "POST",
+            path: "/api/auth/native/logout",
+            body: Data("{}".utf8)
+        )
+    }
+
+    func validateNativeSession(_ nativeSession: NativeSession) async throws {
+        let data = try await nativeSessionRequest(
+            nativeSession,
+            method: "GET",
+            path: "/api/auth/native/session"
+        )
+        guard let response = try? JSONDecoder().decode(NativeSessionValidationResponse.self, from: data) else {
+            throw APIClientError.invalidResponse
+        }
+        guard response.data.user.id == nativeSession.userID else {
+            throw APIClientError.credentialOwnerMismatch
+        }
+    }
+
+    private func nativeSessionRequest(
+        _ nativeSession: NativeSession,
+        method: String,
+        path: String,
+        body: Data? = nil
+    ) async throws -> Data {
         guard configuredBaseURL.scheme?.lowercased() == "https",
               let credential = nativeSession.credential,
               !credential.isEmpty,
-              let url = URL(string: "/api/auth/native/logout", relativeTo: configuredBaseURL)?.absoluteURL else {
+              let url = URL(string: path, relativeTo: configuredBaseURL)?.absoluteURL else {
             throw APIClientError.insecureCredentialTransport
         }
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
-        request.httpBody = Data("{}".utf8)
+        request.httpBody = body
         let (data, response) = try await session.data(for: request, delegate: RejectRedirectDelegate())
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIClientError.invalidResponse
@@ -607,6 +652,7 @@ final class LiveAPIClient: APIClient {
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw serverError(from: data, status: httpResponse.statusCode)
         }
+        return data
     }
 
     func urlRequest(for apiRequest: APIRequest) throws -> URLRequest {
@@ -804,6 +850,7 @@ struct NativeSession: Equatable {
 final class SessionStore {
     private let credentialStore: CredentialStore
     private(set) var current: NativeSession?
+    private(set) var restoredSessionPendingValidation: NativeSession?
 
     init(credentialStore: CredentialStore) {
         self.credentialStore = credentialStore
@@ -815,12 +862,26 @@ final class SessionStore {
               !storedCredential.credential.isEmpty,
               !storedCredential.serverUserID.isEmpty else {
             current = nil
+            restoredSessionPendingValidation = nil
             return
         }
-        current = NativeSession(
+        current = nil
+        restoredSessionPendingValidation = NativeSession(
             userID: storedCredential.serverUserID,
             credential: storedCredential.credential
         )
+    }
+
+    func confirmRestoredSession(_ session: NativeSession) {
+        guard restoredSessionPendingValidation == session else { return }
+        current = session
+        restoredSessionPendingValidation = nil
+    }
+
+    func discardRestoredSession() {
+        credentialStore.delete()
+        restoredSessionPendingValidation = nil
+        current = nil
     }
 
     func saveNativeCredential(_ credential: String, serverUserID: String) {
@@ -830,16 +891,19 @@ final class SessionStore {
             serverUserID: serverUserID
         ))
         current = NativeSession(userID: serverUserID, credential: credential)
+        restoredSessionPendingValidation = nil
     }
 
     func setFixtureUser(_ userID: String) {
         guard !userID.isEmpty else { return }
         current = NativeSession(userID: userID, credential: nil)
+        restoredSessionPendingValidation = nil
     }
 
     func logout() {
         credentialStore.delete()
         current = nil
+        restoredSessionPendingValidation = nil
     }
 }
 

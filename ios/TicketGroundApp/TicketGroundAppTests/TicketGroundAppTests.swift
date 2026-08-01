@@ -68,6 +68,70 @@ final class TicketGroundAppTests: XCTestCase {
         XCTAssertTrue(apiClient.requests.isEmpty)
     }
 
+    func testRestoredSessionRequiresServerValidationAndClearsOnlyInvalidCredential() async {
+        let validCredentials = InMemoryCredentialStore()
+        validCredentials.save(StoredCredential(
+            credential: "restored-credential",
+            serverUserID: "google_user_1"
+        ))
+        let validStore = SessionStore(credentialStore: validCredentials)
+        let validAPI = GoogleExchangeAPIClient(
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            response: Data()
+        )
+        let validClient = GoogleNativeSessionClient(apiClient: validAPI, sessionStore: validStore)
+
+        XCTAssertNil(validStore.current)
+        await validClient.validateRestoredSession()
+        XCTAssertEqual(
+            validStore.current,
+            NativeSession(userID: "google_user_1", credential: "restored-credential")
+        )
+        XCTAssertEqual(validAPI.validatedSessions.count, 1)
+
+        let invalidCredentials = InMemoryCredentialStore()
+        invalidCredentials.save(StoredCredential(
+            credential: "revoked-credential",
+            serverUserID: "google_user_1"
+        ))
+        let invalidStore = SessionStore(credentialStore: invalidCredentials)
+        let invalidAPI = GoogleExchangeAPIClient(
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            response: Data(),
+            validationError: .server(
+                status: 401,
+                code: "NATIVE_SESSION_INVALID",
+                message: "invalid"
+            )
+        )
+
+        await GoogleNativeSessionClient(
+            apiClient: invalidAPI,
+            sessionStore: invalidStore
+        ).validateRestoredSession()
+        XCTAssertNil(invalidStore.current)
+        XCTAssertNil(invalidCredentials.read())
+
+        let offlineCredentials = InMemoryCredentialStore()
+        offlineCredentials.save(StoredCredential(
+            credential: "offline-credential",
+            serverUserID: "google_user_1"
+        ))
+        let offlineStore = SessionStore(credentialStore: offlineCredentials)
+        let offlineAPI = GoogleExchangeAPIClient(
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            response: Data(),
+            validationError: .requestFailed(code: URLError.notConnectedToInternet.rawValue)
+        )
+
+        await GoogleNativeSessionClient(
+            apiClient: offlineAPI,
+            sessionStore: offlineStore
+        ).validateRestoredSession()
+        XCTAssertNil(offlineStore.current)
+        XCTAssertEqual(offlineCredentials.read()?.credential, "offline-credential")
+    }
+
     @MainActor
     func testGoogleCoordinatorSeparatesCancellationFromSuccess() async {
         let cancelled = GoogleLoginCoordinator(
@@ -115,12 +179,15 @@ private final class GoogleExchangeAPIClient: APIClient {
     let mode: APIDataMode = .live
     let baseURL: URL?
     private let response: Data
+    private let validationError: APIClientError?
     private(set) var requests: [APIRequest] = []
     private(set) var revokedSessions: [NativeSession] = []
+    private(set) var validatedSessions: [NativeSession] = []
 
-    init(baseURL: URL, response: Data) {
+    init(baseURL: URL, response: Data, validationError: APIClientError? = nil) {
         self.baseURL = baseURL
         self.response = response
+        self.validationError = validationError
     }
 
     func data(for request: APIRequest) async throws -> Data {
@@ -132,5 +199,10 @@ private final class GoogleExchangeAPIClient: APIClient {
 
     func revokeNativeSession(_ session: NativeSession) async throws {
         revokedSessions.append(session)
+    }
+
+    func validateNativeSession(_ session: NativeSession) async throws {
+        validatedSessions.append(session)
+        if let validationError { throw validationError }
     }
 }

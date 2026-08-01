@@ -10,6 +10,12 @@ struct TicketGroundApp: App {
                 .onOpenURL { url in
                     _ = GoogleSignInProvider.handle(url)
                 }
+                .task {
+                    await GoogleNativeSessionClient(
+                        apiClient: container.environment.apiClient,
+                        sessionStore: container.environment.sessionStore
+                    ).validateRestoredSession()
+                }
         }
     }
 
