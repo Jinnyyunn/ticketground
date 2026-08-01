@@ -82,8 +82,8 @@ enum LiveAPIEndpoint: Hashable {
         case .artist: return "/api/discovery/v1/artists/{slug}"
         case .openCalendar: return "/api/discovery/v1/open-calendar"
         case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
-        case .session: return "/api/users/{userId}/session"
-        case .tickets: return "/api/users/{userId}/tickets"
+        case .session: return "/api/me"
+        case .tickets: return "/api/me/tickets"
         case .watchlist: return "/api/users/{userId}/watchlist"
         case .supportThreads: return "/api/support/threads?userId={userId}"
         case .supportThreadMutation: return "/api/support/threads"
@@ -155,6 +155,7 @@ struct LiveAPIHealth: Decodable, Equatable {
     let status: String?
     let time: String?
     let version: String?
+    let capabilities: [String]?
 }
 
 struct LiveCapabilityMap: Equatable {
@@ -187,7 +188,8 @@ struct LiveAPIContract {
         observedResponseVersion: String?,
         validatedStateResponse: Bool = false,
         catalogRouteConfirmed: Bool = false,
-        discoveryRoutesConfirmed: Bool = false
+        discoveryRoutesConfirmed: Bool = false,
+        nativeAccountRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
@@ -202,7 +204,8 @@ struct LiveAPIContract {
                     diagnostics: diagnostics,
                     validatedStateResponse: validatedStateResponse,
                     catalogRouteConfirmed: catalogRouteConfirmed,
-                    discoveryRoutesConfirmed: discoveryRoutesConfirmed
+                    discoveryRoutesConfirmed: discoveryRoutesConfirmed,
+                    nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed
                 )
             )
         })
@@ -215,7 +218,8 @@ struct LiveAPIContract {
         diagnostics: LiveAPIContractDiagnostics,
         validatedStateResponse: Bool,
         catalogRouteConfirmed: Bool,
-        discoveryRoutesConfirmed: Bool
+        discoveryRoutesConfirmed: Bool,
+        nativeAccountRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
@@ -233,9 +237,12 @@ struct LiveAPIContract {
             case .publicRead:
                 return .available
             case .authenticatedRead:
-                return baseURL.scheme?.lowercased() == "https"
-                    ? .blocked(.serverAuthorizationUnverified)
-                    : .blocked(.requiresHTTPS)
+                guard baseURL.scheme?.lowercased() == "https" else {
+                    return .blocked(.requiresHTTPS)
+                }
+                return nativeAccountRoutesConfirmed && [.session, .tickets].contains(endpoint)
+                    ? .available
+                    : .blocked(.serverAuthorizationUnverified)
             case .mutation:
                 return baseURL.scheme?.lowercased() == "https" ? .blocked(.unsupportedMutation) : .blocked(.requiresHTTPS)
             }
@@ -528,6 +535,8 @@ struct LiveTicket: Decodable, Equatable {
     let maxTransferCount: Int
     let issuedAt: String?
     let virtualQR: LiveVirtualQR?
+    let event: LiveTicketEvent?
+    let payment: LiveTicketPayment?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -544,7 +553,20 @@ struct LiveTicket: Decodable, Equatable {
         case maxTransferCount
         case issuedAt
         case virtualQR = "virtualQr"
+        case event
+        case payment
     }
+}
+
+struct LiveTicketEvent: Decodable, Equatable {
+    let id: String
+    let title: String
+    let venue: String?
+}
+
+struct LiveTicketPayment: Decodable, Equatable {
+    let method: String
+    let status: String
 }
 
 struct LiveVirtualQR: Decodable, Equatable {

@@ -167,6 +167,7 @@ enum APIRequestAuthentication: Equatable {
 enum APIRequestOwnerBinding: Equatable {
     case url
     case jsonField(String)
+    case bearerPrincipal
 }
 
 struct APIRequest: Equatable {
@@ -764,6 +765,8 @@ final class LiveAPIClient: APIClient {
                 return false
             }
             return !owner.isEmpty && owner == userID
+        case .bearerPrincipal:
+            return true
         }
     }
 

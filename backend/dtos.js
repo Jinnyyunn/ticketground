@@ -206,7 +206,17 @@ function publicState(db) {
 function publicTicketsForUser(db, userId) {
   return db.tickets
     .filter((ticket) => ticket.ownerId === userId)
-    .map(publicTicket);
+    .map((ticket) => {
+      const event = db.events.find((item) => item.id === ticket.eventId);
+      const payment = db.paymentTransactions
+        .filter((item) => item.ticketId === ticket.id && item.userId === userId)
+        .at(-1);
+      return {
+        ...publicTicket(ticket),
+        event: event ? { id: event.id, title: event.title, venue: event.venue } : null,
+        payment: payment ? { method: payment.method, status: payment.status } : null
+      };
+    });
 }
 
   return {

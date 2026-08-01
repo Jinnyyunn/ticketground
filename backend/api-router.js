@@ -3,6 +3,7 @@ import { publicSessionUser } from "./session-user.js";
 
 export function createApiRouter({
   addSupportMessage,
+  authenticateNativeSession,
   adminHoldAdmissionCredential,
   acknowledgeOperatorAlerts,
   adminCancelResalePool,
@@ -108,7 +109,7 @@ async function parseBody(req) {
 
 async function handleApi(req, res, db, surface) {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const body = req.method === "POST" ? await parseBody(req) : {};
+  const body = req.method === "POST" || req.method === "PATCH" ? await parseBody(req) : {};
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
   const userProfileMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/profile$/);
@@ -124,7 +125,7 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return { status: "UP", version: "78b3c7c" };
+    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1"] };
   }
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") {
@@ -148,6 +149,19 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "GET" && url.pathname === "/api/discovery/v1/open-calendar") {
     return publicOpenCalendar(db);
+  }
+  if (req.method === "GET" && (url.pathname === "/api/me" || url.pathname === "/api/me/profile")) {
+    return publicSessionUser(authenticateNativeSession(db, req).user);
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/tickets") {
+    return publicTicketsForUser(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
+    requireBody(body, ["name"]);
+    return updateDemoProfile(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      name: body.name
+    });
   }
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);

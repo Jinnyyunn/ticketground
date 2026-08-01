@@ -1755,6 +1755,9 @@ private struct LiveAccountRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var state: LiveAccountState = .loading
     @State private var reloadID = 0
+    @State private var profileName = ""
+    @State private var isSavingProfile = false
+    @State private var profileSaveError: String?
 
     var body: some View {
         ScrollView {
@@ -1823,15 +1826,21 @@ private struct LiveAccountRouteView: View {
                 }
                 async let profile = service.getSession(userID: userID)
                 async let tickets = service.getTickets(userID: userID)
-                state = .loaded(try await profile, try await tickets)
+                let loadedProfile = try await profile
+                profileName = loadedProfile.name
+                state = .loaded(loadedProfile, try await tickets)
             } catch let error as APIClientError {
-                state = .capability(LiveAccountCapabilityState.resolve(
+                let resolvedState = LiveAccountCapabilityState.resolve(
                     for: .account,
                     capabilityMap: capabilityMap,
                     session: container.environment.sessionStore.current,
                     baseURL: apiClient.baseURL,
                     requestError: error
-                ))
+                )
+                if resolvedState == .loginRequired {
+                    container.environment.sessionStore.logout()
+                }
+                state = .capability(resolvedState)
             } catch {
                 state = .capability(.retry)
             }
@@ -1853,13 +1862,52 @@ private struct LiveAccountRouteView: View {
             )
         case .loaded(let session, let tickets):
             VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                Text(session.name)
-                    .font(.title2.weight(.black))
+                TextField("닉네임", text: $profileName)
+                    .textFieldStyle(.roundedBorder)
+                    .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier("live-account-profile-name")
+                Button {
+                    Task { await saveProfile(tickets: tickets) }
+                } label: {
+                    Text(isSavingProfile ? "저장 중" : "프로필 저장")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSavingProfile || profileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("live-account-profile-save")
+                if let profileSaveError {
+                    Text(profileSaveError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("live-account-profile-error")
+                }
                 Text(LiveAccountDisplay.statusText(for: session))
                     .font(.subheadline)
                     .foregroundStyle(TicketgroundColor.inkMuted)
                 Text("보유 티켓 \(tickets.count)장 · 신뢰 점수 \(session.trustScore)")
                     .font(.subheadline.weight(.semibold))
+                if tickets.isEmpty {
+                    Text("예매내역이 없습니다.")
+                        .font(.subheadline)
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                        .accessibilityIdentifier("live-account-empty-tickets")
+                } else {
+                    ForEach(tickets, id: \.id) { ticket in
+                        NavigationLink {
+                            LiveTicketDetailView(ticket: ticket)
+                        } label: {
+                            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                                Text(ticket.event?.title ?? "예매 티켓")
+                                    .font(.headline)
+                                Text("\(ticket.seatLabel) · \(ticket.status)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(TicketgroundColor.inkMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .accessibilityIdentifier("live-account-ticket-\(ticket.id)")
+                    }
+                }
             }
             .padding(TicketgroundSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1869,6 +1917,52 @@ private struct LiveAccountRouteView: View {
         }
     }
 
+    @MainActor
+    private func saveProfile(tickets: [LiveTicket]) async {
+        guard let userID = container.environment.sessionStore.current?.userID else {
+            state = .capability(.loginRequired)
+            return
+        }
+        isSavingProfile = true
+        profileSaveError = nil
+        defer { isSavingProfile = false }
+        do {
+            let service = LiveBackendService(apiClient: container.environment.apiClient)
+            _ = try await service.diagnosePublicContract()
+            let updated = try await service.updateProfile(userID: userID, name: profileName)
+            profileName = updated.name
+            state = .loaded(updated, tickets)
+        } catch let error as APIClientError {
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                state = .capability(.loginRequired)
+            } else {
+                profileSaveError = error.localizedDescription
+            }
+        } catch {
+            profileSaveError = "프로필을 저장하지 못했습니다. 다시 시도해 주세요."
+        }
+    }
+
+}
+
+private struct LiveTicketDetailView: View {
+    let ticket: LiveTicket
+
+    var body: some View {
+        List {
+            LabeledContent("공연", value: ticket.event?.title ?? ticket.eventId)
+            LabeledContent("공연장", value: ticket.event?.venue ?? "확인 중")
+            LabeledContent("좌석", value: ticket.seatLabel)
+            LabeledContent("티켓 상태", value: ticket.status)
+            LabeledContent("결제 상태", value: ticket.payment?.status ?? "확인 중")
+            LabeledContent("결제 수단", value: ticket.payment?.method ?? "확인 중")
+            LabeledContent("결제 금액", value: ticket.faceValue.formatted(.currency(code: "KRW")))
+        }
+        .navigationTitle("예매 상세")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("live-ticket-detail")
+    }
 }
 
 private enum LiveAccountState {
