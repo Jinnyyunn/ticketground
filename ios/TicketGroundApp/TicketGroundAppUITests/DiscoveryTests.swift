@@ -607,12 +607,12 @@ final class DiscoveryTests: XCTestCase {
         let subject = app.textFields["live-support-subject"]
         XCTAssertTrue(subject.waitForExistence(timeout: 20))
         subject.tap()
-        subject.typeText(String(repeating: "a", count: 81))
+        subject.typeText(String(repeating: "😀", count: 41))
         let message = app.textFields["live-support-message"]
         message.tap()
         message.typeText("body")
         XCTAssertFalse(app.buttons["live-support-submit"].isEnabled)
-        XCTAssertTrue(app.staticTexts["제목 81/80 · 내용 4/1,000"].exists)
+        XCTAssertTrue(app.staticTexts["제목 82/80 · 내용 4/1,000"].exists)
         XCTAssertTrue(app.staticTexts["live-support-subject-limit"].exists)
         XCTAssertTrue(app.staticTexts["live-support-subject-limit"].isHittable)
 
