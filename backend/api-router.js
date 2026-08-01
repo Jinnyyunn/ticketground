@@ -1,3 +1,6 @@
+import { consumeNativeAuthHandoff } from "./native-auth-handoff.js";
+import { publicSessionUser } from "./session-user.js";
+
 export function createApiRouter({
   addSupportMessage,
   adminHoldAdmissionCredential,
@@ -22,6 +25,7 @@ export function createApiRouter({
   httpError,
   confirmPortOneDanalVerification,
   issueQr,
+  issueNativeSession,
   joinPool,
   listForResale,
   notifyWatchlist,
@@ -40,6 +44,7 @@ export function createApiRouter({
   publicTicketsForUser,
   publicIdentityStatus,
   socialAuthCallback,
+  socialAuthPreflight,
   socialAuthSession,
   socialAuthStart,
   approveGroupBookingRequest,
@@ -148,6 +153,8 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
+  if (req.method === "GET" && url.pathname === "/api/auth/kakao/preflight") return socialAuthPreflight(req, "kakao");
+  if (req.method === "GET" && url.pathname === "/api/auth/naver/preflight") return socialAuthPreflight(req, "naver");
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/callback") return socialAuthCallback(db, req, "kakao", url.searchParams);
   if (req.method === "GET" && url.pathname === "/api/auth/naver/callback") return socialAuthCallback(db, req, "naver", url.searchParams);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/session") return socialAuthSession(db, req, "kakao");
@@ -221,6 +228,20 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/auth/google/native") {
     requireBody(body, ["credential"]);
     return googleNativeSession(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/auth/native/handoff") {
+    requireBody(body, ["provider", "code"]);
+    const userId = consumeNativeAuthHandoff(
+      db,
+      body.provider,
+      body.code,
+      () => process.env.TIG_NOW || new Date().toISOString(),
+    );
+    const user = userId ? db.users.find((item) => item.id === userId) : null;
+    if (!user) {
+      throw httpError(401, "NATIVE_HANDOFF_INVALID", "앱 로그인 연결 정보를 확인할 수 없습니다.");
+    }
+    return { user: publicSessionUser(user), session: issueNativeSession(db, user.id) };
   }
   if (req.method === "GET" && url.pathname === "/api/auth/native/session") {
     return nativeSession(db, req);

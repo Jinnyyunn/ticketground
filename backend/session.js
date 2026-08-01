@@ -129,6 +129,7 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     googleNativeSession,
     googleSession,
     socialAuthCallback: socialOAuth.socialAuthCallback,
+    socialAuthPreflight: socialOAuth.socialAuthPreflight,
     socialAuthSession: socialOAuth.socialAuthSession,
     socialAuthStart: socialOAuth.socialAuthStart,
     updateDemoProfile

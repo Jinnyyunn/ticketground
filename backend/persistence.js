@@ -34,11 +34,15 @@ export function createPersistence({
     await mkdir(dataDir, { recursive: true });
     if (!existsSync(dbPath)) {
       const db = seedDb();
+      db.nativeAuthHandoffs ||= [];
       await saveDb(db);
       return db;
     }
     const db = JSON.parse(await readFile(dbPath, "utf8"));
-    if (normalizeDb(db)) await saveDb(db);
+    const normalized = normalizeDb(db);
+    const handoffsMissing = !Array.isArray(db.nativeAuthHandoffs);
+    if (handoffsMissing) db.nativeAuthHandoffs = [];
+    if (normalized || handoffsMissing) await saveDb(db);
     return db;
   }
 

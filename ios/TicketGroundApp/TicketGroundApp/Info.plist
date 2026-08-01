@@ -16,6 +16,12 @@
 				<string>com.googleusercontent.apps.139627104931-dirf0p822gah66vhc9jsvc9plkgj6tki</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ticketground</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>

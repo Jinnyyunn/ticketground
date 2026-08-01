@@ -204,6 +204,7 @@ protocol APIClient: AnyObject {
     var mode: APIDataMode { get }
     var baseURL: URL? { get }
     func data(for request: APIRequest) async throws -> Data
+    func dataRejectingRedirects(for request: APIRequest) async throws -> Data
     func revokeNativeSession(_ session: NativeSession) async throws
     func validateNativeSession(_ session: NativeSession) async throws
     func resolveResource(_ reference: String?) -> String?
@@ -211,6 +212,10 @@ protocol APIClient: AnyObject {
 
 extension APIClient {
     var baseURL: URL? { nil }
+
+    func dataRejectingRedirects(for request: APIRequest) async throws -> Data {
+        try await data(for: request)
+    }
 
     func data(for path: String) async throws -> Data {
         try await data(for: APIRequest(path: path))
@@ -577,6 +582,30 @@ final class LiveAPIClient: APIClient {
                 result = try await session.data(for: request, delegate: redirectDelegate)
             }
             let (data, response) = result
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIClientError.invalidResponse
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw serverError(from: data, status: httpResponse.statusCode)
+            }
+            return try unwrap(data)
+        } catch let error as APIClientError {
+            throw error
+        } catch let error as URLError {
+            throw APIClientError.requestFailed(code: error.code.rawValue)
+        } catch {
+            throw APIClientError.requestFailed(code: (error as NSError).code)
+        }
+    }
+
+    func dataRejectingRedirects(for apiRequest: APIRequest) async throws -> Data {
+        let request = try urlRequest(for: apiRequest)
+
+        do {
+            let (data, response) = try await session.data(
+                for: request,
+                delegate: RejectRedirectDelegate()
+            )
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIClientError.invalidResponse
             }

@@ -90,6 +90,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["login-provider-external-state"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["login-success"].exists)
         XCTAssertTrue(app.staticTexts["Google 로그인은 HTTPS API와 외부 OAuth 인증 단계(E3) 연결이 모두 필요합니다. 현재 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다."].exists)
+        recordScreenshot(named: "google-ui-test-gate", app: app)
     }
 
     func testProviderLoginCancellationDoesNotCreateASession() {
@@ -103,6 +104,34 @@ final class DiscoveryTests: XCTestCase {
         cancel.tap()
         XCTAssertTrue(app.staticTexts["login-provider-external-state"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["login-success"].exists)
+        XCTAssertTrue(app.staticTexts["카카오톡 인증을 취소했습니다.\n로그인 상태는 그대로입니다."].exists)
+        recordScreenshot(named: "kakao-ui-test-cancel", app: app)
+    }
+
+    func testNaverLoginKeepsDeterministicExternalGateDuringUITests() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+        app.buttons["header-watchlist"].tap()
+        XCTAssertTrue(app.buttons["login-naver"].waitForExistence(timeout: 10))
+
+        app.buttons["login-naver"].tap()
+
+        let externalGate = app.buttons.matching(identifier: "login-provider-external-gate").element(boundBy: 1)
+        XCTAssertTrue(externalGate.waitForExistence(timeout: 10))
+        externalGate.tap()
+        XCTAssertTrue(app.staticTexts["login-provider-external-state"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["네이버 로그인은 HTTPS API와 외부 OAuth 인증 단계(E3) 연결이 모두 필요합니다. 현재 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다."].exists)
+        XCTAssertFalse(app.staticTexts["login-success"].exists)
+        app.scrollViews.firstMatch.swipeDown(velocity: .fast)
+        XCTAssertTrue(app.staticTexts["login-screen-title"].isHittable)
+        recordScreenshot(named: "naver-ui-test-gate", app: app)
+    }
+
+    private func recordScreenshot(named name: String, app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testHeaderMenuNavigatesToFixtureMenu() {
