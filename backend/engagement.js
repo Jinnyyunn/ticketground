@@ -141,6 +141,9 @@ export function createEngagementBackend({
   }
 
   function upsertWatchlistForPrincipal(db, userId, eventId, preferences) {
+    if (preferences === null || typeof preferences !== "object" || Array.isArray(preferences)) {
+      throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+    }
     for (const field of ["calendarEnabled", "notificationEnabled"]) {
       if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
         throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");

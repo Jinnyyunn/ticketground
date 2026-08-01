@@ -23,13 +23,14 @@ async function request(server, pathName, {
   method = "GET",
   status = 200
 } = {}) {
+  const hasBody = body !== undefined;
   const response = await fetch(`${server.baseUrl}${pathName}`, {
     method,
     headers: {
       ...(authorization ? { Authorization: authorization } : {}),
-      ...(body ? { "Content-Type": "application/json" } : {})
+      ...(hasBody ? { "Content-Type": "application/json" } : {})
     },
-    body: body ? JSON.stringify(body) : undefined
+    body: hasBody ? JSON.stringify(body) : undefined
   });
   const json = await response.json();
   assert.equal(response.status, status, `${method} ${pathName}: ${JSON.stringify(json)}`);
@@ -62,6 +63,15 @@ test("native watchlist binds reads and preferences to the bearer principal", asy
     status: 400
   });
   assert.equal(invalidPreferences.error.code, "INVALID_WATCHLIST_PREFERENCES");
+  for (const body of [null, [], "invalid"]) {
+    const invalidBody = await request(server, "/api/me/watchlist/event_kpop_001", {
+      authorization: login.authorization,
+      method: "PUT",
+      body,
+      status: 400
+    });
+    assert.equal(invalidBody.error.code, "INVALID_WATCHLIST_PREFERENCES");
+  }
   const unchanged = await request(server, "/api/me/watchlist", { authorization: login.authorization });
   assert.deepEqual(unchanged.data, []);
 

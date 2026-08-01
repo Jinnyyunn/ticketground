@@ -347,6 +347,30 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
+    func testWatchlistProbeDoesNotDependOnCatalog() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c","capabilities":["native-watchlist-v1"]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let probe = try await LiveBackendService(apiClient: client).diagnoseWatchlistContract()
+
+        XCTAssertEqual(probe.capabilities.state(for: .watchlist), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .watchlistUpsert), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .watchlistDelete), .available)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            ["/api/health"]
+        )
+    }
+
     func testNativeSupportRequestsUseBearerPrincipalAndIdempotency() async throws {
         let thread = #"{"id":"thread-1","subject":"결제 문의","status":"OPEN","category":"PAYMENT","createdAt":"2026-08-02T00:00:00Z","updatedAt":"2026-08-02T00:00:00Z","messages":[{"id":"message-1","role":"CUSTOMER","body":"확인해주세요.","at":"2026-08-02T00:00:00Z"}]}"#
         LiveBackendServiceURLProtocol.responses = [

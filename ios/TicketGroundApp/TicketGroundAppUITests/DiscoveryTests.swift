@@ -695,6 +695,24 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-empty").waitForExistence(timeout: 10))
     }
 
+    func testWatchlistPreferenceReconcilesCommittedServerStateAfterResponseLoss() {
+        let app = liveApp(homeScenario: "watchlistCommittedResponseLost")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-watchlist"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-items").waitForExistence(timeout: 20))
+
+        let notification = app.buttons["live-watchlist-notification-live-neon"]
+        XCTAssertEqual(notification.label, "오픈 알림 끄기")
+        notification.tap()
+
+        XCTAssertTrue(app.buttons["오픈 알림 켜기"].waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(app, identifier: "live-watchlist-mutation-error").waitForExistence(timeout: 10))
+    }
+
     func testWatchlistDetailRetryReloadsServerState() {
         let app = liveApp(homeScenario: "watchlistRetry")
         app.launch()

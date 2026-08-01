@@ -2069,7 +2069,7 @@ private struct LiveWatchlistCTA: View {
         }
         do {
             let service = LiveBackendService(apiClient: apiClient)
-            let probe = try await service.diagnosePublicContract()
+            let probe = try await service.diagnoseWatchlistContract()
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
@@ -2322,7 +2322,7 @@ private struct LiveWatchlistRouteView: View {
         }
         do {
             let service = LiveBackendService(apiClient: apiClient)
-            let probe = try await service.diagnosePublicContract()
+            let probe = try await service.diagnoseWatchlistContract()
             guard generation.isCurrent(
                 userID: container.environment.sessionStore.current?.userID,
                 sessionRevision: container.environment.sessionStore.revision,
@@ -2391,11 +2391,11 @@ private struct LiveWatchlistRouteView: View {
         inFlightEventIDs.insert(item.eventId)
         mutationError = nil
         defer { inFlightEventIDs.remove(item.eventId) }
+        let service = LiveBackendService(
+            apiClient: container.environment.apiClient,
+            initialCapabilityMap: admittedCapabilityMap
+        )
         do {
-            let service = LiveBackendService(
-                apiClient: container.environment.apiClient,
-                initialCapabilityMap: admittedCapabilityMap
-            )
             let updated = try await service.upsertWatchlist(
                 userID: userID,
                 eventID: item.eventId,
@@ -2416,13 +2416,16 @@ private struct LiveWatchlistRouteView: View {
                 sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
-            ), case .loaded(let latestItems) = state else { return }
-            state = .loaded(replacingWatchlistItem(item, in: latestItems))
+            ) else { return }
             if case .server(status: 401, _, _) = error {
                 container.environment.sessionStore.logout()
                 state = .capability(.loginRequired)
             } else {
-                mutationError = "설정 변경에 실패해 서버 상태로 복구했습니다."
+                await reconcilePreferences(
+                    using: service,
+                    userID: userID,
+                    generation: generation
+                )
             }
         } catch {
             guard generation.isCurrent(
@@ -2430,9 +2433,52 @@ private struct LiveWatchlistRouteView: View {
                 sessionRevision: container.environment.sessionStore.revision,
                 reloadID: reloadID,
                 isCancelled: Task.isCancelled
-            ), case .loaded(let latestItems) = state else { return }
-            state = .loaded(replacingWatchlistItem(item, in: latestItems))
-            mutationError = "설정 변경에 실패해 서버 상태로 복구했습니다."
+            ) else { return }
+            await reconcilePreferences(
+                using: service,
+                userID: userID,
+                generation: generation
+            )
+        }
+    }
+
+    @MainActor
+    private func reconcilePreferences(
+        using service: LiveBackendService,
+        userID: String,
+        generation: LiveWatchlistGeneration
+    ) async {
+        do {
+            let items = try await service.getWatchlist(userID: userID)
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            state = .loaded(items)
+            mutationError = "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
+        } catch let error as APIClientError {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            if case .server(status: 401, _, _) = error {
+                container.environment.sessionStore.logout()
+                state = .capability(.loginRequired)
+            } else {
+                state = .capability(.retry)
+            }
+        } catch {
+            guard generation.isCurrent(
+                userID: container.environment.sessionStore.current?.userID,
+                sessionRevision: container.environment.sessionStore.revision,
+                reloadID: reloadID,
+                isCancelled: Task.isCancelled
+            ) else { return }
+            state = .capability(.retry)
         }
     }
 

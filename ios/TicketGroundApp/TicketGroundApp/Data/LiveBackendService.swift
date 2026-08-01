@@ -95,6 +95,23 @@ final class LiveBackendService {
         return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
     }
 
+    func diagnoseWatchlistContract() async throws -> LiveAPIContractProbe {
+        let health = try await get(
+            APIRequest(path: contract.bootstrapPath),
+            endpoint: .health,
+            bypassCapability: true,
+            as: LiveAPIHealth.self
+        )
+        capabilities = contract.capabilityMap(
+            for: apiClient.baseURL ?? contract.publicHost,
+            observedResponseVersion: health.version,
+            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
+            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
+        )
+        return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
+    }
+
     func getState() async throws -> LiveState {
         if let diagnosedVersionlessState {
             self.diagnosedVersionlessState = nil
