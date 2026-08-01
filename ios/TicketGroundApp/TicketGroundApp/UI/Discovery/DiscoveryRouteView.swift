@@ -127,6 +127,7 @@ struct DiscoveryLoginView: View {
     @State private var selectedProvider: Provider?
     @State private var providerMessage: String?
     @State private var googleSigningIn = false
+    @State private var socialSigningInProvider: SocialLoginProvider?
 
     private struct Provider: Identifiable {
         let id: String
@@ -160,9 +161,12 @@ struct DiscoveryLoginView: View {
                 VStack(spacing: TicketgroundSpacing.sm) {
                     ForEach(providers, id: \.id) { provider in
                         Button {
-                            if provider.id == "google"
-                                && !ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+                            if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+                                selectedProvider = provider
+                            } else if provider.id == "google" {
                                 startGoogleLogin()
+                            } else if let socialProvider = SocialLoginProvider(rawValue: provider.id) {
+                                startSocialLogin(socialProvider)
                             } else {
                                 selectedProvider = provider
                             }
@@ -191,7 +195,10 @@ struct DiscoveryLoginView: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .disabled(provider.id == "google" && googleSigningIn)
+                        .disabled(
+                            (provider.id == "google" && googleSigningIn)
+                                || socialSigningInProvider?.rawValue == provider.id
+                        )
                         .accessibilityIdentifier("login-\(provider.id)")
                         .accessibilityLabel(provider.label)
                     }
@@ -300,6 +307,39 @@ struct DiscoveryLoginView: View {
             case .cancelled:
                 providerMessage = GoogleLoginError.cancelled.localizedDescription
             case .failed(let message):
+                providerMessage = message
+            case .idle, .loading:
+                break
+            }
+        }
+    }
+
+    private func startSocialLogin(_ provider: SocialLoginProvider) {
+        guard socialSigningInProvider == nil else { return }
+        guard let baseURL = container.environment.apiClient.baseURL else {
+            providerMessage = SocialLoginError.httpsRequired.localizedDescription
+            return
+        }
+        socialSigningInProvider = provider
+        providerMessage = nil
+        let coordinator = SocialLoginCoordinator(
+            provider: provider,
+            baseURL: baseURL,
+            authenticator: SocialWebAuthenticator(),
+            sessionExchanger: SocialNativeSessionClient(
+                apiClient: container.environment.apiClient,
+                sessionStore: container.environment.sessionStore
+            )
+        )
+        Task {
+            await coordinator.signIn()
+            socialSigningInProvider = nil
+            switch coordinator.state {
+            case .signedIn(_, let userName):
+                providerMessage = "\(userName)님으로 로그인했습니다."
+            case .cancelled(let provider):
+                providerMessage = "\(provider.displayName) 인증을 취소했습니다.\n로그인 상태는 그대로입니다."
+            case .failed(_, let message):
                 providerMessage = message
             case .idle, .loading:
                 break

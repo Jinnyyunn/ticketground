@@ -150,6 +150,140 @@ final class TicketGroundAppTests: XCTestCase {
         XCTAssertEqual(signedIn.state, .signedIn(userName: "Google 사용자"))
         XCTAssertEqual(exchanger.receivedTokens, ["google-id-token"])
     }
+
+    func testSocialStartURLRequiresHTTPS() throws {
+        let secureURL = try SocialLoginCoordinator.startURL(
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            provider: .kakao
+        )
+        XCTAssertEqual(secureURL.absoluteString, "https://api.ticketground.test/api/auth/kakao/start?client=ios")
+
+        XCTAssertThrowsError(try SocialLoginCoordinator.startURL(
+            baseURL: URL(string: "http://localhost:5501")!,
+            provider: .naver
+        )) { error in
+            XCTAssertEqual(error as? SocialLoginError, .httpsRequired)
+        }
+    }
+
+    func testSocialCallbackRequiresFixedTupleAndMatchingProvider() throws {
+        let valid = URL(string: "ticketground://auth/social/callback?provider=kakao&code=one-use-code")!
+        XCTAssertEqual(
+            try SocialLoginCoordinator.handoffCode(from: valid, provider: .kakao),
+            "one-use-code"
+        )
+
+        let wrongProvider = URL(string: "ticketground://auth/social/callback?provider=naver&code=one-use-code")!
+        XCTAssertThrowsError(try SocialLoginCoordinator.handoffCode(from: wrongProvider, provider: .kakao)) { error in
+            XCTAssertEqual(error as? SocialLoginError, .providerMismatch)
+        }
+
+        let wrongPath = URL(string: "ticketground://auth/other?provider=kakao&code=one-use-code")!
+        XCTAssertThrowsError(try SocialLoginCoordinator.handoffCode(from: wrongPath, provider: .kakao)) { error in
+            XCTAssertEqual(error as? SocialLoginError, .invalidCallback)
+        }
+    }
+
+    @MainActor
+    func testSocialCoordinatorCancellationPreservesCurrentSession() async {
+        let credentials = InMemoryCredentialStore()
+        let sessionStore = SessionStore(credentialStore: credentials)
+        sessionStore.saveNativeCredential("existing-native-session", serverUserID: "existing-user")
+        let exchanger = StubSocialSessionExchanger()
+        let coordinator = SocialLoginCoordinator(
+            provider: .kakao,
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            authenticator: StubSocialWebAuthenticator(result: .failure(.cancelled)),
+            sessionExchanger: exchanger
+        )
+
+        await coordinator.signIn()
+
+        XCTAssertEqual(coordinator.state, .cancelled(provider: .kakao))
+        XCTAssertEqual(
+            sessionStore.current,
+            NativeSession(userID: "existing-user", credential: "existing-native-session")
+        )
+        XCTAssertTrue(exchanger.exchanges.isEmpty)
+    }
+
+    func testSocialNativeExchangeStoresServerCredentialAndProviderBody() async throws {
+        let apiClient = GoogleExchangeAPIClient(
+            baseURL: URL(string: "https://api.ticketground.test")!,
+            response: Data(#"{"user":{"id":"kakao_user_1","name":"카카오 사용자","status":"ACTIVE","trustScore":85,"profileConfirmed":false},"session":{"credential":"social-native-session","expiresAt":"2026-09-01T00:00:00.000Z"}}"#.utf8)
+        )
+        let credentials = InMemoryCredentialStore()
+        let sessionStore = SessionStore(credentialStore: credentials)
+        let client = SocialNativeSessionClient(apiClient: apiClient, sessionStore: sessionStore)
+
+        let user = try await client.exchange(provider: .kakao, code: "one-use-code")
+
+        XCTAssertEqual(user.id, "kakao_user_1")
+        XCTAssertEqual(
+            sessionStore.current,
+            NativeSession(userID: "kakao_user_1", credential: "social-native-session")
+        )
+        XCTAssertEqual(apiClient.requests.count, 1)
+        XCTAssertEqual(apiClient.requests.first?.path, "/api/auth/native/handoff")
+        guard case .json(let body) = apiClient.requests.first?.body else {
+            return XCTFail("Expected JSON exchange body")
+        }
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(payload, ["provider": "kakao", "code": "one-use-code"])
+    }
+
+    func testSocialNativeExchangeMapsProviderMismatchWithoutPersisting() async {
+        let apiClient = SocialExchangeFailingAPIClient(
+            error: .server(status: 401, code: "NATIVE_HANDOFF_INVALID", message: "invalid")
+        )
+        let credentials = InMemoryCredentialStore()
+        let sessionStore = SessionStore(credentialStore: credentials)
+        let client = SocialNativeSessionClient(apiClient: apiClient, sessionStore: sessionStore)
+
+        do {
+            _ = try await client.exchange(provider: .naver, code: "wrong-provider-code")
+            XCTFail("Expected provider-bound handoff rejection")
+        } catch let error as SocialLoginError {
+            XCTAssertEqual(error, .invalidHandoff)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertNil(sessionStore.current)
+        XCTAssertNil(credentials.read())
+    }
+}
+
+@MainActor
+private final class StubSocialWebAuthenticator: SocialWebAuthenticating {
+    private let result: Result<URL, SocialLoginError>
+
+    init(result: Result<URL, SocialLoginError>) { self.result = result }
+    func authenticate(startURL: URL, callbackScheme: String) async throws -> URL { try result.get() }
+}
+
+private final class StubSocialSessionExchanger: SocialSessionExchanging {
+    private(set) var exchanges: [(SocialLoginProvider, String)] = []
+
+    func exchange(provider: SocialLoginProvider, code: String) async throws -> SocialSessionUser {
+        exchanges.append((provider, code))
+        return SocialSessionUser(
+            id: "social_user_1",
+            name: "소셜 사용자",
+            status: "ACTIVE",
+            trustScore: 80,
+            profileConfirmed: false
+        )
+    }
+}
+
+private final class SocialExchangeFailingAPIClient: APIClient {
+    let mode: APIDataMode = .live
+    let baseURL = URL(string: "https://api.ticketground.test")
+    private let error: APIClientError
+
+    init(error: APIClientError) { self.error = error }
+    func data(for request: APIRequest) async throws -> Data { throw error }
+    func resolveResource(_ reference: String?) -> String? { reference }
 }
 
 private final class StubGoogleIdentityProvider: GoogleIdentityProviding {
