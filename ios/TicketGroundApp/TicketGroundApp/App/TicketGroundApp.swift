@@ -7,6 +7,9 @@ struct TicketGroundApp: App {
     var body: some Scene {
         WindowGroup {
             configuredContent
+                .onOpenURL { url in
+                    _ = GoogleSignInProvider.handle(url)
+                }
         }
     }
 

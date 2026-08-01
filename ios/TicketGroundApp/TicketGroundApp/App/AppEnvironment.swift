@@ -204,6 +204,7 @@ protocol APIClient: AnyObject {
     var mode: APIDataMode { get }
     var baseURL: URL? { get }
     func data(for request: APIRequest) async throws -> Data
+    func revokeNativeSession(_ session: NativeSession) async throws
     func resolveResource(_ reference: String?) -> String?
 }
 
@@ -212,6 +213,10 @@ extension APIClient {
 
     func data(for path: String) async throws -> Data {
         try await data(for: APIRequest(path: path))
+    }
+
+    func revokeNativeSession(_ session: NativeSession) async throws {
+        throw APIClientError.liveTransportUnavailable
     }
 }
 
@@ -516,6 +521,18 @@ final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
     }
 }
 
+final class RejectRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
 final class LiveAPIClient: APIClient {
     let mode: APIDataMode = .live
 
@@ -568,6 +585,27 @@ final class LiveAPIClient: APIClient {
             throw APIClientError.requestFailed(code: error.code.rawValue)
         } catch {
             throw APIClientError.requestFailed(code: (error as NSError).code)
+        }
+    }
+
+    func revokeNativeSession(_ nativeSession: NativeSession) async throws {
+        guard configuredBaseURL.scheme?.lowercased() == "https",
+              let credential = nativeSession.credential,
+              !credential.isEmpty,
+              let url = URL(string: "/api/auth/native/logout", relativeTo: configuredBaseURL)?.absoluteURL else {
+            throw APIClientError.insecureCredentialTransport
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+        request.httpBody = Data("{}".utf8)
+        let (data, response) = try await session.data(for: request, delegate: RejectRedirectDelegate())
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIClientError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw serverError(from: data, status: httpResponse.statusCode)
         }
     }
 
