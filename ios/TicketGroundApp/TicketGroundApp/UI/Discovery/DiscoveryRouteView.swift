@@ -1758,6 +1758,7 @@ private struct LiveAccountRouteView: View {
     @State private var profileName = ""
     @State private var isSavingProfile = false
     @State private var profileSaveError: String?
+    @State private var admittedAccountCapabilityMap: LiveCapabilityMap?
 
     var body: some View {
         ScrollView {
@@ -1824,6 +1825,7 @@ private struct LiveAccountRouteView: View {
                     state = .capability(resolvedState)
                     return
                 }
+                admittedAccountCapabilityMap = probe.capabilities
                 async let profile = service.getSession(userID: userID)
                 async let tickets = service.getTickets(userID: userID)
                 let loadedProfile = try await profile
@@ -1927,8 +1929,14 @@ private struct LiveAccountRouteView: View {
         profileSaveError = nil
         defer { isSavingProfile = false }
         do {
-            let service = LiveBackendService(apiClient: container.environment.apiClient)
-            _ = try await service.diagnosePublicContract()
+            guard let admittedAccountCapabilityMap else {
+                profileSaveError = "기능 상태를 다시 확인해 주세요."
+                return
+            }
+            let service = LiveBackendService(
+                apiClient: container.environment.apiClient,
+                initialCapabilityMap: admittedAccountCapabilityMap
+            )
             let updated = try await service.updateProfile(userID: userID, name: profileName)
             profileName = updated.name
             state = .loaded(updated, tickets)
@@ -1953,11 +1961,13 @@ private struct LiveTicketDetailView: View {
         List {
             LabeledContent("공연", value: ticket.event?.title ?? ticket.eventId)
             LabeledContent("공연장", value: ticket.event?.venue ?? "확인 중")
+            LabeledContent("공연 회차", value: ticket.event?.performance?.label ?? "확인 중")
+            LabeledContent("공연 일시", value: ticket.event?.performance?.startsAt ?? "확인 중")
             LabeledContent("좌석", value: ticket.seatLabel)
             LabeledContent("티켓 상태", value: ticket.status)
             LabeledContent("결제 상태", value: ticket.payment?.status ?? "확인 중")
             LabeledContent("결제 수단", value: ticket.payment?.method ?? "확인 중")
-            LabeledContent("결제 금액", value: ticket.faceValue.formatted(.currency(code: "KRW")))
+            LabeledContent("결제 금액", value: ticket.payment?.amount.formatted(.currency(code: "KRW")) ?? "확인 중")
         }
         .navigationTitle("예매 상세")
         .navigationBarTitleDisplayMode(.inline)

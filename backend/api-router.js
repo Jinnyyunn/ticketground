@@ -2,6 +2,7 @@ import { consumeNativeAuthHandoff } from "./native-auth-handoff.js";
 import { publicSessionUser } from "./session-user.js";
 
 export function createApiRouter({
+  accountTicketsForUser,
   addSupportMessage,
   authenticateNativeSession,
   adminHoldAdmissionCredential,
@@ -89,6 +90,12 @@ function decodeArtistSlug(value) {
   }
 }
 
+function requireDemoUserAPI() {
+  const enabled = process.env.TIG_DEMO_PROFILE_API === "1"
+    || (process.env.NODE_ENV !== "production" && process.env.TIG_NEXT_DEV === "1");
+  if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
+}
+
 async function parseBody(req) {
   const chunks = [];
   let size = 0;
@@ -154,7 +161,7 @@ async function handleApi(req, res, db, surface) {
     return publicSessionUser(authenticateNativeSession(db, req).user);
   }
   if (req.method === "GET" && url.pathname === "/api/me/tickets") {
-    return publicTicketsForUser(db, authenticateNativeSession(db, req).user.id);
+    return accountTicketsForUser(db, authenticateNativeSession(db, req).user.id);
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
     requireBody(body, ["name"]);
@@ -208,9 +215,15 @@ async function handleApi(req, res, db, surface) {
       page: url.searchParams.get("page") || undefined
     });
   }
-  if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
+  if (req.method === "GET" && userSessionMatch) {
+    requireDemoUserAPI();
+    return demoSession(db, decodeURIComponent(userSessionMatch[1]));
+  }
   if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
-  if (req.method === "GET" && userTicketsMatch) return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
+  if (req.method === "GET" && userTicketsMatch) {
+    requireDemoUserAPI();
+    return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
+  }
   if (req.method === "GET" && userWatchlistMatch) return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
   if (req.method === "GET" && url.pathname === "/api/support/threads") {
     const userId = url.searchParams.get("userId");
@@ -279,6 +292,7 @@ async function handleApi(req, res, db, surface) {
     return notifyWatchlist(db, body);
   }
   if (req.method === "POST" && userProfileMatch) {
+    requireDemoUserAPI();
     requireBody(body, ["name"]);
     return updateDemoProfile(db, {
       userId: decodeURIComponent(userProfileMatch[1]),

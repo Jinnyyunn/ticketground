@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { api, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 async function nativeLogin(server) {
@@ -116,6 +116,38 @@ test("native tickets return only tickets owned by the bearer principal", async (
   assert.equal(tickets.data[0].id, ticket.id);
   assert.equal(tickets.data[0].ownerId, undefined);
   assert.equal(typeof tickets.data[0].event.title, "string");
+  assert.equal(tickets.data[0].event.performance.id, ticket.performanceDateId);
+  assert.equal(typeof tickets.data[0].event.performance.startsAt, "string");
   assert.equal(tickets.data[0].payment.method, "CREDIT_CARD");
   assert.equal(typeof tickets.data[0].payment.status, "string");
+  assert.equal(tickets.data[0].payment.amount, ticket.faceValue);
+});
+
+test("production disables legacy caller-selected account routes", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t, { env: { TIG_DEMO_PROFILE_API: "" } });
+  const login = await nativeLogin(server);
+
+  for (const pathName of [
+    `/api/users/${login.user.id}/session`,
+    `/api/users/${login.user.id}/tickets`
+  ]) {
+    const response = await request(server, pathName, { status: 404 });
+    assert.equal(response.error.code, "NOT_FOUND");
+  }
+  const profile = await request(server, `/api/users/${login.user.id}/profile`, {
+    method: "POST",
+    body: { name: "우회시도" },
+    status: 404
+  });
+  assert.equal(profile.error.code, "NOT_FOUND");
+});
+
+test("legacy demo ticket route does not expose payment details", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t);
+  await buyFirstTicket(server.baseUrl);
+  const tickets = await request(server, "/api/users/user_fan_a/tickets");
+  assert.ok(tickets.data.length > 0);
+  assert.equal(tickets.data[0].payment, undefined);
 });

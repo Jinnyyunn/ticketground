@@ -562,9 +562,17 @@ struct LiveTicketEvent: Decodable, Equatable {
     let id: String
     let title: String
     let venue: String?
+    let performance: LiveTicketPerformance?
+}
+
+struct LiveTicketPerformance: Decodable, Equatable {
+    let id: String
+    let label: String?
+    let startsAt: String
 }
 
 struct LiveTicketPayment: Decodable, Equatable {
+    let amount: Int
     let method: String
     let status: String
 }
