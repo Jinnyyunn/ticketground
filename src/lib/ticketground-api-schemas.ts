@@ -126,6 +126,14 @@ export const apiSeatSchema = z.object({
   }).optional(),
 }) satisfies ZodType<ApiSeat>;
 
+const apiSeatZoneSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  price: z.number(),
+  available: z.number(),
+  color: z.string().nullish(),
+});
+
 export const apiSeatMapSchema = z.object({
   event: z.object({
     id: z.string(),
@@ -138,14 +146,12 @@ export const apiSeatMapSchema = z.object({
     image: z.string(),
     description: z.string(),
   }),
-  zones: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    price: z.number(),
-    available: z.number(),
-    color: z.string().nullish(),
-  })),
+  zones: z.array(apiSeatZoneSchema),
   seats: z.array(apiSeatSchema),
+  nolReference: z.object({
+    zones: z.array(apiSeatZoneSchema),
+    seats: z.array(apiSeatSchema),
+  }).optional(),
 }) satisfies ZodType<ApiSeatMap>;
 
 export const apiPurchaseResultSchema = z.object({

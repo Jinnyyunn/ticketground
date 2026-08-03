@@ -114,6 +114,14 @@ export type ApiSeat = {
   readonly mapPosition?: ApiSeatMapPosition;
 };
 
+export type ApiSeatZone = {
+  readonly id: string;
+  readonly name: string;
+  readonly price: number;
+  readonly available: number;
+  readonly color?: string | null;
+};
+
 export type ApiSeatMap = {
   readonly event: {
     readonly id: string;
@@ -126,14 +134,12 @@ export type ApiSeatMap = {
     readonly image: string;
     readonly description: string;
   };
-  readonly zones: readonly {
-    readonly id: string;
-    readonly name: string;
-    readonly price: number;
-    readonly available: number;
-    readonly color?: string | null;
-  }[];
+  readonly zones: readonly ApiSeatZone[];
   readonly seats: readonly ApiSeat[];
+  readonly nolReference?: {
+    readonly zones: readonly ApiSeatZone[];
+    readonly seats: readonly ApiSeat[];
+  };
 };
 
 export type ApiPurchaseResult = {

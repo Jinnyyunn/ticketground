@@ -1,3 +1,5 @@
+import { createBoundedTtlCache } from "./bounded-cache.js";
+
 // NOL(야놀자) 티켓 좌석 배치도 API 연동
 // -----------------------------------------------------------------------------
 // 좌석 "배치도 조회"만 사용한다. 좌석 선점(preselect / reserved)은 여기서 다루지 않는다.
@@ -51,32 +53,19 @@ export const NOL_VENUE_MAP = {
   venue_myeongdong_theater: { goodsCode: "26005135", placeCode: "22000526", label: "국립극장 해오름극장" }
 };
 
-// 매핑이 없는 공연장은 이 도면으로 떨어뜨린다(디큐브 링크아트센터 · 7구역 1,289석).
-export const NOL_DEFAULT_VENUE = {
-  goodsCode: "26005310",
-  placeCode: "24001018",
-  label: "디큐브 링크아트센터"
-};
-
 const META_TTL_MS = 10 * 60 * 1000; // 좌석 좌표/등급은 잘 안 변한다
 const STATUS_TTL_MS = 20 * 1000; // 잔여석은 짧게
 const SEQ_TTL_MS = 10 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 256;
 
-const cache = new Map();
+const cache = createBoundedTtlCache({ maxEntries: MAX_CACHE_ENTRIES });
 
 function fromCache(key, ttl) {
-  const hit = cache.get(key);
-  if (!hit) return null;
-  if (Date.now() - hit.at > ttl) {
-    cache.delete(key);
-    return null;
-  }
-  return hit.value;
+  return cache.get(key, ttl);
 }
 
 function putCache(key, value) {
-  cache.set(key, { at: Date.now(), value });
-  return value;
+  return cache.set(key, value);
 }
 
 async function getJson(url, timeoutMs = 7000) {
@@ -212,13 +201,13 @@ export async function fetchNolSeatMap({ goodsCode, placeCode, playSeq }) {
   const gradeAgg = new Map();
 
   for (const block of blocks) {
-    const [meta, bits] = await Promise.all([
-      fetchBlockSeats(goodsCode, placeCode, seq, block.blockKey),
-      fetchBlockStatus(goodsCode, placeCode, seq, block.blockKey)
-    ]);
+    const meta = await fetchBlockSeats(goodsCode, placeCode, seq, block.blockKey);
+    const bits = USE_LIVE_SEAT_STATUS
+      ? await fetchBlockStatus(goodsCode, placeCode, seq, block.blockKey)
+      : null;
     meta.forEach((seat, index) => {
       if (!seat.isExposable) return; // 통로/미판매 칸
-      const soldOutOnNol = bits[index] !== "1";
+      const soldOutOnNol = bits ? bits[index] !== "1" : false;
       const available = USE_LIVE_SEAT_STATUS ? !soldOutOnNol : true;
       const gradeId = seat.seatGrade ? `nol_grade_${seat.seatGrade}` : "nol_grade_etc";
       const gradeName = seat.seatGradeName || "일반석";
@@ -289,7 +278,9 @@ export async function fetchNolSeatMap({ goodsCode, placeCode, playSeq }) {
       endpoints: [
         `GET ${ONESTOP}/seats/block-data?goodsCode&placeCode&playSeq`,
         `GET ${ONESTOP}/seatMeta?goodsCode&placeCode&playSeq&blockKeys&bizCode`,
-        `GET ${ONESTOP}/seatStatus?goodsCode&placeCode&playSeq&blockKeys&bizCode`,
+        ...(USE_LIVE_SEAT_STATUS
+          ? [`GET ${ONESTOP}/seatStatus?goodsCode&placeCode&playSeq&blockKeys&bizCode`]
+          : []),
         `GET ${ONESTOP}/seats/grades?goodsCode&placeCode&playSeq&bizCode`
       ],
       goodsCode,
@@ -304,7 +295,26 @@ export async function fetchNolSeatMap({ goodsCode, placeCode, playSeq }) {
 }
 
 export function nolVenueParams(venueId) {
-  return NOL_VENUE_MAP[venueId] || NOL_DEFAULT_VENUE;
+  return Object.hasOwn(NOL_VENUE_MAP, venueId) ? NOL_VENUE_MAP[venueId] : null;
+}
+
+export function mergeNolSeatMap(base, real, mapped) {
+  const positionedSeats = real.seats.filter((seat) => seat.mapPosition);
+  if (positionedSeats.length === 0) return base;
+
+  return {
+    ...base,
+    map: {
+      ...base.map,
+      title: `${mapped.label || base?.map?.title || "공연장"} 참고 좌석도`,
+      description: `NOL 공연장 배치 참고 · 실제 구매 좌석은 Ticketground 판매 재고 ${base.seats.length}석에서 선택`
+    },
+    nolReference: {
+      zones: real.zones,
+      seats: positionedSeats
+    },
+    nolSource: real.source
+  };
 }
 
 /**
@@ -315,23 +325,14 @@ export async function applyNolSeatMap(base, { venueId, goodsCode, placeCode, pla
   // 외부 API 의존을 끊어야 하는 환경(테스트/오프라인)에서는 TIG_NOL_SEATMAP=0 으로 mock 을 유지한다.
   if (process.env.TIG_NOL_SEATMAP === "0") return base;
   const mapped = goodsCode && placeCode ? { goodsCode, placeCode } : nolVenueParams(venueId || base?.event?.venueId);
+  if (!mapped) return base;
   try {
     const real = await fetchNolSeatMap({
       goodsCode: mapped.goodsCode,
       placeCode: mapped.placeCode,
       playSeq
     });
-    return {
-      ...base,
-      map: {
-        ...base.map,
-        title: `${mapped.label || base?.map?.title || "좌석 배치도"} 실시간 좌석 배치도`,
-        description: `NOL 티켓 좌석 배치도 API 실데이터 · ${real.source.blocks}개 구역 / ${real.seats.length}석`
-      },
-      zones: real.zones,
-      seats: real.seats,
-      nolSource: real.source
-    };
+    return mergeNolSeatMap(base, real, mapped);
   } catch (error) {
     return {
       ...base,

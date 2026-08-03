@@ -95,6 +95,56 @@ test("backend seat picker keeps two selected seats and replaces the oldest seat 
   await page.getByText("2/2매", { exact: true }).waitFor({ timeout: 5000 });
 });
 
+test("mobile booking exposes every available mapped seat through touch-sized list controls", async (t) => {
+  // Given: a mapped performance with more than the old 48-seat preview limit.
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+  const seats = Array.from({ length: 60 }, (_, index) => ({
+    id: `ticket-touch-${index + 1}`,
+    label: String(index + 1),
+    displayCode: `VIP-${String(index + 1).padStart(2, "0")}`,
+    zoneId: "zone_vip",
+    zoneName: "VIP석",
+    price: 120000,
+    status: "ON_SALE",
+    available: true,
+    mapPosition: { x: 5 + (index % 10) * 9, y: 20 + Math.floor(index / 10) * 10, width: 1.2, height: 1.6, rotate: 0, shape: "actual-map" }
+  }));
+  await page.route("**/api/seat-map?**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      data: {
+        event: { id: "event_c945b7fa842c", title: "레미제라블", venueId: "venue", venue: "공연장" },
+        map: { title: "좌석 배치도", image: "/map.svg", description: "좌석" },
+        zones: [{ id: "zone_vip", name: "VIP석", price: 120000, available: 60, color: "#7c68ee" }],
+        seats,
+        nolReference: {
+          zones: [{ id: "nol_vip", name: "VIP석", price: 99000, available: 60, color: "#123456" }],
+          seats: seats.map((seat, index) => ({ ...seat, id: `nol-reference-${index + 1}`, zoneId: "nol_vip", zoneName: "VIP석" }))
+        }
+      }
+    })
+  }));
+  await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });
+
+  // When: the user opens the seat step on a phone-sized viewport.
+  await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
+  const listSeats = page.locator("[data-backend-seat]");
+  await listSeats.first().waitFor({ timeout: 5000 });
+
+  // Then: no seat is hidden behind a preview cap and list targets remain touch-sized.
+  assert.equal(await listSeats.count(), 60);
+  assert.equal(await page.locator("[data-nol-reference-seat]").count(), 60);
+  assert.equal(await page.locator("button[data-nol-reference-seat]").count(), 0);
+  const firstBox = await listSeats.first().boundingBox();
+  assert.ok(firstBox && firstBox.height >= 44, `expected a 44px touch target, received ${firstBox?.height}`);
+});
+
 test("checkout ignores tampered URL amount parameters for a selected backend ticket", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });

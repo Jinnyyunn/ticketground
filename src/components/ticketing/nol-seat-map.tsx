@@ -26,16 +26,19 @@ export function NolSeatMap({
   readonly selectedTicketIds: readonly string[];
 }) {
   const [hovered, setHovered] = useState<ApiSeat | null>(null);
+  const referenceOnly = Boolean(seatMap.nolReference);
+  const displaySeats = seatMap.nolReference?.seats ?? seatMap.seats;
+  const displayZones = seatMap.nolReference?.zones ?? seatMap.zones;
 
   const colorByZone = useMemo(() => {
     const table = new Map<string, string>();
-    seatMap.zones.forEach((zone, index) => {
+    displayZones.forEach((zone, index) => {
       table.set(zone.id, zone.color || FALLBACK_COLORS[index % FALLBACK_COLORS.length]);
     });
     return table;
-  }, [seatMap.zones]);
+  }, [displayZones]);
 
-  const positioned = useMemo(() => seatMap.seats.filter((seat) => seat.mapPosition), [seatMap.seats]);
+  const positioned = useMemo(() => displaySeats.filter((seat) => seat.mapPosition), [displaySeats]);
 
   // API 좌표(posLeft/posTop)는 도면 원본 기준이라 한쪽으로 치우쳐 들어온다.
   // 실제 좌석이 차지하는 영역만 뽑아 뷰포트 가운데로 옮기고, 상단은 STAGE 아래로 밀어준다.
@@ -66,29 +69,31 @@ export function NolSeatMap({
     <div className="min-w-0 rounded-lg border border-line bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-black text-ticketground">좌석 배치도</p>
+          <p className="text-sm font-black text-ticketground">{referenceOnly ? "공연장 참고 좌석도" : "좌석 배치도"}</p>
           <h3 className="balanced-title mt-1 text-xl font-black text-ink">{seatMap.map.title}</h3>
         </div>
         <span className="rounded-full bg-surface px-3 py-1 text-sm font-black text-ink-3">
-          {positioned.length.toLocaleString()}석 · 잔여 {availableCount.toLocaleString()}
+          {referenceOnly ? `${positioned.length.toLocaleString()}석 배치 참고` : `${positioned.length.toLocaleString()}석 · 잔여 ${availableCount.toLocaleString()}`}
         </span>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        {seatMap.zones.map((zone, index) => (
+        {displayZones.map((zone, index) => (
           <span key={zone.id} className="flex items-center gap-1.5 text-sm font-bold text-ink-3">
             <i
               aria-hidden
               className="inline-block size-3 rounded-[2px]"
               style={{ background: zone.color || FALLBACK_COLORS[index % FALLBACK_COLORS.length] }}
             />
-            {zone.name} · {currency(zone.price)} · 잔여 {zone.available}
+            {referenceOnly ? zone.name : `${zone.name} · ${currency(zone.price)} · 잔여 ${zone.available}`}
           </span>
         ))}
-        <span className="flex items-center gap-1.5 text-sm font-bold text-ink-4">
-          <i aria-hidden className="inline-block size-3 rounded-[2px] bg-surface-3" />
-          판매완료
-        </span>
+        {!referenceOnly ? (
+          <span className="flex items-center gap-1.5 text-sm font-bold text-ink-4">
+            <i aria-hidden className="inline-block size-3 rounded-[2px] bg-surface-3" />
+            판매완료
+          </span>
+        ) : null}
       </div>
 
       <div className="relative mt-4 aspect-[4/3] w-full overflow-hidden rounded-md border border-line bg-surface">
@@ -101,6 +106,25 @@ export function NolSeatMap({
         {positioned.map((seat) => {
           const pos = seat.mapPosition!;
           const selected = selectedTicketIds.includes(seat.id);
+          const positionStyle = {
+            left: `${layout.offsetX + pos.x * layout.scale}%`,
+            top: `${layout.offsetY + pos.y * layout.scale}%`,
+            width: `${pos.width * layout.scale}%`,
+            height: `${pos.height * layout.scale}%`,
+            background: seat.available ? colorByZone.get(seat.zoneId) || "#7c68ee" : "var(--color-surface-3, #d8dae0)",
+            opacity: seat.available ? 1 : 0.45,
+          };
+          if (referenceOnly) {
+            return (
+              <span
+                aria-hidden
+                data-nol-reference-seat={seat.id}
+                key={seat.id}
+                className="absolute rounded-[1px]"
+                style={positionStyle}
+              />
+            );
+          }
           return (
             <button
               key={seat.id}
@@ -117,23 +141,18 @@ export function NolSeatMap({
                 seat.available ? "cursor-pointer hover:z-20 hover:scale-[2.2]" : "cursor-not-allowed",
                 selected && "z-10 ring-2 ring-white",
               )}
-              style={{
-                left: `${layout.offsetX + pos.x * layout.scale}%`,
-                top: `${layout.offsetY + pos.y * layout.scale}%`,
-                width: `${pos.width * layout.scale}%`,
-                height: `${pos.height * layout.scale}%`,
-                background: seat.available ? colorByZone.get(seat.zoneId) || "#7c68ee" : "var(--color-surface-3, #d8dae0)",
-                opacity: seat.available ? 1 : 0.45,
-              }}
+              style={positionStyle}
             />
           );
         })}
       </div>
 
       <p className="mt-3 min-h-5 text-sm font-bold text-ink-3">
-        {hovered
+        {referenceOnly
+          ? "참고용 공연장 도면입니다. 실제 구매 좌석은 아래 Ticketground 목록에서 선택하세요."
+          : hovered
           ? `${hovered.displayCode} · ${hovered.zoneName} · ${currency(hovered.price)} · ${hovered.available ? "예매가능" : "판매완료"}`
-          : "좌석에 커서를 올리면 상세 정보가 표시됩니다."}
+          : "좌석에 커서를 올리거나 아래 전체 좌석 목록에서 상세 정보를 확인하세요."}
       </p>
     </div>
   );
