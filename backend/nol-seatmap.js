@@ -49,14 +49,14 @@ export const NOL_VENUE_MAP = {
   venue_kintex_hall_9: { goodsCode: "26004771", placeCode: "26000326", label: "킨텍스 제2전시장 9홀" },
   venue_seoul_arts_center_concert_hall: { goodsCode: "26010230", placeCode: "25001214", label: "예술의전당 콘서트홀" },
   venue_tongyeong_concert_hall: { goodsCode: "26010841", placeCode: "25001704", label: "통영국제음악당 콘서트홀" },
-  venue_daehakro_arts_theater: { goodsCode: "26006189", placeCode: "25000912", label: "대학로 TOM 1관" },
-  venue_myeongdong_theater: { goodsCode: "26005135", placeCode: "22000526", label: "국립극장 해오름극장" }
+  venue_daehakro_arts_theater: { goodsCode: "26006189", placeCode: "25000912", label: "대학로 TOM 1관" }
 };
 
 const META_TTL_MS = 10 * 60 * 1000; // 좌석 좌표/등급은 잘 안 변한다
 const STATUS_TTL_MS = 20 * 1000; // 잔여석은 짧게
 const SEQ_TTL_MS = 10 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 256;
+const BLOCK_FETCH_CONCURRENCY = 4;
 
 const cache = createBoundedTtlCache({ maxEntries: MAX_CACHE_ENTRIES });
 
@@ -66,6 +66,20 @@ function fromCache(key, ttl) {
 
 function putCache(key, value) {
   return cache.set(key, value);
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
 }
 
 async function getJson(url, timeoutMs = 7000) {
@@ -197,14 +211,18 @@ export async function fetchNolSeatMap({ goodsCode, placeCode, playSeq }) {
   const normX = (value) => Number((((value - minX) / spanX) * 96 + 2).toFixed(2));
   const normY = (value) => Number((((value - minY) / spanY) * 96 + 2).toFixed(2));
 
-  const seats = [];
-  const gradeAgg = new Map();
-
-  for (const block of blocks) {
+  const blockPayloads = await mapWithConcurrency(blocks, BLOCK_FETCH_CONCURRENCY, async (block) => {
     const meta = await fetchBlockSeats(goodsCode, placeCode, seq, block.blockKey);
     const bits = USE_LIVE_SEAT_STATUS
       ? await fetchBlockStatus(goodsCode, placeCode, seq, block.blockKey)
       : null;
+    return { block, meta, bits };
+  });
+
+  const seats = [];
+  const gradeAgg = new Map();
+
+  for (const { block, meta, bits } of blockPayloads) {
     meta.forEach((seat, index) => {
       if (!seat.isExposable) return; // 통로/미판매 칸
       const soldOutOnNol = bits ? bits[index] !== "1" : false;

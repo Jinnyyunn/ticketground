@@ -83,7 +83,43 @@ test("unmapped venues retain their own seat map without an external request", as
   assert.strictEqual(result, base);
   assert.equal(nolVenueParams("venue_unmapped"), null);
   assert.equal(nolVenueParams("toString"), null);
+  assert.equal(nolVenueParams("venue_myeongdong_theater"), null);
   assert.equal(fetchCount, 0);
+});
+
+test("block metadata loads concurrently without exceeding the request limit", async (t) => {
+  // Given: more blocks than the bounded metadata concurrency allows at once.
+  const originalFetch = globalThis.fetch;
+  let activeMetadataRequests = 0;
+  let maxActiveMetadataRequests = 0;
+  const blocks = Array.from({ length: 6 }, (_, index) => ({
+    blockKey: `block-${index + 1}`,
+    absoluteLeft: index * 10,
+    absoluteTop: 0,
+    absoluteRight: index * 10 + 10,
+    absoluteBottom: 10
+  }));
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/seats/block-data")) return Response.json(blocks);
+    if (url.includes("/seats/grades")) return Response.json([]);
+    if (url.includes("/seatMeta")) {
+      activeMetadataRequests += 1;
+      maxActiveMetadataRequests = Math.max(maxActiveMetadataRequests, activeMetadataRequests);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      activeMetadataRequests -= 1;
+      return Response.json([{ seats: [] }]);
+    }
+    throw new Error(`unexpected URL: ${url}`);
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  // When: the external reference layout is loaded.
+  await fetchNolSeatMap({ goodsCode: "concurrency-goods", placeCode: "concurrency-place", playSeq: "001" });
+
+  // Then: requests overlap, but the upstream is protected from an unbounded fan-out.
+  assert.ok(maxActiveMetadataRequests > 1);
+  assert.ok(maxActiveMetadataRequests <= 4);
 });
 
 test("default layout loading does not request unused live seat status", async (t) => {
