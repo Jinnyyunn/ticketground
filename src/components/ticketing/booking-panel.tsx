@@ -217,7 +217,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                     {seatMap ? (
                       <NolSeatMap seatMap={seatMap} selectedTicketIds={selectedBackendTicketIds} onSelect={selectBackendSeat} />
                     ) : null}
-                    <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
+                    <BackendSeatPicker key={performanceDateId} seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
                   </div>
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">

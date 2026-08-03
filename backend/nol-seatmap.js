@@ -39,17 +39,13 @@ function traceId() {
 // ticketground venueId -> NOL 공연장(placeCode) + 좌석도면을 읽어올 대표 goodsCode
 // placeCode 는 "좌석 배치" 단위 코드라서 같은 홀도 배치가 다르면 코드가 갈린다.
 export const NOL_VENUE_MAP = {
-  venue_bluesquare: { goodsCode: "26009314", placeCode: "26000011", label: "블루스퀘어 우리은행홀" },
-  venue_bluesquare_shinhan_card_hall: { goodsCode: "26008194", placeCode: "26000641", label: "블루스퀘어 우리WON뱅킹홀" },
-  venue_bluesquare_nemo: { goodsCode: "26008194", placeCode: "26000641", label: "블루스퀘어 우리WON뱅킹홀" },
   venue_lg_arts_center_seoul_lg_signature_hall: { goodsCode: "L0000142", placeCode: "L0000001", label: "LG아트센터 서울 LG SIGNATURE 홀" },
   venue_sejong_grand_theater: { goodsCode: "P0004669", placeCode: "P1001005", label: "세종문화회관 대극장" },
   venue_sejong_center: { goodsCode: "P0004669", placeCode: "P1001005", label: "세종문화회관 대극장" },
   venue_lotte_concert_hall: { goodsCode: "26006406", placeCode: "24000649", label: "롯데콘서트홀" },
   venue_kintex_hall_9: { goodsCode: "26004771", placeCode: "26000326", label: "킨텍스 제2전시장 9홀" },
   venue_seoul_arts_center_concert_hall: { goodsCode: "26010230", placeCode: "25001214", label: "예술의전당 콘서트홀" },
-  venue_tongyeong_concert_hall: { goodsCode: "26010841", placeCode: "25001704", label: "통영국제음악당 콘서트홀" },
-  venue_daehakro_arts_theater: { goodsCode: "26006189", placeCode: "25000912", label: "대학로 TOM 1관" }
+  venue_tongyeong_concert_hall: { goodsCode: "26010841", placeCode: "25001704", label: "통영국제음악당 콘서트홀" }
 };
 
 const META_TTL_MS = 10 * 60 * 1000; // 좌석 좌표/등급은 잘 안 변한다
@@ -208,8 +204,11 @@ export async function fetchNolSeatMap({ goodsCode, placeCode, playSeq }) {
   }
   const spanX = Math.max(maxX - minX, 1);
   const spanY = Math.max(maxY - minY, 1);
-  const normX = (value) => Number((((value - minX) / spanX) * 96 + 2).toFixed(2));
-  const normY = (value) => Number((((value - minY) / spanY) * 96 + 2).toFixed(2));
+  const coordinateScale = 96 / Math.max(spanX, spanY);
+  const offsetX = (100 - spanX * coordinateScale) / 2;
+  const offsetY = (100 - spanY * coordinateScale) / 2;
+  const normX = (value) => Number(((value - minX) * coordinateScale + offsetX).toFixed(2));
+  const normY = (value) => Number(((value - minY) * coordinateScale + offsetY).toFixed(2));
 
   const blockPayloads = await mapWithConcurrency(blocks, BLOCK_FETCH_CONCURRENCY, async (block) => {
     const meta = await fetchBlockSeats(goodsCode, placeCode, seq, block.blockKey);

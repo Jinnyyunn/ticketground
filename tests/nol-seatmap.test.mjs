@@ -83,8 +83,39 @@ test("unmapped venues retain their own seat map without an external request", as
   assert.strictEqual(result, base);
   assert.equal(nolVenueParams("venue_unmapped"), null);
   assert.equal(nolVenueParams("toString"), null);
+  assert.equal(nolVenueParams("venue_bluesquare"), null);
+  assert.equal(nolVenueParams("venue_bluesquare_shinhan_card_hall"), null);
+  assert.equal(nolVenueParams("venue_bluesquare_nemo"), null);
+  assert.equal(nolVenueParams("venue_daehakro_arts_theater"), null);
   assert.equal(nolVenueParams("venue_myeongdong_theater"), null);
   assert.equal(fetchCount, 0);
+});
+
+test("seat coordinates preserve the source layout aspect ratio", async (t) => {
+  // Given: a source hall that is twice as wide as it is tall.
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/seats/block-data")) {
+      return Response.json([{ blockKey: "wide", absoluteLeft: 0, absoluteTop: 0, absoluteRight: 200, absoluteBottom: 100 }]);
+    }
+    if (url.includes("/seats/grades")) return Response.json([]);
+    if (url.includes("/seatMeta")) {
+      return Response.json([{ seats: [
+        { isExposable: true, seatInfoId: "left", seatNo: "1", posLeft: 0, posTop: 0 },
+        { isExposable: true, seatInfoId: "right", seatNo: "2", posLeft: 200, posTop: 100 }
+      ] }]);
+    }
+    throw new Error(`unexpected URL: ${url}`);
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  // When: source coordinates are normalized for the Ticketground frame.
+  const result = await fetchNolSeatMap({ goodsCode: "aspect-goods", placeCode: "aspect-place", playSeq: "001" });
+
+  // Then: both axes use one scale and the shorter axis is centered.
+  assert.deepEqual(result.seats.map((seat) => seat.mapPosition.x), [2, 98]);
+  assert.deepEqual(result.seats.map((seat) => seat.mapPosition.y), [26, 74]);
 });
 
 test("block metadata loads concurrently without exceeding the request limit", async (t) => {

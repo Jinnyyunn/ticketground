@@ -11,6 +11,7 @@ const FALLBACK_COLORS = ["#7c68ee", "#1ca814", "#e0a020", "#e05070", "#20a0c0", 
 const PADDING_X = 4;
 const PADDING_TOP = 16;
 const PADDING_BOTTOM = 4;
+const MAX_RENDERED_MAP_SEATS = 500;
 
 /**
  * 좌석 배치도 API(seatMeta.posLeft/posTop + seatStatus 비트맵)로 내려온 실제 좌표를
@@ -62,6 +63,18 @@ export function NolSeatMap({
   }, [positioned]);
 
   if (positioned.length === 0) return null;
+
+  if (positioned.length > MAX_RENDERED_MAP_SEATS) {
+    return (
+      <div className="min-w-0 rounded-lg border border-line bg-card p-4 sm:p-5" role="status">
+        <p className="text-sm font-black text-ticketground">좌석 배치도</p>
+        <h3 className="balanced-title mt-1 text-xl font-black text-ink">{seatMap.map.title}</h3>
+        <p className="mt-3 text-sm font-bold text-ink-3">
+          {positioned.length.toLocaleString()}석 규모입니다. 대형 공연장은 아래 좌석 목록에서 선택하세요.
+        </p>
+      </div>
+    );
+  }
 
   const availableCount = positioned.filter((seat) => seat.available).length;
 

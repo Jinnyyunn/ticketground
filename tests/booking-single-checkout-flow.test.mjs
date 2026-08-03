@@ -145,6 +145,52 @@ test("mobile booking exposes every available mapped seat through touch-sized lis
   assert.ok(firstBox && firstBox.height >= 44, `expected a 44px touch target, received ${firstBox?.height}`);
 });
 
+test("large seat inventories stay reachable without mounting every seat control", async (t) => {
+  // Given: a performance with more seats than either the map or list should mount at once.
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+  const seats = Array.from({ length: 600 }, (_, index) => ({
+    id: `ticket-large-${index + 1}`,
+    label: String(index + 1),
+    displayCode: `R-${String(index + 1).padStart(3, "0")}`,
+    zoneId: "zone_r",
+    zoneName: "R석",
+    price: 90000,
+    status: "ON_SALE",
+    available: true,
+    mapPosition: { x: 5 + (index % 30) * 3, y: 10 + Math.floor(index / 30) * 4, width: 1.2, height: 1.6, rotate: 0, shape: "actual-map" }
+  }));
+  await page.route("**/api/seat-map?**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      data: {
+        event: { id: "event_c945b7fa842c", title: "레미제라블", venueId: "venue", venue: "공연장" },
+        map: { title: "대형 좌석 배치도", image: "/map.svg", description: "좌석" },
+        zones: [{ id: "zone_r", name: "R석", price: 90000, available: 600, color: "#7c68ee" }],
+        seats
+      }
+    })
+  }));
+  await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });
+
+  // When: the seat step opens and the user advances to the second list page.
+  await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
+  await page.locator("[data-backend-seat]").first().waitFor({ timeout: 5000 });
+
+  // Then: the map avoids hundreds of controls and every list page remains reachable.
+  assert.equal(await page.locator("[data-nol-seat]").count(), 0);
+  await page.getByText("대형 공연장은 아래 좌석 목록에서 선택하세요.").waitFor();
+  assert.equal(await page.locator("[data-backend-seat]").count(), 96);
+  await page.getByRole("button", { name: "다음 좌석 페이지" }).click();
+  await page.locator('[data-backend-seat="ticket-large-97"]').waitFor();
+  assert.equal(await page.locator("[data-backend-seat]").count(), 96);
+});
+
 test("checkout ignores tampered URL amount parameters for a selected backend ticket", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
