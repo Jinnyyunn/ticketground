@@ -153,6 +153,41 @@ test("block metadata loads concurrently without exceeding the request limit", as
   assert.ok(maxActiveMetadataRequests <= 4);
 });
 
+test("concurrent requests share each in-flight NOL cache fill", async (t) => {
+  // Given: multiple callers miss the same cold cache key at the same time.
+  const originalFetch = globalThis.fetch;
+  const requestCounts = new Map();
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    const endpoint = url.includes("/seats/block-data")
+      ? "blocks"
+      : url.includes("/seats/grades")
+        ? "grades"
+        : url.includes("/seatMeta")
+          ? "metadata"
+          : "unexpected";
+    requestCounts.set(endpoint, (requestCounts.get(endpoint) || 0) + 1);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    if (endpoint === "blocks") {
+      return Response.json([{ blockKey: "shared", absoluteLeft: 0, absoluteTop: 0, absoluteRight: 100, absoluteBottom: 100 }]);
+    }
+    if (endpoint === "grades") return Response.json([]);
+    if (endpoint === "metadata") return Response.json([{ seats: [] }]);
+    throw new Error(`unexpected URL: ${url}`);
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  // When: ten callers request the same reference layout concurrently.
+  await Promise.all(Array.from({ length: 10 }, () => fetchNolSeatMap({
+    goodsCode: "shared-goods",
+    placeCode: "shared-place",
+    playSeq: "001"
+  })));
+
+  // Then: every external cache key is filled by one shared request.
+  assert.deepEqual(Object.fromEntries(requestCounts), { blocks: 1, grades: 1, metadata: 1 });
+});
+
 test("default layout loading does not request unused live seat status", async (t) => {
   // Given: deterministic NOL block, grade, and seat metadata responses.
   const requestedUrls = [];

@@ -55,6 +55,7 @@ const MAX_CACHE_ENTRIES = 256;
 const BLOCK_FETCH_CONCURRENCY = 4;
 
 const cache = createBoundedTtlCache({ maxEntries: MAX_CACHE_ENTRIES });
+const inFlightLoads = new Map();
 
 function fromCache(key, ttl) {
   return cache.get(key, ttl);
@@ -62,6 +63,21 @@ function fromCache(key, ttl) {
 
 function putCache(key, value) {
   return cache.set(key, value);
+}
+
+async function loadCached(key, ttl, loader) {
+  const cached = fromCache(key, ttl);
+  if (cached !== null) return cached;
+
+  const existing = inFlightLoads.get(key);
+  if (existing) return existing;
+
+  const pending = Promise.resolve()
+    .then(loader)
+    .then((value) => putCache(key, value))
+    .finally(() => inFlightLoads.delete(key));
+  inFlightLoads.set(key, pending);
+  return pending;
 }
 
 async function mapWithConcurrency(items, limit, worker) {
@@ -112,72 +128,71 @@ function toDate(stamp) {
 // 회차(playSeq)는 상시 바뀐다. 지금 판매중인 회차를 골라 캐시한다.
 export async function resolvePlaySeq(goodsCode, placeCode) {
   const key = `seq:${goodsCode}:${placeCode}`;
-  const cached = fromCache(key, SEQ_TTL_MS);
-  if (cached) return cached;
+  return loadCached(key, SEQ_TTL_MS, async () => {
+    const url = `${GATE}/goods-info?bizCode=${BIZ_CODE}&goodsCode=${goodsCode}&lang=ko&passCode=&placeCode=${placeCode}&nc=${Date.now()}`;
+    const info = await getJson(url);
+    const now = new Date();
+    const list = Array.isArray(info.playSeqList) ? info.playSeqList : [];
+    const sellable = list.filter((item) => {
+      const open = toDate(item.saleOpenTime);
+      const close = toDate(item.saleCloseTime);
+      return open && close && open <= now && now <= close;
+    });
+    const picked = sellable[0] || list[list.length - 1];
+    if (!picked) throw new Error("NOL_NO_PLAY_SEQ");
 
-  const url = `${GATE}/goods-info?bizCode=${BIZ_CODE}&goodsCode=${goodsCode}&lang=ko&passCode=&placeCode=${placeCode}&nc=${Date.now()}`;
-  const info = await getJson(url);
-  const now = new Date();
-  const list = Array.isArray(info.playSeqList) ? info.playSeqList : [];
-  const sellable = list.filter((item) => {
-    const open = toDate(item.saleOpenTime);
-    const close = toDate(item.saleCloseTime);
-    return open && close && open <= now && now <= close;
-  });
-  const picked = sellable[0] || list[list.length - 1];
-  if (!picked) throw new Error("NOL_NO_PLAY_SEQ");
-
-  return putCache(key, {
-    playSeq: picked.playSeq,
-    playDate: picked.playDate,
-    playTime: picked.playTime,
-    placeName: info.placeName,
-    goodsName: info.goodsName,
-    sellableCount: sellable.length
+    return {
+      playSeq: picked.playSeq,
+      playDate: picked.playDate,
+      playTime: picked.playTime,
+      placeName: info.placeName,
+      goodsName: info.goodsName,
+      sellableCount: sellable.length
+    };
   });
 }
 
 async function fetchGrades(goodsCode, placeCode, playSeq) {
   const key = `grades:${goodsCode}:${placeCode}:${playSeq}`;
-  const cached = fromCache(key, STATUS_TTL_MS);
-  if (cached) return cached;
-  try {
-    const rows = await getJson(
-      `${ONESTOP}/seats/grades?goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}&bizCode=${BIZ_CODE}`
-    );
-    return putCache(key, Array.isArray(rows) ? rows : []);
-  } catch {
-    // 레거시(B계열) 공연장은 grades 가 500 을 내려주기도 한다. seatMeta 로 대체 집계한다.
-    return putCache(key, []);
-  }
+  return loadCached(key, STATUS_TTL_MS, async () => {
+    try {
+      const rows = await getJson(
+        `${ONESTOP}/seats/grades?goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}&bizCode=${BIZ_CODE}`
+      );
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      // 레거시(B계열) 공연장은 grades 가 500 을 내려주기도 한다. seatMeta 로 대체 집계한다.
+      return [];
+    }
+  });
 }
 
 async function fetchBlocks(goodsCode, placeCode, playSeq) {
   const key = `blocks:${goodsCode}:${placeCode}:${playSeq}`;
-  const cached = fromCache(key, META_TTL_MS);
-  if (cached) return cached;
-  const rows = await getJson(
-    `${ONESTOP}/seats/block-data?goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}`
-  );
-  return putCache(key, Array.isArray(rows) ? rows : []);
+  return loadCached(key, META_TTL_MS, async () => {
+    const rows = await getJson(
+      `${ONESTOP}/seats/block-data?goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}`
+    );
+    return Array.isArray(rows) ? rows : [];
+  });
 }
 
 async function fetchBlockSeats(goodsCode, placeCode, playSeq, blockKey) {
   const key = `meta:${goodsCode}:${placeCode}:${playSeq}:${blockKey}`;
-  const cached = fromCache(key, META_TTL_MS);
-  if (cached) return cached;
-  const query = `goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}&bizCode=${BIZ_CODE}&blockKeys=${encodeURIComponent(blockKey)}`;
-  const rows = await getJson(`${ONESTOP}/seatMeta?${query}`);
-  return putCache(key, rows?.[0]?.seats || []);
+  return loadCached(key, META_TTL_MS, async () => {
+    const query = `goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}&bizCode=${BIZ_CODE}&blockKeys=${encodeURIComponent(blockKey)}`;
+    const rows = await getJson(`${ONESTOP}/seatMeta?${query}`);
+    return rows?.[0]?.seats || [];
+  });
 }
 
 async function fetchBlockStatus(goodsCode, placeCode, playSeq, blockKey) {
   const key = `status:${goodsCode}:${placeCode}:${playSeq}:${blockKey}`;
-  const cached = fromCache(key, STATUS_TTL_MS);
-  if (cached) return cached;
-  const query = `goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}&bizCode=${BIZ_CODE}&blockKeys=${encodeURIComponent(blockKey)}`;
-  const body = await getJson(`${ONESTOP}/seatStatus?${query}`);
-  return putCache(key, toBits(body?.data?.[0]));
+  return loadCached(key, STATUS_TTL_MS, async () => {
+    const query = `goodsCode=${goodsCode}&placeCode=${placeCode}&playSeq=${playSeq}&bizCode=${BIZ_CODE}&blockKeys=${encodeURIComponent(blockKey)}`;
+    const body = await getJson(`${ONESTOP}/seatStatus?${query}`);
+    return toBits(body?.data?.[0]);
+  });
 }
 
 /**
