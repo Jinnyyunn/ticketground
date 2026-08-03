@@ -30,12 +30,14 @@ export function BackendSeatPicker({
             data-backend-seat={seat.id}
             onClick={() => onSelect(seat.id)}
             className={cn(
-              "flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-sm border px-4 py-3 text-left text-sm font-bold transition focus-visible:ring-3 focus-visible:ring-ring/40 sm:min-h-12",
+              "flex min-h-11 min-w-0 flex-col items-start justify-center gap-0.5 overflow-hidden rounded-sm border px-4 py-2.5 text-left text-sm font-bold transition focus-visible:ring-3 focus-visible:ring-ring/40 sm:min-h-12",
               selectedTicketIds.includes(seat.id) ? "border-ink bg-ink text-on-ink" : "border-line bg-surface text-ink hover:border-line-strong",
             )}
           >
-            <span className="shrink-0 text-base font-black">{seat.displayCode}</span>
-            <span className="min-w-0 whitespace-nowrap text-right opacity-75">{seat.zoneName} · {currency(seat.price)}</span>
+            <span className="w-full truncate text-base font-black leading-tight">{seat.displayCode}</span>
+            <span className="w-full truncate text-sm leading-tight opacity-75">
+              {seat.zoneName} · {currency(seat.price)}
+            </span>
           </button>
         ))}
         {seats.length === 0 && <p className="text-sm font-bold text-ink-3">선택 가능한 좌석이 없습니다.</p>}

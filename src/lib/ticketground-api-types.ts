@@ -92,6 +92,15 @@ export type ApiState = {
   };
 };
 
+export type ApiSeatMapPosition = {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly rotate: number;
+  readonly shape: string;
+};
+
 export type ApiSeat = {
   readonly id: string;
   readonly label: string;
@@ -101,6 +110,8 @@ export type ApiSeat = {
   readonly price: number;
   readonly status: string;
   readonly available: boolean;
+  /** 좌석 배치도 좌표(0~100 정규화). 배치도 API가 붙은 공연장에서만 내려온다. */
+  readonly mapPosition?: ApiSeatMapPosition;
 };
 
 export type ApiSeatMap = {
@@ -120,6 +131,7 @@ export type ApiSeatMap = {
     readonly name: string;
     readonly price: number;
     readonly available: number;
+    readonly color?: string | null;
   }[];
   readonly seats: readonly ApiSeat[];
 };

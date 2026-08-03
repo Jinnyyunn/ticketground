@@ -54,6 +54,8 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_DEMO_PROFILE_API: "1",
       TIG_DEMO_SUPPORT_API: "1",
       TIG_DEMO_WATCHLIST_API: "1",
+      // 좌석 배치도는 NOL 실 API를 호출하므로 테스트에서는 mock 좌석맵을 유지한다.
+      TIG_NOL_SEATMAP: "0",
       TIG_SECRET: "backend-test-runtime-secret",
       ...env
     },

@@ -8,6 +8,7 @@ import { currency } from "@/data/ticketing";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";
+import { NolSeatMap } from "./nol-seat-map";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
 
@@ -212,7 +213,12 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               </div>
               <div className="mt-5 min-w-0">
                 {useBackendSeatMap ? (
-                  <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
+                  <div className="grid gap-4">
+                    {seatMap ? (
+                      <NolSeatMap seatMap={seatMap} selectedTicketIds={selectedBackendTicketIds} onSelect={selectBackendSeat} />
+                    ) : null}
+                    <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
+                  </div>
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
                     {seatMapStatus}

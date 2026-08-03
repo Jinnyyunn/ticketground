@@ -1,4 +1,5 @@
 import { consumeNativeAuthHandoff } from "./native-auth-handoff.js";
+import { applyNolSeatMap } from "./nol-seatmap.js";
 import { publicSessionUser } from "./session-user.js";
 
 export function createApiRouter({
@@ -311,14 +312,26 @@ async function handleApi(req, res, db, surface) {
     return supportThreadForUser(db, userId);
   }
   if (req.method === "GET" && url.pathname === "/api/seat-map") {
-    return seatMap(db, {
+    const base = seatMap(db, {
       category: url.searchParams.get("category"),
       venueId: url.searchParams.get("venueId"),
       eventId: url.searchParams.get("eventId"),
       performanceDateId: url.searchParams.get("performanceDateId")
     });
+    // 좌석 배치도만 NOL 티켓 실데이터로 교체한다. 실패하면 기존 mock 그대로.
+    if (url.searchParams.get("source") === "mock") return base;
+    return applyNolSeatMap(base, {
+      venueId: url.searchParams.get("venueId") || base?.event?.venueId,
+      goodsCode: url.searchParams.get("goodsCode"),
+      placeCode: url.searchParams.get("placeCode"),
+      playSeq: url.searchParams.get("playSeq")
+    });
   }
-  if (req.method === "GET" && seatMapMatch) return venueMapForEvent(db, decodeURIComponent(seatMapMatch[1]));
+  if (req.method === "GET" && seatMapMatch) {
+    const base = venueMapForEvent(db, decodeURIComponent(seatMapMatch[1]));
+    if (url.searchParams.get("source") === "mock") return base;
+    return applyNolSeatMap(base, { venueId: base?.event?.venueId || base?.venueId });
+  }
 
   if (req.method === "POST" && url.pathname === "/api/support/threads") {
     requireDemoSupportAPI();
