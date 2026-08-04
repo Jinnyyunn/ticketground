@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
+import { VenueSeatMap } from "./venue-seat-map";
 
 const serviceFeePerSeat = 2000;
 const maxSelectableSeats = 2;
@@ -79,7 +80,10 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     };
   }, [backendEventId, performanceDateId]);
 
-  const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
+  // Stable across the once-a-second timer re-render so VenueSeatMap (wrapped in
+  // React.memo) doesn't reconcile its marker set every tick.
+  const availableBackendSeats = useMemo(() => seatMap?.seats.filter((seat) => seat.available) ?? [], [seatMap]);
+  const backendSeats = useMemo(() => availableBackendSeats.slice(0, 48), [availableBackendSeats]);
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
@@ -210,9 +214,17 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 </div>
                 <p className="text-sm font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
               </div>
-              <div className="mt-5 min-w-0">
-                {useBackendSeatMap ? (
-                  <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
+              <div className="mt-5 min-w-0 space-y-4">
+                {useBackendSeatMap && seatMap ? (
+                  <>
+                    <VenueSeatMap
+                      mapImage={seatMap.map.image}
+                      mapTitle={seatMap.map.title}
+                      seats={availableBackendSeats}
+                      selectedTicketIds={selectedBackendTicketIds}
+                    />
+                    <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
+                  </>
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
                     {seatMapStatus}

@@ -24,10 +24,10 @@ function adminVenueRecord(venue) {
   const mapByVenue = {
     venue_kspo_dome: {
       category: "concert",
-      mapId: "jamsil-indoor",
-      mapTitle: "잠실 실내체육관 도면",
-      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
-      description: "원형 실내 공연장 좌석 배치도입니다."
+      mapId: "kspo-dome-arena",
+      mapTitle: "KSPO Dome 좌석도",
+      mapImage: "/assets/generic-arena-floor.svg",
+      description: "원형 실내 공연장 좌석 배치 개략도입니다. 실제 도면과 다를 수 있습니다."
     },
     venue_jamsil_olympic: {
       category: "sports",
@@ -38,10 +38,10 @@ function adminVenueRecord(venue) {
     },
     venue_nanjipark: {
       category: "concert",
-      mapId: "jamsil-aux-field",
-      mapTitle: "잠실 보조 경기장 도면",
-      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
-      description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치도입니다."
+      mapId: "nanjipark-festival-field",
+      mapTitle: "난지한강공원 좌석도",
+      mapImage: "/assets/generic-arena-floor.svg",
+      description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치 개략도입니다. 실제 도면과 다를 수 있습니다."
     },
     venue_bluesquare: {
       category: "musical",
@@ -51,14 +51,39 @@ function adminVenueRecord(venue) {
       description: "블루스퀘어 1층·2층·3층 도면 기반 극장형 좌석 배치도입니다."
     }
   };
+  // Venues without a dedicated entry above (the 17 legacy-catalog venues in
+  // catalog-data.js) fall back by map.type instead of all sharing the
+  // Olympic-stadium image regardless of whether they're actually a theater.
+  // Both fallbacks use venue-neutral schematics rather than the two real
+  // photos above (bluesquare-floor-1.png, jamsil-olympic-main-stadium.svg) —
+  // those depict one specific venue's actual seating geometry (row counts,
+  // gate numbers, field shape), and reusing either under a different venue's
+  // name would misrepresent that venue's real layout.
+  const mapByType = {
+    theater: {
+      category: "musical",
+      mapId: "theater-floor",
+      mapTitle: `${venue.name} 좌석도`,
+      mapImage: "/assets/generic-theater-floor.svg",
+      description: `${venue.name} 극장형 좌석 배치 개략도입니다. 실제 도면과 다를 수 있습니다.`
+    },
+    arena: {
+      category: "concert",
+      mapId: "arena-floor",
+      mapTitle: `${venue.name} 도면`,
+      mapImage: "/assets/generic-arena-floor.svg",
+      description: `${venue.name} 좌석 배치 개략도입니다. 실제 도면과 다를 수 있습니다.`
+    }
+  };
+  const entry = mapByVenue[venue.id] || mapByType[venue.map?.type];
   return {
     id: venue.id,
     name: venue.name,
-    category: mapByVenue[venue.id]?.category || venue.map?.type || "concert",
-    mapId: mapByVenue[venue.id]?.mapId || venue.map?.type || venue.id,
-    mapTitle: mapByVenue[venue.id]?.mapTitle || venue.map?.imageSource || `${venue.name} 도면`,
-    mapImage: mapByVenue[venue.id]?.mapImage || venue.map?.imageUrl || "/assets/jamsil-olympic-main-stadium.svg",
-    description: mapByVenue[venue.id]?.description || venue.map?.helper || `${venue.name} 좌석 배치도입니다.`
+    category: entry?.category || venue.map?.type || "concert",
+    mapId: entry?.mapId || venue.map?.type || venue.id,
+    mapTitle: entry?.mapTitle || venue.map?.imageSource || `${venue.name} 도면`,
+    mapImage: entry?.mapImage || venue.map?.imageUrl || "/assets/jamsil-olympic-main-stadium.svg",
+    description: entry?.description || venue.map?.helper || `${venue.name} 좌석 배치도입니다.`
   };
 }
 
