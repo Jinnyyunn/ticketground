@@ -54,10 +54,11 @@ function adminVenueRecord(venue) {
   // Venues without a dedicated entry above (the 17 legacy-catalog venues in
   // catalog-data.js) fall back by map.type instead of all sharing the
   // Olympic-stadium image regardless of whether they're actually a theater.
-  // The theater fallback uses a venue-neutral schematic rather than
-  // bluesquare-floor-1.png — that PNG is Blue Square's actual floor plan
-  // (its real row count and gate numbering), and reusing it under another
-  // venue's name would misrepresent that venue's real seating geometry.
+  // Both fallbacks use venue-neutral schematics rather than the two real
+  // photos above (bluesquare-floor-1.png, jamsil-olympic-main-stadium.svg) —
+  // those depict one specific venue's actual seating geometry (row counts,
+  // gate numbers, field shape), and reusing either under a different venue's
+  // name would misrepresent that venue's real layout.
   const mapByType = {
     theater: {
       category: "musical",
@@ -70,8 +71,8 @@ function adminVenueRecord(venue) {
       category: "concert",
       mapId: "arena-floor",
       mapTitle: `${venue.name} 도면`,
-      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
-      description: `${venue.name} 좌석 배치도입니다.`
+      mapImage: "/assets/generic-arena-floor.svg",
+      description: `${venue.name} 좌석 배치 개략도입니다. 실제 도면과 다를 수 있습니다.`
     }
   };
   const entry = mapByVenue[venue.id] || mapByType[venue.map?.type];
