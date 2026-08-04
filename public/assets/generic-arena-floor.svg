@@ -20,10 +20,6 @@
   <ellipse cx="600" cy="360" rx="330" ry="166" fill="#ffffff" stroke="#d9b800" stroke-width="8" stroke-dasharray="18 12" />
   <rect x="430" y="280" width="340" height="170" rx="26" fill="url(#stage)" stroke="#0f6f41" stroke-width="6" />
   <g fill="#171717" font-family="Arial, sans-serif" font-weight="800" text-anchor="middle">
-    <text x="600" y="120" font-size="30">S 상단 관람석</text>
-    <text x="240" y="250" font-size="26">R 좌측</text>
-    <text x="960" y="250" font-size="26">R 우측</text>
-    <text x="600" y="616" font-size="28">VIP 플로어</text>
     <text x="600" y="372" fill="#ffffff" font-size="30">STAGE</text>
   </g>
   <g fill="none" stroke="#94a3b8" stroke-width="2" opacity="0.65">

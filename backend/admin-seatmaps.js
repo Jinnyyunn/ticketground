@@ -24,10 +24,10 @@ function adminVenueRecord(venue) {
   const mapByVenue = {
     venue_kspo_dome: {
       category: "concert",
-      mapId: "jamsil-indoor",
-      mapTitle: "잠실 실내체육관 도면",
-      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
-      description: "원형 실내 공연장 좌석 배치도입니다."
+      mapId: "kspo-dome-arena",
+      mapTitle: "KSPO Dome 좌석도",
+      mapImage: "/assets/generic-arena-floor.svg",
+      description: "원형 실내 공연장 좌석 배치 개략도입니다. 실제 도면과 다를 수 있습니다."
     },
     venue_jamsil_olympic: {
       category: "sports",
@@ -38,10 +38,10 @@ function adminVenueRecord(venue) {
     },
     venue_nanjipark: {
       category: "concert",
-      mapId: "jamsil-aux-field",
-      mapTitle: "잠실 보조 경기장 도면",
-      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
-      description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치도입니다."
+      mapId: "nanjipark-festival-field",
+      mapTitle: "난지한강공원 좌석도",
+      mapImage: "/assets/generic-arena-floor.svg",
+      description: "야외 페스티벌형 스탠딩 및 피크닉 구역 배치 개략도입니다. 실제 도면과 다를 수 있습니다."
     },
     venue_bluesquare: {
       category: "musical",
