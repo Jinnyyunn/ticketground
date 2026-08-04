@@ -80,8 +80,10 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     };
   }, [backendEventId, performanceDateId]);
 
-  const availableBackendSeats = seatMap?.seats.filter((seat) => seat.available) ?? [];
-  const backendSeats = availableBackendSeats.slice(0, 48);
+  // Stable across the once-a-second timer re-render so VenueSeatMap (wrapped in
+  // React.memo) doesn't reconcile its marker set every tick.
+  const availableBackendSeats = useMemo(() => seatMap?.seats.filter((seat) => seat.available) ?? [], [seatMap]);
+  const backendSeats = useMemo(() => availableBackendSeats.slice(0, 48), [availableBackendSeats]);
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");

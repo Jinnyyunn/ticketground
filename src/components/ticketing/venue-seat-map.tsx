@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { ApiSeat } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,12 @@ const zonePalette = [
 
 const fallbackAspectRatio = 4 / 3;
 
+// Admin events can carry up to 10,000 tickets (maxArrayItems.ticketCandidates
+// in backend/admin-event-content.js), so the marker set is capped per zone —
+// otherwise a large event renders one DOM node per ticket, and the booking
+// timer's once-a-second re-render would keep reconciling all of them.
+const maxMarkersPerZone = 24;
+
 // Assigned per the zones actually displayed (not hashed) so two zones shown
 // together never collide onto the same palette slot.
 function buildZoneMarkerStyles(zoneIds: readonly string[]): Record<string, string> {
@@ -55,7 +61,35 @@ function buildZoneMarkerStyles(zoneIds: readonly string[]): Record<string, strin
   return styles;
 }
 
-export function VenueSeatMap({
+// Evenly samples up to maxMarkersPerZone seats per zone so every zone stays
+// visually represented on the map regardless of how large it is, while always
+// keeping any already-selected seat visible even if sampling would drop it.
+function sampleMarkerSeats(seats: readonly ApiSeat[], selectedTicketIds: readonly string[]): readonly ApiSeat[] {
+  const byZone = new Map<string, ApiSeat[]>();
+  for (const seat of seats) {
+    const zoneSeats = byZone.get(seat.zoneId);
+    if (zoneSeats) zoneSeats.push(seat);
+    else byZone.set(seat.zoneId, [seat]);
+  }
+  const sampled = new Map<string, ApiSeat>();
+  for (const zoneSeats of byZone.values()) {
+    if (zoneSeats.length <= maxMarkersPerZone) {
+      for (const seat of zoneSeats) sampled.set(seat.id, seat);
+      continue;
+    }
+    const step = zoneSeats.length / maxMarkersPerZone;
+    for (let index = 0; index < maxMarkersPerZone; index += 1) {
+      const seat = zoneSeats[Math.floor(index * step)];
+      sampled.set(seat.id, seat);
+    }
+  }
+  for (const seat of seats) {
+    if (selectedTicketIds.includes(seat.id)) sampled.set(seat.id, seat);
+  }
+  return Array.from(sampled.values());
+}
+
+function VenueSeatMapComponent({
   mapImage,
   mapTitle,
   seats,
@@ -70,6 +104,10 @@ export function VenueSeatMap({
   const positionedSeats = useMemo(() => seats.filter((seat) => seat.mapPosition), [seats]);
   const zoneIds = useMemo(() => Array.from(new Set(positionedSeats.map((seat) => seat.zoneId))), [positionedSeats]);
   const zoneMarkerStyles = useMemo(() => buildZoneMarkerStyles(zoneIds), [zoneIds]);
+  const markerSeats = useMemo(
+    () => sampleMarkerSeats(positionedSeats, selectedTicketIds),
+    [positionedSeats, selectedTicketIds],
+  );
 
   if (positionedSeats.length === 0) return null;
 
@@ -94,7 +132,7 @@ export function VenueSeatMap({
               if (naturalWidth > 0 && naturalHeight > 0) setAspectRatio(naturalWidth / naturalHeight);
             }}
           />
-          {positionedSeats.map((seat) => {
+          {markerSeats.map((seat) => {
             const position = seat.mapPosition!;
             const picked = selectedTicketIds.includes(seat.id);
             return (
@@ -128,3 +166,5 @@ export function VenueSeatMap({
     </div>
   );
 }
+
+export const VenueSeatMap = memo(VenueSeatMapComponent);
