@@ -219,7 +219,6 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                       mapTitle={seatMap.map.title}
                       seats={backendSeats}
                       selectedTicketIds={selectedBackendTicketIds}
-                      onSelect={selectBackendSeat}
                     />
                     <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
                   </>

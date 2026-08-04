@@ -43,13 +43,11 @@ function buildZoneMarkerStyles(zoneIds: readonly string[]): Record<string, strin
 export function VenueSeatMap({
   mapImage,
   mapTitle,
-  onSelect,
   seats,
   selectedTicketIds,
 }: {
   readonly mapImage: string;
   readonly mapTitle: string;
-  readonly onSelect: (ticketId: string) => void;
   readonly seats: readonly ApiSeat[];
   readonly selectedTicketIds: readonly string[];
 }) {
@@ -85,16 +83,13 @@ export function VenueSeatMap({
             const position = seat.mapPosition!;
             const picked = selectedTicketIds.includes(seat.id);
             return (
-              <button
+              <span
                 key={seat.id}
-                type="button"
+                aria-hidden="true"
                 data-venue-seat-marker={seat.id}
-                tabIndex={-1}
-                aria-label={`${seat.zoneName} ${seat.displayCode}`}
-                onClick={() => onSelect(seat.id)}
                 style={{ left: `${position.x}%`, top: `${position.y}%` }}
                 className={cn(
-                  "absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-sm transition hover:z-10 hover:scale-150 sm:size-3",
+                  "absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-sm sm:size-3",
                   picked ? "z-10 scale-150 border-ink bg-ink" : zoneMarkerStyles[seat.zoneId],
                 )}
               />
@@ -102,7 +97,7 @@ export function VenueSeatMap({
           })}
         </div>
       </div>
-      <p className="mt-3 text-sm font-bold text-ink-3">지도는 실제 좌석 위치를 표시합니다. 좌석 선택은 아래 목록에서 진행하세요.</p>
+      <p className="mt-3 text-sm font-bold text-ink-3">이 지도는 구역별 대략적인 위치를 보여주는 개략도이며, 실제 좌석 배치와 다를 수 있습니다. 좌석 선택은 아래 목록에서 진행하세요.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold" aria-label="구역 범례">
         {zoneIds.map((zoneId) => {
