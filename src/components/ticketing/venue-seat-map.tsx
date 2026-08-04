@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ApiSeat } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 
@@ -22,14 +22,22 @@ const zonePalette = [
   "bg-amber-500 border-amber-600",
 ];
 
-function hashZoneId(zoneId: string) {
-  let hash = 0;
-  for (let index = 0; index < zoneId.length; index += 1) hash = (hash * 31 + zoneId.charCodeAt(index)) >>> 0;
-  return hash;
-}
+const fallbackAspectRatio = 4 / 3;
 
-function zoneMarkerStyle(zoneId: string) {
-  return zoneTierStyles[zoneId] ?? zonePalette[hashZoneId(zoneId) % zonePalette.length];
+// Assigned per the zones actually displayed (not hashed) so two zones shown
+// together never collide onto the same palette slot.
+function buildZoneMarkerStyles(zoneIds: readonly string[]): Record<string, string> {
+  const styles: Record<string, string> = {};
+  let paletteIndex = 0;
+  for (const zoneId of zoneIds) {
+    if (zoneTierStyles[zoneId]) {
+      styles[zoneId] = zoneTierStyles[zoneId];
+      continue;
+    }
+    styles[zoneId] = zonePalette[paletteIndex % zonePalette.length];
+    paletteIndex += 1;
+  }
+  return styles;
 }
 
 export function VenueSeatMap({
@@ -45,8 +53,10 @@ export function VenueSeatMap({
   readonly seats: readonly ApiSeat[];
   readonly selectedTicketIds: readonly string[];
 }) {
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const positionedSeats = useMemo(() => seats.filter((seat) => seat.mapPosition), [seats]);
   const zoneIds = useMemo(() => Array.from(new Set(positionedSeats.map((seat) => seat.zoneId))), [positionedSeats]);
+  const zoneMarkerStyles = useMemo(() => buildZoneMarkerStyles(zoneIds), [zoneIds]);
 
   if (positionedSeats.length === 0) return null;
 
@@ -56,8 +66,21 @@ export function VenueSeatMap({
       <h3 className="balanced-title mt-1 text-xl font-black text-ink">{mapTitle}</h3>
 
       <div className="no-scrollbar mt-4 overflow-x-auto pb-2">
-        <div className="relative mx-auto aspect-[4/3] w-full min-w-[520px] max-w-[720px] overflow-hidden rounded-lg border border-line bg-surface-3">
-          <Image alt={mapTitle} className="object-contain opacity-70" fill sizes="(min-width: 1024px) 640px, 100vw" src={mapImage} />
+        <div
+          className="relative mx-auto w-full min-w-[520px] max-w-[720px] overflow-hidden rounded-lg border border-line bg-surface-3"
+          style={{ aspectRatio: aspectRatio ?? fallbackAspectRatio }}
+        >
+          <Image
+            alt={mapTitle}
+            className="object-contain opacity-70"
+            fill
+            sizes="(min-width: 1024px) 640px, 100vw"
+            src={mapImage}
+            onLoad={(event) => {
+              const { naturalWidth, naturalHeight } = event.currentTarget;
+              if (naturalWidth > 0 && naturalHeight > 0) setAspectRatio(naturalWidth / naturalHeight);
+            }}
+          />
           {positionedSeats.map((seat) => {
             const position = seat.mapPosition!;
             const picked = selectedTicketIds.includes(seat.id);
@@ -72,7 +95,7 @@ export function VenueSeatMap({
                 style={{ left: `${position.x}%`, top: `${position.y}%` }}
                 className={cn(
                   "absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-sm transition hover:z-10 hover:scale-150 sm:size-3",
-                  picked ? "z-10 scale-150 border-ink bg-ink" : zoneMarkerStyle(seat.zoneId),
+                  picked ? "z-10 scale-150 border-ink bg-ink" : zoneMarkerStyles[seat.zoneId],
                 )}
               />
             );
@@ -86,7 +109,7 @@ export function VenueSeatMap({
           const zoneName = positionedSeats.find((seat) => seat.zoneId === zoneId)?.zoneName ?? zoneId;
           return (
             <span key={zoneId} className="inline-flex items-center gap-2">
-              <span className={cn("size-3 rounded-full border", zoneMarkerStyle(zoneId))} />
+              <span className={cn("size-3 rounded-full border", zoneMarkerStyles[zoneId])} />
               {zoneName}
             </span>
           );
