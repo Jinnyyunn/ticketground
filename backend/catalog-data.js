@@ -93,6 +93,29 @@ function arenaVenueBlueprint(id, name, address) {
   };
 }
 
+// Indoor proscenium theaters and concert halls (musicals, plays, classical) —
+// distinct from arenaVenueBlueprint so admin-seatmaps.js can route them to
+// the real theater floor-plan asset instead of the open-field arena diagram.
+function theaterVenueBlueprint(id, name, address) {
+  return {
+    id,
+    name,
+    address,
+    map: {
+      type: "theater",
+      imageUrl: "",
+      imageSource: "Ticketground 기본 극장 도면",
+      stage: "PROSCENIUM STAGE",
+      helper: `${name} 기본 극장형 좌석 배치도`,
+      labels: [
+        { text: "VIP ORCHESTRA", x: 50, y: 40 },
+        { text: "R MEZZANINE", x: 50, y: 58 },
+        { text: "S BALCONY", x: 50, y: 75 }
+      ]
+    }
+  };
+}
+
 export function venueBlueprints() {
   return [
     {
@@ -165,22 +188,22 @@ export function venueBlueprints() {
       }
     },
     arenaVenueBlueprint("venue_jamsil_sports_complex_main_stadium", "잠실종합운동장 주경기장", "서울특별시 송파구 올림픽로 25"),
-    arenaVenueBlueprint("venue_lg_arts_center_seoul_lg_signature_hall", "LG아트센터 서울 LG SIGNATURE 홀", "서울특별시 강서구 마곡중앙로 136"),
-    arenaVenueBlueprint("venue_sejong_grand_theater", "세종문화회관 대극장", "서울특별시 종로구 세종대로 175"),
+    theaterVenueBlueprint("venue_lg_arts_center_seoul_lg_signature_hall", "LG아트센터 서울 LG SIGNATURE 홀", "서울특별시 강서구 마곡중앙로 136"),
+    theaterVenueBlueprint("venue_sejong_grand_theater", "세종문화회관 대극장", "서울특별시 종로구 세종대로 175"),
     arenaVenueBlueprint("venue_kintex_hall_9", "KINTEX HALL 9", "경기도 고양시 일산서구 킨텍스로 217-60"),
-    arenaVenueBlueprint("venue_myeongdong_theater", "명동예술극장", "서울특별시 중구 명동길 35"),
-    arenaVenueBlueprint("venue_seoul_arts_center_concert_hall", "예술의전당 콘서트홀", "서울특별시 서초구 남부순환로 2406"),
+    theaterVenueBlueprint("venue_myeongdong_theater", "명동예술극장", "서울특별시 중구 명동길 35"),
+    theaterVenueBlueprint("venue_seoul_arts_center_concert_hall", "예술의전당 콘서트홀", "서울특별시 서초구 남부순환로 2406"),
     arenaVenueBlueprint("venue_thehyundai_seoul_alt1", "더현대서울 6층 ALT.1", "서울특별시 영등포구 여의대로 108"),
     arenaVenueBlueprint("venue_bluesquare_nemo", "한남동 블루스퀘어 NEMO", "서울특별시 용산구 이태원로 294"),
     arenaVenueBlueprint("venue_gocheok_sky_dome", "고척스카이돔", "서울특별시 구로구 경인로 430"),
-    arenaVenueBlueprint("venue_charlotte_theater", "샤롯데씨어터", "서울특별시 송파구 올림픽로 240"),
+    theaterVenueBlueprint("venue_charlotte_theater", "샤롯데씨어터", "서울특별시 송파구 올림픽로 240"),
     arenaVenueBlueprint("venue_kspo_dome_catalog", "KSPO DOME", "서울특별시 송파구 올림픽로 424"),
-    arenaVenueBlueprint("venue_lotte_concert_hall", "롯데콘서트홀", "서울특별시 송파구 올림픽로 300"),
-    arenaVenueBlueprint("venue_sejong_center", "세종문화회관", "서울특별시 종로구 세종대로 175"),
+    theaterVenueBlueprint("venue_lotte_concert_hall", "롯데콘서트홀", "서울특별시 송파구 올림픽로 300"),
+    theaterVenueBlueprint("venue_sejong_center", "세종문화회관", "서울특별시 종로구 세종대로 175"),
     arenaVenueBlueprint("venue_inspire_arena", "인스파이어 아레나", "인천광역시 중구 공항문화로 127"),
-    arenaVenueBlueprint("venue_tongyeong_concert_hall", "통영국제음악당", "경상남도 통영시 큰발개1길 38"),
-    arenaVenueBlueprint("venue_daehakro_arts_theater", "대학로예술극장", "서울특별시 종로구 대학로10길 17"),
-    arenaVenueBlueprint("venue_bluesquare_shinhan_card_hall", "블루스퀘어 신한카드홀", "서울특별시 용산구 이태원로 294")
+    theaterVenueBlueprint("venue_tongyeong_concert_hall", "통영국제음악당", "경상남도 통영시 큰발개1길 38"),
+    theaterVenueBlueprint("venue_daehakro_arts_theater", "대학로예술극장", "서울특별시 종로구 대학로10길 17"),
+    theaterVenueBlueprint("venue_bluesquare_shinhan_card_hall", "블루스퀘어 신한카드홀", "서울특별시 용산구 이태원로 294")
   ];
 }
 

@@ -51,14 +51,34 @@ function adminVenueRecord(venue) {
       description: "블루스퀘어 1층·2층·3층 도면 기반 극장형 좌석 배치도입니다."
     }
   };
+  // Venues without a dedicated entry above (the 17 legacy-catalog venues in
+  // catalog-data.js) fall back by map.type instead of all sharing the
+  // Olympic-stadium image regardless of whether they're actually a theater.
+  const mapByType = {
+    theater: {
+      category: "musical",
+      mapId: "theater-floor",
+      mapTitle: `${venue.name} 좌석도`,
+      mapImage: "/assets/seatmaps/bluesquare-floor-1.png",
+      description: `${venue.name} 극장형 좌석 배치도입니다.`
+    },
+    arena: {
+      category: "concert",
+      mapId: "arena-floor",
+      mapTitle: `${venue.name} 도면`,
+      mapImage: "/assets/jamsil-olympic-main-stadium.svg",
+      description: `${venue.name} 좌석 배치도입니다.`
+    }
+  };
+  const entry = mapByVenue[venue.id] || mapByType[venue.map?.type];
   return {
     id: venue.id,
     name: venue.name,
-    category: mapByVenue[venue.id]?.category || venue.map?.type || "concert",
-    mapId: mapByVenue[venue.id]?.mapId || venue.map?.type || venue.id,
-    mapTitle: mapByVenue[venue.id]?.mapTitle || venue.map?.imageSource || `${venue.name} 도면`,
-    mapImage: mapByVenue[venue.id]?.mapImage || venue.map?.imageUrl || "/assets/jamsil-olympic-main-stadium.svg",
-    description: mapByVenue[venue.id]?.description || venue.map?.helper || `${venue.name} 좌석 배치도입니다.`
+    category: entry?.category || venue.map?.type || "concert",
+    mapId: entry?.mapId || venue.map?.type || venue.id,
+    mapTitle: entry?.mapTitle || venue.map?.imageSource || `${venue.name} 도면`,
+    mapImage: entry?.mapImage || venue.map?.imageUrl || "/assets/jamsil-olympic-main-stadium.svg",
+    description: entry?.description || venue.map?.helper || `${venue.name} 좌석 배치도입니다.`
   };
 }
 
