@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">공연장 좌석 개략도</title>
+  <desc id="desc">특정 공연장의 실제 도면이 아닌, 구역 구성을 보여주는 일반화된 극장형 좌석 개략도입니다.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#f9fbff" />
+      <stop offset="1" stop-color="#fff8d8" />
+    </linearGradient>
+    <linearGradient id="stageGrad" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#2fb66d" />
+      <stop offset="1" stop-color="#15874d" />
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#1f2937" flood-opacity="0.16" />
+    </filter>
+  </defs>
+  <rect width="1200" height="900" rx="36" fill="url(#bg)" />
+
+  <rect x="330" y="70" width="540" height="120" rx="18" fill="url(#stageGrad)" stroke="#0f6f41" stroke-width="6" filter="url(#softShadow)" />
+  <text x="600" y="138" fill="#ffffff" font-family="Arial, sans-serif" font-weight="800" font-size="32" text-anchor="middle">STAGE</text>
+
+  <path d="M240 260 L960 260 L1040 470 L160 470 Z" fill="#ffffff" stroke="#d6dce8" stroke-width="10" opacity="0.95" filter="url(#softShadow)" />
+  <path d="M160 490 L1040 490 L1110 660 L90 660 Z" fill="#f1f4f8" stroke="#c8d1df" stroke-width="10" />
+  <path d="M90 680 Q600 830 1110 680 L1110 760 Q600 900 90 760 Z" fill="#ffffff" stroke="#d9b800" stroke-width="8" stroke-dasharray="18 12" />
+
+  <g fill="#171717" font-family="Arial, sans-serif" font-weight="800" text-anchor="middle">
+    <text x="600" y="375" font-size="30">ORCHESTRA</text>
+    <text x="600" y="585" font-size="28">MEZZANINE</text>
+    <text x="600" y="800" font-size="26">BALCONY</text>
+  </g>
+</svg>
