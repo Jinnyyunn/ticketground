@@ -80,7 +80,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     };
   }, [backendEventId, performanceDateId]);
 
-  const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
+  const availableBackendSeats = seatMap?.seats.filter((seat) => seat.available) ?? [];
+  const backendSeats = availableBackendSeats.slice(0, 48);
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
@@ -217,7 +218,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                     <VenueSeatMap
                       mapImage={seatMap.map.image}
                       mapTitle={seatMap.map.title}
-                      seats={backendSeats}
+                      seats={availableBackendSeats}
                       selectedTicketIds={selectedBackendTicketIds}
                     />
                     <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
