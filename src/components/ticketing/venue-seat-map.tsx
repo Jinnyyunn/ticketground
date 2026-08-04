@@ -13,10 +13,12 @@ const zoneTierStyles: Record<string, string> = {
 
 // Admin events allow up to 20 price zones (maxArrayItems.prices in
 // backend/admin-event-content.js), so this needs one distinct entry per
-// supported zone to never wrap back onto an earlier color.
+// supported zone to never wrap back onto an earlier color. Tailwind's
+// orange-500 (#f97316) is excluded because it's the exact dark-mode fill of
+// --tier-r (theme-vars.css), which would make a custom zone assigned that
+// slot indistinguishable from an R-tier zone in dark mode.
 const zonePalette = [
   "bg-red-500 border-red-600",
-  "bg-orange-500 border-orange-600",
   "bg-amber-500 border-amber-600",
   "bg-yellow-500 border-yellow-600",
   "bg-lime-500 border-lime-600",
@@ -35,6 +37,7 @@ const zonePalette = [
   "bg-slate-500 border-slate-600",
   "bg-zinc-500 border-zinc-600",
   "bg-stone-500 border-stone-600",
+  "bg-gray-500 border-gray-600",
 ];
 
 const fallbackAspectRatio = 4 / 3;
