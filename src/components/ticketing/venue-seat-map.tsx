@@ -11,15 +11,30 @@ const zoneTierStyles: Record<string, string> = {
   zone_s: "bg-tier-s border-tier-s",
 };
 
+// Admin events allow up to 20 price zones (maxArrayItems.prices in
+// backend/admin-event-content.js), so this needs one distinct entry per
+// supported zone to never wrap back onto an earlier color.
 const zonePalette = [
-  "bg-violet-500 border-violet-600",
-  "bg-fuchsia-500 border-fuchsia-600",
-  "bg-cyan-500 border-cyan-600",
-  "bg-lime-500 border-lime-600",
-  "bg-rose-500 border-rose-600",
-  "bg-teal-500 border-teal-600",
-  "bg-indigo-500 border-indigo-600",
+  "bg-red-500 border-red-600",
+  "bg-orange-500 border-orange-600",
   "bg-amber-500 border-amber-600",
+  "bg-yellow-500 border-yellow-600",
+  "bg-lime-500 border-lime-600",
+  "bg-green-500 border-green-600",
+  "bg-emerald-500 border-emerald-600",
+  "bg-teal-500 border-teal-600",
+  "bg-cyan-500 border-cyan-600",
+  "bg-sky-500 border-sky-600",
+  "bg-blue-500 border-blue-600",
+  "bg-indigo-500 border-indigo-600",
+  "bg-violet-500 border-violet-600",
+  "bg-purple-500 border-purple-600",
+  "bg-fuchsia-500 border-fuchsia-600",
+  "bg-pink-500 border-pink-600",
+  "bg-rose-500 border-rose-600",
+  "bg-slate-500 border-slate-600",
+  "bg-zinc-500 border-zinc-600",
+  "bg-stone-500 border-stone-600",
 ];
 
 const fallbackAspectRatio = 4 / 3;
