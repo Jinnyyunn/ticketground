@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
+import { VenueSeatMap } from "./venue-seat-map";
 
 const serviceFeePerSeat = 2000;
 const maxSelectableSeats = 2;
@@ -82,6 +83,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
+  const hasVenueSeatPositions = backendSeats.every((seat) => seat.mapPosition);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
   const selectedCount = selectedBackendSeats.length;
   const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
@@ -211,7 +213,16 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 <p className="text-sm font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
               </div>
               <div className="mt-5 min-w-0">
-                {useBackendSeatMap ? (
+                {useBackendSeatMap && hasVenueSeatPositions && seatMap ? (
+                  <VenueSeatMap
+                    mapImage={seatMap.map.image}
+                    mapTitle={seatMap.map.title}
+                    seats={backendSeats}
+                    selectedTicketIds={selectedBackendTicketIds}
+                    status={seatMapStatus}
+                    onSelect={selectBackendSeat}
+                  />
+                ) : useBackendSeatMap ? (
                   <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">

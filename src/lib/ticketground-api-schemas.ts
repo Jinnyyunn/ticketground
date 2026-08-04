@@ -11,6 +11,7 @@ import type {
   ApiResaleResult,
   ApiSeat,
   ApiSeatMap,
+  ApiSeatMapPosition,
   ApiSession,
   ApiState,
   ApiSupportThread,
@@ -107,6 +108,15 @@ export const apiStateSchema = z.object({
   }),
 }) satisfies ZodType<ApiState>;
 
+export const apiSeatMapPositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+  rotate: z.number(),
+  shape: z.string(),
+}) satisfies ZodType<ApiSeatMapPosition>;
+
 export const apiSeatSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -116,6 +126,7 @@ export const apiSeatSchema = z.object({
   price: z.number(),
   status: z.string(),
   available: z.boolean(),
+  mapPosition: apiSeatMapPositionSchema.optional(),
 }) satisfies ZodType<ApiSeat>;
 
 export const apiSeatMapSchema = z.object({
