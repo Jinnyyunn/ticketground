@@ -1354,7 +1354,8 @@ private struct LiveCatalogDetailView: View {
             TicketgroundMediaImage(
                 resource: container.environment.apiClient.resolveResource(event.image),
                 role: .poster,
-                accessibilityLabel: "\(event.title) 포스터"
+                accessibilityLabel: "\(event.title) 포스터",
+                accessibilitySuffix: "live-detail"
             )
             .frame(maxWidth: .infinity)
             .frame(height: 320)
@@ -1592,6 +1593,7 @@ private struct LiveSeatMapContent: View {
                 resource: container.environment.apiClient.resolveResource(seatMap.map.image),
                 role: .seatMap,
                 accessibilityLabel: "\(seatMap.map.title) 좌석 배치도",
+                accessibilitySuffix: "live-seat-map",
                 contentMode: .fit
             )
             .frame(maxWidth: .infinity)

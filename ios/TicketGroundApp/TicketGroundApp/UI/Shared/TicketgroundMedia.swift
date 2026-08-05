@@ -405,6 +405,7 @@ struct TicketgroundMediaImage: View {
     let resource: String?
     let role: TicketgroundMediaRole
     let accessibilityLabel: String
+    var accessibilitySuffix: String? = nil
     var contentMode: ContentMode = .fill
 
     @State private var phase: RemotePhase = .loading
@@ -527,13 +528,14 @@ struct TicketgroundMediaImage: View {
     }
 
     private var currentIdentifier: String {
+        let suffix = accessibilitySuffix.map { "-\($0)" } ?? ""
         if isFallback {
-            return "media-fallback-\(role.identifier)"
+            return "media-fallback-\(role.identifier)\(suffix)"
         }
         if loadableSource != nil, case .loading = phase {
-            return "media-loading-\(role.identifier)"
+            return "media-loading-\(role.identifier)\(suffix)"
         }
-        return "media-\(role.identifier)"
+        return "media-\(role.identifier)\(suffix)"
     }
 
     private var currentAccessibilityLabel: String {
