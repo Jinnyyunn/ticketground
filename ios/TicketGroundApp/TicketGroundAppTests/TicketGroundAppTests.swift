@@ -480,6 +480,10 @@ final class TicketGroundAppTests: XCTestCase {
         }
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
         XCTAssertEqual(payload, ["provider": "kakao", "code": "one-use-code"])
+
+        try await client.logout()
+        XCTAssertNil(sessionStore.current)
+        XCTAssertEqual(apiClient.revokedSessions.count, 1)
     }
 
     func testSocialNativeExchangeMapsProviderMismatchWithoutPersisting() async {

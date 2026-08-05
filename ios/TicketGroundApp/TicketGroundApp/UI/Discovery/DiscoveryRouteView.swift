@@ -487,7 +487,15 @@ struct DiscoveryMenuView: View {
                             }
                             Spacer(minLength: TicketgroundSpacing.sm)
                             Button("로그아웃") {
-                                container.environment.sessionStore.logout()
+                                // 로그인 제공자(Google/Kakao/Naver)와 무관하게 서버 세션부터
+                                // 무효화한 뒤 로컬 자격증명을 지운다 — 기기 탈취·유출 시
+                                // credential이 만료 전까지 계속 유효한 채로 남지 않도록 한다.
+                                let sessionStore = container.environment.sessionStore
+                                let apiClient = container.environment.apiClient
+                                Task {
+                                    try? await apiClient.revokeNativeSession(session)
+                                    sessionStore.logout()
+                                }
                             }
                             .font(.caption.weight(.bold))
                             .foregroundStyle(TicketgroundColor.ink)
