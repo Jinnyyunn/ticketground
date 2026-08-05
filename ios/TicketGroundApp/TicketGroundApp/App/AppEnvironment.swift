@@ -968,6 +968,11 @@ final class AppContainer {
         navigationPath.removeAll()
     }
 
+    func applyPublicURL(_ url: URL) {
+        guard let route = RouteResolver.resolve(url) else { return }
+        navigationPath = route == .home ? [] : [route]
+    }
+
     static func fixture(credentialStore: CredentialStore = InMemoryCredentialStore()) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: credentialStore)
         return AppContainer(environment: AppEnvironment(
@@ -1283,7 +1288,9 @@ private final class UITestLiveHomeAPIClient: APIClient {
     }
 
     private var event: String {
-        let image = scenario == .catalogMediaFallback ? ",\"image\":\"https://127.0.0.1:1/catalog-poster.png\"" : ""
+        let image = scenario == .catalogMediaFallback
+            ? ",\"image\":\"https://127.0.0.1:1/catalog-poster.png\""
+            : ",\"image\":\"GoogleG\""
         return "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}]\(image),\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
     }
 

@@ -1157,13 +1157,12 @@ private struct LiveMenuRouteView: View {
 
                 menuSection(title: "계정", detail: "로그인과 관심공연을 관리하세요") {
                     liveMenuLink(title: "로그인", icon: "person", route: .login, identifier: "live-menu-login")
-                    NavigationLink {
-                        LiveAccountRouteView()
-                    } label: {
-                        liveMenuRow(title: "마이페이지", icon: "person.crop.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("live-menu-account")
+                    liveMenuLink(
+                        title: "마이페이지",
+                        icon: "person.crop.circle",
+                        route: .mypage,
+                        identifier: "live-menu-account"
+                    )
                     liveMenuLink(title: "관심공연", icon: "heart", route: .watchlist, identifier: "live-menu-watchlist")
                 }
 
@@ -1450,10 +1449,30 @@ private struct LiveCatalogEventRow: View {
     }
 }
 
+enum LiveSeatMapFailurePresentation: Equatable {
+    case unavailable
+    case retry(PublicReadPresentation)
+
+    static func resolve(_ error: Error) -> LiveSeatMapFailurePresentation {
+        guard let apiError = error as? APIClientError else {
+            return .retry(PublicReadPresentation.resolve(error))
+        }
+        switch apiError {
+        case .capabilityUnavailable(endpoint: .seatMap, state: _):
+            return .unavailable
+        case .server(let status, _, _) where [404, 405, 501].contains(status):
+            return .unavailable
+        default:
+            return .retry(PublicReadPresentation.resolve(apiError))
+        }
+    }
+}
+
 private enum LiveSeatMapRouteState {
     case loading
     case loaded(LiveSeatMap)
-    case failed(String)
+    case unavailable
+    case failed(PublicReadPresentation)
 }
 
 private struct LiveSeatMapRouteView: View {
@@ -1502,10 +1521,12 @@ private struct LiveSeatMapRouteView: View {
                 case .loading:
                     TicketgroundLoadingSurface(title: "좌석 현황 불러오는 중")
                         .accessibilityIdentifier("live-seat-map-loading")
-                case .failed(let message):
+                case .unavailable:
+                    LiveSeatMapUnavailableView()
+                case .failed(let presentation):
                     TicketgroundErrorSurface(
-                        title: "좌석 현황을 표시할 수 없습니다",
-                        message: message,
+                        title: presentation.title,
+                        message: presentation.message,
                         actionTitle: "다시 시도",
                         action: retry
                     )
@@ -1533,7 +1554,7 @@ private struct LiveSeatMapRouteView: View {
             guard !Task.isCancelled else { return }
             catalogState = .loaded(catalog)
             guard let event = event(in: catalog) else {
-                seatMapState = .failed("요청한 공연이 GET /api/catalog 결과에 없습니다.")
+                seatMapState = .unavailable
                 return
             }
             _ = try await service.diagnoseSeatMap(eventID: event.id)
@@ -1544,7 +1565,12 @@ private struct LiveSeatMapRouteView: View {
             return
         } catch {
             if case .loaded = catalogState {
-                seatMapState = .failed("GET /api/seat-map?eventId=... 요청에 실패했습니다: \(error.localizedDescription)")
+                switch LiveSeatMapFailurePresentation.resolve(error) {
+                case .unavailable:
+                    seatMapState = .unavailable
+                case .retry(let presentation):
+                    seatMapState = .failed(presentation)
+                }
             } else if error as? APIClientError == .capabilityUnavailable(endpoint: .catalog, state: .unknown) {
                 catalogState = .unavailable
             } else {
@@ -1568,6 +1594,36 @@ private struct LiveSeatMapRouteView: View {
 
     private func routeTitle(for catalog: LiveCatalog) -> String {
         event(in: catalog)?.title ?? "LIVE 좌석 현황"
+    }
+}
+
+private struct LiveSeatMapUnavailableView: View {
+    @Environment(AppContainer.self) private var container
+
+    var body: some View {
+        TicketgroundSurface {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+                Label("좌석 현황을 제공하지 않습니다", systemImage: "square.grid.3x3")
+                    .font(.headline.weight(.black))
+                Text("이 공연의 공개 좌석 조회 계약이 확인되지 않았습니다.")
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+
+                Button("홈으로") {
+                    container.navigationPath.removeAll()
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("live-seat-map-unavailable-home")
+
+                NavigationLink(value: AppRoute.capabilityLedger) {
+                    Label("서비스 연결 현황 확인", systemImage: "checklist")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(TicketgroundColor.accent)
+                .accessibilityIdentifier("live-seat-map-unavailable-capability-ledger")
+            }
+        }
+        .accessibilityIdentifier("live-seat-map-unavailable")
     }
 }
 
@@ -1608,7 +1664,6 @@ private struct LiveSeatMapContent: View {
                     HStack(alignment: .firstTextBaseline) {
                         Text(zone.name)
                             .font(.subheadline.weight(.bold))
-                            .accessibilityIdentifier("live-seat-zone")
                         Spacer()
                         Text("\(zone.available)석 가능")
                             .font(.subheadline.weight(.semibold))
@@ -1620,6 +1675,9 @@ private struct LiveSeatMapContent: View {
                     .padding(TicketgroundSpacing.md)
                     .background(TicketgroundColor.surfaceMuted)
                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("live-seat-zone-\(zone.id)")
+                    .accessibilityLabel("\(zone.name), \(zone.available)석 가능, \(formatPrice(zone.price))")
                 }
             }
 
@@ -1641,6 +1699,10 @@ private struct LiveSeatMapContent: View {
                             .foregroundStyle(seat.available ? TicketgroundColor.success : TicketgroundColor.inkMuted)
                     }
                     .padding(.vertical, TicketgroundSpacing.xs)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("live-seat-\(seat.id)")
+                    .accessibilityLabel("\(seat.displayCode.isEmpty ? seat.label : seat.displayCode), \(seat.zoneName)")
+                    .accessibilityValue(seat.available ? "선택 가능" : "\(seat.status) · 선택 불가")
                 }
             }
         }

@@ -247,6 +247,67 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertNil(RouteResolver.resolve(path: "/contents/genre/"))
     }
 
+    func testOpenURLGivesGoogleCallbackPriority() {
+        let container = AppContainer.fixture()
+        container.navigationPath = [.menu]
+        let callbackURL = URL(string: "ticketground:///event/neon-stage")!
+        var receivedCallbackURL: URL?
+
+        TicketGroundApp.handleOpenURL(callbackURL, container: container) { url in
+            receivedCallbackURL = url
+            return true
+        }
+
+        XCTAssertEqual(receivedCallbackURL, callbackURL)
+        XCTAssertEqual(container.navigationPath, [.menu])
+    }
+
+    func testOpenURLAppliesTypedPublicRouteAfterGoogleDeclines() {
+        let container = AppContainer.fixture()
+        container.navigationPath = [.menu]
+        let publicURL = URL(string: "ticketground:///event/neon-stage")!
+
+        TicketGroundApp.handleOpenURL(publicURL, container: container) { _ in false }
+
+        XCTAssertEqual(container.navigationPath, [.event(slug: "neon-stage")])
+    }
+
+    func testOpenURLLeavesNavigationUnchangedForUnsupportedRoute() {
+        let container = AppContainer.fixture()
+        container.navigationPath = [.menu]
+        let unsupportedURL = URL(string: "ticketground:///admin")!
+
+        TicketGroundApp.handleOpenURL(unsupportedURL, container: container) { _ in false }
+
+        XCTAssertEqual(container.navigationPath, [.menu])
+    }
+
+    func testSeatMapCapabilityFailureUsesUnavailablePresentation() {
+        let presentation = LiveSeatMapFailurePresentation.resolve(
+            APIClientError.capabilityUnavailable(endpoint: .seatMap, state: .unknown)
+        )
+
+        XCTAssertEqual(presentation, .unavailable)
+    }
+
+    func testMissingSeatMapRouteUsesUnavailablePresentation() {
+        let presentation = LiveSeatMapFailurePresentation.resolve(
+            APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "not found")
+        )
+
+        XCTAssertEqual(presentation, .unavailable)
+    }
+
+    func testTransientSeatMapFailureKeepsRetryPresentation() {
+        let presentation = LiveSeatMapFailurePresentation.resolve(
+            APIClientError.requestFailed(code: URLError.notConnectedToInternet.rawValue)
+        )
+
+        guard case .retry = presentation else {
+            return XCTFail("Expected retry presentation")
+        }
+    }
+
     func testLiveAPIClientUnwrapsBackendEnvelope() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveAPIURLProtocol.self]
