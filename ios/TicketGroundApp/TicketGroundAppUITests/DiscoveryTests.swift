@@ -322,7 +322,6 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(app, identifier: "live-seat-performance-selector").exists)
-        XCTAssertTrue(app.staticTexts["R석"].waitForExistence(timeout: 10))
         let zone = anyElement(app, identifier: "live-seat-zone-R")
         XCTAssertTrue(zone.waitForExistence(timeout: 10))
         XCTAssertEqual(zone.label, "R석, 12석 가능, 88,000원")
@@ -374,7 +373,7 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["live-seat-map-link"].tap()
         XCTAssertTrue(anyElement(app, identifier: "media-fallback-seat-map-live-seat-map").waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["R석"].waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(app, identifier: "live-seat-zone-R").waitForExistence(timeout: 10))
     }
 
     func testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes() {
