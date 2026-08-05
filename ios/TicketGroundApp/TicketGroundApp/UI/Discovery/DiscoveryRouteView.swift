@@ -3188,6 +3188,7 @@ private enum LiveSupportState {
 }
 
 private struct LiveUnsupportedRouteView: View {
+    @Environment(AppContainer.self) private var container
     let route: AppRoute
 
     var body: some View {
@@ -3209,6 +3210,20 @@ private struct LiveUnsupportedRouteView: View {
                     .background(TicketgroundColor.surfaceMuted)
                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
                     .accessibilityIdentifier("live-unsupported-route")
+
+                Button("홈으로") {
+                    container.navigationPath.removeAll()
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("live-unsupported-home")
+
+                NavigationLink(value: AppRoute.capabilityLedger) {
+                    Label("서비스 연결 현황 확인", systemImage: "checklist")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(TicketgroundColor.accent)
+                .accessibilityIdentifier("live-unsupported-capability-ledger")
             }
             .padding(TicketgroundSpacing.xl)
         }
@@ -3222,6 +3237,8 @@ private struct LiveUnsupportedRouteView: View {
         case .resale: return "티켓 양도 · 지원 보류"
         case .transfer: return "티켓 전송 · 지원 보류"
         case .cancel: return "예매 취소 · 지원 보류"
+        case .queue: return "대기열 · 지원 보류"
+        case .booking: return "예매 · 지원 보류"
         case .checkout: return "결제 · 지원 보류"
         case .reservation: return "예약 · 지원 보류"
         case .artist: return "아티스트 · 지원 보류"
@@ -3235,7 +3252,7 @@ private struct LiveUnsupportedRouteView: View {
         switch route {
         case .signup:
             return "회원가입 POST endpoint가 LiveBackendService에 없어 계정을 만들지 않습니다."
-        case .resale, .transfer, .cancel, .checkout, .reservation:
+        case .queue, .booking, .resale, .transfer, .cancel, .checkout, .reservation:
             return "해당 거래/예약 mutation 또는 조회 endpoint가 현재 공개 backend contract에 없어 작업을 실행하지 않습니다."
         case .artist:
             return "아티스트 전용 공개 GET endpoint가 현재 확인되지 않아 catalog에 포함된 공연만 표시할 수 있습니다."
