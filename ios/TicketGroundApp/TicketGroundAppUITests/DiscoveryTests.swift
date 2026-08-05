@@ -330,16 +330,20 @@ final class DiscoveryTests: XCTestCase {
         let app = liveApp(homeScenario: "catalogMediaFallback")
         app.launch()
 
-        XCTAssertTrue(anyElement(app, identifier: "media-fallback-featured").waitForExistence(timeout: 15))
-        XCTAssertTrue(anyElement(app, identifier: "media-fallback-poster").waitForExistence(timeout: 15))
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-featured-home-featured").waitForExistence(timeout: 15))
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-poster-home-ranking-1").waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
 
         app.buttons["discovery-featured-cta"].tap()
-        XCTAssertTrue(anyElement(app, identifier: "media-fallback-poster").waitForExistence(timeout: 15))
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-poster-live-detail").waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["live-catalog-event"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["live-catalog-event"].label, "Neon Stage")
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
 
         app.buttons["live-seat-map-link"].tap()
-        XCTAssertTrue(anyElement(app, identifier: "media-fallback-seat-map").waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].exists)
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-seat-map-live-seat-map").waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["R석"].waitForExistence(timeout: 10))
     }
 
     func testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes() {

@@ -28,7 +28,7 @@ struct DiscoveryRankingSection: View {
                     NavigationLink(value: item.route) {
                         VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
                             ZStack(alignment: .topLeading) {
-                                DiscoveryRankingPoster(imageResource: item.imageResource, title: item.title)
+                                DiscoveryRankingPoster(imageResource: item.imageResource, title: item.title, rank: item.rank)
                                 Text("\(item.rank)")
                                     .font(.title3.weight(.black))
                                     .foregroundStyle(.white)
@@ -76,12 +76,14 @@ struct DiscoveryRankingSection: View {
 struct DiscoveryRankingPoster: View {
     let imageResource: String?
     let title: String
+    let rank: Int
 
     var body: some View {
         TicketgroundMediaImage(
             resource: imageResource,
             role: .poster,
-            accessibilityLabel: "\(title) 포스터"
+            accessibilityLabel: "\(title) 포스터",
+            accessibilitySuffix: "home-ranking-\(rank)"
         )
         .frame(width: 120, height: 156)
         .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
