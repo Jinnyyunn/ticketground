@@ -60,8 +60,19 @@ export function ChartSeatMap({
                   strokeWidth={isSelected ? 1.5 : 0.5}
                   opacity={seat.sold ? 0.55 : 1}
                   className={cn(seat.sold ? "cursor-not-allowed" : "cursor-pointer")}
+                  role="button"
+                  tabIndex={seat.sold ? -1 : 0}
+                  aria-disabled={seat.sold}
+                  aria-label={`${seat.displayLabel} · ${seat.price.toLocaleString("ko-KR")}원`}
+                  aria-pressed={isSelected}
                   onClick={() => {
                     if (!seat.sold) onToggleSeat(seat);
+                  }}
+                  onKeyDown={(event) => {
+                    if (!seat.sold && (event.key === "Enter" || event.key === " ")) {
+                      event.preventDefault();
+                      onToggleSeat(seat);
+                    }
                   }}
                 >
                   <title>

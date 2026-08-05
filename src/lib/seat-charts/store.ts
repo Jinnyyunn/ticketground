@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ChartDocument } from "@/types/seat-chart";
 import { countPlaces } from "@/lib/seat-designer/chart-ops";
 import type { SeatChartRecord, SeatChartSummary } from "./types";
+import { selectPublishedChartForShow } from "./published-chart-selection";
 
 const STORE_DIR = path.join(process.cwd(), "data", "seat-charts");
 
@@ -98,20 +99,8 @@ export async function publishSeatChart(
 
 export async function getPublishedChartForShow(slug: string): Promise<SeatChartRecord | null> {
   const all = await listSeatCharts();
-  // Prefer published + bound to slug
-  for (const summary of all) {
-    if (!summary.published) continue;
-    if (!summary.boundShowSlugs.includes(slug)) continue;
-    const full = await getSeatChart(summary.id);
-    if (full) return full;
-  }
-  // Fallback: any published chart (first)
-  for (const summary of all) {
-    if (!summary.published) continue;
-    const full = await getSeatChart(summary.id);
-    if (full) return full;
-  }
-  return null;
+  const summary = selectPublishedChartForShow(all, slug);
+  return summary ? getSeatChart(summary.id) : null;
 }
 
 function toSummary(rec: SeatChartRecord): SeatChartSummary {

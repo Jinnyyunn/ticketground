@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { OverlayImage, VenueType } from "@/types/seat-chart";
 import { normalizeOverlay } from "@/lib/seat-designer/chart-ops";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
-import { listBindableShows } from "@/lib/seat-charts/shows";
+import { listBindableShows, type BindableShow } from "@/lib/seat-charts/shows";
 
 function pickImage(onDone: (dataUrl: string) => void) {
   const input = document.createElement("input");
@@ -26,11 +27,28 @@ function defaultOverlay(href: string): OverlayImage {
 
 export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
   const { state, dispatch, updateChartMeta } = api;
+  const [showOptions, setShowOptions] = useState<readonly BindableShow[]>([]);
+  const [showOptionsError, setShowOptionsError] = useState("");
+
+  useEffect(() => {
+    if (!state.chartSettingsOpen) return;
+    let cancelled = false;
+    void listBindableShows()
+      .then((shows) => {
+        if (!cancelled) setShowOptions(shows);
+      })
+      .catch(() => {
+        if (!cancelled) setShowOptionsError("공연 목록을 불러오지 못했습니다.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.chartSettingsOpen]);
+
   if (!state.chartSettingsOpen) return null;
   const chart = state.chart;
   const bg = normalizeOverlay(chart.backgroundImage);
   const ref = chart.referenceChart;
-  const showOptions = listBindableShows();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -70,6 +88,7 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               );
             })}
           </div>
+          {showOptionsError && <p className="text-[12px] text-red-600">{showOptionsError}</p>}
           {state.boundShowSlugs.length === 0 && (
             <p className="text-[12px] text-amber-600">공연을 하나 이상 연결하세요. 미연결 시 게시해도 예매에 자동 연결되지 않을 수 있습니다.</p>
           )}
@@ -317,4 +336,3 @@ export function FirstTimeTutorial({ api }: { readonly api: SeatEditorApi }) {
     </div>
   );
 }
-

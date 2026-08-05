@@ -80,7 +80,7 @@ export function SeatDesigner() {
     >
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-black/5 bg-[#111] px-3 text-[12px] text-white/80">
         <div className="flex items-center gap-3">
-          <Link href="/admin" className="font-semibold text-white hover:text-white/90">
+          <Link href="/console" className="font-semibold text-white hover:text-white/90">
             Ticketground<span className="ml-0.5 text-[#ff2d3f]">●</span>
           </Link>
           <span className="text-white/40">/</span>
