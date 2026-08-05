@@ -24,9 +24,14 @@ enum DiscoveryFixtureLoader {
         let service = LiveBackendService(apiClient: apiClient)
         let probe = try await service.diagnosePublicContract()
         if probe.capabilities.state(for: .catalog) == .available {
-            let catalog = try await service.getCatalog()
-            guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
-            return .catalog(try map(catalog.events, using: apiClient))
+            do {
+                let catalog = try await service.getCatalog()
+                guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
+                return .catalog(try map(catalog.events, using: apiClient))
+            } catch {
+                guard probe.capabilities.state(for: .state) == .available else { throw error }
+                return .stateOnly(try await service.getState())
+            }
         }
         if probe.capabilities.state(for: .state) == .available {
             return .stateOnly(try await service.getState())

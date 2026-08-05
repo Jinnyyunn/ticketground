@@ -6,7 +6,7 @@ final class LiveBackendService {
     private let decoder: JSONDecoder
     private let contract: LiveAPIContract
     private var capabilities: LiveCapabilityMap
-    private var diagnosedVersionlessState: LiveState?
+    private var diagnosedState: LiveState?
     private var seatMapAdmission: LiveSeatMapAdmission?
     private var diagnosedSeatMap: LiveSeatMap?
 
@@ -37,6 +37,10 @@ final class LiveBackendService {
             as: LiveAPIHealth.self
         )
         guard let version = health.version, !version.isEmpty else {
+            capabilities = contract.capabilityMap(
+                for: apiClient.baseURL ?? contract.publicHost,
+                observedResponseVersion: nil
+            )
             return try await diagnoseVersionlessState()
         }
         capabilities = contract.capabilityMap(
@@ -53,18 +57,18 @@ final class LiveBackendService {
             )
         }
 
-        _ = try await get(
-            APIRequest(path: "/api/catalog", query: [APIRequestQuery(name: "limit", value: "1")]),
-            endpoint: .catalog,
-            bypassCapability: true,
-            as: LiveCatalog.self
-        )
-        let discoveryRoutesConfirmed = await probeDiscoveryContract()
+        diagnosedState = await probeState()
+        var provenPublicEndpoints = await probeDiscoveryContract()
+        if diagnosedState != nil {
+            provenPublicEndpoints.insert(.state)
+        }
+        if await probeCatalog() {
+            provenPublicEndpoints.insert(.catalog)
+        }
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
-            provenPublicEndpoints: [.catalog],
-            discoveryRoutesConfirmed: discoveryRoutesConfirmed,
+            provenPublicEndpoints: provenPublicEndpoints,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
             nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
@@ -77,18 +81,20 @@ final class LiveBackendService {
 
     func diagnoseSeatMap(eventID: String) async throws -> LiveSeatMap {
         let state = capabilities.state(for: .seatMap)
+        clearSeatMapProof()
+        guard !eventID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw APIClientError.invalidResponse
+        }
         if case .incompatible = state {
             throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: state)
         }
-        let seatMap = try await get(
-            APIRequest(
-                path: "/api/seat-map",
-                query: [APIRequestQuery(name: "eventId", value: eventID)]
-            ),
-            endpoint: .seatMap,
-            bypassCapability: true,
-            as: LiveSeatMap.self
-        )
+        let seatMap: LiveSeatMap
+        do {
+            seatMap = try await fetchSeatMap(eventID: eventID, bypassCapability: true)
+        } catch {
+            clearSeatMapProof()
+            throw error
+        }
         var states = capabilities.states
         states[.seatMap] = .available
         capabilities = LiveCapabilityMap(
@@ -136,15 +142,57 @@ final class LiveBackendService {
     }
 
     func getState() async throws -> LiveState {
-        if let diagnosedVersionlessState {
-            self.diagnosedVersionlessState = nil
-            return diagnosedVersionlessState
+        let state = capabilities.state(for: .state)
+        guard state == .available else {
+            diagnosedState = nil
+            throw APIClientError.capabilityUnavailable(endpoint: .state, state: state)
+        }
+        if let diagnosedState {
+            self.diagnosedState = nil
+            return diagnosedState
         }
         return try await get(APIRequest(path: "/api/state"), endpoint: .state, as: LiveState.self)
     }
 
-    func getCatalog() async throws -> LiveCatalog {
-        try await get(APIRequest(path: "/api/catalog"), endpoint: .catalog, as: LiveCatalog.self)
+    func getCatalog(limit: Int = LiveCatalogReadPolicy.defaultLimit) async throws -> LiveCatalog {
+        guard LiveCatalogReadPolicy.accepts(limit: limit) else {
+            throw APIClientError.invalidResponse
+        }
+
+        var events: [LiveBackendCatalogEvent] = []
+        var venues: [LiveCatalogVenue]?
+        var total: Int?
+        var cursor: String?
+        var seenCursors: Set<String> = []
+
+        for pageIndex in 0..<LiveCatalogReadPolicy.maximumPages {
+            var query = [APIRequestQuery(name: "limit", value: String(limit))]
+            if let cursor {
+                query.append(APIRequestQuery(name: "cursor", value: cursor))
+            }
+            let page = try await get(
+                APIRequest(path: "/api/catalog", query: query),
+                endpoint: .catalog,
+                as: LiveCatalog.self
+            )
+            events.append(contentsOf: page.events)
+            if let pageVenues = page.venues {
+                if venues == nil { venues = [] }
+                venues?.append(contentsOf: pageVenues)
+            }
+            if total == nil { total = page.total }
+
+            guard let nextCursor = page.nextCursor else {
+                return LiveCatalog(events: events, venues: venues, nextCursor: nil, total: total)
+            }
+            guard !nextCursor.isEmpty,
+                  seenCursors.insert(nextCursor).inserted,
+                  pageIndex + 1 < LiveCatalogReadPolicy.maximumPages else {
+                throw APIClientError.invalidResponse
+            }
+            cursor = nextCursor
+        }
+        throw APIClientError.invalidResponse
     }
 
     func getRegions() async throws -> LiveRegionDiscovery {
@@ -192,10 +240,12 @@ final class LiveBackendService {
             self.diagnosedSeatMap = nil
             return diagnosedSeatMap
         }
-        return try await get(APIRequest(
-            path: "/api/seat-map",
-            query: [APIRequestQuery(name: "eventId", value: eventID)]
-        ), endpoint: .seatMap, as: LiveSeatMap.self)
+        do {
+            return try await fetchSeatMap(eventID: eventID, bypassCapability: false)
+        } catch {
+            clearSeatMapProof()
+            throw error
+        }
     }
 
     func getVenueSeatMap(eventID _: String) async throws -> LiveVenueSeatMap {
@@ -359,7 +409,7 @@ final class LiveBackendService {
         return response
     }
 
-    private func probeDiscoveryContract() async -> Bool {
+    private func probeDiscoveryContract() async -> Set<LiveAPIEndpoint> {
         do {
             let response = try await get(
                 APIRequest(path: "/api/discovery/v1/contract"),
@@ -367,12 +417,54 @@ final class LiveBackendService {
                 bypassCapability: true,
                 as: LiveDiscoveryContractStatus.self
             )
-            let requiredEndpoints = Set(["regions", "artists", "open-calendar"])
-            return response.version == Self.discoveryVersion
-                && requiredEndpoints.isSubset(of: Set(response.endpoints))
+            guard response.version == Self.discoveryVersion else { return [] }
+            let endpoints = Set(response.endpoints)
+            var proven: Set<LiveAPIEndpoint> = []
+            if endpoints.contains("regions") { proven.insert(.regions) }
+            if endpoints.contains("open-calendar") { proven.insert(.openCalendar) }
+            return proven
+        } catch {
+            return []
+        }
+    }
+
+    private func probeState() async -> LiveState? {
+        try? await get(
+            APIRequest(path: "/api/state"),
+            endpoint: .state,
+            bypassCapability: true,
+            as: LiveState.self
+        )
+    }
+
+    private func probeCatalog() async -> Bool {
+        do {
+            _ = try await get(
+                APIRequest(path: "/api/catalog", query: [APIRequestQuery(name: "limit", value: "1")]),
+                endpoint: .catalog,
+                bypassCapability: true,
+                as: LiveCatalog.self
+            )
+            return true
         } catch {
             return false
         }
+    }
+
+    private func fetchSeatMap(eventID: String, bypassCapability: Bool) async throws -> LiveSeatMap {
+        let seatMap = try await get(
+            APIRequest(
+                path: "/api/seat-map",
+                query: [APIRequestQuery(name: "eventId", value: eventID)]
+            ),
+            endpoint: .seatMap,
+            bypassCapability: bypassCapability,
+            as: LiveSeatMap.self
+        )
+        guard !seatMap.event.id.isEmpty, seatMap.event.id == eventID else {
+            throw APIClientError.invalidResponse
+        }
+        return seatMap
     }
 
     private func data(
@@ -387,7 +479,7 @@ final class LiveBackendService {
     }
 
     private func diagnoseVersionlessState() async throws -> LiveAPIContractProbe {
-        diagnosedVersionlessState = try await get(
+        diagnosedState = try await get(
             APIRequest(path: "/api/state"),
             endpoint: .state,
             bypassCapability: true,
@@ -417,6 +509,21 @@ final class LiveBackendService {
             return state
         }
         return .unknown
+    }
+
+    private func clearSeatMapProof() {
+        seatMapAdmission = nil
+        diagnosedSeatMap = nil
+        var states = capabilities.states
+        if case .incompatible = states[.seatMap] {
+            return
+        }
+        states[.seatMap] = .unknown
+        capabilities = LiveCapabilityMap(
+            diagnostics: capabilities.diagnostics,
+            baseURL: capabilities.baseURL,
+            states: states
+        )
     }
 
     private func pathValue(_ value: String) -> String {

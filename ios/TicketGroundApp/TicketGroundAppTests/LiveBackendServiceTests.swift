@@ -68,7 +68,7 @@ final class LiveBackendServiceTests: XCTestCase {
     func testExplicitlyCompatibleContractDispatchesTypedPublicReads() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/state": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8),
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8),
             "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[{"id":"zone-vip","name":"VIP","price":99000,"available":2}],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"zone-vip","zoneName":"VIP","price":99000,"status":"ON_SALE","available":true}]}}"#.utf8),
             "/api/me": Data(#"{"ok":true,"data":{"id":"user-1","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8),
             "/api/me/tickets": Data(#"{"ok":true,"data":[{"id":"ticket-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","seatLabel":"A-01","status":"OWNED","available":false,"faceValue":99000,"minPrice":49500,"maxPrice":106920,"transferCount":0,"maxTransferCount":1,"issuedAt":"2026-09-19T19:00:00+09:00","virtualQr":{"type":"virtual","issuedAt":"2026-09-19T18:00:00+09:00"},"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","performance":{"id":"date-1","label":"9월 19일 공연","startsAt":"2026-09-19T19:00:00+09:00"}},"payment":{"amount":105000,"method":"CREDIT_CARD","status":"CAPTURED"}}]}"#.utf8),
@@ -128,7 +128,6 @@ final class LiveBackendServiceTests: XCTestCase {
         let event = #"{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venue":"Arena","soldCount":4}"#
         LiveBackendServiceURLProtocol.responses = [
             "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[{"slug":"seoul","name":"서울","eventCount":1,"events":[\#(event)]}]}}"#.utf8),
-            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[\#(event)]}}"#.utf8),
             "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[{"opensAt":"2026-08-20T10:00:00.000Z","saleState":"OPEN_SOON","event":\#(event)}]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
@@ -142,12 +141,10 @@ final class LiveBackendServiceTests: XCTestCase {
         let service = compatibleService(for: client)
 
         let regions = try await service.getRegions()
-        let artist = try await service.getArtist(slug: "iu")
         let calendar = try await service.getOpenCalendar()
 
         XCTAssertEqual(regions.version, "1")
         XCTAssertEqual(regions.regions.first?.slug, "seoul")
-        XCTAssertEqual(artist.artist.name, "IU")
         XCTAssertEqual(calendar.entries.first?.event.slug, "neon-stage")
         XCTAssertEqual(
             Set(LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path)),
@@ -162,10 +159,10 @@ final class LiveBackendServiceTests: XCTestCase {
         let event = #"{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venue":"Arena","soldCount":4}"#
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
             "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8),
             "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[{"slug":"seoul","name":"서울","eventCount":1,"events":[\#(event)]}]}}"#.utf8),
-            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[\#(event)]}}"#.utf8),
             "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[{"opensAt":"2026-08-20T10:00:00.000Z","saleState":"OPEN_SOON","event":\#(event)}]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
@@ -180,22 +177,21 @@ final class LiveBackendServiceTests: XCTestCase {
 
         _ = try await service.diagnosePublicContract()
         let regions = try await service.getRegions()
-        let artist = try await service.getArtist(slug: "iu")
         let calendar = try await service.getOpenCalendar()
 
         XCTAssertEqual(regions.regions.first?.name, "서울")
-        XCTAssertEqual(artist.artist.name, "IU")
         XCTAssertEqual(calendar.entries.first?.event.id, "event-1")
+        XCTAssertEqual(service.capabilityMap.state(for: .artist), .unknown)
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
             [
                 "/api/health",
-                "/api/catalog?limit=1",
+                "/api/state",
                 "/api/discovery/v1/contract",
+                "/api/catalog?limit=1",
                 "/api/discovery/v1/regions",
-                "/api/discovery/v1/artists/iu",
                 "/api/discovery/v1/open-calendar"
             ]
         )
@@ -583,6 +579,85 @@ final class LiveBackendServiceTests: XCTestCase {
         })
     }
 
+    func testSeatMapDiagnosisRejectsEmptyEventIDWithoutDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await LiveBackendService(apiClient: client).diagnoseSeatMap(eventID: "   ")
+            XCTFail("Expected empty event ID rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testFailedSeatMapReprobeRejectsReturnedIdentityAndClearsPriorAdmission() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8),
+            "/api/seat-map?eventId=event-2": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Stale Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        do {
+            _ = try await service.diagnoseSeatMap(eventID: "event-2")
+            XCTFail("Expected returned event identity mismatch")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(service.capabilityMap.state(for: .seatMap), .unknown)
+        }
+
+        let requestCount = LiveBackendServiceURLProtocol.requests.count
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected prior admission to be cleared")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, requestCount)
+        }
+    }
+
+    func testSeatMapDiagnosisRejectsEmptyReturnedEventID() async {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"","title":"Unknown","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        do {
+            _ = try await service.diagnoseSeatMap(eventID: "event-1")
+            XCTFail("Expected empty returned event ID rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(service.capabilityMap.state(for: .seatMap), .unknown)
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 1)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testSeatMapCacheFailsClosedAfterCapabilityBecomesUnknown() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8),
@@ -853,11 +928,11 @@ final class LiveBackendServiceTests: XCTestCase {
         let discoveryConfirmed = LiveAPIContract.deployed.capabilityMap(
             for: URL(string: "http://132.145.109.87:4174/")!,
             observedResponseVersion: "78b3c7c",
-            catalogRouteConfirmed: true,
-            discoveryRoutesConfirmed: true
+            provenPublicEndpoints: [.regions, .openCalendar],
+            catalogRouteConfirmed: true
         )
         XCTAssertEqual(discoveryConfirmed.state(for: .regions), .available)
-        XCTAssertEqual(discoveryConfirmed.state(for: .artist), .available)
+        XCTAssertEqual(discoveryConfirmed.state(for: .artist), .unknown)
         XCTAssertEqual(discoveryConfirmed.state(for: .openCalendar), .available)
     }
 
@@ -907,7 +982,7 @@ final class LiveBackendServiceTests: XCTestCase {
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8),
             "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar","venues"]}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -928,18 +1003,182 @@ final class LiveBackendServiceTests: XCTestCase {
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
         )
         XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
             $0.value(forHTTPHeaderField: "Authorization") == nil
         })
     }
 
-    func testLiveHomeExplicitDiagnosisLoadsHealthyCatalogWithoutDependingOnState() async throws {
+    func testCatalogRejectsOutOfRangeLimitWithoutDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = compatibleService(for: client)
+
+        for limit in [0, 101] {
+            do {
+                _ = try await service.getCatalog(limit: limit)
+                XCTFail("Expected local limit rejection for \(limit)")
+            } catch let error as APIClientError {
+                XCTAssertEqual(error, .invalidResponse)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+    }
+
+    func testCatalogAggregatesPagesUsingOnlyServerIssuedCursors() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/catalog?limit=2": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"One","venue":"Arena","soldCount":1},{"id":"event-2","title":"Two","venue":"Arena","soldCount":2}],"nextCursor":"server-page-2","total":3}}"#.utf8),
+            "/api/catalog?limit=2&cursor=server-page-2": Data(#"{"ok":true,"data":{"events":[{"id":"event-3","title":"Three","venue":"Arena","soldCount":3}],"total":3}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let catalog = try await compatibleService(for: client).getCatalog(limit: 2)
+
+        XCTAssertEqual(catalog.events.map(\.id), ["event-1", "event-2", "event-3"])
+        XCTAssertNil(catalog.nextCursor)
+        XCTAssertEqual(catalog.total, 3)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { $0.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") } },
+            ["/api/catalog?limit=2", "/api/catalog?limit=2&cursor=server-page-2"]
+        )
+    }
+
+    func testCatalogRejectsRepeatedCursorWithoutLooping() async {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[],"nextCursor":"repeat"}}"#.utf8),
+            "/api/catalog?limit=1&cursor=repeat": Data(#"{"ok":true,"data":{"events":[],"nextCursor":"repeat"}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await compatibleService(for: client).getCatalog(limit: 1)
+            XCTFail("Expected repeated cursor rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 2)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCatalogStopsAtFinitePageLimit() async {
+        for index in 0..<20 {
+            let key = index == 0
+                ? "/api/catalog?limit=1"
+                : "/api/catalog?limit=1&cursor=server-\(index)"
+            LiveBackendServiceURLProtocol.responses[key] = Data(
+                #"{"ok":true,"data":{"events":[],"nextCursor":"server-\#(index + 1)"}}"#.utf8
+            )
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await compatibleService(for: client).getCatalog(limit: 1)
+            XCTFail("Expected finite aggregation rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 20)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCompatibleDiagnosisKeepsStateAndDiscoveryIndependentFromCatalogFailure() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
+            "/api/catalog?limit=1": Data("{".utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8),
+            "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[]}}"#.utf8),
+            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        let probe = try await service.diagnosePublicContract()
+        XCTAssertEqual(probe.capabilities.state(for: .state), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .catalog), .unknown)
+        XCTAssertEqual(probe.capabilities.state(for: .regions), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .openCalendar), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .artist), .unknown)
+        _ = try await service.getRegions()
+        _ = try await service.getOpenCalendar()
+
+        let requestCount = LiveBackendServiceURLProtocol.requests.count
+        do {
+            _ = try await service.getArtist(slug: "iu")
+            XCTFail("Expected artist to remain unavailable")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .artist, state: .unknown))
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, requestCount)
+        }
+    }
+
+    func testLiveHomeFallsBackToIndependentlyProvenStateWhenCatalogProbeFails() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
+            "/api/catalog?limit=1": Data("{".utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let result = try await DiscoveryFixtureLoader.loadLive(using: client)
+
+        guard case .stateOnly(let state) = result else {
+            return XCTFail("Expected state fallback")
+        }
+        XCTAssertEqual(state.events.first?.id, "event-1")
+    }
+
+    func testLiveHomeExplicitDiagnosisLoadsHealthyCatalogWhenStateProbeFails() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19","period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19","period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
         ]
         LiveBackendServiceURLProtocol.errors["/api/state"] = .timedOut
         let configuration = URLSessionConfiguration.ephemeral
@@ -966,12 +1205,12 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(content.shortcuts.first { $0.label == "VIP석" }?.route, .genre(name: "vip"))
         XCTAssertTrue(Set(content.shortcuts.map(\.label)).isDisjoint(with: ["당일 공연", "지방 공연", "양도", "오픈캘린더"]))
         XCTAssertTrue(Set(content.categories.map(\.label)).isDisjoint(with: ["티켓 양도", "캘린더"]))
-        XCTAssertFalse(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
         )
     }
 
@@ -1021,28 +1260,23 @@ final class LiveBackendServiceTests: XCTestCase {
         ]
         let service = LiveBackendService(apiClient: client)
 
-        do {
-            _ = try await service.diagnosePublicContract()
-            XCTFail("Expected catalog admission rejection")
-        } catch let error as APIClientError {
-            XCTAssertEqual(error, .invalidResponse)
-            XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
-            XCTAssertEqual(
-                LiveBackendServiceURLProtocol.requests.compactMap { request in
-                    request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
-                },
-                ["/api/health", "/api/catalog?limit=1"]
-            )
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
+        let probe = try? await service.diagnosePublicContract()
+
+        XCTAssertEqual(probe?.capabilities.state(for: .catalog), .unknown)
+        XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1"]
+        )
     }
 
     func testCatalogAdmissionAcceptsEmptyProbeAndReturnsEmptyCatalog() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -1064,7 +1298,7 @@ final class LiveBackendServiceTests: XCTestCase {
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
         )
     }
 
@@ -1529,13 +1763,13 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
-    func testLiveHomeExplicitDiagnosisSurfacesTransientCatalogFailureAfterSuccessfulAdmission() async {
+    func testLiveHomeExplicitDiagnosisFallsBackToStateAfterTransientCatalogFailure() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
             "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         ]
-        LiveBackendServiceURLProtocol.errors["/api/catalog"] = .timedOut
+        LiveBackendServiceURLProtocol.errors["/api/catalog?limit=50"] = .timedOut
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
         let client = LiveAPIClient(
@@ -1545,20 +1779,18 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        do {
-            _ = try await DiscoveryFixtureLoader.loadLive(using: client)
-            XCTFail("Expected the transient catalog failure to remain retryable")
-        } catch let error as APIClientError {
-            XCTAssertEqual(error, .requestFailed(code: URLError.timedOut.rawValue))
-            XCTAssertEqual(
-                LiveBackendServiceURLProtocol.requests.compactMap { request in
-                    request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
-                },
-                ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
-            )
-        } catch {
-            XCTFail("Unexpected error: \(error)")
+        let result = try await DiscoveryFixtureLoader.loadLive(using: client)
+
+        guard case .stateOnly(let state) = result else {
+            return XCTFail("Expected independently proven state fallback")
         }
+        XCTAssertEqual(state.backendSummary.events, 0)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
+        )
     }
 
     func testDefaultLiveCatalogBootstrapFailureDoesNotDispatchCatalog() async {
@@ -1620,9 +1852,8 @@ final class LiveBackendServiceTests: XCTestCase {
         let map = LiveAPIContract.deployed.capabilityMap(
             for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
             observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
-            provenPublicEndpoints: [.state, .catalog, .seatMap],
-            catalogRouteConfirmed: true,
-            discoveryRoutesConfirmed: true
+            provenPublicEndpoints: [.state, .catalog, .seatMap, .regions, .openCalendar],
+            catalogRouteConfirmed: true
         )
         let states = authenticatedReads
             ? Dictionary(uniqueKeysWithValues: LiveAPIEndpoint.known.map { endpoint in
