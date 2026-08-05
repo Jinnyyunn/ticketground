@@ -71,6 +71,8 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   assert.equal(publicAdmin.error.code, "NOT_FOUND");
   const publicLedger = await api(baseUrl, "/api/ledger", null, 404);
   assert.equal(publicLedger.error.code, "NOT_FOUND");
+  const publicLedgerVerify = await api(baseUrl, "/api/ledger/verify", null, 404);
+  assert.equal(publicLedgerVerify.error.code, "NOT_FOUND");
 
   const admin = await adminApi(server, "/api/admin/summary");
   assert.equal(admin.data.stats.watchlistEntries, 1);

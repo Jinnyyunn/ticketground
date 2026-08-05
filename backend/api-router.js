@@ -192,7 +192,7 @@ async function handleApi(req, res, db, surface) {
   const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
-  const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
+  const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname.startsWith("/api/ledger");
 
   if (adminOnly && surface !== "admin") {
     throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
