@@ -295,6 +295,7 @@ function listGroupBookingRequests(db, { status, page, limit } = {}) {
     .map((request) => groupBookingRequestDto(db, request));
   const paged = pageSlice(requests, { page, limit });
   return {
+    filters: { status: normalizedStatus || null },
     requests: paged.items,
     page: paged.page,
     eventSummaries: db.events.map((event) => eventPickerSummary(db, event))

@@ -476,7 +476,7 @@ test("browser console menus load focused workspaces and save support status", as
   await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
   await page.getByRole("button", { name: "로그인" }).click();
 
-  for (const [label, heading] of [["공연/상품", "공연/상품"], ["판매 설정", "판매 설정"], ["계정", "계정"], ["재판매/양도", "재판매/양도"]]) {
+  for (const [label, heading] of [["공연/상품", "공연/상품"], ["판매 설정", "판매 설정"], ["계정", "계정"], ["재판매/양도", "재판매/양도"], ["단체/기관 예매", "단체/기관 예매"]]) {
     await page.getByRole("link", { name: label }).click();
     await page.getByRole("heading", { name: heading, exact: true }).waitFor();
   }
