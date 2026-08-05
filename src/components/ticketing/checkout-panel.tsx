@@ -260,17 +260,11 @@ export function CheckoutPanel({
     setSubmitting(true);
     setStatus("결제 처리 중");
     try {
-      let ticketId = selection.ticketId;
+      const ticketId = selection.ticketId;
       if (!ticketId) {
-        const state = await getState();
-        ticketId = state.tickets.find(
-          (ticket) => ticket.eventId === backendEventId
-            && ticket.performanceDateId === performanceDateId
-            && ticket.status === "ON_SALE",
-        )?.id ?? "";
-      }
-      if (!ticketId) {
-        setStatus("구매 가능한 티켓이 없습니다.");
+        // 사용자가 실제로 고른 좌석이 없으면 임의 좌석으로 대체 구매하지 않는다 —
+        // URL 파라미터 손상이나 좌석맵 로딩 실패로 여기 도달했을 수 있다.
+        setStatus("선택된 좌석 정보를 확인할 수 없습니다. 좌석을 다시 선택해주세요.");
         return;
       }
 
@@ -466,12 +460,17 @@ export function CheckoutPanel({
         </dl>
         <button
           type="button"
-          disabled={!agreed || submitting || amountPending || !identityVerified || !sessionUserId}
+          disabled={!hasSelectedTicket || !agreed || submitting || amountPending || !identityVerified || !sessionUserId}
           onClick={completePayment}
           className="mt-5 h-12 w-full rounded-sm bg-ticketground text-lg font-bold text-white disabled:bg-surface-3"
         >
           {submitting ? "결제 처리 중" : "결제 완료"}
         </button>
+        {!hasSelectedTicket ? (
+          <p className="mt-3 text-sm font-bold text-ticketground">
+            선택된 좌석 정보를 확인할 수 없습니다. 좌석 선택 화면으로 돌아가 다시 선택해주세요.
+          </p>
+        ) : null}
       </aside>
     </div>
   );
