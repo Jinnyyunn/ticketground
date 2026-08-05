@@ -73,6 +73,30 @@ final class LiveBackendService {
         )
     }
 
+    func diagnoseSeatMap(eventID: String) async throws -> LiveSeatMap {
+        let state = capabilities.state(for: .seatMap)
+        if case .incompatible = state {
+            throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: state)
+        }
+        let seatMap = try await get(
+            APIRequest(
+                path: "/api/seat-map",
+                query: [APIRequestQuery(name: "eventId", value: eventID)]
+            ),
+            endpoint: .seatMap,
+            bypassCapability: true,
+            as: LiveSeatMap.self
+        )
+        var states = capabilities.states
+        states[.seatMap] = .available
+        capabilities = LiveCapabilityMap(
+            diagnostics: capabilities.diagnostics,
+            baseURL: capabilities.baseURL,
+            states: states
+        )
+        return seatMap
+    }
+
     func diagnoseSupportContract() async throws -> LiveAPIContractProbe {
         let health = try await get(
             APIRequest(path: contract.bootstrapPath),

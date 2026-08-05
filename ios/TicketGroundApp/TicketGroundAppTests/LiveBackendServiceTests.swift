@@ -530,6 +530,52 @@ final class LiveBackendServiceTests: XCTestCase {
         })
     }
 
+    func testExplicitSeatMapDiagnosisAdmitsOnlySeatMapWithEventIDOnlyRequest() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        let seatMap = try await service.diagnoseSeatMap(eventID: "event-1")
+
+        XCTAssertEqual(seatMap.event.id, "event-1")
+        XCTAssertEqual(service.capabilityMap.state(for: .seatMap), .available)
+        XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
+        XCTAssertEqual(service.capabilityMap.state(for: .state), .unknown)
+        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/seat-map")
+        XCTAssertEqual(request.url?.query, "eventId=event-1")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+    }
+
+    func testDefaultSeatMapUnknownDoesNotDispatchWithoutExplicitDiagnosis() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected unknown seat-map capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testStateProofKeepsUnknownCatalogUndispatched() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -705,7 +751,7 @@ final class LiveBackendServiceTests: XCTestCase {
         })
     }
 
-    func testLiveHomeLoadsHealthyCatalogWithoutDependingOnState() async throws {
+    func testLiveHomeExplicitDiagnosisLoadsHealthyCatalogWithoutDependingOnState() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
@@ -737,6 +783,12 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertTrue(Set(content.shortcuts.map(\.label)).isDisjoint(with: ["당일 공연", "지방 공연", "양도", "오픈캘린더"]))
         XCTAssertTrue(Set(content.categories.map(\.label)).isDisjoint(with: ["티켓 양도", "캘린더"]))
         XCTAssertFalse(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
+        )
     }
 
     func testCatalogAdmissionRejectsIncompatibleHealthWithoutCatalogDispatch() async {
@@ -1272,7 +1324,7 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
-    func testLiveHomeKeepsTypedStateWhenCatalogRouteIsUnconfirmed() async throws {
+    func testLiveHomeExplicitDiagnosisKeepsTypedStateWhenCatalogRouteIsUnconfirmed() async throws {
         LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":null}}"#.utf8)
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
@@ -1302,7 +1354,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
-    func testLiveHomeSurfacesTransientCatalogFailureAfterSuccessfulAdmission() async {
+    func testLiveHomeExplicitDiagnosisSurfacesTransientCatalogFailureAfterSuccessfulAdmission() async {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
@@ -1323,6 +1375,12 @@ final class LiveBackendServiceTests: XCTestCase {
             XCTFail("Expected the transient catalog failure to remain retryable")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .requestFailed(code: URLError.timedOut.rawValue))
+            XCTAssertEqual(
+                LiveBackendServiceURLProtocol.requests.compactMap { request in
+                    request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+                },
+                ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
+            )
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
