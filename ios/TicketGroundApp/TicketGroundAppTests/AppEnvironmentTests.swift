@@ -224,7 +224,7 @@ final class AppEnvironmentTests: XCTestCase {
         let routes: [AppRoute] = [
             .home, .search, .ranking, .genre(name: "concert"), .region, .open,
             .event(slug: "event"), .place(slug: nil), .artist(slug: "artist"),
-            .goods(slug: "goods"), .queue(slug: "queue"), .booking(slug: "booking"),
+            .goods(slug: "goods"), .seatMap(slug: "seat-map"), .queue(slug: "queue"), .booking(slug: "booking"),
             .checkout(slug: "checkout"), .reservation(id: "reservation"), .login,
             .signup, .menu, .mypage, .cancel, .resale, .transfer, .watchlist, .help, .inquiry, .capabilityLedger
         ]
@@ -237,12 +237,75 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(AppRoute.region.classification.connectivity, .publicRead)
         XCTAssertEqual(AppRoute.artist(slug: "artist").classification.connectivity, .publicRead)
         XCTAssertEqual(AppRoute.open.classification.connectivity, .publicRead)
+        XCTAssertEqual(AppRoute.seatMap(slug: "seat-map").classification.connectivity, .publicRead)
         XCTAssertEqual(AppRoute.login.classification.connectivity, .externalGate)
         XCTAssertEqual(AppRoute.checkout(slug: "checkout").classification.connectivity, .intentionallyUnsupported)
-        XCTAssertEqual(AppRoute.booking(slug: "booking").classification.connectivity, .publicRead)
+        XCTAssertEqual(AppRoute.queue(slug: "queue").classification.connectivity, .intentionallyUnsupported)
+        XCTAssertEqual(AppRoute.booking(slug: "booking").classification.connectivity, .intentionallyUnsupported)
         XCTAssertNil(RouteResolver.resolve(path: "/admin"))
         XCTAssertNil(RouteResolver.resolve(path: "/capability-ledger"))
         XCTAssertNil(RouteResolver.resolve(path: "/contents/genre/"))
+    }
+
+    func testOpenURLGivesGoogleCallbackPriority() {
+        let container = AppContainer.fixture()
+        container.navigationPath = [.menu]
+        let callbackURL = URL(string: "ticketground:///event/neon-stage")!
+        var receivedCallbackURL: URL?
+
+        TicketGroundApp.handleOpenURL(callbackURL, container: container) { url in
+            receivedCallbackURL = url
+            return true
+        }
+
+        XCTAssertEqual(receivedCallbackURL, callbackURL)
+        XCTAssertEqual(container.navigationPath, [.menu])
+    }
+
+    func testOpenURLAppliesTypedPublicRouteAfterGoogleDeclines() {
+        let container = AppContainer.fixture()
+        container.navigationPath = [.menu]
+        let publicURL = URL(string: "ticketground:///event/neon-stage")!
+
+        TicketGroundApp.handleOpenURL(publicURL, container: container) { _ in false }
+
+        XCTAssertEqual(container.navigationPath, [.event(slug: "neon-stage")])
+    }
+
+    func testOpenURLLeavesNavigationUnchangedForUnsupportedRoute() {
+        let container = AppContainer.fixture()
+        container.navigationPath = [.menu]
+        let unsupportedURL = URL(string: "ticketground:///admin")!
+
+        TicketGroundApp.handleOpenURL(unsupportedURL, container: container) { _ in false }
+
+        XCTAssertEqual(container.navigationPath, [.menu])
+    }
+
+    func testSeatMapCapabilityFailureUsesUnavailablePresentation() {
+        let presentation = LiveSeatMapFailurePresentation.resolve(
+            APIClientError.capabilityUnavailable(endpoint: .seatMap, state: .unknown)
+        )
+
+        XCTAssertEqual(presentation, .unavailable)
+    }
+
+    func testMissingSeatMapRouteUsesUnavailablePresentation() {
+        let presentation = LiveSeatMapFailurePresentation.resolve(
+            APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "not found")
+        )
+
+        XCTAssertEqual(presentation, .unavailable)
+    }
+
+    func testTransientSeatMapFailureKeepsRetryPresentation() {
+        let presentation = LiveSeatMapFailurePresentation.resolve(
+            APIClientError.requestFailed(code: URLError.notConnectedToInternet.rawValue)
+        )
+
+        guard case .retry = presentation else {
+            return XCTFail("Expected retry presentation")
+        }
     }
 
     func testLiveAPIClientUnwrapsBackendEnvelope() async throws {

@@ -186,6 +186,14 @@ struct LiveAPIContractProbe: Equatable {
     let capabilities: LiveCapabilityMap
 }
 
+struct LiveSeatMapAdmission: Equatable {
+    let eventID: String
+
+    func matches(eventID: String, performanceDateID: String?) -> Bool {
+        self.eventID == eventID && performanceDateID == nil
+    }
+}
+
 struct LiveAPIContract {
     let expectedResponseVersion: String
     let publicHost: URL
@@ -202,7 +210,6 @@ struct LiveAPIContract {
         provenPublicEndpoints: Set<LiveAPIEndpoint> = [],
         validatedStateResponse: Bool = false,
         catalogRouteConfirmed: Bool = false,
-        discoveryRoutesConfirmed: Bool = false,
         nativeAccountRoutesConfirmed: Bool = false,
         nativeSupportRoutesConfirmed: Bool = false,
         nativeWatchlistRoutesConfirmed: Bool = false
@@ -226,7 +233,6 @@ struct LiveAPIContract {
                     baseURL: baseURL,
                     diagnostics: diagnostics,
                     provenPublicEndpoints: provenPublicEndpoints,
-                    discoveryRoutesConfirmed: discoveryRoutesConfirmed,
                     nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed,
                     nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed,
                     nativeWatchlistRoutesConfirmed: nativeWatchlistRoutesConfirmed
@@ -241,7 +247,6 @@ struct LiveAPIContract {
         baseURL: URL,
         diagnostics: LiveAPIContractDiagnostics,
         provenPublicEndpoints: Set<LiveAPIEndpoint>,
-        discoveryRoutesConfirmed: Bool,
         nativeAccountRoutesConfirmed: Bool,
         nativeSupportRoutesConfirmed: Bool,
         nativeWatchlistRoutesConfirmed: Bool
@@ -254,11 +259,8 @@ struct LiveAPIContract {
         case .incompatible(let expected, let observed):
             return .incompatible(expected: expected, observed: observed)
         case .compatible:
-            guard ![.state, .catalog, .seatMap].contains(endpoint)
+            guard ![.state, .catalog, .seatMap, .regions, .artist, .openCalendar].contains(endpoint)
                 || provenPublicEndpoints.contains(endpoint) else {
-                return .unknown
-            }
-            guard ![.regions, .artist, .openCalendar].contains(endpoint) || discoveryRoutesConfirmed else {
                 return .unknown
             }
             guard endpoint != .publicSupport || nativeSupportRoutesConfirmed else {
@@ -354,6 +356,16 @@ struct LiveCatalog: Decodable, Equatable {
     let venues: [LiveCatalogVenue]?
     let nextCursor: String?
     let total: Int?
+}
+
+enum LiveCatalogReadPolicy {
+    static let defaultLimit = 50
+    static let maximumLimit = 100
+    static let maximumPages = 20
+
+    static func accepts(limit: Int) -> Bool {
+        (1...maximumLimit).contains(limit)
+    }
 }
 
 protocol LiveDiscoveryVersioned {

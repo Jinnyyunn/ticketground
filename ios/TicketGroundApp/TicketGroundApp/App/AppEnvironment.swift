@@ -18,6 +18,7 @@ enum AppRoute: Hashable, Codable {
     case place(slug: String?)
     case artist(slug: String)
     case goods(slug: String)
+    case seatMap(slug: String)
     case queue(slug: String)
     case booking(slug: String)
     case checkout(slug: String)
@@ -46,6 +47,7 @@ enum AppRoute: Hashable, Codable {
         case .place(let slug): return "place:\(slug ?? "index")"
         case .artist(let slug): return "artist:\(slug)"
         case .goods(let slug): return "goods:\(slug)"
+        case .seatMap(let slug): return "seat-map:\(slug)"
         case .queue(let slug): return "queue:\(slug)"
         case .booking(let slug): return "booking:\(slug)"
         case .checkout(let slug): return "checkout:\(slug)"
@@ -80,13 +82,13 @@ extension AppRoute {
     var classification: AppRouteClassification {
         switch self {
         case .home, .search, .ranking, .genre, .event, .place, .goods,
-             .queue, .booking, .menu, .capabilityLedger:
+             .seatMap, .menu, .capabilityLedger:
             return AppRouteClassification(connectivity: .publicRead, reason: "공개 공연 및 좌석 조회 계약")
         case .region, .artist, .open:
             return AppRouteClassification(connectivity: .publicRead, reason: "버전 1 공개 탐색 계약")
         case .login, .signup, .mypage, .watchlist, .help, .inquiry:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
-        case .checkout, .reservation, .cancel, .resale, .transfer:
+        case .queue, .booking, .checkout, .reservation, .cancel, .resale, .transfer:
             return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "거래별 HTTPS·인증·결제 계약 필요")
         }
     }
@@ -127,6 +129,7 @@ struct RouteResolver {
         case "place": return .place(slug: value)
         case "artist": return .artist(slug: value)
         case "goods": return .goods(slug: value)
+        case "seat-map": return .seatMap(slug: value)
         case "queue": return .queue(slug: value)
         case "booking": return .booking(slug: value)
         case "checkout": return .checkout(slug: value)
@@ -965,6 +968,11 @@ final class AppContainer {
         navigationPath.removeAll()
     }
 
+    func applyPublicURL(_ url: URL) {
+        guard let route = RouteResolver.resolve(url) else { return }
+        navigationPath = route == .home ? [] : [route]
+    }
+
     static func fixture(credentialStore: CredentialStore = InMemoryCredentialStore()) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: credentialStore)
         return AppContainer(environment: AppEnvironment(
@@ -1110,6 +1118,7 @@ enum RuntimeConfiguration {
 
 private enum UITestLiveHomeScenario: String {
     case catalog
+    case catalogMediaFallback
     case support
     case supportAuthenticated
     case watchlistAuthenticated
@@ -1240,8 +1249,11 @@ private final class UITestLiveHomeAPIClient: APIClient {
             return scenario == .empty ? catalog(events: "[]") : catalog(events: "[\(event)]")
         case ("/api/discovery/v1/contract", _):
             return json("{\"version\":\"1\",\"endpoints\":[\"regions\",\"artists\",\"open-calendar\"]}")
-        case ("/api/seat-map", _):
-            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
+        case ("/api/seat-map", let query) where query == [
+            APIRequestQuery(name: "eventId", value: "live-neon")
+        ]:
+            let image = scenario == .catalogMediaFallback ? "https://127.0.0.1:1/seat-map.svg" : ""
+            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\(image)\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
         case ("/api/discovery/v1/regions", _):
             if scenario == .discoveryRouteNotFound {
                 throw APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "route not found")
@@ -1276,7 +1288,10 @@ private final class UITestLiveHomeAPIClient: APIClient {
     }
 
     private var event: String {
-        "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}],\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
+        let image = scenario == .catalogMediaFallback
+            ? ",\"image\":\"https://127.0.0.1:1/catalog-poster.png\""
+            : ",\"image\":\"GoogleG\""
+        return "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}]\(image),\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
     }
 
     private func catalog(events: String) -> Data {

@@ -76,9 +76,9 @@ final class DiscoveryTests: XCTestCase {
     func testHeaderLoginShowsExternalOAuthGateWithoutCreatingAnAccount() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
-        XCTAssertTrue(app.buttons["header-watchlist"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["header-watchlist"].isHittable)
-        app.buttons["header-watchlist"].tap()
+        XCTAssertTrue(app.buttons["header-login"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["header-login"].isHittable)
+        app.buttons["header-login"].tap()
         XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["login-google"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["login-kakao"].exists)
@@ -96,7 +96,7 @@ final class DiscoveryTests: XCTestCase {
     func testProviderLoginCancellationDoesNotCreateASession() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
-        app.buttons["header-watchlist"].tap()
+        app.buttons["header-login"].tap()
         XCTAssertTrue(app.buttons["login-kakao"].waitForExistence(timeout: 10))
         app.buttons["login-kakao"].tap()
         let cancel = app.buttons.matching(identifier: "login-provider-cancel").element(boundBy: 1)
@@ -111,7 +111,7 @@ final class DiscoveryTests: XCTestCase {
     func testNaverLoginKeepsDeterministicExternalGateDuringUITests() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
-        app.buttons["header-watchlist"].tap()
+        app.buttons["header-login"].tap()
         XCTAssertTrue(app.buttons["login-naver"].waitForExistence(timeout: 10))
 
         app.buttons["login-naver"].tap()
@@ -137,9 +137,9 @@ final class DiscoveryTests: XCTestCase {
     func testHeaderMenuNavigatesToFixtureMenu() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["header-mypage"].isHittable)
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["header-menu"].isHittable)
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["menu-screen-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["menu-login"].exists)
         XCTAssertTrue(app.buttons["menu-signup"].exists)
@@ -157,8 +157,8 @@ final class DiscoveryTests: XCTestCase {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
 
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.buttons["menu-capability-ledger"].waitForExistence(timeout: 10))
         app.buttons["menu-capability-ledger"].tap()
 
@@ -287,7 +287,7 @@ final class DiscoveryTests: XCTestCase {
 
         let ranking = liveApp(homeScenario: "catalog")
         ranking.launch()
-        ranking.buttons["header-mypage"].tap()
+        ranking.buttons["header-menu"].tap()
         XCTAssertTrue(ranking.buttons["live-menu-ranking"].waitForExistence(timeout: 10))
         ranking.buttons["live-menu-ranking"].tap()
         XCTAssertTrue(ranking.staticTexts["LIVE catalog · 1개"].waitForExistence(timeout: 10))
@@ -320,19 +320,67 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
         app.buttons["live-seat-map-link"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 10))
-        XCTAssertTrue(anyElement(app, identifier: "live-seat-performance-selector").waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["좌석 구역 및 잔여 수량"].exists)
-        app.buttons["live-seat-performance-live-neon-first"].tap()
         XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["R석"].waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "live-seat-performance-selector").exists)
+        let zone = anyElement(app, identifier: "live-seat-zone-R")
+        XCTAssertTrue(zone.waitForExistence(timeout: 10))
+        XCTAssertEqual(zone.label, "R석, 12석 가능, 88,000원")
+        let seat = anyElement(app, identifier: "live-seat-R-1")
+        XCTAssertTrue(seat.waitForExistence(timeout: 10))
+        XCTAssertEqual(seat.label, "R-1, R석")
+        XCTAssertEqual(seat.value as? String, "선택 가능")
         XCTAssertFalse(app.buttons["live-seat-hold"].exists)
+    }
+
+    func testLiveDiscoveryCardLoadsApprovedPoster() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+        app.buttons["header-menu"].tap()
+        app.buttons["live-menu-region"].tap()
+
+        XCTAssertTrue(
+            anyElement(app, identifier: "media-poster-live-discovery-live-neon")
+                .waitForExistence(timeout: 15)
+        )
+    }
+
+    func testLiveDiscoveryCardUsesPosterFallback() {
+        let app = liveApp(homeScenario: "catalogMediaFallback")
+        app.launch()
+        app.buttons["header-menu"].tap()
+        app.buttons["live-menu-region"].tap()
+
+        XCTAssertTrue(
+            anyElement(app, identifier: "media-fallback-poster-live-discovery-live-neon")
+                .waitForExistence(timeout: 15)
+        )
+    }
+
+    func testLiveCatalogImageFailuresKeepDiscoverySurfacesAccessible() {
+        let app = liveApp(homeScenario: "catalogMediaFallback")
+        app.launch()
+
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-featured-home-featured").waitForExistence(timeout: 15))
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-poster-home-ranking-1").waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
+
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-poster-live-detail").waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["live-catalog-event"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["live-catalog-event"].label, "Neon Stage")
+        XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
+
+        app.buttons["live-seat-map-link"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-seat-map-live-seat-map").waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(app, identifier: "live-seat-zone-R").waitForExistence(timeout: 10))
     }
 
     func testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes() {
         let region = liveApp(homeScenario: "catalog")
         region.launch()
-        XCTAssertTrue(region.buttons["header-mypage"].waitForExistence(timeout: 10))
-        region.buttons["header-mypage"].tap()
+        XCTAssertTrue(region.buttons["header-menu"].waitForExistence(timeout: 10))
+        region.buttons["header-menu"].tap()
         XCTAssertTrue(region.buttons["live-menu-region"].waitForExistence(timeout: 10))
         region.buttons["live-menu-region"].tap()
         XCTAssertTrue(anyElement(region, identifier: "live-discovery-region-seoul").waitForExistence(timeout: 10))
@@ -340,8 +388,8 @@ final class DiscoveryTests: XCTestCase {
 
         let calendar = liveApp(homeScenario: "catalog")
         calendar.launch()
-        XCTAssertTrue(calendar.buttons["header-mypage"].waitForExistence(timeout: 10))
-        calendar.buttons["header-mypage"].tap()
+        XCTAssertTrue(calendar.buttons["header-menu"].waitForExistence(timeout: 10))
+        calendar.buttons["header-menu"].tap()
         XCTAssertTrue(calendar.buttons["live-menu-open-calendar"].waitForExistence(timeout: 10))
         calendar.buttons["live-menu-open-calendar"].tap()
         XCTAssertTrue(anyElement(calendar, identifier: "live-discovery-open-live-neon").waitForExistence(timeout: 10))
@@ -358,8 +406,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates() {
         let empty = liveApp(homeScenario: "empty")
         empty.launch()
-        XCTAssertTrue(empty.buttons["header-mypage"].waitForExistence(timeout: 10))
-        empty.buttons["header-mypage"].tap()
+        XCTAssertTrue(empty.buttons["header-menu"].waitForExistence(timeout: 10))
+        empty.buttons["header-menu"].tap()
         XCTAssertTrue(empty.buttons["live-menu-region"].waitForExistence(timeout: 10))
         empty.buttons["live-menu-region"].tap()
         XCTAssertTrue(empty.staticTexts["현재 공개된 지역별 공연이 없습니다."].waitForExistence(timeout: 10))
@@ -374,16 +422,16 @@ final class DiscoveryTests: XCTestCase {
 
         let routeNotFound = liveApp(homeScenario: "discoveryRouteNotFound")
         routeNotFound.launch()
-        XCTAssertTrue(routeNotFound.buttons["header-mypage"].waitForExistence(timeout: 10))
-        routeNotFound.buttons["header-mypage"].tap()
+        XCTAssertTrue(routeNotFound.buttons["header-menu"].waitForExistence(timeout: 10))
+        routeNotFound.buttons["header-menu"].tap()
         XCTAssertTrue(routeNotFound.buttons["live-menu-region"].waitForExistence(timeout: 10))
         routeNotFound.buttons["live-menu-region"].tap()
         XCTAssertTrue(routeNotFound.staticTexts["공연 정보를 불러올 수 없습니다"].waitForExistence(timeout: 10))
 
         let failure = liveApp(homeScenario: "discoveryFailure")
         failure.launch()
-        XCTAssertTrue(failure.buttons["header-mypage"].waitForExistence(timeout: 10))
-        failure.buttons["header-mypage"].tap()
+        XCTAssertTrue(failure.buttons["header-menu"].waitForExistence(timeout: 10))
+        failure.buttons["header-menu"].tap()
         XCTAssertTrue(failure.buttons["live-menu-region"].waitForExistence(timeout: 10))
         failure.buttons["live-menu-region"].tap()
         XCTAssertTrue(failure.staticTexts["공연 정보를 불러올 수 없습니다"].waitForExistence(timeout: 10))
@@ -392,8 +440,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveLoginDoesNotCreateFixtureUser() {
         let app = liveApp()
         app.launch()
-        XCTAssertTrue(app.buttons["header-watchlist"].waitForExistence(timeout: 10))
-        app.buttons["header-watchlist"].tap()
+        XCTAssertTrue(app.buttons["header-login"].waitForExistence(timeout: 10))
+        app.buttons["header-login"].tap()
         XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
 
         app.buttons["login-google"].tap()
@@ -407,23 +455,26 @@ final class DiscoveryTests: XCTestCase {
     func testLiveDeferredRouteIsExplicit() {
         let app = liveApp()
         app.launch()
-        XCTAssertTrue(app.buttons["header-watchlist"].waitForExistence(timeout: 10))
-        app.buttons["header-watchlist"].tap()
+        XCTAssertTrue(app.buttons["header-login"].waitForExistence(timeout: 10))
+        app.buttons["header-login"].tap()
         XCTAssertTrue(app.buttons["login-signup"].waitForExistence(timeout: 10))
         app.buttons["login-signup"].tap()
 
         XCTAssertTrue(anyElement(app, identifier: "live-unsupported-capability").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["live-unsupported-home"].exists)
+        XCTAssertTrue(app.buttons["live-unsupported-capability-ledger"].exists)
         XCTAssertFalse(app.staticTexts["이 화면은 다음 discovery 단계에서 콘텐츠를 연결합니다."].exists)
     }
 
     func testLiveAccountRouteExposesWatchlistAndSupportState() {
         let app = liveApp()
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account").waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["tab-mypage"].isSelected)
         XCTAssertTrue(app.buttons["live-mypage-watchlist"].exists)
         XCTAssertTrue(app.buttons["live-mypage-support"].exists)
 
@@ -436,8 +487,8 @@ final class DiscoveryTests: XCTestCase {
 
         let watchlistApp = liveApp()
         watchlistApp.launch()
-        XCTAssertTrue(watchlistApp.buttons["header-mypage"].waitForExistence(timeout: 10))
-        watchlistApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(watchlistApp.buttons["header-menu"].waitForExistence(timeout: 10))
+        watchlistApp.buttons["header-menu"].tap()
         XCTAssertTrue(watchlistApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         watchlistApp.buttons["live-menu-account"].tap()
         XCTAssertTrue(watchlistApp.buttons["live-mypage-watchlist"].waitForExistence(timeout: 20))
@@ -449,8 +500,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveAccountRoutesBlockHTTPBeforeProtectedRequests() {
         let accountApp = liveApp()
         accountApp.launch()
-        XCTAssertTrue(accountApp.buttons["header-mypage"].waitForExistence(timeout: 10))
-        accountApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(accountApp.buttons["header-menu"].waitForExistence(timeout: 10))
+        accountApp.buttons["header-menu"].tap()
         XCTAssertTrue(accountApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         accountApp.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(accountApp, identifier: "live-account-https-required").waitForExistence(timeout: 10))
@@ -458,8 +509,8 @@ final class DiscoveryTests: XCTestCase {
 
         let watchlistApp = liveApp()
         watchlistApp.launch()
-        XCTAssertTrue(watchlistApp.buttons["header-mypage"].waitForExistence(timeout: 10))
-        watchlistApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(watchlistApp.buttons["header-menu"].waitForExistence(timeout: 10))
+        watchlistApp.buttons["header-menu"].tap()
         XCTAssertTrue(watchlistApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         watchlistApp.buttons["live-menu-watchlist"].tap()
         XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist-https-required").waitForExistence(timeout: 10))
@@ -467,8 +518,8 @@ final class DiscoveryTests: XCTestCase {
 
         let supportApp = liveApp()
         supportApp.launch()
-        XCTAssertTrue(supportApp.buttons["header-mypage"].waitForExistence(timeout: 10))
-        supportApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(supportApp.buttons["header-menu"].waitForExistence(timeout: 10))
+        supportApp.buttons["header-menu"].tap()
         XCTAssertTrue(supportApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         supportApp.buttons["live-menu-help"].tap()
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support-https-required").waitForExistence(timeout: 10))
@@ -478,8 +529,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveAccountCapabilityRendersLoginRequiredSurface() {
         let app = liveApp(capabilityState: "login-required")
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account-login-required").waitForExistence(timeout: 10))
@@ -489,8 +540,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveAccountCapabilityRendersHTTPSRequiredSurface() {
         let app = liveApp(capabilityState: "https-required")
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account-https-required").waitForExistence(timeout: 10))
@@ -500,8 +551,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveAccountCapabilityRendersUnsupportedSurface() {
         let app = liveApp(capabilityState: "unsupported")
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account-unsupported").waitForExistence(timeout: 10))
@@ -511,8 +562,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveAccountCapabilityRendersRetrySurface() {
         let app = liveApp(capabilityState: "retry")
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account-retry").waitForExistence(timeout: 10))
@@ -522,8 +573,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveAccountCapabilityRendersHelpSurface() {
         let app = liveApp(capabilityState: "help")
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account-help").waitForExistence(timeout: 10))
@@ -533,8 +584,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry() {
         let app = liveApp()
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
 
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         for identifier in [
@@ -559,8 +610,8 @@ final class DiscoveryTests: XCTestCase {
 
         let supportApp = liveApp(homeScenario: "support")
         supportApp.launch()
-        XCTAssertTrue(supportApp.buttons["header-mypage"].waitForExistence(timeout: 10))
-        supportApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(supportApp.buttons["header-menu"].waitForExistence(timeout: 10))
+        supportApp.buttons["header-menu"].tap()
         XCTAssertTrue(supportApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         supportApp.buttons["live-menu-help"].tap()
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support").waitForExistence(timeout: 20))
@@ -579,8 +630,8 @@ final class DiscoveryTests: XCTestCase {
     func testConfiguredLiveSupportRendersPublicContentAndLoginGate() {
         let app = liveApp()
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-help"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-support").waitForExistence(timeout: 20))
@@ -599,8 +650,8 @@ final class DiscoveryTests: XCTestCase {
     func testAuthenticatedSupportProtectsDraftsAndExpiredSessions() {
         let app = liveApp(homeScenario: "supportAuthenticated")
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-help"].tap()
 
@@ -670,7 +721,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["관심공연 해제"].waitForExistence(timeout: 10))
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons["header-mypage"].tap()
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
         app.buttons["live-menu-watchlist"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-items").waitForExistence(timeout: 20))
@@ -699,8 +750,8 @@ final class DiscoveryTests: XCTestCase {
         let app = liveApp(homeScenario: "watchlistCommittedResponseLost")
         app.launch()
 
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
         app.buttons["live-menu-watchlist"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-items").waitForExistence(timeout: 20))
@@ -740,7 +791,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-cta-retry").waitForExistence(timeout: 20))
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons["header-mypage"].tap()
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
         app.buttons["live-menu-watchlist"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-retry").waitForExistence(timeout: 20))
@@ -778,7 +829,7 @@ final class DiscoveryTests: XCTestCase {
         add(detailAttachment)
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons["header-mypage"].tap()
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.buttons["live-menu-watchlist"].waitForExistence(timeout: 10))
         app.buttons["live-menu-watchlist"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-login-required").waitForExistence(timeout: 20))
@@ -792,8 +843,8 @@ final class DiscoveryTests: XCTestCase {
     func testCreateLogoutDismissesSupportDetail() {
         let app = liveApp(homeScenario: "supportAuthenticated")
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-help"].tap()
 
@@ -823,8 +874,8 @@ final class DiscoveryTests: XCTestCase {
         let app = liveApp()
         app.launch()
 
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.buttons["live-menu-capability-ledger"].waitForExistence(timeout: 10))
         app.buttons["live-menu-capability-ledger"].tap()
 
@@ -840,8 +891,8 @@ final class DiscoveryTests: XCTestCase {
     func testLiveMenuCloseReturnsToTheDiscoveryHome() {
         let app = liveApp()
         app.launch()
-        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
-        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
 
         app.buttons["live-menu-close"].tap()
