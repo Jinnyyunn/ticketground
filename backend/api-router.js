@@ -135,11 +135,18 @@ function requireDemoWatchlistAPI() {
   if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
 }
 
-function requireIdempotencyKey(req) {
+function parseIdempotencyKey(req) {
   const value = String(req.headers["x-idempotency-key"] || "").trim();
-  if (!value || value.length > 200) {
+  if (!value) return null;
+  if (value.length > 200) {
     throw httpError(400, "IDEMPOTENCY_KEY_REQUIRED", "유효한 재시도 키가 필요합니다.");
   }
+  return value;
+}
+
+function requireIdempotencyKey(req) {
+  const value = parseIdempotencyKey(req);
+  if (!value) throw httpError(400, "IDEMPOTENCY_KEY_REQUIRED", "유효한 재시도 키가 필요합니다.");
   return value;
 }
 
@@ -487,7 +494,11 @@ async function handleApi(req, res, db, surface) {
 
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
-    return publicPurchaseResult(buyPrimary(db, { ...body, userId: resolvePurchaseUserId(db, req, body) }));
+    return publicPurchaseResult(buyPrimary(db, {
+      ...body,
+      userId: resolvePurchaseUserId(db, req, body),
+      idempotencyKey: parseIdempotencyKey(req)
+    }));
   }
   if (req.method === "POST" && url.pathname === "/api/payments/bootpay/purchase") {
     requireBody(body, ["userId", "ticketId", "paymentMethod"]);
