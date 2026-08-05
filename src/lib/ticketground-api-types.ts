@@ -219,6 +219,9 @@ export type ApiSession = {
   readonly status: string;
   readonly trustScore: number;
   readonly profileConfirmed: boolean;
+  /** 실제 로그인(Google/Kakao/Naver) 성공 시에만 내려온다. 서버가 이후 구매·결제·본인인증 요청의 신원을 검증하는 데 쓰인다. */
+  readonly credential?: string;
+  readonly credentialExpiresAt?: string;
 };
 
 export type ApiNotificationJob = {

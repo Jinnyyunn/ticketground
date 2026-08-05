@@ -177,7 +177,7 @@ async function socialProfile(provider, code, state, config) {
   return normalizeProfile(provider, await fetchProfile(config, accessToken));
 }
 
-export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, httpError, now, publicSessionUser, stableId }) {
+export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, httpError, now, publicSessionUserWithCredential, stableId }) {
   function upsertSocialUser(db, provider, profile) {
     const subject = String(profile.subject || "").trim();
     if (!subject) throw new Error(`${provider} profile subject missing`);
@@ -301,7 +301,7 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
     }
     return {
       responseHeaders: setCookieHeaders(clearSocialSessionCookie(provider, secureCookie)),
-      responseBody: publicSessionUser(user)
+      responseBody: publicSessionUserWithCredential(db, user)
     };
   }
 
