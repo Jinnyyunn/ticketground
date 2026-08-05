@@ -275,6 +275,65 @@ test("administrator cannot assign a role with permissions they do not hold", asy
   assert.ok(created.json.data.id);
 });
 
+test("an admin-role account cannot demote, deactivate, or reset the password of an owner-role account", async (t) => {
+  const server = await startServer(t);
+  const owner = await adminSessionRequest(server, "/api/admin/login", { body: { username: "admin", password: bootstrapAdminPassword } });
+  const ownerCookie = owner.setCookie.split(";")[0];
+  const ownerCsrf = owner.json.data.csrf;
+
+  // The target: a second owner-role account with more permissions than the attacker below.
+  const target = await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "second-owner", password: "second-owner-password", roleKeys: ["owner"], ipAllowlist: [] }
+  });
+
+  // The attacker: "admin" role holds every permission except finance.read, including acl.manage,
+  // so it can reach the admin-accounts/update route despite being less privileged than "owner".
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "acl-admin", password: "acl-admin-password", roleKeys: ["admin"], ipAllowlist: [] }
+  });
+  const attackerLogin = await adminSessionRequest(server, "/api/admin/login", { body: { username: "acl-admin", password: "acl-admin-password" } });
+  const attackerCookie = attackerLogin.setCookie.split(";")[0];
+  const attackerCsrf = attackerLogin.json.data.csrf;
+
+  const demoteAttempt = await adminSessionRequest(server, "/api/admin/admin-accounts/update", {
+    cookie: attackerCookie,
+    csrf: attackerCsrf,
+    body: { adminId: target.json.data.id, roleKeys: ["admin"], ipAllowlist: [] },
+    expectedStatus: 403
+  });
+  assert.equal(demoteAttempt.json.error.code, "ADMIN_ROLE_ESCALATION");
+
+  const deactivateAttempt = await adminSessionRequest(server, "/api/admin/admin-accounts/update", {
+    cookie: attackerCookie,
+    csrf: attackerCsrf,
+    body: { adminId: target.json.data.id, roleKeys: ["owner"], active: false, ipAllowlist: [] },
+    expectedStatus: 403
+  });
+  assert.equal(deactivateAttempt.json.error.code, "ADMIN_ROLE_ESCALATION");
+
+  const passwordResetAttempt = await adminSessionRequest(server, "/api/admin/admin-accounts/update", {
+    cookie: attackerCookie,
+    csrf: attackerCsrf,
+    body: { adminId: target.json.data.id, roleKeys: ["owner"], password: "attacker-chosen-password", ipAllowlist: [] },
+    expectedStatus: 403
+  });
+  assert.equal(passwordResetAttempt.json.error.code, "ADMIN_ROLE_ESCALATION");
+
+  // The target account is untouched by all three attempts - still owner, still active, still
+  // reachable with its original password.
+  const acl = await adminSessionRequest(server, "/api/admin/workspaces/acl", { cookie: ownerCookie });
+  const targetAfter = acl.json.data.adminAccounts.find((account) => account.id === target.json.data.id);
+  assert.ok(targetAfter);
+  assert.deepEqual(targetAfter.roleKeys, ["owner"]);
+  assert.equal(targetAfter.active, true);
+  const stillLogsIn = await adminSessionRequest(server, "/api/admin/login", { body: { username: "second-owner", password: "second-owner-password" } });
+  assert.ok(stillLogsIn.json.data.csrf);
+});
+
 test("administrator IP ACL rejects malformed CIDR entries", () => {
   assert.throws(() => normalizeAdminIpAllowlist(["10.0.0.0/8/32"]), /IPv4 주소 또는 CIDR/);
 });
