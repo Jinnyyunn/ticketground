@@ -126,3 +126,29 @@ test("checkout ignores tampered URL amount parameters for a selected backend tic
   assert.doesNotMatch(bodyText, /좌석 금액\s*1원/);
   assert.doesNotMatch(bodyText, /총 결제금액\s*2원/);
 });
+
+test("checkout blocks payment instead of silently substituting a seat when ticketId is missing", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+
+  // Given: a checkout URL that lost its ticketId (e.g. corrupted link, back-navigation) but
+  // otherwise looks like a normal checkout deep link.
+  const missingTicketUrl = new URL(`${baseUrl}/checkout/les-miserables`);
+  missingTicketUrl.searchParams.set("date", "2026.05.13");
+  missingTicketUrl.searchParams.set("time", "19:30");
+
+  // When: the checkout page loads without a ticketId.
+  await page.goto(missingTicketUrl.toString(), { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "결제 정보 확인", level: 1 }).waitFor({ timeout: 5000 });
+
+  // Then: the payment button stays disabled and the page tells the user to reselect a seat,
+  // instead of silently buying whatever seat happens to still be on sale.
+  const payButton = page.getByRole("button", { name: "결제 완료" });
+  await payButton.waitFor({ timeout: 5000 });
+  assert.equal(await payButton.isDisabled(), true);
+  await page.getByText("선택된 좌석 정보를 확인할 수 없습니다. 좌석 선택 화면으로 돌아가 다시 선택해주세요.").waitFor({ timeout: 5000 });
+});

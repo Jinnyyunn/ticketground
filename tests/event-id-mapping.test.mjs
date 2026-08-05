@@ -28,7 +28,7 @@ test("booking pages fetch each show's mapped backend event", async (t) => {
   });
 });
 
-test("checkout fallback uses the current show's mapped backend event", async (t) => {
+test("checkout without a selected ticket blocks payment instead of guessing the current show's event", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -36,7 +36,7 @@ test("checkout fallback uses the current show's mapped backend event", async (t)
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   t.after(() => page.close());
 
-  await checkoutWithoutSelectedTicket(page, baseUrl, "palette-festival");
+  await assertCheckoutBlocksWithoutSelectedTicket(page, baseUrl, "palette-festival");
 });
 
 test("booking requests the seat map for the selected performance", async (t) => {
@@ -77,42 +77,31 @@ async function assertBookingEventSource(page, baseUrl, { slug, eventId, sourceTi
   await page.getByText(sourceTitle).first().waitFor({ timeout: 5000 });
 }
 
-async function checkoutWithoutSelectedTicket(page, baseUrl, slug) {
+async function assertCheckoutBlocksWithoutSelectedTicket(page, baseUrl, slug) {
   await verifyIdentity(baseUrl, "user_fan_a", "010-9000-0001");
   await page.addInitScript(() => {
     window.localStorage.setItem("ticketground:session-user-id", "user_fan_a");
   });
-  const stateResponse = await fetch(`${baseUrl}/api/state`);
-  const statePayload = await stateResponse.json();
   const catalogPayload = await (await fetch(`${baseUrl}/api/catalog`)).json();
   const event = catalogPayload.data.events.find((item) => item.slug === slug);
   const performance = event?.dates.find((item) => item.startsAt.startsWith("2026-07-05T12:00"));
   assert.ok(performance);
+
+  // A purchase request must never fire when the checkout page lost its ticketId — this used to
+  // silently fall back to a random ON_SALE ticket for the show instead of blocking payment.
+  let purchaseRequested = false;
+  await page.route("**/api/payments/bootpay/purchase", (route) => {
+    purchaseRequested = true;
+    return route.continue();
+  });
+
   await page.goto(`${baseUrl}/checkout/${slug}?date=2026.07.05&time=12%3A00&seats=&base=121000&fee=2000&total=123000&count=1`, {
     waitUntil: "networkidle"
   });
-  const purchaseRequest = page.waitForRequest((request) => {
-    const url = new URL(request.url());
-    return url.pathname === "/api/payments/bootpay/purchase";
-  });
-  const purchaseResponse = page.waitForResponse((response) => {
-    const url = new URL(response.url());
-    return url.pathname === "/api/payments/bootpay/purchase";
-  });
 
-  await page.getByLabel(/결제 조건/).check();
-  await page.getByRole("button", { name: "결제 완료" }).click();
-
-  const request = await purchaseRequest;
-  const response = await purchaseResponse;
-  const requestBody = request.postDataJSON();
-  const selectedTicket = statePayload.data.tickets.find((ticket) => ticket.id === requestBody.ticketId);
-  assert.ok(selectedTicket, `checkout selected unknown ticket ${requestBody.ticketId}`);
-  assert.equal(selectedTicket.eventId, "event_d91d3c4c539a");
-  assert.equal(selectedTicket.performanceDateId, performance.id);
-
-  const payload = await response.json();
-  assert.equal(payload.ok, true);
-  assert.equal(payload.data.event.id, "event_d91d3c4c539a");
-  return selectedTicket;
+  const payButton = page.getByRole("button", { name: "결제 완료" });
+  await payButton.waitFor({ timeout: 5000 });
+  assert.equal(await payButton.isDisabled(), true);
+  await page.getByText("선택된 좌석 정보를 확인할 수 없습니다. 좌석 선택 화면으로 돌아가 다시 선택해주세요.").waitFor({ timeout: 5000 });
+  assert.equal(purchaseRequested, false, "checkout must not silently substitute a ticket and pay for it");
 }
