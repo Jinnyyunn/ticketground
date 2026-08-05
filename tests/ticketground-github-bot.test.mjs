@@ -34,7 +34,16 @@ test("classifyPullRequestFiles reports every changed area and protected auth fil
     "area: automation",
     "area: auth",
   ]);
-  assert.deepEqual(result.protectedAuthFiles, ["src/app/api/auth/kakao/callback/route.ts"]);
+  assert.deepEqual(result.protectedAuthFiles, ["src/app/api/auth/kakao/callback/route.ts", "server.js"]);
+});
+
+test("classifyPullRequestFiles treats the admin login/session/ACL boundary as protected", () => {
+  const protectedFiles = ["server.js", "backend/admin.js", "backend/admin-acl.js"];
+  const result = classifyPullRequestFiles(["backend/catalog.js", ...protectedFiles]);
+
+  assert.deepEqual(result.protectedAuthFiles, protectedFiles);
+  assert.ok(result.labels.includes("area: backend"));
+  assert.ok(result.labels.includes("area: auth"));
 });
 
 test("classifyPullRequestFiles covers the repository backend and protected login contract", () => {

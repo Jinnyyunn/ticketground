@@ -22,6 +22,12 @@ const PROTECTED_AUTH_PATTERNS = [
   /^src\/lib\/(?:auth|google|oauth|social-auth)/,
   /^backend\/social-oauth(?:-config)?\.js$/,
   /^tests\/(?:auth-preview-host-boundary|google-auth|social-auth|social-login)/,
+  // Admin login/session/CSRF/IP-allowlist/permission boundary - gates
+  // financial data and destructive actions, at least as sensitive as
+  // consumer social login.
+  /^server\.js$/,
+  /^backend\/admin\.js$/,
+  /^backend\/admin-acl\.js$/,
 ];
 
 const BOT_MANAGED_LABELS = new Set([
