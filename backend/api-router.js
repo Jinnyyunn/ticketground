@@ -45,6 +45,7 @@ export function createApiRouter({
   nativeLogout,
   nativeSession,
   purchaseResale,
+  readBusinessRegistrationFile,
   releaseSeatHold,
   publicCatalog,
   publicSupportContent,
@@ -351,6 +352,17 @@ async function handleApi(req, res, db, surface) {
       responseHeaders: {
         "Content-Disposition": "attachment; filename=\"ticketground-ledger.csv\"",
         "Content-Type": "text/csv; charset=utf-8"
+      }
+    };
+  }
+  const groupBookingFileMatch = url.pathname.match(/^\/api\/admin\/group-booking\/requests\/([^/]+)\/business-registration-file$/);
+  if (req.method === "GET" && groupBookingFileMatch) {
+    const file = await readBusinessRegistrationFile(db, decodeURIComponent(groupBookingFileMatch[1]));
+    return {
+      rawBody: file.buffer,
+      responseHeaders: {
+        "Content-Disposition": `inline; filename="${file.fileName}"`,
+        "Content-Type": file.mimeType
       }
     };
   }
