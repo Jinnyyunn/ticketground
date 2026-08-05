@@ -503,6 +503,62 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertTrue(LiveAPIEndpoint.known.allSatisfy { !$0.pathTemplate.contains("50084") })
     }
 
+    func testSeatMapEventIDOnlyRequestOmitsPerformanceDateID() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL!,
+            observedResponseVersion: nil,
+            provenPublicEndpoints: [.seatMap]
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        _ = try await service.getSeatMap(eventID: "event-1", performanceDateID: nil)
+
+        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/seat-map")
+        XCTAssertEqual(request.url?.query, "eventId=event-1")
+        XCTAssertNil(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first {
+            $0.name == "performanceDateId"
+        })
+    }
+
+    func testStateProofKeepsUnknownCatalogUndispatched() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL!,
+            observedResponseVersion: nil,
+            provenPublicEndpoints: [.state]
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        do {
+            _ = try await service.getCatalog()
+            XCTFail("Expected unproved catalog capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .catalog, state: .unknown))
+            XCTAssertEqual(map.state(for: .state), .available)
+            XCTAssertEqual(map.state(for: .catalog), .unknown)
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testCapabilityMapRejectsUnknownOrIncompatibleContractState() {
         let unknown = LiveAPIContract.deployed.capabilityMap(
             for: URL(string: "http://132.145.109.87:4174/")!,
@@ -1298,6 +1354,7 @@ final class LiveBackendServiceTests: XCTestCase {
         let map = LiveAPIContract.deployed.capabilityMap(
             for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
             observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            provenPublicEndpoints: [.state, .catalog, .seatMap],
             catalogRouteConfirmed: true,
             discoveryRoutesConfirmed: true
         )

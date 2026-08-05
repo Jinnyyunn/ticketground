@@ -42,8 +42,6 @@ final class LiveBackendService {
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
-            validatedStateResponse: false,
-            catalogRouteConfirmed: false,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
             nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
@@ -65,8 +63,7 @@ final class LiveBackendService {
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
-            validatedStateResponse: false,
-            catalogRouteConfirmed: true,
+            provenPublicEndpoints: [.catalog],
             discoveryRoutesConfirmed: discoveryRoutesConfirmed,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
@@ -152,13 +149,14 @@ final class LiveBackendService {
         try await get(APIRequest(path: "/api/support/public"), endpoint: .publicSupport, as: LivePublicSupport.self)
     }
 
-    func getSeatMap(eventID: String, performanceDateID: String) async throws -> LiveSeatMap {
-        try await get(APIRequest(
+    func getSeatMap(eventID: String, performanceDateID: String? = nil) async throws -> LiveSeatMap {
+        var query = [APIRequestQuery(name: "eventId", value: eventID)]
+        if let performanceDateID {
+            query.append(APIRequestQuery(name: "performanceDateId", value: performanceDateID))
+        }
+        return try await get(APIRequest(
             path: "/api/seat-map",
-            query: [
-                APIRequestQuery(name: "eventId", value: eventID),
-                APIRequestQuery(name: "performanceDateId", value: performanceDateID)
-            ]
+            query: query
         ), endpoint: .seatMap, as: LiveSeatMap.self)
     }
 
@@ -364,8 +362,7 @@ final class LiveBackendService {
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: nil,
-            validatedStateResponse: true,
-            catalogRouteConfirmed: false
+            provenPublicEndpoints: [.state]
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
