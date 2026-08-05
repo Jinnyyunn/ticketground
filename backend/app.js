@@ -129,6 +129,7 @@ export async function createTicketgroundApp(options) {
   });
   groupBooking = createGroupBookingBackend({
     appendLedger: persistence.appendLedger,
+    businessRegistrationDir: options.businessRegistrationDir,
     clone: runtime.clone,
     ensureAdmissionCredential,
     httpError: runtime.httpError,

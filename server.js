@@ -49,6 +49,7 @@ if (!isDev && adminPassword.length < 12) {
 
 const app = await createTicketgroundApp({
   dbPath,
+  businessRegistrationDir: { directory: path.join(path.dirname(dbPath), "group-booking-uploads") },
   mediaDir: { directory: adminUploadDir, urlPrefix: "/uploads/admin" },
   runtime: {
     appAttestationSecret: process.env.TIG_APP_ATTESTATION_SECRET,
@@ -85,6 +86,9 @@ const adminSessionTtlMs = 1000 * 60 * 60 * 8;
 const adminLoginRateLimitWindowMs = 1000 * 60 * 5;
 const adminLoginRateLimitMaxAttempts = 10;
 const adminLoginAttempts = new Map();
+const groupBookingRateLimitWindowMs = 1000 * 60 * 60;
+const groupBookingRateLimitMaxRequests = 5;
+const groupBookingRateLimitAttempts = new Map();
 const defaultAdminRoles = (process.env.TIG_ADMIN_ROLES || "owner")
   .split(",")
   .map((role) => role.trim())
@@ -99,6 +103,13 @@ const adminLoginRateLimitCleanup = setInterval(() => {
   }
 }, adminLoginRateLimitWindowMs);
 adminLoginRateLimitCleanup.unref?.();
+const groupBookingRateLimitCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of groupBookingRateLimitAttempts) {
+    if (entry.windowExpiresAt <= now) groupBookingRateLimitAttempts.delete(ip);
+  }
+}, groupBookingRateLimitWindowMs);
+groupBookingRateLimitCleanup.unref?.();
 
 const sessionRoutePermissions = [
   { method: "GET", pattern: /^\/admin\/seat-designer$/, permission: "catalog.manage" },
@@ -116,6 +127,7 @@ const sessionRoutePermissions = [
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/support$/, permission: "support.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/resale$/, permission: "finance.read" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/group-booking$/, permission: "groupBooking.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/group-booking\/requests\/[^/]+\/business-registration-file$/, permission: "groupBooking.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/admission$/, permission: "admission.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/audit$/, permission: "security.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/acl$/, permission: "acl.read" },
@@ -166,6 +178,21 @@ function recordAdminLoginAttempt(ip) {
   existing.count += 1;
   return {
     limited: existing.count > adminLoginRateLimitMaxAttempts,
+    retryAfterSeconds: Math.ceil((existing.windowExpiresAt - now) / 1000)
+  };
+}
+
+function recordGroupBookingSubmission(ip) {
+  const now = Date.now();
+  const existing = groupBookingRateLimitAttempts.get(ip);
+  if (!existing || existing.windowExpiresAt <= now) {
+    const entry = { count: 1, windowExpiresAt: now + groupBookingRateLimitWindowMs };
+    groupBookingRateLimitAttempts.set(ip, entry);
+    return { limited: false, retryAfterSeconds: Math.ceil((entry.windowExpiresAt - now) / 1000) };
+  }
+  existing.count += 1;
+  return {
+    limited: existing.count > groupBookingRateLimitMaxRequests,
     retryAfterSeconds: Math.ceil((existing.windowExpiresAt - now) / 1000)
   };
 }
@@ -402,6 +429,16 @@ async function servePublic(req, res) {
       res.end("Internal Server Error");
     });
     return;
+  }
+  if (req.method === "POST" && pathname === "/api/group-booking/requests") {
+    const attempt = recordGroupBookingSubmission(requestIp(req));
+    if (attempt.limited) {
+      writeJson(res, 429, {
+        ok: false,
+        error: { code: "RATE_LIMITED", message: "단체/기관 예매 신청이 너무 많습니다. 잠시 후 다시 시도해주세요." }
+      }, { "Retry-After": String(attempt.retryAfterSeconds) });
+      return;
+    }
   }
   if (requestUrl.startsWith("/api/")) {
     app.handleRequest(req, res, app.db, "public");

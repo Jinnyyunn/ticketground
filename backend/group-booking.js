@@ -1,11 +1,21 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 const ORG_TYPES = new Set(["SCHOOL", "ACADEMY", "WELFARE", "COMPANY", "GOVERNMENT", "OTHER"]);
 const PAYMENT_METHODS = new Set(["CARD", "TAX_INVOICE", "BANK_TRANSFER"]);
 const REVIEWED_STATUSES = new Set(["APPROVED", "REJECTED"]);
 const MAX_HEADCOUNT = 5000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const BUSINESS_REGISTRATION_EXTENSIONS = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "application/pdf": "pdf"
+};
 
 export function createGroupBookingBackend({
   appendLedger,
+  businessRegistrationDir,
   clone,
   ensureAdmissionCredential,
   httpError,
@@ -59,7 +69,7 @@ function normalizeHeadcount(value) {
   return count;
 }
 
-function normalizeBusinessRegistrationFile(value) {
+function decodeBusinessRegistrationFile(value) {
   const dataUrl = cleanString(value);
   const match = /^data:(image\/(?:png|jpeg|webp)|application\/pdf);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!match) {
@@ -69,7 +79,32 @@ function normalizeBusinessRegistrationFile(value) {
   if (!buffer.length || buffer.length > MAX_FILE_BYTES) {
     throw httpError(422, "INVALID_BUSINESS_REGISTRATION_FILE", "사업자등록증/고유번호증 파일은 5MB 이하로 등록해주세요.");
   }
-  return dataUrl;
+  return { mimeType: match[1], buffer };
+}
+
+// Stored on disk instead of inline in the JSON DB: every mutation across the
+// entire app triggers a full rewrite of db.json, so embedding multi-MB
+// base64 blobs in a request record would re-serialize them on every
+// unrelated write once enough institutions had applied.
+async function storeBusinessRegistrationFile(requestId, { mimeType, buffer }) {
+  if (!businessRegistrationDir?.directory) {
+    throw httpError(422, "INVALID_BUSINESS_REGISTRATION_FILE", "사업자등록증/고유번호증 파일을 저장할 수 없습니다.");
+  }
+  await mkdir(businessRegistrationDir.directory, { recursive: true });
+  const fileName = `${requestId}.${BUSINESS_REGISTRATION_EXTENSIONS[mimeType]}`;
+  await writeFile(path.join(businessRegistrationDir.directory, fileName), buffer, { mode: 0o600 });
+  return { fileName, mimeType };
+}
+
+async function readBusinessRegistrationFile(db, requestId) {
+  const request = db.groupBookingRequests.find((item) => item.id === requestId);
+  if (!request) throw httpError(404, "GROUP_BOOKING_REQUEST_NOT_FOUND", "단체/기관 예매 신청을 찾을 수 없습니다.");
+  if (!request.businessRegistrationFile) {
+    throw httpError(404, "GROUP_BOOKING_FILE_NOT_FOUND", "첨부된 파일을 찾을 수 없습니다.");
+  }
+  const { fileName, mimeType } = request.businessRegistrationFile;
+  const buffer = await readFile(path.join(businessRegistrationDir.directory, fileName));
+  return { buffer, mimeType, fileName };
 }
 
 function eventDate(event, performanceDateId) {
@@ -132,12 +167,19 @@ function groupBookingRequestDto(db, request) {
   const event = db.events.find((item) => item.id === request.eventId);
   const performanceDate = event?.dates?.find((item) => item.id === request.performanceDateId);
   const zone = event?.zones?.find((item) => item.id === request.zoneId);
+  const cloned = clone(request);
+  delete cloned.businessRegistrationFile;
   return {
-    ...clone(request),
+    ...cloned,
     eventTitle: event?.title || request.eventId,
     venue: event?.venue || null,
     zoneName: zone?.name || request.zoneId,
-    dateLabel: performanceDate?.label || performanceDate?.startsAt || request.performanceDateId
+    dateLabel: performanceDate?.label || performanceDate?.startsAt || request.performanceDateId,
+    // Legacy requests (submitted before this endpoint moved the file to disk)
+    // still carry the inline data: URL directly on the record.
+    businessRegistrationFileUrl: request.businessRegistrationFile
+      ? `/api/admin/group-booking/requests/${request.id}/business-registration-file`
+      : request.businessRegistrationFileUrl
   };
 }
 
@@ -161,7 +203,7 @@ function normalizeRequestPayload(db, payload) {
     contactName,
     contactPhone,
     contactEmail,
-    businessRegistrationFileUrl: normalizeBusinessRegistrationFile(requireNonEmpty(payload, "businessRegistrationFileUrl")),
+    businessRegistrationFile: decodeBusinessRegistrationFile(requireNonEmpty(payload, "businessRegistrationFileUrl")),
     eventId,
     performanceDateId,
     zoneId,
@@ -211,13 +253,16 @@ function findOrCreateBuyerUser(db, request) {
   return created;
 }
 
-function submitGroupBookingRequest(db, payload) {
+async function submitGroupBookingRequest(db, payload) {
   db.groupBookingRequests ||= [];
   const input = normalizeRequestPayload(db, payload);
   const createdAt = now();
+  const requestId = id("gbr");
+  const businessRegistrationFile = await storeBusinessRegistrationFile(requestId, input.businessRegistrationFile);
   const request = {
-    id: id("gbr"),
+    id: requestId,
     ...input,
+    businessRegistrationFile,
     status: "PENDING",
     createdAt,
     updatedAt: createdAt,
@@ -342,6 +387,7 @@ function rejectGroupBookingRequest(db, { requestId, reviewNote }, actor) {
   return {
     approveGroupBookingRequest,
     listGroupBookingRequests,
+    readBusinessRegistrationFile,
     rejectGroupBookingRequest,
     submitGroupBookingRequest
   };
