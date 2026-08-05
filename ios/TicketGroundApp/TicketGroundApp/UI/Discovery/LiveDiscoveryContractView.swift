@@ -162,6 +162,7 @@ struct LiveDiscoveryContractView: View {
         guard case .loading = state else { return }
         let service = LiveBackendService(apiClient: container.environment.apiClient)
         do {
+            _ = try await service.diagnosePublicContract()
             switch route {
             case .region:
                 state = .loaded(.regions(try await service.getRegions().regions))

@@ -158,6 +158,52 @@ final class LiveBackendServiceTests: XCTestCase {
         })
     }
 
+    func testExplicitPublicContractDiagnosisAdmitsVersionedDiscoveryReads() async throws {
+        let event = #"{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venue":"Arena","soldCount":4}"#
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8),
+            "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[{"slug":"seoul","name":"서울","eventCount":1,"events":[\#(event)]}]}}"#.utf8),
+            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[\#(event)]}}"#.utf8),
+            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[{"opensAt":"2026-08-20T10:00:00.000Z","saleState":"OPEN_SOON","event":\#(event)}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnosePublicContract()
+        let regions = try await service.getRegions()
+        let artist = try await service.getArtist(slug: "iu")
+        let calendar = try await service.getOpenCalendar()
+
+        XCTAssertEqual(regions.regions.first?.name, "서울")
+        XCTAssertEqual(artist.artist.name, "IU")
+        XCTAssertEqual(calendar.entries.first?.event.id, "event-1")
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            [
+                "/api/health",
+                "/api/catalog?limit=1",
+                "/api/discovery/v1/contract",
+                "/api/discovery/v1/regions",
+                "/api/discovery/v1/artists/iu",
+                "/api/discovery/v1/open-calendar"
+            ]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == nil
+        })
+    }
+
     func testDiscoveryEndpointRejectsUnexpectedContractVersion() async {
         LiveBackendServiceURLProtocol.responses["/api/discovery/v1/regions"] =
             Data(#"{"ok":true,"data":{"version":"2","regions":[]}}"#.utf8)
