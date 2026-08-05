@@ -18,22 +18,56 @@ export function createCommerceBackend({
 }) {
   const OFFICIAL_RESALE_FEE_RATE = 0.05;
 
-  function assertTicketPurchasable(db, ticketId) {
+  function purchaseIdempotency(userId, key, payload) {
+    return {
+      keyDigest: hash(`purchase:${userId}:${key}`),
+      requestDigest: hash(`purchase:payload:${JSON.stringify(payload)}`)
+    };
+  }
+
+  function ticketPurchaseContext(db, ticketId) {
     const ticket = db.tickets.find((item) => item.id === ticketId);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
-    if (ticket.status !== "ON_SALE") throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
     const { event, zone } = eventZone(db, ticket.eventId, ticket.zoneId);
-    if (!isEventBookable(event)) {
-      throw httpError(409, "EVENT_NOT_ON_SALE", `${saleSummary(event).label} 티켓은 아직 예매할 수 없습니다.`);
-    }
     const performanceDate = eventDate(event, ticket.performanceDateId);
     return { ticket, event, zone, performanceDate };
   }
 
-  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId }) {
+  function assertTicketPurchasable(db, ticketId) {
+    const context = ticketPurchaseContext(db, ticketId);
+    if (context.ticket.status !== "ON_SALE") throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
+    if (!isEventBookable(context.event)) {
+      throw httpError(409, "EVENT_NOT_ON_SALE", `${saleSummary(context.event).label} 티켓은 아직 예매할 수 없습니다.`);
+    }
+    return context;
+  }
+
+  // A lost response after a successful purchase can make a client retry
+  // the exact same request. Without this, that retry either fails on an
+  // already-OWNED ticket (confusing the caller) or - if the caller reacts
+  // by picking a different ticket - silently buys a second seat. A replay
+  // with the same idempotency key returns the original result unchanged;
+  // a reused key with different purchase details is rejected outright.
+  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const payment = resolvePaymentMethod(paymentMethod);
+
+    const idempotency = idempotencyKey
+      ? purchaseIdempotency(user.id, idempotencyKey, { ticketId, paymentMethod })
+      : null;
+    if (idempotency) {
+      const existingTransaction = db.paymentTransactions.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
+      if (existingTransaction) {
+        if (existingTransaction.idempotency.requestDigest !== idempotency.requestDigest) {
+          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 구매 요청이 전달되었습니다.");
+        }
+        const context = ticketPurchaseContext(db, existingTransaction.ticketId);
+        const credential = db.admissionCredentials.find((item) => item.ticketId === existingTransaction.ticketId);
+        return { user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate, payment, admissionCredential: credential };
+      }
+    }
+
     const { ticket, event, zone, performanceDate } = assertTicketPurchasable(db, ticketId);
 
     ticket.ownerId = user.id;
@@ -52,6 +86,7 @@ export function createCommerceBackend({
       method: payment.key,
       status: payment.status,
       pgTransactionId: pgTransactionId || `${payment.key}-${hash(`${ticket.id}:${user.id}:${now()}`).slice(0, 12)}`,
+      ...(idempotency ? { idempotency } : {}),
       createdAt: now()
     });
     appendLedger(db, user.id, "PRIMARY_PURCHASE", {
