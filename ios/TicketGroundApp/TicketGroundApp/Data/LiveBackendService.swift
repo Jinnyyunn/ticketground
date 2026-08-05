@@ -421,6 +421,7 @@ final class LiveBackendService {
             let endpoints = Set(response.endpoints)
             var proven: Set<LiveAPIEndpoint> = []
             if endpoints.contains("regions") { proven.insert(.regions) }
+            if endpoints.contains("artists") { proven.insert(.artist) }
             if endpoints.contains("open-calendar") { proven.insert(.openCalendar) }
             return proven
         } catch {
