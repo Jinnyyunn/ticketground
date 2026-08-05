@@ -77,6 +77,39 @@ test("backend issues virtual ticket, app-only admission QR, and one-use gate ver
   assert.equal(userTickets.data[0].ownerId, undefined);
 });
 
+test("gate verification rejects a superseded QR even though its signature is still cryptographically valid", async (t) => {
+  // A rotated (re-issued) QR's old signature is still a correct HMAC for its
+  // own (ticketId, ownerId, expiresAt, nonce) tuple, so it must be rejected
+  // for freshness (not matching the ticket's current QR), not for a bad
+  // signature - this exercises the exact comparison the gate check performs.
+  const { baseUrl } = await startServer(t);
+  const { ticket } = await buyFirstTicket(baseUrl);
+  const device = await api(baseUrl, "/api/devices/trust", {
+    userId: "user_fan_a",
+    deviceId: "iphone-15-pro",
+    biometricVerified: true,
+    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "iphone-15-pro")
+  });
+  const issueParams = {
+    userId: "user_fan_a",
+    ticketId: ticket.id,
+    channel: "APP",
+    deviceId: "iphone-15-pro",
+    deviceToken: device.data.deviceToken,
+    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "iphone-15-pro", ticket.id)
+  };
+
+  const staleQr = await api(baseUrl, "/api/tickets/qr", issueParams);
+  const freshQr = await api(baseUrl, "/api/tickets/qr", issueParams);
+  assert.notEqual(staleQr.data.nonce, freshQr.data.nonce, "re-issuing produces a new nonce/signature pair");
+
+  const staleAttempt = await api(baseUrl, "/api/gate/verify", staleQr.data);
+  assert.equal(staleAttempt.data.valid, false, "the superseded QR is rejected even though its own signature verifies");
+
+  const freshAttempt = await api(baseUrl, "/api/gate/verify", freshQr.data);
+  assert.equal(freshAttempt.data.valid, true, "the currently active QR is still accepted");
+});
+
 test("backend rejects web admission QR, early QR activation, and forged app attestations", async (t) => {
   const early = await startServer(t, { now: "2026-09-19T15:00:00+09:00" });
   const { ticket } = await buyFirstTicket(early.baseUrl);
