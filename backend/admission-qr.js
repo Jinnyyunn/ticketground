@@ -122,10 +122,15 @@ export function createAdmissionQrBackend({
     const expected = hmac(`${ticketId}:${ownerId}:${expiresAt}:${nonce}`);
     const ticket = db.tickets.find((item) => item.id === ticketId);
     const credential = ticket ? admissionCredentialForTicket(db, ticket) : null;
+    // Both comparisons against the caller-supplied signature must stay
+    // timing-safe: a plain === here (even ANDed with the constant-time
+    // check below) would let short-circuit evaluation skip the safe
+    // comparison and leak byte-position match info through response
+    // timing for forged/replayed signatures.
     const valid = Boolean(ticket)
       && ticket.ownerId === ownerId
-      && ticket.currentQr?.signature === signature
       && timingSafeStringMatches(signature, expected)
+      && timingSafeStringMatches(signature, ticket.currentQr?.signature)
       && Date.parse(expiresAt) > currentTimeMs()
       && !ticket.currentQr?.usedAt
       && credential?.status !== "USED";
