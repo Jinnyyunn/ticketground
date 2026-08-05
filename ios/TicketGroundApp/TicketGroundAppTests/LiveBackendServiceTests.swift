@@ -525,6 +525,116 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(updateJSON["notificationEnabled"] as? Bool, true)
     }
 
+    func testNativeBookingHoldsUsesBearerPrincipalAcrossQueueHoldAndDraft() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "POST /api/me/queue-entries": Data(#"{"ok":true,"data":{"id":"queue-1","performanceDateId":"perf-1","status":"ADMITTED","position":0,"admittedAt":"2026-08-05T10:00:00.000Z","admissionExpiresAt":"2026-08-05T10:10:00.000Z","enteredAt":"2026-08-05T09:59:00.000Z"}}"#.utf8),
+            "GET /api/me/queue-entries/queue-1": Data(#"{"ok":true,"data":{"id":"queue-1","performanceDateId":"perf-1","status":"ADMITTED","position":0,"admittedAt":"2026-08-05T10:00:00.000Z","admissionExpiresAt":"2026-08-05T10:10:00.000Z","enteredAt":"2026-08-05T09:59:00.000Z"}}"#.utf8),
+            "DELETE /api/me/queue-entries/queue-1": Data(#"{"ok":true,"data":{"id":"queue-1","status":"LEFT"}}"#.utf8),
+            "POST /api/me/seat-holds": Data(#"{"ok":true,"data":{"id":"hold-1","status":"ACTIVE","performanceDateId":"perf-1","ticketIds":["ticket-1"],"expiresAt":"2026-08-05T10:05:00.000Z","extensionsUsed":0}}"#.utf8),
+            "GET /api/me/seat-holds/hold-1": Data(#"{"ok":true,"data":{"id":"hold-1","status":"ACTIVE","performanceDateId":"perf-1","ticketIds":["ticket-1"],"expiresAt":"2026-08-05T10:05:00.000Z","extensionsUsed":0}}"#.utf8),
+            "PATCH /api/me/seat-holds/hold-1/extend": Data(#"{"ok":true,"data":{"id":"hold-1","status":"ACTIVE","performanceDateId":"perf-1","ticketIds":["ticket-1"],"expiresAt":"2026-08-05T10:10:00.000Z","extensionsUsed":1}}"#.utf8),
+            "POST /api/me/reservation-drafts": Data(#"{"ok":true,"data":{"id":"draft-1","status":"PENDING_PAYMENT","performanceDateId":"perf-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":88000,"serviceFee":2000,"total":90000},"expiresAt":"2026-08-05T10:15:00.000Z"}}"#.utf8),
+            "GET /api/me/reservation-drafts/draft-1": Data(#"{"ok":true,"data":{"id":"draft-1","status":"PENDING_PAYMENT","performanceDateId":"perf-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":88000,"serviceFee":2000,"total":90000},"expiresAt":"2026-08-05T10:15:00.000Z"}}"#.utf8),
+            "DELETE /api/me/reservation-drafts/draft-1": Data(#"{"ok":true,"data":{"id":"draft-1","status":"CANCELLED","performanceDateId":"perf-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":88000,"serviceFee":2000,"total":90000},"expiresAt":"2026-08-05T10:15:00.000Z"}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeBookingHoldsRoutesConfirmed: true
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        let entry = try await service.enterQueue(userID: "user-1", performanceDateID: "perf-1")
+        XCTAssertEqual(entry.status, .admitted)
+        let fetchedEntry = try await service.getQueueEntry(userID: "user-1", entryID: entry.id)
+        XCTAssertEqual(fetchedEntry.id, "queue-1")
+        let leftEntry = try await service.leaveQueue(userID: "user-1", entryID: entry.id)
+        XCTAssertEqual(leftEntry.status, .left)
+
+        let hold = try await service.createSeatHold(
+            userID: "user-1",
+            performanceDateID: "perf-1",
+            ticketIDs: ["ticket-1"],
+            idempotencyKey: "hold-key-1"
+        )
+        XCTAssertEqual(hold.status, .active)
+        let fetchedHold = try await service.getSeatHold(userID: "user-1", holdID: hold.id)
+        XCTAssertEqual(fetchedHold.ticketIds, ["ticket-1"])
+        let extended = try await service.extendSeatHold(userID: "user-1", holdID: hold.id)
+        XCTAssertEqual(extended.extensionsUsed, 1)
+
+        let draft = try await service.createReservationDraft(userID: "user-1", holdID: hold.id, idempotencyKey: "draft-key-1")
+        XCTAssertEqual(draft.status, .pendingPayment)
+        XCTAssertEqual(draft.amount.total, 90000)
+        let fetchedDraft = try await service.getReservationDraft(userID: "user-1", draftID: draft.id)
+        XCTAssertEqual(fetchedDraft.id, "draft-1")
+        let cancelledDraft = try await service.cancelReservationDraft(userID: "user-1", draftID: draft.id)
+        XCTAssertEqual(cancelledDraft.status, .cancelled)
+
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { "\(request.httpMethod ?? "") \($0.path)" }
+            },
+            [
+                "POST /api/me/queue-entries",
+                "GET /api/me/queue-entries/queue-1",
+                "DELETE /api/me/queue-entries/queue-1",
+                "POST /api/me/seat-holds",
+                "GET /api/me/seat-holds/hold-1",
+                "PATCH /api/me/seat-holds/hold-1/extend",
+                "POST /api/me/reservation-drafts",
+                "GET /api/me/reservation-drafts/draft-1",
+                "DELETE /api/me/reservation-drafts/draft-1"
+            ]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[3].value(forHTTPHeaderField: "X-Idempotency-Key"), "hold-key-1")
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[6].value(forHTTPHeaderField: "X-Idempotency-Key"), "draft-key-1")
+
+        let holdRequestBody = try XCTUnwrap(LiveBackendServiceURLProtocol.requestBodies[3])
+        let holdRequestJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: holdRequestBody) as? [String: Any])
+        XCTAssertEqual(holdRequestJSON["performanceDateId"] as? String, "perf-1")
+        XCTAssertEqual(holdRequestJSON["ticketIds"] as? [String], ["ticket-1"])
+    }
+
+    func testBookingHoldsCapabilityRequiresConfirmedRoutesAndHTTPS() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let unconfirmedMap = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: unconfirmedMap)
+
+        do {
+            _ = try await service.enterQueue(userID: "user-1", performanceDateID: "perf-1")
+            XCTFail("Expected booking-hold mutation to remain unavailable without server confirmation")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .queueEntryEnter, state: .blocked(.unsupportedMutation)))
+        }
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 0)
+    }
+
     func testPublicHTTPReadSendsNoAuthorizationAndExcludesAdminPort() async throws {
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
 

@@ -18,12 +18,20 @@ export function createApiRouter({
   confirmBootpayPayment,
   createAdminAccount,
   cancelResaleListing,
+  createReservationDraft,
+  createSeatHold,
   createSupportThread,
   createSupportThreadForPrincipal,
   createEventDraft,
+  cancelReservationDraft,
   demoSession,
   directTransferAttempt,
   drawPool,
+  enterQueue,
+  extendSeatHold,
+  getQueueEntry,
+  getReservationDraft,
+  getSeatHold,
   googleSession,
   googleNativeSession,
   httpError,
@@ -31,11 +39,13 @@ export function createApiRouter({
   issueQr,
   issueNativeSession,
   joinPool,
+  leaveQueue,
   listForResale,
   notifyWatchlist,
   nativeLogout,
   nativeSession,
   purchaseResale,
+  releaseSeatHold,
   publicCatalog,
   publicSupportContent,
   publicArtist,
@@ -159,6 +169,10 @@ async function handleApi(req, res, db, surface) {
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
   const principalWatchlistMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)$/);
+  const queueEntryMatch = url.pathname.match(/^\/api\/me\/queue-entries\/([^/]+)$/);
+  const seatHoldMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)$/);
+  const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
+  const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
@@ -168,7 +182,7 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1"] };
+    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1", "native-booking-holds-v1"] };
   }
   if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
@@ -217,6 +231,72 @@ async function handleApi(req, res, db, surface) {
       authenticateNativeSession(db, req).user.id,
       decodeEventId(principalWatchlistMatch[1])
     );
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/queue-entries") {
+    requireBody(body, ["performanceDateId"]);
+    return enterQueue(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      performanceDateId: body.performanceDateId
+    });
+  }
+  if (req.method === "GET" && queueEntryMatch) {
+    return getQueueEntry(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      entryId: queueEntryMatch[1]
+    });
+  }
+  if (req.method === "DELETE" && queueEntryMatch) {
+    return leaveQueue(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      entryId: queueEntryMatch[1]
+    });
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/seat-holds") {
+    requireBody(body, ["performanceDateId", "ticketIds"]);
+    return createSeatHold(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      performanceDateId: body.performanceDateId,
+      ticketIds: body.ticketIds,
+      idempotencyKey: requireIdempotencyKey(req)
+    });
+  }
+  if (req.method === "GET" && seatHoldMatch && !seatHoldExtendMatch) {
+    return getSeatHold(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      holdId: seatHoldMatch[1]
+    });
+  }
+  if (req.method === "PATCH" && seatHoldExtendMatch) {
+    return extendSeatHold(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      holdId: seatHoldExtendMatch[1]
+    });
+  }
+  if (req.method === "DELETE" && seatHoldMatch) {
+    return releaseSeatHold(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      holdId: seatHoldMatch[1]
+    });
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/reservation-drafts") {
+    requireBody(body, ["holdId"]);
+    return createReservationDraft(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      holdId: body.holdId,
+      idempotencyKey: requireIdempotencyKey(req)
+    });
+  }
+  if (req.method === "GET" && reservationDraftMatch) {
+    return getReservationDraft(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      draftId: reservationDraftMatch[1]
+    });
+  }
+  if (req.method === "DELETE" && reservationDraftMatch) {
+    return cancelReservationDraft(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      draftId: reservationDraftMatch[1]
+    });
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
     requireBody(body, ["name"]);

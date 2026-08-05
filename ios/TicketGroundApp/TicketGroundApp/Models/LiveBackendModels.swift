@@ -33,6 +33,16 @@ enum LiveAPIEndpoint: Hashable {
     case pushToken
     case ticketQR
     case virtualQR
+    case queueEntryEnter
+    case queueEntryStatus
+    case queueEntryLeave
+    case seatHoldCreate
+    case seatHoldStatus
+    case seatHoldExtend
+    case seatHoldRelease
+    case reservationDraftCreate
+    case reservationDraftStatus
+    case reservationDraftCancel
     case unknown(method: APIRequestMethod, path: String)
 
     static let known: [LiveAPIEndpoint] = [
@@ -61,24 +71,38 @@ enum LiveAPIEndpoint: Hashable {
         .deviceTrust,
         .pushToken,
         .ticketQR,
-        .virtualQR
+        .virtualQR,
+        .queueEntryEnter,
+        .queueEntryStatus,
+        .queueEntryLeave,
+        .seatHoldCreate,
+        .seatHoldStatus,
+        .seatHoldExtend,
+        .seatHoldRelease,
+        .reservationDraftCreate,
+        .reservationDraftStatus,
+        .reservationDraftCancel
     ]
 
     var method: APIRequestMethod {
         switch self {
         case .watchlistUpsert:
             return .put
-        case .watchlistDelete:
+        case .watchlistDelete, .queueEntryLeave, .seatHoldRelease, .reservationDraftCancel:
             return .delete
         case .supportThreadMutation, .supportMessages, .watchlistMutation,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
-             .ticketQR, .virtualQR:
+             .ticketQR, .virtualQR, .queueEntryEnter, .seatHoldCreate,
+             .reservationDraftCreate:
             return .post
+        case .seatHoldExtend:
+            return .patch
         case .unknown(let method, _):
             return method
         case .health, .state, .catalog, .regions, .artist, .openCalendar,
-             .publicSupport, .seatMap, .session, .tickets, .watchlist, .supportThreads:
+             .publicSupport, .seatMap, .session, .tickets, .watchlist, .supportThreads,
+             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus:
             return .get
         }
     }
@@ -111,6 +135,16 @@ enum LiveAPIEndpoint: Hashable {
         case .pushToken: return "/api/devices/push-token"
         case .ticketQR: return "/api/tickets/qr"
         case .virtualQR: return "/api/tickets/virtual-qr"
+        case .queueEntryEnter: return "/api/me/queue-entries"
+        case .queueEntryStatus: return "/api/me/queue-entries/{entryId}"
+        case .queueEntryLeave: return "/api/me/queue-entries/{entryId}"
+        case .seatHoldCreate: return "/api/me/seat-holds"
+        case .seatHoldStatus: return "/api/me/seat-holds/{holdId}"
+        case .seatHoldExtend: return "/api/me/seat-holds/{holdId}/extend"
+        case .seatHoldRelease: return "/api/me/seat-holds/{holdId}"
+        case .reservationDraftCreate: return "/api/me/reservation-drafts"
+        case .reservationDraftStatus: return "/api/me/reservation-drafts/{draftId}"
+        case .reservationDraftCancel: return "/api/me/reservation-drafts/{draftId}"
         case .unknown(_, let path): return path
         }
     }
@@ -119,12 +153,15 @@ enum LiveAPIEndpoint: Hashable {
         switch self {
         case .health, .state, .catalog, .regions, .artist, .openCalendar, .publicSupport, .seatMap:
             return .publicRead
-        case .session, .tickets, .watchlist, .supportThreads:
+        case .session, .tickets, .watchlist, .supportThreads,
+             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus:
             return .authenticatedRead
         case .supportThreadMutation, .supportMessages, .watchlistMutation,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
-             .ticketQR, .virtualQR, .watchlistUpsert, .watchlistDelete:
+             .ticketQR, .virtualQR, .watchlistUpsert, .watchlistDelete,
+             .queueEntryEnter, .queueEntryLeave, .seatHoldCreate, .seatHoldExtend,
+             .seatHoldRelease, .reservationDraftCreate, .reservationDraftCancel:
             return .mutation
         case .unknown:
             return .mutation
@@ -212,7 +249,8 @@ struct LiveAPIContract {
         catalogRouteConfirmed: Bool = false,
         nativeAccountRoutesConfirmed: Bool = false,
         nativeSupportRoutesConfirmed: Bool = false,
-        nativeWatchlistRoutesConfirmed: Bool = false
+        nativeWatchlistRoutesConfirmed: Bool = false,
+        nativeBookingHoldsRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         var provenPublicEndpoints = provenPublicEndpoints
         if validatedStateResponse {
@@ -235,7 +273,8 @@ struct LiveAPIContract {
                     provenPublicEndpoints: provenPublicEndpoints,
                     nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed,
                     nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed,
-                    nativeWatchlistRoutesConfirmed: nativeWatchlistRoutesConfirmed
+                    nativeWatchlistRoutesConfirmed: nativeWatchlistRoutesConfirmed,
+                    nativeBookingHoldsRoutesConfirmed: nativeBookingHoldsRoutesConfirmed
                 )
             )
         })
@@ -249,7 +288,8 @@ struct LiveAPIContract {
         provenPublicEndpoints: Set<LiveAPIEndpoint>,
         nativeAccountRoutesConfirmed: Bool,
         nativeSupportRoutesConfirmed: Bool,
-        nativeWatchlistRoutesConfirmed: Bool
+        nativeWatchlistRoutesConfirmed: Bool,
+        nativeBookingHoldsRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
@@ -279,6 +319,10 @@ struct LiveAPIContract {
                 if nativeWatchlistRoutesConfirmed && endpoint == .watchlist {
                     return .available
                 }
+                if nativeBookingHoldsRoutesConfirmed
+                    && [.queueEntryStatus, .seatHoldStatus, .reservationDraftStatus].contains(endpoint) {
+                    return .available
+                }
                 return nativeSupportRoutesConfirmed && endpoint == .supportThreads
                     ? .available
                     : .blocked(.serverAuthorizationUnverified)
@@ -290,6 +334,12 @@ struct LiveAPIContract {
                     return .available
                 }
                 if nativeWatchlistRoutesConfirmed && [.watchlistUpsert, .watchlistDelete].contains(endpoint) {
+                    return .available
+                }
+                if nativeBookingHoldsRoutesConfirmed && [
+                    .queueEntryEnter, .queueEntryLeave, .seatHoldCreate, .seatHoldExtend,
+                    .seatHoldRelease, .reservationDraftCreate, .reservationDraftCancel
+                ].contains(endpoint) {
                     return .available
                 }
                 return .blocked(.unsupportedMutation)
@@ -683,6 +733,84 @@ struct LiveWatchlistEvent: Decodable, Equatable {
     let venueId: String
     let category: String
     let saleState: String
+}
+
+enum LiveQueueEntryStatus: String, Decodable, Equatable {
+    case waiting = "WAITING"
+    case admitted = "ADMITTED"
+    case expired = "EXPIRED"
+    case left = "LEFT"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
+}
+
+struct LiveQueueEntry: Decodable, Equatable {
+    let id: String
+    let performanceDateId: String
+    let status: LiveQueueEntryStatus
+    let position: Int
+    let admittedAt: String?
+    let admissionExpiresAt: String?
+    let enteredAt: String
+}
+
+struct LiveQueueEntryLeaveResult: Decodable, Equatable {
+    let id: String
+    let status: LiveQueueEntryStatus
+}
+
+enum LiveSeatHoldStatus: String, Decodable, Equatable {
+    case active = "ACTIVE"
+    case expired = "EXPIRED"
+    case released = "RELEASED"
+    case converted = "CONVERTED"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
+}
+
+struct LiveSeatHold: Decodable, Equatable {
+    let id: String
+    let status: LiveSeatHoldStatus
+    let performanceDateId: String
+    let ticketIds: [String]
+    let expiresAt: String
+    let extensionsUsed: Int
+}
+
+enum LiveReservationDraftStatus: String, Decodable, Equatable {
+    case pendingPayment = "PENDING_PAYMENT"
+    case expired = "EXPIRED"
+    case cancelled = "CANCELLED"
+    case confirmed = "CONFIRMED"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
+}
+
+struct LiveReservationAmount: Decodable, Equatable {
+    let faceValueTotal: Int
+    let serviceFee: Int
+    let total: Int
+}
+
+struct LiveReservationDraft: Decodable, Equatable {
+    let id: String
+    let status: LiveReservationDraftStatus
+    let performanceDateId: String
+    let ticketIds: [String]
+    let amount: LiveReservationAmount
+    let expiresAt: String
 }
 
 struct LiveNotificationJob: Decodable, Equatable {

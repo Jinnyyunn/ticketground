@@ -48,7 +48,8 @@ final class LiveBackendService {
             observedResponseVersion: version,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
         )
         guard capabilities.diagnostics.compatibility == .compatible else {
             return LiveAPIContractProbe(
@@ -71,7 +72,8 @@ final class LiveBackendService {
             provenPublicEndpoints: provenPublicEndpoints,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -119,7 +121,8 @@ final class LiveBackendService {
             observedResponseVersion: health.version,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
         )
         return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
     }
@@ -136,7 +139,26 @@ final class LiveBackendService {
             observedResponseVersion: health.version,
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
+        )
+        return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
+    }
+
+    func diagnoseBookingHoldsContract() async throws -> LiveAPIContractProbe {
+        let health = try await get(
+            APIRequest(path: contract.bootstrapPath),
+            endpoint: .health,
+            bypassCapability: true,
+            as: LiveAPIHealth.self
+        )
+        capabilities = contract.capabilityMap(
+            for: apiClient.baseURL ?? contract.publicHost,
+            observedResponseVersion: health.version,
+            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
+            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
+            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
         )
         return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
     }
@@ -326,6 +348,138 @@ final class LiveBackendService {
             ),
             endpoint: .watchlistDelete,
             as: LiveWatchlistDeletion.self
+        )
+    }
+
+    func enterQueue(userID: String, performanceDateID: String) async throws -> LiveQueueEntry {
+        let body = try JSONEncoder().encode(["performanceDateId": performanceDateID])
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/queue-entries",
+                body: .json(body),
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .queueEntryEnter,
+            as: LiveQueueEntry.self
+        )
+    }
+
+    func getQueueEntry(userID: String, entryID: String) async throws -> LiveQueueEntry {
+        try await get(
+            principalRequest(path: "/api/me/queue-entries/\(pathValue(entryID))", userID: userID),
+            endpoint: .queueEntryStatus,
+            as: LiveQueueEntry.self
+        )
+    }
+
+    func leaveQueue(userID: String, entryID: String) async throws -> LiveQueueEntryLeaveResult {
+        try await get(
+            APIRequest(
+                method: .delete,
+                path: "/api/me/queue-entries/\(pathValue(entryID))",
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .queueEntryLeave,
+            as: LiveQueueEntryLeaveResult.self
+        )
+    }
+
+    func createSeatHold(
+        userID: String,
+        performanceDateID: String,
+        ticketIDs: [String],
+        idempotencyKey: String
+    ) async throws -> LiveSeatHold {
+        let body = try JSONEncoder().encode(LiveSeatHoldRequest(performanceDateId: performanceDateID, ticketIds: ticketIDs))
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/seat-holds",
+                body: .json(body),
+                idempotencyKey: idempotencyKey,
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .seatHoldCreate,
+            as: LiveSeatHold.self
+        )
+    }
+
+    func getSeatHold(userID: String, holdID: String) async throws -> LiveSeatHold {
+        try await get(
+            principalRequest(path: "/api/me/seat-holds/\(pathValue(holdID))", userID: userID),
+            endpoint: .seatHoldStatus,
+            as: LiveSeatHold.self
+        )
+    }
+
+    func extendSeatHold(userID: String, holdID: String) async throws -> LiveSeatHold {
+        try await get(
+            APIRequest(
+                method: .patch,
+                path: "/api/me/seat-holds/\(pathValue(holdID))/extend",
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .seatHoldExtend,
+            as: LiveSeatHold.self
+        )
+    }
+
+    func releaseSeatHold(userID: String, holdID: String) async throws -> LiveSeatHold {
+        try await get(
+            APIRequest(
+                method: .delete,
+                path: "/api/me/seat-holds/\(pathValue(holdID))",
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .seatHoldRelease,
+            as: LiveSeatHold.self
+        )
+    }
+
+    func createReservationDraft(
+        userID: String,
+        holdID: String,
+        idempotencyKey: String
+    ) async throws -> LiveReservationDraft {
+        let body = try JSONEncoder().encode(["holdId": holdID])
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/reservation-drafts",
+                body: .json(body),
+                idempotencyKey: idempotencyKey,
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .reservationDraftCreate,
+            as: LiveReservationDraft.self
+        )
+    }
+
+    func getReservationDraft(userID: String, draftID: String) async throws -> LiveReservationDraft {
+        try await get(
+            principalRequest(path: "/api/me/reservation-drafts/\(pathValue(draftID))", userID: userID),
+            endpoint: .reservationDraftStatus,
+            as: LiveReservationDraft.self
+        )
+    }
+
+    func cancelReservationDraft(userID: String, draftID: String) async throws -> LiveReservationDraft {
+        try await get(
+            APIRequest(
+                method: .delete,
+                path: "/api/me/reservation-drafts/\(pathValue(draftID))",
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .reservationDraftCancel,
+            as: LiveReservationDraft.self
         )
     }
 
@@ -545,4 +699,9 @@ private struct LiveWatchlistPreferences: Encodable {
     let channels: [String]
     let calendarEnabled: Bool
     let notificationEnabled: Bool
+}
+
+private struct LiveSeatHoldRequest: Encodable {
+    let performanceDateId: String
+    let ticketIds: [String]
 }
