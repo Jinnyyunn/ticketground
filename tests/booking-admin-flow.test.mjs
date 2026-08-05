@@ -972,6 +972,10 @@ test("admin can force cancel an already-matched resale pool and unwind the compl
   assert.equal(refund.transferAmount, -price);
   assert.equal(refund.amount, price + expectedFee);
 
+  // And: the reversed resale nets out of the gross total instead of being
+  // double-counted as revenue - only the original primary purchase remains.
+  assert.equal(finance.data.summary.totalAmount, price);
+
   // And: re-listing the ticket for resale works again (transferCount was undone).
   const relisted = await api(server.baseUrl, "/api/resale/list", {
     sellerId: "user_fan_a",
