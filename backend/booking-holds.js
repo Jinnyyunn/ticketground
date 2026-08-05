@@ -175,7 +175,10 @@ export function createBookingHoldsBackend({
     }
 
     const idempotency = idempotencyKey
-      ? bookingIdempotency("hold", user.id, idempotencyKey, { performanceDateId, ticketIds: uniqueTicketIds })
+      ? bookingIdempotency("hold", user.id, idempotencyKey, {
+          performanceDateId,
+          ticketIds: [...uniqueTicketIds].sort()
+        })
       : null;
     if (idempotency) {
       const existing = db.seatHolds.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);

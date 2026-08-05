@@ -171,7 +171,7 @@ test("seat hold requires an idempotency key and replays identical retries", asyn
   configureGoogleEnv(t, true);
   const server = await startServer(t);
   const user = await googleLogin(server);
-  const { performanceDateId, tickets } = await onSaleTickets(server, 2);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 4);
   const ticketIds = [tickets[0].id];
 
   const missingKey = await request(server, "/api/me/seat-holds", {
@@ -196,11 +196,31 @@ test("seat hold requires an idempotency key and replays identical retries", asyn
   });
   assert.equal(retried.data.id, first.data.id);
 
+  const reorderedRetryKey = "retry-key-reordered";
+  const reorderedSeats = [tickets[1].id, tickets[2].id];
+  const reorderedFirst = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: reorderedRetryKey,
+    body: { performanceDateId, ticketIds: reorderedSeats }
+  });
+  const reorderedRetried = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: reorderedRetryKey,
+    body: { performanceDateId, ticketIds: [...reorderedSeats].reverse() }
+  });
+  assert.equal(
+    reorderedRetried.data.id,
+    reorderedFirst.data.id,
+    "a semantically identical retry must not depend on ticketIds array order"
+  );
+
   const conflicting = await request(server, "/api/me/seat-holds", {
     authorization: user.authorization,
     method: "POST",
     idempotencyKey: "retry-key",
-    body: { performanceDateId, ticketIds: [tickets[1].id] },
+    body: { performanceDateId, ticketIds: [tickets[3].id] },
     status: 409
   });
   assert.equal(conflicting.error.code, "IDEMPOTENCY_CONFLICT");
