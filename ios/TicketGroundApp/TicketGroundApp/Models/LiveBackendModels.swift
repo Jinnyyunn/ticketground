@@ -186,6 +186,14 @@ struct LiveAPIContractProbe: Equatable {
     let capabilities: LiveCapabilityMap
 }
 
+struct LiveSeatMapAdmission: Equatable {
+    let eventID: String
+
+    func matches(eventID: String, performanceDateID: String?) -> Bool {
+        self.eventID == eventID && performanceDateID == nil
+    }
+}
+
 struct LiveAPIContract {
     let expectedResponseVersion: String
     let publicHost: URL

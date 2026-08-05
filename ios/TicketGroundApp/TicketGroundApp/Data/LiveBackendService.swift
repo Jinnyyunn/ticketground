@@ -7,6 +7,8 @@ final class LiveBackendService {
     private let contract: LiveAPIContract
     private var capabilities: LiveCapabilityMap
     private var diagnosedVersionlessState: LiveState?
+    private var seatMapAdmission: LiveSeatMapAdmission?
+    private var diagnosedSeatMap: LiveSeatMap?
 
     init(
         apiClient: APIClient,
@@ -94,6 +96,8 @@ final class LiveBackendService {
             baseURL: capabilities.baseURL,
             states: states
         )
+        seatMapAdmission = LiveSeatMapAdmission(eventID: eventID)
+        diagnosedSeatMap = seatMap
         return seatMap
     }
 
@@ -172,22 +176,24 @@ final class LiveBackendService {
     }
 
     func getSeatMap(eventID: String, performanceDateID: String? = nil) async throws -> LiveSeatMap {
-        var query = [APIRequestQuery(name: "eventId", value: eventID)]
-        if let performanceDateID {
-            query.append(APIRequestQuery(name: "performanceDateId", value: performanceDateID))
+        guard seatMapAdmission?.matches(
+            eventID: eventID,
+            performanceDateID: performanceDateID
+        ) == true else {
+            throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: unprovedSeatMapState)
+        }
+        if let diagnosedSeatMap {
+            self.diagnosedSeatMap = nil
+            return diagnosedSeatMap
         }
         return try await get(APIRequest(
             path: "/api/seat-map",
-            query: query
+            query: [APIRequestQuery(name: "eventId", value: eventID)]
         ), endpoint: .seatMap, as: LiveSeatMap.self)
     }
 
-    func getVenueSeatMap(eventID: String) async throws -> LiveVenueSeatMap {
-        try await get(
-            APIRequest(path: "/api/events/\(pathValue(eventID))/seat-map"),
-            endpoint: .seatMap,
-            as: LiveVenueSeatMap.self
-        )
+    func getVenueSeatMap(eventID _: String) async throws -> LiveVenueSeatMap {
+        throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: unprovedSeatMapState)
     }
 
     func getSession(userID: String) async throws -> LiveSession {
@@ -397,6 +403,14 @@ final class LiveBackendService {
         guard state == .available else {
             throw APIClientError.capabilityUnavailable(endpoint: endpoint, state: state)
         }
+    }
+
+    private var unprovedSeatMapState: LiveCapabilityState {
+        let state = capabilities.state(for: .seatMap)
+        if case .incompatible = state {
+            return state
+        }
+        return .unknown
     }
 
     private func pathValue(_ value: String) -> String {

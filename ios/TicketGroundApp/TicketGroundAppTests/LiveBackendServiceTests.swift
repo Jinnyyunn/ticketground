@@ -69,7 +69,7 @@ final class LiveBackendServiceTests: XCTestCase {
         LiveBackendServiceURLProtocol.responses = [
             "/api/state": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
             "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8),
-            "/api/seat-map?eventId=event-1&performanceDateId=date-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[{"id":"zone-vip","name":"VIP","price":99000,"available":2}],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"zone-vip","zoneName":"VIP","price":99000,"status":"ON_SALE","available":true}]}}"#.utf8),
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[{"id":"zone-vip","name":"VIP","price":99000,"available":2}],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"zone-vip","zoneName":"VIP","price":99000,"status":"ON_SALE","available":true}]}}"#.utf8),
             "/api/me": Data(#"{"ok":true,"data":{"id":"user-1","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8),
             "/api/me/tickets": Data(#"{"ok":true,"data":[{"id":"ticket-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","seatLabel":"A-01","status":"OWNED","available":false,"faceValue":99000,"minPrice":49500,"maxPrice":106920,"transferCount":0,"maxTransferCount":1,"issuedAt":"2026-09-19T19:00:00+09:00","virtualQr":{"type":"virtual","issuedAt":"2026-09-19T18:00:00+09:00"},"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","performance":{"id":"date-1","label":"9월 19일 공연","startsAt":"2026-09-19T19:00:00+09:00"}},"payment":{"amount":105000,"method":"CREDIT_CARD","status":"CAPTURED"}}]}"#.utf8),
             "/api/me/watchlist": Data(#"{"ok":true,"data":[{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[{"id":"job-1","type":"BOOKING_D3","title":"예매 오픈 D-3 알림","status":"SCHEDULED","scheduledAt":"2026-08-19T19:00:00+09:00"}]}]}"#.utf8),
@@ -90,7 +90,8 @@ final class LiveBackendServiceTests: XCTestCase {
 
         let state = try await service.getState()
         let catalog = try await service.getCatalog()
-        let seatMap = try await service.getSeatMap(eventID: "event-1", performanceDateID: "date-1")
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let seatMap = try await service.getSeatMap(eventID: "event-1")
         let session = try await service.getSession(userID: "user-1")
         let tickets = try await service.getTickets(userID: "user-1")
         let watchlist = try await service.getWatchlist(userID: "user-1")
@@ -503,34 +504,15 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertTrue(LiveAPIEndpoint.known.allSatisfy { !$0.pathTemplate.contains("50084") })
     }
 
-    func testSeatMapEventIDOnlyRequestOmitsPerformanceDateID() async throws {
-        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
-        let client = LiveAPIClient(
-            baseURL: URL(string: "https://ticketground.test/")!,
-            assetBaseURL: URL(string: "https://ticketground.test/")!,
-            credentialStore: InMemoryCredentialStore(),
-            session: URLSession(configuration: configuration)
-        )
-        let map = LiveAPIContract.deployed.capabilityMap(
-            for: client.baseURL!,
-            observedResponseVersion: nil,
-            provenPublicEndpoints: [.seatMap]
-        )
-        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+    func testSeatMapAdmissionMatchesOnlyEventIDOnlyRoute() {
+        let admission = LiveSeatMapAdmission(eventID: "event-1")
 
-        _ = try await service.getSeatMap(eventID: "event-1", performanceDateID: nil)
-
-        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
-        XCTAssertEqual(request.url?.path, "/api/seat-map")
-        XCTAssertEqual(request.url?.query, "eventId=event-1")
-        XCTAssertNil(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first {
-            $0.name == "performanceDateId"
-        })
+        XCTAssertTrue(admission.matches(eventID: "event-1", performanceDateID: nil))
+        XCTAssertFalse(admission.matches(eventID: "event-2", performanceDateID: nil))
+        XCTAssertFalse(admission.matches(eventID: "event-1", performanceDateID: "date-1"))
     }
 
-    func testExplicitSeatMapDiagnosisAdmitsOnlySeatMapWithEventIDOnlyRequest() async throws {
+    func testSeatMapEventIDOnlyDiagnosisAndMatchingReadUseOneRequest() async throws {
         LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -542,16 +524,104 @@ final class LiveBackendServiceTests: XCTestCase {
         )
         let service = LiveBackendService(apiClient: client)
 
-        let seatMap = try await service.diagnoseSeatMap(eventID: "event-1")
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let seatMap = try await service.getSeatMap(eventID: "event-1")
 
         XCTAssertEqual(seatMap.event.id, "event-1")
-        XCTAssertEqual(service.capabilityMap.state(for: .seatMap), .available)
-        XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
-        XCTAssertEqual(service.capabilityMap.state(for: .state), .unknown)
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 1)
         let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
         XCTAssertEqual(request.url?.path, "/api/seat-map")
         XCTAssertEqual(request.url?.query, "eventId=event-1")
-        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertNil(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first {
+            $0.name == "performanceDateId"
+        })
+    }
+
+    func testIncompatibleSeatMapDiagnosisFailsClosedWithoutDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL!,
+            observedResponseVersion: "future-contract"
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        do {
+            _ = try await service.diagnoseSeatMap(eventID: "event-1")
+            XCTFail("Expected incompatible seat-map diagnosis rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(
+                error,
+                .capabilityUnavailable(endpoint: .seatMap, state: map.state(for: .seatMap))
+            )
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSeatMapAdmissionRejectsDifferentEventAndPerformanceDateWithoutDispatch() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-2")
+            XCTFail("Expected different event seat-map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        }
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1", performanceDateID: "date-1")
+            XCTFail("Expected performance-date seat-map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        }
+    }
+
+    func testSeatMapAdmissionDoesNotAuthorizeVenueRoute() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getVenueSeatMap(eventID: "event-1")
+            XCTFail("Expected unproved venue seat-map route rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testDefaultSeatMapUnknownDoesNotDispatchWithoutExplicitDiagnosis() async {
@@ -933,25 +1003,16 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(seatMap.seats.first?.mapPosition?.shape, "actual-map")
     }
 
-    func testDecodesEventVenueSeatMapRoute() async throws {
-        LiveBackendServiceURLProtocol.responses["/api/events/event-1/seat-map"] = Data(#"{"ok":true,"data":{"eventId":"event-1","venueId":"venue-1","venue":"Arena","address":"Seoul","type":"svg","imageUrl":"/assets/map.svg","imageSource":"venue-map","stage":"STAGE","helper":"좌석 안내","labels":[{"text":"VIP","x":50,"y":38}],"seats":[{"zoneId":"vip","seatLabel":"VIP-01","number":1,"x":34,"y":58,"section":"VIP"}]}}"#.utf8)
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
-        let client = LiveAPIClient(
-            baseURL: URL(string: "http://ticketground.test/")!,
-            assetBaseURL: URL(string: "http://ticketground.test/")!,
-            credentialStore: InMemoryCredentialStore(),
-            session: URLSession(configuration: configuration)
+    func testDecodesEventVenueSeatMapModel() throws {
+        let map = try JSONDecoder().decode(
+            LiveVenueSeatMap.self,
+            from: Data(#"{"eventId":"event-1","venueId":"venue-1","venue":"Arena","address":"Seoul","type":"svg","imageUrl":"/assets/map.svg","imageSource":"venue-map","stage":"STAGE","helper":"좌석 안내","labels":[{"text":"VIP","x":50,"y":38}],"seats":[{"zoneId":"vip","seatLabel":"VIP-01","number":1,"x":34,"y":58,"section":"VIP"}]}"#.utf8)
         )
-        let service = compatibleService(for: client)
-
-        let map = try await service.getVenueSeatMap(eventID: "event-1")
 
         XCTAssertEqual(map.eventID, "event-1")
         XCTAssertEqual(map.imageURL, "/assets/map.svg")
         XCTAssertEqual(map.labels?.first?.text, "VIP")
         XCTAssertEqual(map.seats.first?.seatLabel, "VIP-01")
-        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path }, ["/api/events/event-1/seat-map"])
     }
 
     func testPlaceRouteMatchesCatalogVenueIdentifier() throws {
