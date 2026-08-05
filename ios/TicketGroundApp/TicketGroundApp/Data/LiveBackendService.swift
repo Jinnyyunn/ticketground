@@ -176,6 +176,12 @@ final class LiveBackendService {
     }
 
     func getSeatMap(eventID: String, performanceDateID: String? = nil) async throws -> LiveSeatMap {
+        let state = capabilities.state(for: .seatMap)
+        guard state == .available else {
+            seatMapAdmission = nil
+            diagnosedSeatMap = nil
+            throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: state)
+        }
         guard seatMapAdmission?.matches(
             eventID: eventID,
             performanceDateID: performanceDateID
