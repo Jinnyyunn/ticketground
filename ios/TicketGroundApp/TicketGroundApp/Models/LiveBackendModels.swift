@@ -92,7 +92,7 @@ enum LiveAPIEndpoint: Hashable {
         case .artist: return "/api/discovery/v1/artists/{slug}"
         case .openCalendar: return "/api/discovery/v1/open-calendar"
         case .publicSupport: return "/api/support/public"
-        case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
+        case .seatMap: return "/api/seat-map?eventId={eventId}"
         case .session: return "/api/me"
         case .tickets: return "/api/me/tickets"
         case .watchlist: return "/api/me/watchlist"
@@ -199,6 +199,7 @@ struct LiveAPIContract {
     func capabilityMap(
         for baseURL: URL,
         observedResponseVersion: String?,
+        provenPublicEndpoints: Set<LiveAPIEndpoint> = [],
         validatedStateResponse: Bool = false,
         catalogRouteConfirmed: Bool = false,
         discoveryRoutesConfirmed: Bool = false,
@@ -206,6 +207,13 @@ struct LiveAPIContract {
         nativeSupportRoutesConfirmed: Bool = false,
         nativeWatchlistRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
+        var provenPublicEndpoints = provenPublicEndpoints
+        if validatedStateResponse {
+            provenPublicEndpoints.insert(.state)
+        }
+        if catalogRouteConfirmed {
+            provenPublicEndpoints.insert(.catalog)
+        }
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
             observedResponseVersion: observedResponseVersion
@@ -217,8 +225,7 @@ struct LiveAPIContract {
                     for: endpoint,
                     baseURL: baseURL,
                     diagnostics: diagnostics,
-                    validatedStateResponse: validatedStateResponse,
-                    catalogRouteConfirmed: catalogRouteConfirmed,
+                    provenPublicEndpoints: provenPublicEndpoints,
                     discoveryRoutesConfirmed: discoveryRoutesConfirmed,
                     nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed,
                     nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed,
@@ -233,8 +240,7 @@ struct LiveAPIContract {
         for endpoint: LiveAPIEndpoint,
         baseURL: URL,
         diagnostics: LiveAPIContractDiagnostics,
-        validatedStateResponse: Bool,
-        catalogRouteConfirmed: Bool,
+        provenPublicEndpoints: Set<LiveAPIEndpoint>,
         discoveryRoutesConfirmed: Bool,
         nativeAccountRoutesConfirmed: Bool,
         nativeSupportRoutesConfirmed: Bool,
@@ -242,11 +248,14 @@ struct LiveAPIContract {
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
-            return validatedStateResponse && endpoint == .state ? .available : .unknown
+            return endpoint.access == .publicRead && provenPublicEndpoints.contains(endpoint)
+                ? .available
+                : .unknown
         case .incompatible(let expected, let observed):
             return .incompatible(expected: expected, observed: observed)
         case .compatible:
-            guard endpoint != .catalog || catalogRouteConfirmed else {
+            guard ![.state, .catalog, .seatMap].contains(endpoint)
+                || provenPublicEndpoints.contains(endpoint) else {
                 return .unknown
             }
             guard ![.regions, .artist, .openCalendar].contains(endpoint) || discoveryRoutesConfirmed else {
