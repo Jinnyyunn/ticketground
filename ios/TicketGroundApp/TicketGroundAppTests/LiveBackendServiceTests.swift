@@ -559,6 +559,33 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
+    func testDefaultCatalogUnknownDoesNotDispatchDiagnosticOrCatalogRequest() async {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/catalog": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        do {
+            _ = try await service.getCatalog()
+            XCTFail("Expected unknown catalog capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .catalog, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testCapabilityMapRejectsUnknownOrIncompatibleContractState() {
         let unknown = LiveAPIContract.deployed.capabilityMap(
             for: URL(string: "http://132.145.109.87:4174/")!,

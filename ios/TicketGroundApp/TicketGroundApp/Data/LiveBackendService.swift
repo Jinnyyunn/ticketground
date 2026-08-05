@@ -7,7 +7,6 @@ final class LiveBackendService {
     private let contract: LiveAPIContract
     private var capabilities: LiveCapabilityMap
     private var diagnosedVersionlessState: LiveState?
-    private let allowsCapabilityBootstrap: Bool
 
     init(
         apiClient: APIClient,
@@ -22,7 +21,6 @@ final class LiveBackendService {
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: nil
         )
-        self.allowsCapabilityBootstrap = initialCapabilityMap == nil
     }
 
     var capabilityMap: LiveCapabilityMap {
@@ -371,11 +369,7 @@ final class LiveBackendService {
     }
 
     private func ensureCapability(_ endpoint: LiveAPIEndpoint) async throws {
-        var state = capabilities.state(for: endpoint)
-        if case .unknown = state, allowsCapabilityBootstrap {
-            _ = try await diagnosePublicContract()
-            state = capabilities.state(for: endpoint)
-        }
+        let state = capabilities.state(for: endpoint)
         guard state == .available else {
             throw APIClientError.capabilityUnavailable(endpoint: endpoint, state: state)
         }
