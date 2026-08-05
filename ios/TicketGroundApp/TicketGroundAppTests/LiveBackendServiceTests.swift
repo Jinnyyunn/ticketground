@@ -537,6 +537,74 @@ final class LiveBackendServiceTests: XCTestCase {
         })
     }
 
+    func testSeatMapCacheFailsClosedAfterCapabilityBecomesUnknown() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let probe = try await service.diagnosePublicContract()
+        XCTAssertEqual(probe.capabilities.state(for: .seatMap), .unknown)
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected stale cached seat map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSeatMapCacheFailsClosedAfterCapabilityBecomesIncompatible() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"future-contract"}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let probe = try await service.diagnosePublicContract()
+        let state = LiveCapabilityState.incompatible(
+            expected: LiveAPIContract.deployed.expectedResponseVersion,
+            observed: "future-contract"
+        )
+        XCTAssertEqual(probe.capabilities.state(for: .seatMap), state)
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected stale cached seat map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: state))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testIncompatibleSeatMapDiagnosisFailsClosedWithoutDispatch() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
