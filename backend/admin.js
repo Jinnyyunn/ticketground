@@ -253,12 +253,19 @@ function filteredPaymentTransactions(db, options) {
 }
 
 function paymentSummary(transactions) {
-  return transactions.reduce((summary, transaction) => ({
-    count: summary.count + 1,
-    totalAmount: summary.totalAmount + (transaction.amount || 0),
-    totalFees: summary.totalFees + (transaction.platformFee || 0),
-    totalSettlements: summary.totalSettlements + (transaction.transferAmount || 0)
-  }), { count: 0, totalAmount: 0, totalFees: 0, totalSettlements: 0 });
+  return transactions.reduce((summary, transaction) => {
+    // REFUND transactions store amount as a positive magnitude (how much was
+    // refunded), so it must net negatively into the gross total or a
+    // force-canceled matched resale would be double-counted as revenue
+    // instead of reversed.
+    const signedAmount = transaction.type === "REFUND" ? -(transaction.amount || 0) : (transaction.amount || 0);
+    return {
+      count: summary.count + 1,
+      totalAmount: summary.totalAmount + signedAmount,
+      totalFees: summary.totalFees + (transaction.platformFee || 0),
+      totalSettlements: summary.totalSettlements + (transaction.transferAmount || 0)
+    };
+  }, { count: 0, totalAmount: 0, totalFees: 0, totalSettlements: 0 });
 }
 
 function filteredLedgerEntries(db, options) {
