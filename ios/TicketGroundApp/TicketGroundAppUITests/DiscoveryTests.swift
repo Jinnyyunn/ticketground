@@ -411,6 +411,8 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["login-signup"].tap()
 
         XCTAssertTrue(anyElement(app, identifier: "live-unsupported-capability").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["live-unsupported-home"].exists)
+        XCTAssertTrue(app.buttons["live-unsupported-capability-ledger"].exists)
         XCTAssertFalse(app.staticTexts["이 화면은 다음 discovery 단계에서 콘텐츠를 연결합니다."].exists)
     }
 
