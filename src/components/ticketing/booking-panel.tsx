@@ -5,11 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
 import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
+import { bindChartLayoutToBackendSeats } from "@/lib/seat-charts/bind-backend-seats";
+import { apiChartForShow } from "@/lib/seat-charts/client";
+import type { InventoryResult } from "@/lib/seat-charts/inventory";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BackendSeatPicker } from "./backend-seat-picker";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
+import { ChartSeatMap } from "./chart-seat-map";
 import { VenueSeatMap } from "./venue-seat-map";
 
 const serviceFeePerSeat = 2000;
@@ -29,14 +33,27 @@ function minutes(seconds: number) {
 }
 
 type BookingPanelProps = { readonly show: TicketShow; readonly initialSelection: Pick<BookingSelection, "date" | "time">; readonly initialTimerSeconds?: number };
+type PublishedChartState = {
+  readonly requestKey: string;
+  readonly inventory: InventoryResult | null;
+  readonly name: string | null;
+};
 
 export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 * 60 }: BookingPanelProps) {
+  const chartPrices = useMemo(() => ({
+    VIP: show.prices.find((price) => price.grade === "VIP")?.price ?? 190000,
+    R: show.prices.find((price) => price.grade === "R")?.price ?? 160000,
+    S: show.prices.find((price) => price.grade === "S")?.price ?? 120000,
+    A: show.prices.find((price) => price.grade === "A")?.price ?? 80000,
+  }), [show.prices]);
+  const chartRequestKey = `${show.slug}:${chartPrices.VIP}:${chartPrices.R}:${chartPrices.S}:${chartPrices.A}`;
   const [date, setDate] = useState(initialSelection.date || show.schedules[0]?.date || "");
   const [time, setTime] = useState(initialSelection.time || show.schedules[0]?.times[0] || "");
   const [quantity, setQuantity] = useState(maxSelectableSeats);
   const [step, setStep] = useState<BookingStep>("schedule");
   const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
   const [seatMapStatus, setSeatMapStatus] = useState("좌석도 로딩 중");
+  const [publishedChart, setPublishedChart] = useState<PublishedChartState | null>(null);
   const [selectedBackendTicketIds, setSelectedBackendTicketIds] = useState<readonly string[]>([]);
   const [timerSeconds, setTimerSeconds] = useState(initialTimerSeconds);
   const timerExpired = timerSeconds === 0;
@@ -80,10 +97,42 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     };
   }, [backendEventId, performanceDateId]);
 
+  useEffect(() => {
+    let mounted = true;
+    void apiChartForShow(show.slug, {
+      vip: chartPrices.VIP,
+      r: chartPrices.R,
+      s: chartPrices.S,
+      a: chartPrices.A,
+    })
+      .then((response) => {
+        if (!mounted) return;
+        setPublishedChart({
+          requestKey: chartRequestKey,
+          inventory: response.source === "published" ? response.inventory : null,
+          name: response.source === "published" ? response.record?.name ?? response.chart?.name ?? null : null,
+        });
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setPublishedChart({ requestKey: chartRequestKey, inventory: null, name: null });
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [chartPrices.A, chartPrices.R, chartPrices.S, chartPrices.VIP, chartRequestKey, show.slug]);
+
   // Stable across the once-a-second timer re-render so VenueSeatMap (wrapped in
   // React.memo) doesn't reconcile its marker set every tick.
   const availableBackendSeats = useMemo(() => seatMap?.seats.filter((seat) => seat.available) ?? [], [seatMap]);
   const backendSeats = useMemo(() => availableBackendSeats.slice(0, 48), [availableBackendSeats]);
+  const boundChartSeats = useMemo(
+    () => publishedChart?.requestKey === chartRequestKey && publishedChart.inventory
+      ? bindChartLayoutToBackendSeats(publishedChart.inventory.seats, availableBackendSeats)
+      : [],
+    [availableBackendSeats, chartRequestKey, publishedChart],
+  );
+  const usePublishedChart = Boolean(publishedChart?.inventory && boundChartSeats.length > 0);
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
@@ -212,17 +261,30 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <p className="text-sm font-black text-ticketground">STEP 2</p>
                   <h2 className="balanced-title mt-1 text-2xl font-black text-ink sm:text-[24px]">좌석 선택</h2>
                 </div>
-                <p className="text-sm font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
+                <p className="text-sm font-bold text-ink-3">
+                  {publishedChart?.requestKey !== chartRequestKey && "게시 배치도 확인 중"}
+                  {publishedChart?.requestKey === chartRequestKey && usePublishedChart && `게시 배치도 · ${publishedChart.name ?? "이름 없음"}`}
+                  {publishedChart?.requestKey === chartRequestKey && !usePublishedChart && "실시간 공연장 좌석도"}
+                </p>
               </div>
               <div className="mt-5 min-w-0 space-y-4">
                 {useBackendSeatMap && seatMap ? (
                   <>
-                    <VenueSeatMap
-                      mapImage={seatMap.map.image}
-                      mapTitle={seatMap.map.title}
-                      seats={availableBackendSeats}
-                      selectedTicketIds={selectedBackendTicketIds}
-                    />
+                    {usePublishedChart && publishedChart?.inventory ? (
+                      <ChartSeatMap
+                        seats={boundChartSeats}
+                        bounds={publishedChart.inventory.bounds}
+                        selectedSeatIds={selectedBackendTicketIds}
+                        onToggleSeat={(seat) => selectBackendSeat(seat.id)}
+                      />
+                    ) : (
+                      <VenueSeatMap
+                        mapImage={seatMap.map.image}
+                        mapTitle={seatMap.map.title}
+                        seats={availableBackendSeats}
+                        selectedTicketIds={selectedBackendTicketIds}
+                      />
+                    )}
                     <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
                   </>
                 ) : (

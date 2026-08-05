@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { KeyRound, LogOut, Menu, ShieldCheck, X } from "lucide-react";
+import { Armchair, KeyRound, LogOut, Menu, ShieldCheck, X } from "lucide-react";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { WorkspaceContent } from "./admin-workspaces";
@@ -29,13 +29,22 @@ function AdminLogin({ error, onSubmit }: { readonly error: string; readonly onSu
 }
 
 function WorkspaceNavigation({ close, session, workspace }: { readonly close: () => void; readonly session: AdminSession; readonly workspace: WorkspaceKey }) {
-  return <nav aria-label="운영 작업공간" className="grid gap-1">{Object.entries(workspaceDefinitions).map(([key, item]) => {
-    const menuWorkspace = key as WorkspaceKey;
-    if (!hasPermission(session, item.permission)) return null;
-    const Icon = item.Icon;
-    const active = menuWorkspace === workspace;
-    return <Link aria-current={active ? "page" : undefined} className={`flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-black no-underline ${active ? "bg-ink text-on-ink" : "text-ink hover:bg-surface"}`} href={menuWorkspace === "overview" ? "/console" : `/console/${menuWorkspace}`} key={menuWorkspace} onClick={close}><Icon size={17} />{item.label}</Link>;
-  })}</nav>;
+  return (
+    <nav aria-label="운영 작업공간" className="grid gap-1">
+      {Object.entries(workspaceDefinitions).map(([key, item]) => {
+        const menuWorkspace = key as WorkspaceKey;
+        if (!hasPermission(session, item.permission)) return null;
+        const Icon = item.Icon;
+        const active = menuWorkspace === workspace;
+        return <Link aria-current={active ? "page" : undefined} className={`flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-black no-underline ${active ? "bg-ink text-on-ink" : "text-ink hover:bg-surface"}`} href={menuWorkspace === "overview" ? "/console" : `/console/${menuWorkspace}`} key={menuWorkspace} onClick={close}><Icon size={17} />{item.label}</Link>;
+      })}
+      {hasPermission(session, "catalog.manage") ? (
+        <Link className="flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-black text-ink no-underline hover:bg-surface" href="/admin/seat-designer" onClick={close}>
+          <Armchair size={17} />좌석 배치 디자이너
+        </Link>
+      ) : null}
+    </nav>
+  );
 }
 
 export function AdminConsolePage({ workspace = "overview" }: { readonly workspace?: WorkspaceKey }) {

@@ -7,6 +7,7 @@ import nextEnv from "@next/env";
 import next from "next";
 import { adminDto, permissionCatalog, roleCatalog } from "./backend/admin-acl.js";
 import { createTicketgroundApp } from "./backend/app.js";
+import { isPublishedSeatChartRead, isSeatChartRoute } from "./backend/seat-chart-routing.js";
 
 const projectDir = path.dirname(fileURLToPath(import.meta.url));
 const { loadEnvConfig } = nextEnv;
@@ -100,6 +101,11 @@ const adminLoginRateLimitCleanup = setInterval(() => {
 adminLoginRateLimitCleanup.unref?.();
 
 const sessionRoutePermissions = [
+  { method: "GET", pattern: /^\/admin\/seat-designer$/, permission: "catalog.manage" },
+  { method: "GET", pattern: /^\/api\/catalog$/, permission: "catalog.manage" },
+  { method: "GET", pattern: /^\/api\/seat-charts(?:\/|$)/, permission: "catalog.manage" },
+  { method: "POST", pattern: /^\/api\/seat-charts(?:\/[^/]+\/publish)?$/, permission: "catalog.manage" },
+  { method: "DELETE", pattern: /^\/api\/seat-charts\/[^/]+$/, permission: "catalog.manage" },
   { method: "POST", pattern: /^\/api\/admin\/logout$/, permission: "admin.dashboard.read" },
   { method: "GET", pattern: /^\/api\/admin\/summary$/, permission: "admin.dashboard.read" },
   { method: "GET", pattern: /^\/api\/admin\/venues$/, permission: "catalog.manage" },
@@ -385,8 +391,16 @@ async function servePublic(req, res) {
   const requestUrl = req.url || "/";
   const { pathname } = new URL(requestUrl, `http://${req.headers.host}`);
   if (await serveAdminUpload(res, pathname)) return;
-  if (pathname === "/console" || pathname.startsWith("/console/")) {
+  if (pathname === "/console" || pathname.startsWith("/console/") || pathname === "/admin/seat-designer") {
     writeNotFound(res);
+    return;
+  }
+  if (isPublishedSeatChartRead(req.method, pathname)) {
+    handleNextRequest(req, res).catch((error) => {
+      console.error("Published seat chart request failed", error);
+      if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Internal Server Error");
+    });
     return;
   }
   if (requestUrl.startsWith("/api/")) {
@@ -411,6 +425,16 @@ function serveAdmin(req, res) {
   if (url.pathname === "/console" || url.pathname.startsWith("/console/")) {
     handleNextRequest(req, res).catch((error) => {
       console.error("Next admin console request failed", error);
+      if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Internal Server Error");
+    });
+    return;
+  }
+  if (url.pathname === "/admin/seat-designer") {
+    const session = requireSessionAdmin(req, res, url.pathname);
+    if (!session) return;
+    handleNextRequest(req, res).catch((error) => {
+      console.error("Seat designer request failed", error);
       if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Internal Server Error");
     });
@@ -447,6 +471,14 @@ function serveAdmin(req, res) {
     : { ...session.admin, bootstrapAdmin };
   if (!tokenAuthorized && url.pathname === "/api/admin/summary") {
     writeJson(res, 200, { ok: true, data: app.admin.adminWorkspace(app.db, "overview") });
+    return;
+  }
+  if (isSeatChartRoute(url.pathname)) {
+    handleNextRequest(req, res).catch((error) => {
+      console.error("Seat chart API request failed", error);
+      if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Internal Server Error");
+    });
     return;
   }
   app.handleRequest(req, res, app.db, "admin");

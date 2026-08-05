@@ -1,0 +1,69 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { bindChartLayoutToBackendSeats } from "../src/lib/seat-charts/bind-backend-seats.ts";
+
+const layoutSeat = (id, displayLabel, price, x) => ({
+  id,
+  label: displayLabel,
+  displayLabel,
+  tier: price === 190000 ? "VIP" : "R",
+  price,
+  sold: false,
+  x,
+  y: 20,
+  objectId: `object-${id}`,
+  objectType: "row",
+});
+
+const backendSeat = (id, displayCode, price) => ({
+  id,
+  label: displayCode,
+  displayCode,
+  zoneId: price === 190000 ? "zone_vip" : "zone_r",
+  zoneName: price === 190000 ? "VIP" : "R",
+  price,
+  status: "ON_SALE",
+  available: true,
+});
+
+test("binds chart coordinates to real backend ticket ids when labels and prices match", () => {
+  // Given
+  const layout = [layoutSeat("layout-vip", "A-01", 190000, 10), layoutSeat("layout-r", "B-01", 160000, 30)];
+  const backend = [backendSeat("ticket-r", "B-01", 160000), backendSeat("ticket-vip", "A-01", 190000)];
+
+  // When
+  const bound = bindChartLayoutToBackendSeats(layout, backend);
+
+  // Then
+  assert.deepEqual(bound.map(({ id, x }) => ({ id, x })), [
+    { id: "ticket-vip", x: 10 },
+    { id: "ticket-r", x: 30 },
+  ]);
+});
+
+test("falls back to price order without inventing ticket ids", () => {
+  // Given
+  const layout = [layoutSeat("layout-1", "디자인 좌석 1", 160000, 10), layoutSeat("layout-2", "디자인 좌석 2", 160000, 30)];
+  const backend = [backendSeat("ticket-1", "R-01", 160000), backendSeat("ticket-2", "R-02", 160000)];
+
+  // When
+  const bound = bindChartLayoutToBackendSeats(layout, backend);
+
+  // Then
+  assert.deepEqual(bound.map(({ id, displayLabel }) => ({ id, displayLabel })), [
+    { id: "ticket-1", displayLabel: "R-01" },
+    { id: "ticket-2", displayLabel: "R-02" },
+  ]);
+});
+
+test("omits layout places that have no sellable backend ticket", () => {
+  // Given
+  const layout = [layoutSeat("layout-1", "R-01", 160000, 10), layoutSeat("layout-2", "R-02", 160000, 30)];
+  const backend = [backendSeat("ticket-1", "R-01", 160000)];
+
+  // When
+  const bound = bindChartLayoutToBackendSeats(layout, backend);
+
+  // Then
+  assert.deepEqual(bound.map(({ id }) => id), ["ticket-1"]);
+});

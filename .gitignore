@@ -58,3 +58,8 @@ public/uploads/admin/*
 .omx/
 .codegraph
 .env.production
+worktree/
+ssh/
+*.key
+*.pem
+.gjc/
