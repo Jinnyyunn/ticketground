@@ -82,13 +82,13 @@ extension AppRoute {
     var classification: AppRouteClassification {
         switch self {
         case .home, .search, .ranking, .genre, .event, .place, .goods,
-             .seatMap, .queue, .booking, .menu, .capabilityLedger:
+             .seatMap, .menu, .capabilityLedger:
             return AppRouteClassification(connectivity: .publicRead, reason: "공개 공연 및 좌석 조회 계약")
         case .region, .artist, .open:
             return AppRouteClassification(connectivity: .publicRead, reason: "버전 1 공개 탐색 계약")
         case .login, .signup, .mypage, .watchlist, .help, .inquiry:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
-        case .checkout, .reservation, .cancel, .resale, .transfer:
+        case .queue, .booking, .checkout, .reservation, .cancel, .resale, .transfer:
             return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "거래별 HTTPS·인증·결제 계약 필요")
         }
     }
