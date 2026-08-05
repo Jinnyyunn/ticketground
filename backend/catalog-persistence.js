@@ -32,6 +32,9 @@ function normalizeDb(db) {
   db.adminAccounts ||= [];
   db.nativeSessions ||= [];
   db.ledger ||= [];
+  db.queueEntries ||= [];
+  db.seatHolds ||= [];
+  db.reservationDrafts ||= [];
 
   if (!db.venues?.length) {
     db.venues = venueBlueprints();
@@ -173,6 +176,9 @@ function seedDb() {
     groupBookingRequests: [],
     adminAccounts: [],
     nativeSessions: [],
+    queueEntries: [],
+    seatHolds: [],
+    reservationDrafts: [],
     ledger: []
   };
   for (const event of db.events) {

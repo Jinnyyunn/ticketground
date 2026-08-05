@@ -1,6 +1,7 @@
 import { createAdmissionBackend } from "./admission.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
+import { createBookingHoldsBackend } from "./booking-holds.js";
 import { createBootpayBackend } from "./bootpay.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
@@ -142,8 +143,19 @@ export async function createTicketgroundApp(options) {
     httpError: runtime.httpError,
     now: runtime.now
   });
+  const bookingHolds = createBookingHoldsBackend({
+    currentTimeMs: runtime.currentTimeMs,
+    eventZone: catalog.eventZone,
+    findUser: runtime.findUser,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    isEventBookable: catalog.isEventBookable,
+    now: runtime.now
+  });
   const apiRouter = createApiRouter({
     ...admin,
+    ...bookingHolds,
     ...commerce,
     ...discovery,
     ...engagement,
