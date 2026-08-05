@@ -22,16 +22,19 @@ enum DiscoveryFixtureLoader {
 
     static func loadLive(using apiClient: APIClient) async throws -> LiveDiscoveryHomeContent {
         let service = LiveBackendService(apiClient: apiClient)
-        do {
+        let probe = try await service.diagnosePublicContract()
+        if probe.capabilities.state(for: .catalog) == .available {
             let catalog = try await service.getCatalog()
             guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
             return .catalog(try map(catalog.events, using: apiClient))
-        } catch let error as APIClientError {
-            guard error == .capabilityUnavailable(endpoint: .catalog, state: .unknown) else {
-                throw error
-            }
+        }
+        if probe.capabilities.state(for: .state) == .available {
             return .stateOnly(try await service.getState())
         }
+        throw APIClientError.capabilityUnavailable(
+            endpoint: .catalog,
+            state: probe.capabilities.state(for: .catalog)
+        )
     }
 
     private static func map(_ body: DiscoveryFixtureBody) throws -> DiscoveryContent {
