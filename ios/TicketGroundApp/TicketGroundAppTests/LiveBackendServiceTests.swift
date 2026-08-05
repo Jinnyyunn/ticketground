@@ -181,7 +181,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
         XCTAssertEqual(regions.regions.first?.name, "서울")
         XCTAssertEqual(calendar.entries.first?.event.id, "event-1")
-        XCTAssertEqual(service.capabilityMap.state(for: .artist), .unknown)
+        XCTAssertEqual(service.capabilityMap.state(for: .artist), .available)
         XCTAssertEqual(
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
@@ -1120,7 +1120,8 @@ final class LiveBackendServiceTests: XCTestCase {
             "/api/catalog?limit=1": Data("{".utf8),
             "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8),
             "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[]}}"#.utf8),
-            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[]}}"#.utf8)
+            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[]}}"#.utf8),
+            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -1137,18 +1138,14 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(probe.capabilities.state(for: .catalog), .unknown)
         XCTAssertEqual(probe.capabilities.state(for: .regions), .available)
         XCTAssertEqual(probe.capabilities.state(for: .openCalendar), .available)
-        XCTAssertEqual(probe.capabilities.state(for: .artist), .unknown)
+        XCTAssertEqual(probe.capabilities.state(for: .artist), .available)
         _ = try await service.getRegions()
         _ = try await service.getOpenCalendar()
 
         let requestCount = LiveBackendServiceURLProtocol.requests.count
-        do {
-            _ = try await service.getArtist(slug: "iu")
-            XCTFail("Expected artist to remain unavailable")
-        } catch let error as APIClientError {
-            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .artist, state: .unknown))
-            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, requestCount)
-        }
+        let artist = try await service.getArtist(slug: "iu")
+        XCTAssertEqual(artist.artist.name, "IU")
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, requestCount + 1)
     }
 
     func testLiveHomeFallsBackToIndependentlyProvenStateWhenCatalogProbeFails() async throws {
