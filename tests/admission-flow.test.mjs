@@ -163,7 +163,7 @@ test("backend rejects web admission QR, early QR activation, and forged app atte
   }, 403);
   assert.equal(emergencyBypass.error.code, "APP_CHANNEL_REQUIRED");
 
-  const ledger = await api(early.baseUrl, "/api/ledger/verify");
+  const ledger = await adminApi(early, "/api/ledger/verify");
   assert.equal(ledger.data.ok, true);
 });
 
