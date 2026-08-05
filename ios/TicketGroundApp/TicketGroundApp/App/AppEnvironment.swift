@@ -18,6 +18,7 @@ enum AppRoute: Hashable, Codable {
     case place(slug: String?)
     case artist(slug: String)
     case goods(slug: String)
+    case seatMap(slug: String)
     case queue(slug: String)
     case booking(slug: String)
     case checkout(slug: String)
@@ -46,6 +47,7 @@ enum AppRoute: Hashable, Codable {
         case .place(let slug): return "place:\(slug ?? "index")"
         case .artist(let slug): return "artist:\(slug)"
         case .goods(let slug): return "goods:\(slug)"
+        case .seatMap(let slug): return "seat-map:\(slug)"
         case .queue(let slug): return "queue:\(slug)"
         case .booking(let slug): return "booking:\(slug)"
         case .checkout(let slug): return "checkout:\(slug)"
@@ -80,7 +82,7 @@ extension AppRoute {
     var classification: AppRouteClassification {
         switch self {
         case .home, .search, .ranking, .genre, .event, .place, .goods,
-             .queue, .booking, .menu, .capabilityLedger:
+             .seatMap, .queue, .booking, .menu, .capabilityLedger:
             return AppRouteClassification(connectivity: .publicRead, reason: "공개 공연 및 좌석 조회 계약")
         case .region, .artist, .open:
             return AppRouteClassification(connectivity: .publicRead, reason: "버전 1 공개 탐색 계약")
@@ -127,6 +129,7 @@ struct RouteResolver {
         case "place": return .place(slug: value)
         case "artist": return .artist(slug: value)
         case "goods": return .goods(slug: value)
+        case "seat-map": return .seatMap(slug: value)
         case "queue": return .queue(slug: value)
         case "booking": return .booking(slug: value)
         case "checkout": return .checkout(slug: value)
@@ -1240,7 +1243,9 @@ private final class UITestLiveHomeAPIClient: APIClient {
             return scenario == .empty ? catalog(events: "[]") : catalog(events: "[\(event)]")
         case ("/api/discovery/v1/contract", _):
             return json("{\"version\":\"1\",\"endpoints\":[\"regions\",\"artists\",\"open-calendar\"]}")
-        case ("/api/seat-map", _):
+        case ("/api/seat-map", let query) where query == [
+            APIRequestQuery(name: "eventId", value: "live-neon")
+        ]:
             return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
         case ("/api/discovery/v1/regions", _):
             if scenario == .discoveryRouteNotFound {

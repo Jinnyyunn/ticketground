@@ -320,10 +320,8 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
         app.buttons["live-seat-map-link"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 10))
-        XCTAssertTrue(anyElement(app, identifier: "live-seat-performance-selector").waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["좌석 구역 및 잔여 수량"].exists)
-        app.buttons["live-seat-performance-live-neon-first"].tap()
         XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "live-seat-performance-selector").exists)
         XCTAssertTrue(app.staticTexts["R석"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["live-seat-hold"].exists)
     }
