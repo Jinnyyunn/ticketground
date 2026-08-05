@@ -48,6 +48,14 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { session, user: findUser(db, session.userId) };
   }
 
+  // Bearer 헤더가 아예 없으면 null(익명 취급), 있는데 무효/만료면 그대로 401을 던진다.
+  // 세션이 없다고 조용히 넘어가는 것과 "세션이 있는데 위조됐다"를 구분해야
+  // 잘못된/만료된 토큰으로 익명 취급을 우회할 수 없다.
+  function optionalAuthenticateNativeSession(db, req) {
+    if (!req.headers.authorization) return null;
+    return authenticateNativeSession(db, req);
+  }
+
   function nativeSession(db, req) {
     const { user } = authenticateNativeSession(db, req);
     return { user: publicSessionUser(user) };
@@ -59,5 +67,5 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { revoked: true };
   }
 
-  return { authenticateNativeSession, issueNativeSession, nativeLogout, nativeSession };
+  return { authenticateNativeSession, issueNativeSession, nativeLogout, nativeSession, optionalAuthenticateNativeSession };
 }

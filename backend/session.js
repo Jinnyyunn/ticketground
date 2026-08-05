@@ -7,13 +7,18 @@ const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
 
 export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, issueNativeSession, now, stableId }) {
+  function publicSessionUserWithCredential(db, user) {
+    const session = issueNativeSession(db, user.id);
+    return { ...publicSessionUser(user), credential: session.credential, credentialExpiresAt: session.expiresAt };
+  }
+
   const socialOAuth = createSocialOAuthBackend({
     appendLedger,
     currentTimeMs,
     hmac,
     httpError,
     now,
-    publicSessionUser,
+    publicSessionUserWithCredential,
     stableId
   });
 
@@ -92,7 +97,7 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       provider: "google",
       authenticatedAt: now()
     });
-    return publicSessionUser(user);
+    return publicSessionUserWithCredential(db, user);
   }
 
   async function googleNativeSession(db, { credential }) {

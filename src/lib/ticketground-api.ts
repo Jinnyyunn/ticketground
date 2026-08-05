@@ -18,7 +18,7 @@ import {
   upsertWatchlistResultSchema,
 } from "./ticketground-api-schemas";
 import type { ApiIdentityStart, ApiIdentityStatus, ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
-import { currentSessionUserId, DEMO_USER_ID } from "./ticketground-session-storage";
+import { currentSessionUserId, DEMO_USER_ID, storedSessionCredential } from "./ticketground-session-storage";
 import { z, type ZodType } from "zod";
 
 export const DEMO_BUYER_ID = "user_fan_b";
@@ -33,9 +33,11 @@ export {
   lastLoginProvider,
   rememberLastLoginProvider,
   rememberSessionUser,
+  SESSION_CREDENTIAL_STORAGE_KEY,
   SESSION_USER_CHANGED_EVENT,
   SESSION_USER_STORAGE_KEY,
   SIGNED_OUT_VALUE,
+  storedSessionCredential,
   storedSessionUserId,
 } from "./ticketground-session-storage";
 export type { LastLoginProvider } from "./ticketground-session-storage";
@@ -133,9 +135,11 @@ async function readApi<T>(path: string, dataSchema: ZodType<T>, init?: RequestIn
 }
 
 function post<T>(path: string, dataSchema: ZodType<T>, body: Record<string, unknown>) {
+  const credential = storedSessionCredential();
   return readApi(path, dataSchema, {
     method: "POST",
     body: JSON.stringify(body),
+    ...(credential ? { headers: { Authorization: `Bearer ${credential}` } } : {}),
   });
 }
 

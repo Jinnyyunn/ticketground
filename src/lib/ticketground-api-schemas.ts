@@ -235,6 +235,8 @@ export const apiSessionSchema = z.object({
   status: z.string(),
   trustScore: z.number(),
   profileConfirmed: z.boolean(),
+  credential: z.string().optional(),
+  credentialExpiresAt: z.string().optional(),
 }) satisfies ZodType<ApiSession>;
 
 const apiNotificationJobSchema = z.object({

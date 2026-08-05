@@ -44,6 +44,7 @@ export function createApiRouter({
   notifyWatchlist,
   nativeLogout,
   nativeSession,
+  optionalAuthenticateNativeSession,
   purchaseResale,
   releaseSeatHold,
   publicCatalog,
@@ -139,6 +140,14 @@ function requireIdempotencyKey(req) {
     throw httpError(400, "IDEMPOTENCY_KEY_REQUIRED", "유효한 재시도 키가 필요합니다.");
   }
   return value;
+}
+
+// 로그인 세션이 있으면 그 세션의 사용자로만 동작하고 body.userId는 무시한다.
+// 세션이 아예 없을 때만(비로그인 데모) body.userId를 그대로 신뢰한다 —
+// 로그인한 사용자를 다른 userId 문자열로 사칭하는 걸 막기 위함.
+function resolvePurchaseUserId(db, req, body) {
+  const session = optionalAuthenticateNativeSession(db, req);
+  return session ? session.user.id : body.userId;
 }
 
 async function parseBody(req) {
@@ -440,11 +449,11 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/start") {
     requireBody(body, ["userId", "phone"]);
-    return startPortOneDanalVerification(db, body);
+    return startPortOneDanalVerification(db, { ...body, userId: resolvePurchaseUserId(db, req, body) });
   }
   if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/confirm") {
     requireBody(body, ["userId", "phone", "identityVerificationId"]);
-    return confirmPortOneDanalVerification(db, body);
+    return confirmPortOneDanalVerification(db, { ...body, userId: resolvePurchaseUserId(db, req, body) });
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist") {
     requireDemoWatchlistAPI();
@@ -466,14 +475,15 @@ async function handleApi(req, res, db, surface) {
 
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
-    return publicPurchaseResult(buyPrimary(db, body));
+    return publicPurchaseResult(buyPrimary(db, { ...body, userId: resolvePurchaseUserId(db, req, body) }));
   }
   if (req.method === "POST" && url.pathname === "/api/payments/bootpay/purchase") {
     requireBody(body, ["userId", "ticketId", "paymentMethod"]);
+    const purchaseUserId = resolvePurchaseUserId(db, req, body);
     const purchasable = assertTicketPurchasable(db, body.ticketId);
     const receipt = await confirmBootpayPayment(db, {
       ticketId: body.ticketId,
-      userId: body.userId,
+      userId: purchaseUserId,
       paymentKey: String(body.paymentMethod || "").toUpperCase(),
       receiptId: body.receiptId,
       expectedAmount: purchasable.ticket.faceValue
@@ -481,13 +491,13 @@ async function handleApi(req, res, db, surface) {
     let result;
     try {
       result = buyPrimary(db, {
-        userId: body.userId,
+        userId: purchaseUserId,
         ticketId: body.ticketId,
         paymentMethod: body.paymentMethod,
         pgTransactionId: receipt.receiptId
       });
     } catch (error) {
-      appendLedger(db, body.userId, "BOOTPAY_PAYMENT_NEEDS_REFUND", {
+      appendLedger(db, purchaseUserId, "BOOTPAY_PAYMENT_NEEDS_REFUND", {
         ticketId: body.ticketId,
         receiptId: receipt.receiptId,
         amount: purchasable.ticket.faceValue,

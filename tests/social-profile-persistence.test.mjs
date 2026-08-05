@@ -102,6 +102,7 @@ test("new Google identities persist an explicit incomplete-profile marker", asyn
     httpError(status, code, message) {
       return Object.assign(new Error(message), { code, status });
     },
+    issueNativeSession: (database, userId) => ({ credential: `test-credential-${userId}`, expiresAt: "2026-10-19T17:00:00.000Z" }),
     now: () => "2026-09-19T17:00:00.000Z",
     stableId: (prefix, value) => `${prefix}_${value}`,
   });
@@ -139,6 +140,7 @@ test("Kakao, Naver, and Google identities cannot expose another provider profile
     httpError(status, code, message) {
       return Object.assign(new Error(message), { code, status });
     },
+    issueNativeSession: (database, userId) => ({ credential: `test-credential-${userId}`, expiresAt: "2026-10-19T17:00:00.000Z" }),
     now: () => "2026-09-19T17:00:00.000Z",
     stableId: (prefix, ...values) => `${prefix}_${crypto.createHash("sha256").update(values.join(":")).digest("hex").slice(0, 12)}`,
   });
