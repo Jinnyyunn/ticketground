@@ -1113,6 +1113,7 @@ enum RuntimeConfiguration {
 
 private enum UITestLiveHomeScenario: String {
     case catalog
+    case catalogMediaFallback
     case support
     case supportAuthenticated
     case watchlistAuthenticated
@@ -1246,7 +1247,8 @@ private final class UITestLiveHomeAPIClient: APIClient {
         case ("/api/seat-map", let query) where query == [
             APIRequestQuery(name: "eventId", value: "live-neon")
         ]:
-            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
+            let image = scenario == .catalogMediaFallback ? "https://127.0.0.1:1/seat-map.svg" : ""
+            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\(image)\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
         case ("/api/discovery/v1/regions", _):
             if scenario == .discoveryRouteNotFound {
                 throw APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "route not found")
@@ -1281,7 +1283,8 @@ private final class UITestLiveHomeAPIClient: APIClient {
     }
 
     private var event: String {
-        "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}],\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
+        let image = scenario == .catalogMediaFallback ? ",\"image\":\"https://127.0.0.1:1/catalog-poster.png\"" : ""
+        return "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}]\(image),\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
     }
 
     private func catalog(events: String) -> Data {
