@@ -323,6 +323,19 @@ function assertAssignableRoles(actor, roleKeys) {
   }
 }
 
+// assertAssignableRoles only checks the *requested* roles against the
+// actor's permissions - it says nothing about the account currently being
+// modified. Without this, any acl.manage holder could demote, deactivate,
+// or password-reset an account that currently holds more permissions than
+// they do (e.g. an "admin" role demoting or locking out an "owner").
+function assertNotActingOnHigherPrivilegedAccount(actor, account) {
+  const actorPermissions = new Set(adminDto(actor).permissions);
+  const targetPermissions = adminDto(account).permissions;
+  if (targetPermissions.some((permission) => !actorPermissions.has(permission))) {
+    throw httpError(403, "ADMIN_ROLE_ESCALATION", "본인보다 높은 권한을 가진 관리자 계정은 수정할 수 없습니다.");
+  }
+}
+
 async function createEventDraft(db, payload) {
   const input = normalizeAdminEventInput(payload);
   const venue = resolveVenue(db, input.venueId);
@@ -459,6 +472,7 @@ function updateAdminAccount(db, payload, actor) {
   const account = db.adminAccounts.find((item) => item.id === payload.adminId);
   if (!account) throw httpError(404, "ADMIN_ACCOUNT_NOT_FOUND", "관리자 계정을 찾을 수 없습니다.");
   if (account.id === actor.id) throw httpError(403, "ADMIN_SELF_UPDATE_DENIED", "본인 관리자 계정의 역할과 ACL은 다른 관리자에게 요청해주세요.");
+  assertNotActingOnHigherPrivilegedAccount(actor, account);
   const roleKeys = normalizeRoleKeys(payload.roleKeys);
   assertAssignableRoles(actor, roleKeys);
   let ipAllowlist;
