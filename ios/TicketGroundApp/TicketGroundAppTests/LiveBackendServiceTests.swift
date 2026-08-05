@@ -689,6 +689,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         let service = LiveBackendService(apiClient: client)
+        _ = try await service.diagnosePublicContract()
         let catalog = try await service.getCatalog()
 
         XCTAssertEqual(catalog.events.map(\.id), ["event-1"])
@@ -749,8 +750,10 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
+        let service = LiveBackendService(apiClient: client)
         do {
-            _ = try await LiveBackendService(apiClient: client).getCatalog()
+            _ = try await service.diagnosePublicContract()
+            _ = try await service.getCatalog()
             XCTFail("Expected incompatible catalog capability")
         } catch let error as APIClientError {
             XCTAssertEqual(
@@ -783,7 +786,7 @@ final class LiveBackendServiceTests: XCTestCase {
         let service = LiveBackendService(apiClient: client)
 
         do {
-            _ = try await service.getCatalog()
+            _ = try await service.diagnosePublicContract()
             XCTFail("Expected catalog admission rejection")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .invalidResponse)
@@ -815,6 +818,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         let service = LiveBackendService(apiClient: client)
+        _ = try await service.diagnosePublicContract()
         let catalog = try await service.getCatalog()
 
         XCTAssertTrue(catalog.events.isEmpty)
@@ -841,7 +845,7 @@ final class LiveBackendServiceTests: XCTestCase {
         let service = LiveBackendService(apiClient: client)
 
         do {
-            _ = try await service.getCatalog()
+            _ = try await service.diagnosePublicContract()
             XCTFail("Expected health timeout")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .requestFailed(code: URLError.timedOut.rawValue))
@@ -1251,6 +1255,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
         let service = LiveBackendService(apiClient: client)
         do {
+            _ = try await service.diagnosePublicContract()
             _ = try await service.getCatalog()
             XCTFail("Expected versionless contract to remain unknown")
         } catch let error as APIClientError {
@@ -1334,8 +1339,9 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
+        let service = LiveBackendService(apiClient: client)
         do {
-            _ = try await LiveBackendService(apiClient: client).getCatalog()
+            _ = try await service.diagnosePublicContract()
             XCTFail("Expected bootstrap failure")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .server(status: 200, code: "BOOTSTRAP_DOWN", message: "Bootstrap unavailable"))
