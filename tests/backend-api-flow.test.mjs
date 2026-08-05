@@ -186,7 +186,7 @@ test("direct transfer attempt rejects spoofed actors without penalizing the vict
   assert.equal(victimAfter.sanctions.length, 0);
 });
 
-test("bootpay purchase records a manual-refund ledger entry when capture wins but allocation loses", async (t) => {
+test("bootpay purchase auto-cancels the loser's capture when allocation loses a race", async (t) => {
   // Given: two verified users race to buy the final same ticket through the BootPay route.
   const server = await startServer(t, { env: { TIG_BOOTPAY_MOCK_CONFIRM_DELAY_MS: "50" } });
   await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
@@ -212,16 +212,19 @@ test("bootpay purchase records a manual-refund ledger entry when capture wins bu
   const success = payloads.find((payload) => payload.ok);
   const failed = payloads.find((payload) => !payload.ok);
 
-  // Then: one purchase succeeds and the captured loser gets an explicit refund-needed error plus ledger trail.
+  // Then: one purchase succeeds and the captured loser's payment is auto-cancelled instead of
+  // being left as a manual-refund liability.
   assert.ok(success);
   assert.equal(success.data.ticket.id, ticket.id);
-  assert.equal(failed.error.code, "PAYMENT_CAPTURED_ALLOCATION_FAILED");
+  assert.equal(failed.error.code, "SEAT_ALLOCATION_FAILED_PAYMENT_CANCELLED");
   assert.ok(failed.error.detail.receiptId);
-  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=BOOTPAY_PAYMENT_NEEDS_REFUND");
-  assert.equal(audit.data.ledger.length, 1);
-  assert.equal(audit.data.ledger[0].payload.ticketId, ticket.id);
-  assert.equal(audit.data.ledger[0].payload.receiptId, failed.error.detail.receiptId);
-  assert.equal(audit.data.ledger[0].payload.reason, "TICKET_NOT_AVAILABLE");
+  const cancelledAudit = await adminApi(server, "/api/admin/workspaces/audit?action=BOOTPAY_PAYMENT_AUTO_CANCELLED");
+  assert.equal(cancelledAudit.data.ledger.length, 1);
+  assert.equal(cancelledAudit.data.ledger[0].payload.ticketId, ticket.id);
+  assert.equal(cancelledAudit.data.ledger[0].payload.receiptId, failed.error.detail.receiptId);
+  assert.equal(cancelledAudit.data.ledger[0].payload.reason, "TICKET_NOT_AVAILABLE");
+  const needsRefundAudit = await adminApi(server, "/api/admin/workspaces/audit?action=BOOTPAY_PAYMENT_NEEDS_REFUND");
+  assert.equal(needsRefundAudit.data.ledger.length, 0, "mock cancellation should never fail, so no manual-refund liability remains");
 });
 
 test("public validation rejects malformed watchlist and support requests", async (t) => {

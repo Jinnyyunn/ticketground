@@ -56,6 +56,25 @@ export function createBootpayBackend({ hash, httpError, now }) {
     };
   }
 
+  // BootPay REST 취소 계약(POST /cancel, {receipt_id, price, reason}, Authorization: <token>)은
+  // 공식 server_nodejs SDK(bootpay/server_nodejs)의 cancel() 구현을 그대로 따른다.
+  async function cancelBootpayPayment({ receiptId, price, reason }) {
+    if (!isBootpayConfigured()) {
+      return { receiptId, cancelled: true, mock: true };
+    }
+    const token = await bootpayAccessToken();
+    const response = await fetch("https://api.bootpay.co.kr/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: token },
+      body: JSON.stringify({ receipt_id: receiptId, price, reason })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw httpError(502, "BOOTPAY_CANCEL_FAILED", "BootPay 결제 취소에 실패했습니다.", { receiptId, response: payload });
+    }
+    return { receiptId, cancelled: true, mock: false };
+  }
+
   async function confirmBootpayPayment(db, { ticketId, userId, paymentKey, receiptId, expectedAmount }) {
     if (isBootpayConfigured()) {
       if (!receiptId) {
@@ -78,5 +97,5 @@ export function createBootpayBackend({ hash, httpError, now }) {
     return { receiptId: receipt.receiptId, method: receipt.method, mock: true };
   }
 
-  return { bootpayConfig, confirmBootpayPayment, isBootpayConfigured };
+  return { bootpayConfig, cancelBootpayPayment, confirmBootpayPayment, isBootpayConfigured };
 }

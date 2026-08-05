@@ -167,6 +167,7 @@ export async function createTicketgroundApp(options) {
     appendLedger: persistence.appendLedger,
     bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
+    cancelBootpayPayment: bootpay.cancelBootpayPayment,
     confirmBootpayPayment: bootpay.confirmBootpayPayment,
     httpError: runtime.httpError,
     publicCatalog: dtos.publicCatalog,

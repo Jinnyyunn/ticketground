@@ -15,6 +15,7 @@ export function createApiRouter({
   appendLedger,
   assertTicketPurchasable,
   bootpayConfig,
+  cancelBootpayPayment,
   confirmBootpayPayment,
   createAdminAccount,
   cancelResaleListing,
@@ -487,16 +488,39 @@ async function handleApi(req, res, db, surface) {
         pgTransactionId: receipt.receiptId
       });
     } catch (error) {
-      appendLedger(db, body.userId, "BOOTPAY_PAYMENT_NEEDS_REFUND", {
+      const allocationFailureReason = error.code || "ALLOCATION_FAILED";
+      try {
+        await cancelBootpayPayment({
+          receiptId: receipt.receiptId,
+          price: purchasable.ticket.faceValue,
+          reason: "좌석 배정 실패로 인한 자동 취소"
+        });
+      } catch (cancelError) {
+        // 취소 자체도 실패한 경우에만 수동 처리가 필요하다 — 이 경우가 아니면
+        // 아래에서 정상적으로 "결제 취소됨" 응답을 돌려준다.
+        appendLedger(db, body.userId, "BOOTPAY_PAYMENT_NEEDS_REFUND", {
+          ticketId: body.ticketId,
+          receiptId: receipt.receiptId,
+          amount: purchasable.ticket.faceValue,
+          reason: allocationFailureReason,
+          cancelError: cancelError.code || cancelError.message
+        });
+        throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했고 자동 취소도 실패했습니다. 고객센터로 문의해주세요.", {
+          ticketId: body.ticketId,
+          receiptId: receipt.receiptId,
+          reason: allocationFailureReason
+        });
+      }
+      appendLedger(db, body.userId, "BOOTPAY_PAYMENT_AUTO_CANCELLED", {
         ticketId: body.ticketId,
         receiptId: receipt.receiptId,
         amount: purchasable.ticket.faceValue,
-        reason: error.code || "ALLOCATION_FAILED"
+        reason: allocationFailureReason
       });
-      throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {
+      throw httpError(409, "SEAT_ALLOCATION_FAILED_PAYMENT_CANCELLED", "선택하신 좌석이 방금 다른 사용자에게 판매되어 결제가 자동으로 취소되었습니다. 다른 좌석을 선택해주세요.", {
         ticketId: body.ticketId,
         receiptId: receipt.receiptId,
-        reason: error.code || "ALLOCATION_FAILED"
+        reason: allocationFailureReason
       });
     }
     return { ...publicPurchaseResult(result), bootpay: receipt };
