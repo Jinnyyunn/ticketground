@@ -115,7 +115,7 @@ function PriceRowsEditor({ rows, onChange }: { readonly rows: readonly PriceRowS
   );
 }
 
-function ChangePasswordForm({ onDone }: { readonly onDone: () => void }) {
+function ChangePasswordForm({ csrf, onDone }: { readonly csrf: string; readonly onDone: () => void }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -131,7 +131,7 @@ function ChangePasswordForm({ onDone }: { readonly onDone: () => void }) {
     setSubmitting(true);
     setError("");
     try {
-      await sellerRequest("/api/seller/change-password", { method: "POST", body: JSON.stringify({ currentPassword, nextPassword }) });
+      await sellerRequest("/api/seller/change-password", { method: "POST", headers: { "x-tig-seller-csrf": csrf }, body: JSON.stringify({ currentPassword, nextPassword }) });
       onDone();
     } catch (changeError) {
       setError(changeError instanceof Error ? changeError.message : "비밀번호 변경에 실패했습니다.");
@@ -311,7 +311,7 @@ export function SellerDashboard() {
   }
 
   if (session.mustChangePassword) {
-    return <ChangePasswordForm onDone={() => { setSession(null); }} />;
+    return <ChangePasswordForm csrf={session.csrf} onDone={() => { setSession(null); }} />;
   }
 
   const selectedEvent = events.find((item) => item.id === selectedId) || null;

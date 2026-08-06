@@ -4,7 +4,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { chromium } from "playwright";
 import { createTicketgroundApp } from "../backend/app.js";
+import { adminApi, api, startServer } from "./backend-test-utils.mjs";
 
 const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAF/wJ/0R5yyAAAAABJRU5ErkJggg==";
 const tinyPdf = "data:application/pdf;base64,JVBERi0xLjQKJcTl8uXrp/Og0MTGCjEgMCBvYmoKPDwvVHlwZSAvQ2F0YWxvZz4+CmVuZG9iagp0cmFpbGVyCjw8L1Jvb3QgMSAwIFI+PgolJUVPRgo=";
@@ -260,4 +262,38 @@ test("changing the temporary password clears mustChangePassword and requires the
 
   const relogin = await loginAsSeller(app, "stagemaker", "a-new-strong-password");
   assert.equal(relogin.session.mustChangePassword, false);
+});
+
+test("browser: a newly issued seller can get past the mandatory first-login password change", async (t) => {
+  const server = await startServer(t);
+
+  const submitted = await api(server.baseUrl, "/api/seller-applications", sellerApplicationPayload());
+  const applicationId = submitted.data.id;
+  for (const key of ["bizNumberVerified", "contactPhoneVerified", "eventAuthenticityChecked"]) {
+    await adminApi(server, `/api/admin/seller-applications/${applicationId}/checklist`, { [key]: true });
+  }
+  await adminApi(server, `/api/admin/seller-applications/${applicationId}/approve`, {});
+  const issued = await adminApi(server, "/api/admin/seller-accounts/issue", { applicationId, username: "stagemaker" });
+  const tempPassword = issued.data.tempPassword;
+
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+  await page.goto(`${server.baseUrl}/seller/login`);
+  await page.locator('input[name="username"]').fill("stagemaker");
+  await page.locator('input[name="password"]').fill(tempPassword);
+  await page.getByRole("button", { name: "로그인" }).click();
+
+  await page.getByRole("heading", { name: "비밀번호를 변경해주세요" }).waitFor();
+  await page.locator('input[name="currentPassword"]').fill(tempPassword);
+  await page.locator('input[name="nextPassword"]').fill("a-new-strong-password");
+  await page.getByRole("button", { name: "비밀번호 변경" }).click();
+
+  // Before the fix this stayed stuck on the same screen with a CSRF_REQUIRED
+  // error banner instead of proceeding - the form never unmounts on error.
+  await page.getByRole("heading", { name: "비밀번호를 변경해주세요" }).waitFor({ state: "hidden", timeout: 5000 });
+
+  const relogin = await api(server.baseUrl, "/api/seller/login", { username: "stagemaker", password: "a-new-strong-password" });
+  assert.equal(relogin.data.mustChangePassword, false);
 });
