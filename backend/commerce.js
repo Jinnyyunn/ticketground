@@ -48,24 +48,33 @@ export function createCommerceBackend({
   // by picking a different ticket - silently buys a second seat. A replay
   // with the same idempotency key returns the original result unchanged;
   // a reused key with different purchase details is rejected outright.
+  //
+  // Exposed separately (not just used inside buyPrimary) so a PG-specific
+  // route can detect a replay BEFORE re-confirming payment with the
+  // provider - re-confirming on every retry would either cost money/API
+  // calls or, worse, fail outright because assertTicketPurchasable() will
+  // no longer accept an already-OWNED ticket.
+  function findIdempotentPurchase(db, userId, idempotencyKey, payload) {
+    if (!idempotencyKey) return null;
+    const idempotency = purchaseIdempotency(userId, idempotencyKey, payload);
+    const existingTransaction = db.paymentTransactions.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
+    if (!existingTransaction) return null;
+    if (existingTransaction.idempotency.requestDigest !== idempotency.requestDigest) {
+      throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 구매 요청이 전달되었습니다.");
+    }
+    return existingTransaction;
+  }
+
   function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const payment = resolvePaymentMethod(paymentMethod);
 
-    const idempotency = idempotencyKey
-      ? purchaseIdempotency(user.id, idempotencyKey, { ticketId, paymentMethod })
-      : null;
-    if (idempotency) {
-      const existingTransaction = db.paymentTransactions.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
-      if (existingTransaction) {
-        if (existingTransaction.idempotency.requestDigest !== idempotency.requestDigest) {
-          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 구매 요청이 전달되었습니다.");
-        }
-        const context = ticketPurchaseContext(db, existingTransaction.ticketId);
-        const credential = db.admissionCredentials.find((item) => item.ticketId === existingTransaction.ticketId);
-        return { user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate, payment, admissionCredential: credential };
-      }
+    const existingTransaction = findIdempotentPurchase(db, user.id, idempotencyKey, { ticketId, paymentMethod });
+    if (existingTransaction) {
+      const context = ticketPurchaseContext(db, existingTransaction.ticketId);
+      const credential = db.admissionCredentials.find((item) => item.ticketId === existingTransaction.ticketId);
+      return { user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate, payment, admissionCredential: credential };
     }
 
     const { ticket, event, zone, performanceDate } = assertTicketPurchasable(db, ticketId);
@@ -86,7 +95,7 @@ export function createCommerceBackend({
       method: payment.key,
       status: payment.status,
       pgTransactionId: pgTransactionId || `${payment.key}-${hash(`${ticket.id}:${user.id}:${now()}`).slice(0, 12)}`,
-      ...(idempotency ? { idempotency } : {}),
+      ...(idempotencyKey ? { idempotency: purchaseIdempotency(user.id, idempotencyKey, { ticketId, paymentMethod }) } : {}),
       createdAt: now()
     });
     appendLedger(db, user.id, "PRIMARY_PURCHASE", {
@@ -328,5 +337,5 @@ export function createCommerceBackend({
     return { blocked: true, user: actor, ticket };
   }
 
-  return { assertTicketPurchasable, buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, joinPool, listForResale, purchaseResale };
+  return { assertTicketPurchasable, buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, findIdempotentPurchase, joinPool, listForResale, purchaseResale };
 }

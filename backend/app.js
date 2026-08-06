@@ -19,6 +19,7 @@ import { createSellerAccountBackend } from "./seller-accounts.js";
 import { createSellerApplicationBackend } from "./seller-applications.js";
 import { createSellerEventsBackend } from "./seller-events.js";
 import { sellerSessionFromRequest } from "./seller-session.js";
+import { createTosspaymentsBackend } from "./tosspayments.js";
 
 export async function createTicketgroundApp(options) {
   const runtime = createRuntime(options.runtime);
@@ -185,6 +186,11 @@ export async function createTicketgroundApp(options) {
     httpError: runtime.httpError,
     now: runtime.now
   });
+  const tosspayments = createTosspaymentsBackend({
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    now: runtime.now
+  });
   const bookingHolds = createBookingHoldsBackend({
     currentTimeMs: runtime.currentTimeMs,
     eventZone: catalog.eventZone,
@@ -213,6 +219,7 @@ export async function createTicketgroundApp(options) {
     bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
     confirmBootpayPayment: bootpay.confirmBootpayPayment,
+    confirmTosspaymentsPayment: tosspayments.confirmTosspaymentsPayment,
     currentTimeMs: runtime.currentTimeMs,
     hmac: runtime.hmac,
     httpError: runtime.httpError,
@@ -227,6 +234,7 @@ export async function createTicketgroundApp(options) {
     publicTicket: dtos.publicTicket,
     publicTicketsForUser: dtos.publicTicketsForUser,
     seatMap: admin.seatMap,
+    tosspaymentsConfig: tosspayments.tosspaymentsConfig,
     trustDevice: admission.trustDevice,
     verifyAppAttestation: runtime.verifyAppAttestation,
     verifyLedger: persistence.verifyLedger,
