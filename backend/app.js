@@ -15,6 +15,10 @@ import { createNativeSessionBackend } from "./native-session.js";
 import { createPersistence } from "./persistence.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
+import { createSellerAccountBackend } from "./seller-accounts.js";
+import { createSellerApplicationBackend } from "./seller-applications.js";
+import { createSellerEventsBackend } from "./seller-events.js";
+import { sellerSessionFromRequest } from "./seller-session.js";
 
 export async function createTicketgroundApp(options) {
   const runtime = createRuntime(options.runtime);
@@ -42,6 +46,18 @@ export async function createTicketgroundApp(options) {
     publicCatalog: dtos.publicCatalog
   });
   let groupBooking;
+  const sellerApplications = createSellerApplicationBackend({
+    appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
+  // sellerEvents is constructed after admin (it reuses admin.createEventDraft/
+  // updateEventSale) but admin's "seller-events" workspace listing needs
+  // sellerEvents.listPendingSellerEvents back - same forward-reference
+  // pattern as ensureAdmissionCredential below breaks the circular need.
+  let listPendingSellerEvents;
   const admin = createAdminBackend({
     adminTicket: dtos.adminTicket,
     appendLedger: persistence.appendLedger,
@@ -55,8 +71,33 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     seatLayoutForVenue: catalog.seatLayoutForVenue,
     stableId: runtime.stableId,
-    verifyLedger: persistence.verifyLedger
+    verifyLedger: persistence.verifyLedger,
+    listSellerApplications: sellerApplications.listSellerApplications,
+    listPendingSellerEvents: (...args) => listPendingSellerEvents(...args)
   });
+  const sellerAccounts = createSellerAccountBackend({
+    appendLedger: persistence.appendLedger,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
+  const sellerEvents = createSellerEventsBackend({
+    appendLedger: persistence.appendLedger,
+    createEventDraft: admin.createEventDraft,
+    httpError: runtime.httpError,
+    now: runtime.now,
+    updateEventSale: admin.updateEventSale
+  });
+  ({ listPendingSellerEvents } = sellerEvents);
+  function sellerSession(db, req) {
+    return sellerSessionFromRequest({
+      activeSellerAccount: sellerAccounts.activeSellerAccount,
+      currentTimeMs: runtime.currentTimeMs,
+      db,
+      hmac: runtime.hmac,
+      req
+    });
+  }
   const admission = createAdmissionBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
@@ -163,13 +204,20 @@ export async function createTicketgroundApp(options) {
     ...groupBooking,
     ...identity,
     ...nativeSession,
+    ...sellerApplications,
+    ...sellerAccounts,
+    ...sellerEvents,
     ...session,
     accountTicketsForUser: dtos.accountTicketsForUser,
     appendLedger: persistence.appendLedger,
     bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
     confirmBootpayPayment: bootpay.confirmBootpayPayment,
+    currentTimeMs: runtime.currentTimeMs,
+    hmac: runtime.hmac,
     httpError: runtime.httpError,
+    isDev: options.isDev === true,
+    sellerSession,
     publicCatalog: dtos.publicCatalog,
     publicDirectTransferResult: dtos.publicDirectTransferResult,
     publicPurchaseResult: dtos.publicPurchaseResult,
