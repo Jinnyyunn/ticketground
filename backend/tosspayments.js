@@ -1,10 +1,10 @@
 // TossPayments (토스페이먼츠) payment confirmation - mock mode by default, real REST
 // verification once TIG_TOSSPAYMENTS_CLIENT_KEY/TIG_TOSSPAYMENTS_SECRET_KEY are set.
 //
-// "paymentKey" below always means the payment METHOD selector (CREDIT_CARD/SIMPLE_PAY/...),
-// matching bootpay.js's convention - the actual TossPayments transaction identifier
-// (also confusingly called "paymentKey" in their API) is named tossPaymentKey here to
-// keep the two concepts from colliding.
+// "paymentKey" below always means the payment METHOD selector (CREDIT_CARD/SIMPLE_PAY/...).
+// The actual TossPayments transaction identifier (also confusingly called
+// "paymentKey" in their API) is named tossPaymentKey here to keep the two
+// concepts from colliding.
 import crypto from "node:crypto";
 
 const tosspaymentsMethodByPaymentKey = {

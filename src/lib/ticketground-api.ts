@@ -1,6 +1,4 @@
 import {
-  apiBootpayConfigSchema,
-  apiBootpayPurchaseResultSchema,
   apiDirectTransferResultSchema,
   apiIdentityStartSchema,
   apiIdentityStatusSchema,
@@ -44,8 +42,6 @@ export {
 export type { LastLoginProvider } from "./ticketground-session-storage";
 
 export type {
-  ApiBootpayConfig,
-  ApiBootpayPurchaseResult,
   ApiDirectTransferResult,
   ApiEvent,
   ApiIdentityStart,
@@ -160,29 +156,6 @@ export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
     userId,
     ticketId,
     paymentMethod: "CREDIT_CARD",
-  });
-}
-
-export function getBootpayConfig() {
-  return readApi("/api/payments/bootpay/config", apiBootpayConfigSchema);
-}
-
-export function buyTicketWithBootpay({
-  ticketId,
-  userId,
-  paymentMethod,
-  receiptId,
-}: {
-  readonly ticketId: string;
-  readonly userId: string;
-  readonly paymentMethod: string;
-  readonly receiptId?: string;
-}) {
-  return post("/api/payments/bootpay/purchase", apiBootpayPurchaseResultSchema, {
-    userId,
-    ticketId,
-    paymentMethod,
-    receiptId,
   });
 }
 

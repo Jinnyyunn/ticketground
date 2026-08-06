@@ -10,7 +10,7 @@ async function lesMiserablesOnSaleTicket(baseUrl) {
   return ticket;
 }
 
-test("checkout still renders the Bootpay payment-method grid when TossPayments is unconfigured", async (t) => {
+test("checkout still renders the fallback payment-method grid when TossPayments is unconfigured", async (t) => {
   const { baseUrl } = await startServer(t);
   const ticket = await lesMiserablesOnSaleTicket(baseUrl);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -58,7 +58,7 @@ test("checkout swaps in the TossPayments widget mount points when TossPayments i
   // branch, not that Toss's SDK actually painted something into it.
   await page.locator("#toss-payment-method").waitFor({ timeout: 5000, state: "attached" });
   await page.locator("#toss-agreement").waitFor({ timeout: 5000, state: "attached" });
-  assert.equal(await page.locator('input[name="payment-method"]').count(), 0, "the Bootpay radio grid is not rendered once Toss is configured");
+  assert.equal(await page.locator('input[name="payment-method"]').count(), 0, "the fallback radio grid is not rendered once Toss is configured");
 });
 
 test("checkout result page confirms a TossPayments purchase and forwards to the reservation page", async (t) => {

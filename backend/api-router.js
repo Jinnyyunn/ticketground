@@ -22,9 +22,7 @@ export function createApiRouter({
   appendLedger,
   assertTicketPurchasable,
   authenticateSellerAccount,
-  bootpayConfig,
   changeSellerPassword,
-  confirmBootpayPayment,
   cancelTosspaymentsPayment,
   confirmTosspaymentsPayment,
   createAdminAccount,
@@ -394,7 +392,6 @@ async function handleApi(req, res, db, surface) {
       requireIdempotencyKey(req)
     );
   }
-  if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
   if (req.method === "GET" && url.pathname === "/api/payments/tosspayments/config") return tosspaymentsConfig();
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
@@ -602,40 +599,6 @@ async function handleApi(req, res, db, surface) {
       userId: resolvePurchaseUserId(db, req, body),
       idempotencyKey: parseIdempotencyKey(req)
     }));
-  }
-  if (req.method === "POST" && url.pathname === "/api/payments/bootpay/purchase") {
-    requireBody(body, ["userId", "ticketId", "paymentMethod"]);
-    const purchaseUserId = resolvePurchaseUserId(db, req, body);
-    const purchasable = assertTicketPurchasable(db, body.ticketId);
-    const receipt = await confirmBootpayPayment(db, {
-      ticketId: body.ticketId,
-      userId: purchaseUserId,
-      paymentKey: String(body.paymentMethod || "").toUpperCase(),
-      receiptId: body.receiptId,
-      expectedAmount: purchasable.ticket.faceValue
-    });
-    let result;
-    try {
-      result = buyPrimary(db, {
-        userId: purchaseUserId,
-        ticketId: body.ticketId,
-        paymentMethod: body.paymentMethod,
-        pgTransactionId: receipt.receiptId
-      });
-    } catch (error) {
-      appendLedger(db, purchaseUserId, "BOOTPAY_PAYMENT_NEEDS_REFUND", {
-        ticketId: body.ticketId,
-        receiptId: receipt.receiptId,
-        amount: purchasable.ticket.faceValue,
-        reason: error.code || "ALLOCATION_FAILED"
-      });
-      throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {
-        ticketId: body.ticketId,
-        receiptId: receipt.receiptId,
-        reason: error.code || "ALLOCATION_FAILED"
-      });
-    }
-    return { ...publicPurchaseResult(result), bootpay: receipt };
   }
   if (req.method === "POST" && url.pathname === "/api/payments/tosspayments/purchase") {
     requireBody(body, ["userId", "ticketId", "paymentMethod", "tossPaymentKey"]);
