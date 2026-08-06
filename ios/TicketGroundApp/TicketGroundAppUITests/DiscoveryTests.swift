@@ -746,6 +746,28 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(app, identifier: "live-watchlist-empty").waitForExistence(timeout: 10))
     }
 
+    func testAccountMenusShowOnlyCenteredSpinnerWhileLoading() {
+        let cases = [
+            ("live-menu-account", "live-account-loading", "세션과 티켓을 불러오는 중입니다."),
+            ("live-menu-watchlist", "live-watchlist-loading", "계정에 저장된 관심공연을 불러오는 중입니다."),
+            ("live-menu-help", "live-support-loading", "고객센터 정보를 불러오는 중입니다.")
+        ]
+
+        for (menuIdentifier, loadingIdentifier, legacyMessage) in cases {
+            let app = liveApp(homeScenario: "routeLoading")
+            app.launch()
+            XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+            app.buttons["header-menu"].tap()
+            XCTAssertTrue(app.buttons[menuIdentifier].waitForExistence(timeout: 10))
+            app.buttons[menuIdentifier].tap()
+
+            XCTAssertTrue(anyElement(app, identifier: loadingIdentifier).waitForExistence(timeout: 10))
+            XCTAssertTrue(anyElement(app, identifier: "state-loading-progress").exists)
+            XCTAssertFalse(app.staticTexts[legacyMessage].exists)
+            recordScreenshot(named: "route-loading-\(menuIdentifier)", app: app)
+        }
+    }
+
     func testWatchlistPreferenceReconcilesCommittedServerStateAfterResponseLoss() {
         let app = liveApp(homeScenario: "watchlistCommittedResponseLost")
         app.launch()
