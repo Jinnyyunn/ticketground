@@ -89,6 +89,21 @@ test("public group-booking request submission stores a pending request without e
   assert.ok(workspace.data.requests[0].zoneName);
   assert.ok(workspace.data.requests[0].dateLabel);
   assert.ok(workspace.data.eventSummaries.some((event) => event.id === "event_kpop_001"));
+  // The admin console's status filter dropdown reads data.filters.status
+  // directly (GroupBookingWorkspace in admin-workspaces.tsx) - if this key
+  // is ever missing, the whole workspace crashes with a TypeError on load.
+  assert.deepEqual(workspace.data.filters, { status: null });
+});
+
+test("group-booking workspace echoes back the applied status filter", async (t) => {
+  const server = await startServer(t);
+  await submitGroupBooking(server);
+
+  const unfiltered = await adminApi(server, "/api/admin/workspaces/group-booking");
+  assert.deepEqual(unfiltered.data.filters, { status: null });
+
+  const filtered = await adminApi(server, "/api/admin/workspaces/group-booking?status=pending");
+  assert.deepEqual(filtered.data.filters, { status: "PENDING" });
 });
 
 test("public group-booking request validation rejects bad required fields with specific codes", async (t) => {
