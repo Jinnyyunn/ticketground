@@ -39,19 +39,80 @@ function parseSchedules(text: string): SellerEventSchedule[] {
   });
 }
 
-function parsePrices(text: string): SellerEventPrice[] {
-  return text.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
-    const [grade, seat, price, seatCount] = line.split(",").map((part) => part.trim());
-    return { grade: grade || "", seat: seat || "", price: Number(price), seatCount: seatCount ? Number(seatCount) : 12 };
-  });
-}
-
 function schedulesToText(schedules: readonly SellerEventSchedule[]): string {
   return schedules.map((schedule) => `${schedule.label}|${schedule.date}|${schedule.times.join(",")}`).join("\n");
 }
 
-function pricesToText(prices: readonly SellerEventPrice[]): string {
-  return prices.map((price) => [price.grade, price.seat, price.price, price.seatCount ?? 12].join(",")).join("\n");
+type PriceRowState = { readonly grade: string; readonly seat: string; readonly price: string; readonly seatCount: string };
+
+function emptyPriceRow(): PriceRowState {
+  return { grade: "", seat: "", price: "", seatCount: "12" };
+}
+
+function priceRowsFromEvent(event: SellerEvent | null): PriceRowState[] {
+  if (!event || !event.prices.length) return [emptyPriceRow()];
+  return event.prices.map((price) => ({
+    grade: price.grade,
+    seat: price.seat,
+    price: String(price.price),
+    seatCount: String(price.seatCount ?? 12),
+  }));
+}
+
+// Returns null (with an error message) if any row is incomplete/invalid,
+// rather than silently dropping it - unlike the old comma-delimited
+// textarea, a typo here can't corrupt an unrelated field.
+function priceRowsToPrices(rows: readonly PriceRowState[]): { readonly prices: SellerEventPrice[] } | { readonly error: string } {
+  const prices: SellerEventPrice[] = [];
+  for (const row of rows) {
+    const grade = row.grade.trim();
+    const seat = row.seat.trim();
+    const price = Number(row.price);
+    const seatCount = Number(row.seatCount || "12");
+    if (!grade || !seat) return { error: "좌석 등급과 좌석명을 모두 입력해주세요." };
+    if (!Number.isFinite(price) || price <= 0) return { error: `${grade || seat} 가격을 확인해주세요.` };
+    if (!Number.isInteger(seatCount) || seatCount <= 0) return { error: `${grade || seat} 좌석수를 확인해주세요.` };
+    prices.push({ grade, seat, price, seatCount });
+  }
+  return prices.length ? { prices } : { error: "좌석 가격을 하나 이상 입력해주세요." };
+}
+
+function PriceRowsEditor({ rows, onChange }: { readonly rows: readonly PriceRowState[]; readonly onChange: (rows: readonly PriceRowState[]) => void }) {
+  const updateRow = (index: number, patch: Partial<PriceRowState>): void => {
+    onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
+  };
+  const addRow = (): void => onChange([...rows, emptyPriceRow()]);
+  const removeRow = (index: number): void => onChange(rows.length > 1 ? rows.filter((_, rowIndex) => rowIndex !== index) : rows);
+
+  return (
+    <div className="grid min-w-0 gap-2">
+      <p className="text-sm font-bold text-ink-3">좌석 가격</p>
+      <div className="grid gap-2">
+        {rows.map((row, index) => (
+          <div className="grid min-w-0 grid-cols-2 gap-2 rounded-lg border border-line p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_90px_auto] sm:items-end" key={index}>
+            <label className="grid min-w-0 gap-1 text-xs font-bold text-ink-4">
+              등급
+              <input className="h-10 min-w-0 rounded-lg border border-line bg-background px-2 text-sm font-bold text-ink" onChange={(changeEvent) => updateRow(index, { grade: changeEvent.currentTarget.value })} placeholder="VIP" value={row.grade} />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-bold text-ink-4">
+              좌석명
+              <input className="h-10 min-w-0 rounded-lg border border-line bg-background px-2 text-sm font-bold text-ink" onChange={(changeEvent) => updateRow(index, { seat: changeEvent.currentTarget.value })} placeholder="VIP석" value={row.seat} />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-bold text-ink-4">
+              가격 (원)
+              <input className="h-10 min-w-0 rounded-lg border border-line bg-background px-2 text-sm font-bold text-ink" inputMode="numeric" onChange={(changeEvent) => updateRow(index, { price: changeEvent.currentTarget.value })} placeholder="154000" value={row.price} />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-bold text-ink-4">
+              좌석수
+              <input className="h-10 min-w-0 rounded-lg border border-line bg-background px-2 text-sm font-bold text-ink" inputMode="numeric" onChange={(changeEvent) => updateRow(index, { seatCount: changeEvent.currentTarget.value })} placeholder="12" value={row.seatCount} />
+            </label>
+            <button className="h-10 rounded-lg border border-line px-3 text-xs font-black text-ink-3 disabled:opacity-40" disabled={rows.length <= 1} onClick={() => removeRow(index)} type="button">삭제</button>
+          </div>
+        ))}
+      </div>
+      <button className="h-10 w-fit rounded-lg border border-line px-4 text-sm font-black text-ink" onClick={addRow} type="button">+ 좌석 등급 추가</button>
+    </div>
+  );
 }
 
 function ChangePasswordForm({ onDone }: { readonly onDone: () => void }) {
@@ -112,6 +173,7 @@ function EventForm({
   readonly onDone: (feedback: Feedback) => void;
 }) {
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  const [priceRows, setPriceRows] = useState<readonly PriceRowState[]>(() => priceRowsFromEvent(event));
   const [submitting, setSubmitting] = useState(false);
 
   const handlePosterChange = (changeEvent: ChangeEvent<HTMLInputElement>): void => {
@@ -132,9 +194,13 @@ function EventForm({
     const startsAt = valueFromForm(form, "startsAt");
     const venueId = valueFromForm(form, "venueId");
     const schedules = parseSchedules(valueFromForm(form, "schedules"));
-    const prices = parsePrices(valueFromForm(form, "prices"));
-    if (!title || !startsAt || !venueId || !schedules.length || !prices.length) {
-      onDone({ tone: "error", message: "공연명, 시작 일시, 공연장, 공연 일정, 좌석 가격을 확인해주세요." });
+    const pricesResult = priceRowsToPrices(priceRows);
+    if (!title || !startsAt || !venueId || !schedules.length) {
+      onDone({ tone: "error", message: "공연명, 시작 일시, 공연장, 공연 일정을 확인해주세요." });
+      return;
+    }
+    if ("error" in pricesResult) {
+      onDone({ tone: "error", message: pricesResult.error });
       return;
     }
     if (!event && !posterPreview) {
@@ -151,7 +217,7 @@ function EventForm({
         startsAt,
         venueId,
         schedules,
-        prices,
+        prices: pricesResult.prices,
         imageDataUrl: posterPreview || undefined,
         casts: valueFromForm(form, "casts").split("\n").map((line) => line.trim()).filter(Boolean),
         notices: valueFromForm(form, "notices").split("\n").map((line) => line.trim()).filter(Boolean),
@@ -165,6 +231,7 @@ function EventForm({
       onDone({ tone: "success", message: event ? `${title} 공연을 수정했습니다. 관리자 검토 후 다시 공개됩니다.` : `${title} 공연을 등록했습니다. 관리자 검토 후 공개됩니다.` });
       form.reset();
       setPosterPreview(null);
+      setPriceRows([emptyPriceRow()]);
     } catch (submitError) {
       onDone({ tone: "error", message: submitError instanceof Error ? submitError.message : "요청을 완료하지 못했습니다." });
     } finally {
@@ -176,18 +243,18 @@ function EventForm({
     <WorkspacePanel>
       <h2 className="text-base font-black">{event ? `${event.title} 수정` : "신규 공연/티켓 등록"}</h2>
       <p className="mt-1 text-sm font-bold text-ink-3">저장하면 관리자 검토를 거친 뒤 공개 카탈로그에 노출됩니다.</p>
-      <form className="mt-4 grid gap-3 md:grid-cols-2" key={event?.id ?? "create"} noValidate onSubmit={submit}>
+      <form className="mt-4 grid min-w-0 gap-3 md:grid-cols-2" noValidate onSubmit={submit}>
         <Field defaultValue={event?.title} label="공연명" name="title" required />
         <Field defaultValue={event?.shortTitle} label="짧은 제목 (선택)" name="shortTitle" />
         <SelectField defaultValue={event?.category ?? "concert"} label="장르" name="category" options={sellerEventCategoryOptions} />
         <Field defaultValue={event?.date} label="시작 일시 (예: 2026-12-24T19:30:00+09:00)" name="startsAt" />
         <SelectField defaultValue={event?.venueId} label="공연장" name="venueId" options={[{ label: "공연장을 선택해주세요", value: "" }, ...venues.map((venue) => ({ label: venue.name, value: venue.id }))]} />
-        <label className="grid gap-1 text-sm font-bold text-ink-3 md:col-span-2">
+        <label className="grid min-w-0 gap-1 text-sm font-bold text-ink-3 md:col-span-2">
           포스터 이미지{event ? " (선택, 비우면 유지)" : ""}
           <input accept="image/jpeg,image/png,image/webp" className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" onChange={handlePosterChange} type="file" />
         </label>
         {posterPreview ? <div className="md:col-span-2"><img alt="포스터 미리보기" className="h-48 w-36 rounded-lg border border-line object-cover" src={posterPreview} /></div> : null}
-        <div className="md:col-span-2"><TextareaField defaultValue={event ? pricesToText(event.prices) : ""} hint="한 줄에 하나씩: 등급,좌석명,가격,좌석수" label="좌석 가격" name="prices" rows={3} /></div>
+        <div className="md:col-span-2"><PriceRowsEditor onChange={setPriceRows} rows={priceRows} /></div>
         <div className="md:col-span-2"><TextareaField defaultValue={event ? schedulesToText(event.schedules) : ""} hint="한 줄에 하나씩: 회차명|날짜(YYYY-MM-DD)|시간1,시간2" label="공연 일정" name="schedules" rows={3} /></div>
         <div className="md:col-span-2"><TextareaField defaultValue={event?.casts.join("\n")} hint="한 줄에 한 명씩 (선택)" label="출연진" name="casts" rows={2} /></div>
         <div className="md:col-span-2"><TextareaField defaultValue={event?.notices.join("\n")} hint="한 줄에 하나씩 (선택)" label="유의사항" name="notices" rows={2} /></div>
@@ -276,6 +343,7 @@ export function SellerDashboard() {
           csrf={session.csrf}
           event={selectedEvent}
           feedback={feedback}
+          key={selectedEvent?.id ?? "create"}
           onDone={(next) => {
             setFeedback(next);
             void loadDashboard();
