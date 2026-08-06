@@ -166,6 +166,20 @@ export type ApiBootpayPurchaseResult = ApiPurchaseResult & {
   };
 };
 
+export type ApiTosspaymentsConfig = {
+  readonly configured: boolean;
+  readonly clientKey: string;
+};
+
+export type ApiTosspaymentsPurchaseResult = ApiPurchaseResult & {
+  readonly tosspayments: {
+    readonly tossPaymentKey: string;
+    readonly method?: string;
+    readonly mock?: boolean;
+    readonly replayed?: boolean;
+  };
+};
+
 export type ApiIdentityStatus = {
   readonly userId: string;
   readonly verified: boolean;

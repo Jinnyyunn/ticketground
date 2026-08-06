@@ -12,6 +12,8 @@ import {
   apiStateSchema,
   apiSupportThreadSchema,
   apiTicketSchema,
+  apiTosspaymentsConfigSchema,
+  apiTosspaymentsPurchaseResultSchema,
   apiVirtualQrSchema,
   apiWatchlistItemSchema,
   removeWatchlistResultSchema,
@@ -57,6 +59,8 @@ export type {
   ApiState,
   ApiSupportThread,
   ApiTicket,
+  ApiTosspaymentsConfig,
+  ApiTosspaymentsPurchaseResult,
   ApiVirtualQr,
   ApiWatchlistItem,
 } from "./ticketground-api-types";
@@ -179,6 +183,38 @@ export function buyTicketWithBootpay({
     ticketId,
     paymentMethod,
     receiptId,
+  });
+}
+
+export function getTosspaymentsConfig() {
+  return readApi("/api/payments/tosspayments/config", apiTosspaymentsConfigSchema);
+}
+
+// Unlike post(), this needs a caller-supplied X-Idempotency-Key - the backend
+// rejects the request without one (see backend/api-router.js's tosspayments
+// purchase route), so it goes through readApi() directly instead of the
+// shared post() helper, which doesn't accept extra headers.
+export function confirmTosspaymentsPurchase({
+  ticketId,
+  userId,
+  paymentMethod,
+  tossPaymentKey,
+  idempotencyKey,
+}: {
+  readonly ticketId: string;
+  readonly userId: string;
+  readonly paymentMethod: string;
+  readonly tossPaymentKey: string;
+  readonly idempotencyKey: string;
+}) {
+  const credential = storedSessionCredential();
+  return readApi("/api/payments/tosspayments/purchase", apiTosspaymentsPurchaseResultSchema, {
+    method: "POST",
+    body: JSON.stringify({ userId, ticketId, paymentMethod, tossPaymentKey }),
+    headers: {
+      "X-Idempotency-Key": idempotencyKey,
+      ...(credential ? { Authorization: `Bearer ${credential}` } : {}),
+    },
   });
 }
 
