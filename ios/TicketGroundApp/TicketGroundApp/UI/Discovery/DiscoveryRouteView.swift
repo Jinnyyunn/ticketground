@@ -296,7 +296,8 @@ struct DiscoveryLoginView: View {
             sessionExchanger: GoogleNativeSessionClient(
                 apiClient: container.environment.apiClient,
                 sessionStore: container.environment.sessionStore
-            )
+            ),
+            isSecureBackend: container.environment.apiClient.baseURL?.scheme?.lowercased() == "https"
         )
         Task {
             await coordinator.signIn()
