@@ -17,7 +17,7 @@ Ticketground는 국내 콘서트, 뮤지컬, 스포츠, 페스티벌 예매를 �
 
 백엔드는 Express 같은 웹 프레임워크 없이 Node `http`와 `backend/*.js` 도메인 모듈로 구성되어 있다. 별도 데이터베이스 서버도 없다. 기본 저장소는 JSON 파일 DB인 `data/db.json`이고, 주요 거래와 운영 이벤트는 append-only 해시 체인 원장에 이어 붙인다. 새로 들어오는 개발자가 가장 자주 놀라는 지점이 이 부분이다.
 
-프론트엔드는 Next.js 16 App Router, React 19, TypeScript strict, Tailwind CSS v4, shadcn/ui를 쓴다. 결제 흐름은 BootPay를 통과하며, 로컬 기본값은 mock 모드다.
+프론트엔드는 Next.js 16 App Router, React 19, TypeScript strict, Tailwind CSS v4, shadcn/ui를 쓴다. 결제 흐름은 TossPayments를 통과하며, 로컬 기본값은 mock 모드다.
 
 ## 빠른 시작
 

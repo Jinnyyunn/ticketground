@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
 
 test("public server serves the Next frontend and backend API on one port", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -186,44 +186,6 @@ test("direct transfer attempt rejects spoofed actors without penalizing the vict
   assert.equal(victimAfter.trustScore, 88);
   assert.equal(victimAfter.status, "ACTIVE");
   assert.equal(victimAfter.sanctions.length, 0);
-});
-
-test("bootpay purchase records a manual-refund ledger entry when capture wins but allocation loses", async (t) => {
-  // Given: two verified users race to buy the final same ticket through the BootPay route.
-  const server = await startServer(t, { env: { TIG_BOOTPAY_MOCK_CONFIRM_DELAY_MS: "50" } });
-  await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
-  await verifyIdentity(server.baseUrl, "user_fan_b", "010-9000-0002");
-  const state = await api(server.baseUrl, "/api/state");
-  const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
-  assert.ok(ticket);
-
-  // When: both requests pass the pre-confirmation availability check before one allocation wins.
-  const responses = await Promise.all([
-    fetch(`${server.baseUrl}/api/payments/bootpay/purchase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "user_fan_a", ticketId: ticket.id, paymentMethod: "CREDIT_CARD" })
-    }),
-    fetch(`${server.baseUrl}/api/payments/bootpay/purchase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "user_fan_b", ticketId: ticket.id, paymentMethod: "CREDIT_CARD" })
-    })
-  ]);
-  const payloads = await Promise.all(responses.map((response) => response.json()));
-  const success = payloads.find((payload) => payload.ok);
-  const failed = payloads.find((payload) => !payload.ok);
-
-  // Then: one purchase succeeds and the captured loser gets an explicit refund-needed error plus ledger trail.
-  assert.ok(success);
-  assert.equal(success.data.ticket.id, ticket.id);
-  assert.equal(failed.error.code, "PAYMENT_CAPTURED_ALLOCATION_FAILED");
-  assert.ok(failed.error.detail.receiptId);
-  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=BOOTPAY_PAYMENT_NEEDS_REFUND");
-  assert.equal(audit.data.ledger.length, 1);
-  assert.equal(audit.data.ledger[0].payload.ticketId, ticket.id);
-  assert.equal(audit.data.ledger[0].payload.receiptId, failed.error.detail.receiptId);
-  assert.equal(audit.data.ledger[0].payload.reason, "TICKET_NOT_AVAILABLE");
 });
 
 test("public validation rejects malformed watchlist and support requests", async (t) => {

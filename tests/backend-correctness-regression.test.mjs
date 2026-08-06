@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createAdminBackend } from "../backend/admin.js";
-import { createBootpayBackend } from "../backend/bootpay.js";
+import { createTosspaymentsBackend } from "../backend/tosspayments.js";
 import { adminApi, api, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
 
 function httpError(status, code, message, detail = {}) {
@@ -63,72 +63,71 @@ test("bulk user status update validates every row before mutating users", async 
   assert.deepEqual(accounts.data.users[0].sanctions, []);
 });
 
-test("BootPay real receipt verification rejects amount mismatches", async (t) => {
+test("TossPayments real confirmation verification rejects amount mismatches", async (t) => {
   const previousFetch = globalThis.fetch;
-  const previousApplicationId = process.env.TIG_BOOTPAY_APPLICATION_ID;
-  const previousPrivateKey = process.env.TIG_BOOTPAY_PRIVATE_KEY;
-  process.env.TIG_BOOTPAY_APPLICATION_ID = "app-id";
-  process.env.TIG_BOOTPAY_PRIVATE_KEY = "private-key";
+  const previousClientKey = process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  const previousSecretKey = process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = "client-key";
+  process.env.TIG_TOSSPAYMENTS_SECRET_KEY = "secret-key";
   t.after(() => {
     globalThis.fetch = previousFetch;
-    if (previousApplicationId === undefined) delete process.env.TIG_BOOTPAY_APPLICATION_ID;
-    else process.env.TIG_BOOTPAY_APPLICATION_ID = previousApplicationId;
-    if (previousPrivateKey === undefined) delete process.env.TIG_BOOTPAY_PRIVATE_KEY;
-    else process.env.TIG_BOOTPAY_PRIVATE_KEY = previousPrivateKey;
+    if (previousClientKey === undefined) delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+    else process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = previousClientKey;
+    if (previousSecretKey === undefined) delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+    else process.env.TIG_TOSSPAYMENTS_SECRET_KEY = previousSecretKey;
   });
   globalThis.fetch = async (url) => {
     const value = String(url);
-    if (value.endsWith("/request/token")) {
-      return Response.json({ data: { token: "bootpay-access-token" } });
+    if (value.endsWith("/v1/payments/confirm")) {
+      return Response.json({ status: "DONE", paymentKey: "toss_low_amount", method: "카드", totalAmount: 1000 });
     }
-    if (value.includes("/receipt/receipt_low_amount")) {
-      return Response.json({ data: { status: 1, price: 1000, method: "card" } });
-    }
-    throw new Error(`unexpected BootPay URL: ${value}`);
+    throw new Error(`unexpected TossPayments URL: ${value}`);
   };
-  const bootpay = createBootpayBackend({
+  const tosspayments = createTosspaymentsBackend({
     hash: (input) => `hash-${input}`,
     httpError,
     now: () => "2026-07-20T00:00:00.000Z"
   });
 
   await assert.rejects(
-    () => bootpay.confirmBootpayPayment({}, {
+    () => tosspayments.confirmTosspaymentsPayment({}, {
       ticketId: "ticket_1",
       userId: "user_fan_a",
       paymentKey: "CREDIT_CARD",
-      receiptId: "receipt_low_amount",
+      tossPaymentKey: "toss_low_amount",
+      orderId: "ticket_1",
       expectedAmount: 154000
     }),
-    (error) => error.code === "BOOTPAY_AMOUNT_MISMATCH"
+    (error) => error.code === "TOSSPAYMENTS_AMOUNT_MISMATCH"
   );
 });
 
-test("BootPay configured mode requires a receipt id instead of falling back to mock confirmation", async (t) => {
-  const previousApplicationId = process.env.TIG_BOOTPAY_APPLICATION_ID;
-  const previousPrivateKey = process.env.TIG_BOOTPAY_PRIVATE_KEY;
-  process.env.TIG_BOOTPAY_APPLICATION_ID = "app-id";
-  process.env.TIG_BOOTPAY_PRIVATE_KEY = "private-key";
+test("TossPayments configured mode requires a tossPaymentKey instead of falling back to mock confirmation", async (t) => {
+  const previousClientKey = process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  const previousSecretKey = process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = "client-key";
+  process.env.TIG_TOSSPAYMENTS_SECRET_KEY = "secret-key";
   t.after(() => {
-    if (previousApplicationId === undefined) delete process.env.TIG_BOOTPAY_APPLICATION_ID;
-    else process.env.TIG_BOOTPAY_APPLICATION_ID = previousApplicationId;
-    if (previousPrivateKey === undefined) delete process.env.TIG_BOOTPAY_PRIVATE_KEY;
-    else process.env.TIG_BOOTPAY_PRIVATE_KEY = previousPrivateKey;
+    if (previousClientKey === undefined) delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+    else process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = previousClientKey;
+    if (previousSecretKey === undefined) delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+    else process.env.TIG_TOSSPAYMENTS_SECRET_KEY = previousSecretKey;
   });
-  const bootpay = createBootpayBackend({
+  const tosspayments = createTosspaymentsBackend({
     hash: (input) => `hash-${input}`,
     httpError,
     now: () => "2026-07-20T00:00:00.000Z"
   });
 
   await assert.rejects(
-    () => bootpay.confirmBootpayPayment({}, {
+    () => tosspayments.confirmTosspaymentsPayment({}, {
       ticketId: "ticket_1",
       userId: "user_fan_a",
       paymentKey: "CREDIT_CARD",
+      orderId: "ticket_1",
       expectedAmount: 154000
     }),
-    (error) => error.code === "BOOTPAY_RECEIPT_REQUIRED"
+    (error) => error.code === "TOSSPAYMENTS_PAYMENT_KEY_REQUIRED"
   );
 });
 

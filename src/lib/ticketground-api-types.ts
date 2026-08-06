@@ -153,19 +153,6 @@ export type ApiPurchaseResult = {
   };
 };
 
-export type ApiBootpayConfig = {
-  readonly configured: boolean;
-  readonly applicationId: string;
-};
-
-export type ApiBootpayPurchaseResult = ApiPurchaseResult & {
-  readonly bootpay: {
-    readonly receiptId: string;
-    readonly method: string;
-    readonly mock: boolean;
-  };
-};
-
 export type ApiTosspaymentsConfig = {
   readonly configured: boolean;
   readonly clientKey: string;

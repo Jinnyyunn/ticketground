@@ -90,7 +90,7 @@ async function assertCheckoutBlocksWithoutSelectedTicket(page, baseUrl, slug) {
   // A purchase request must never fire when the checkout page lost its ticketId — this used to
   // silently fall back to a random ON_SALE ticket for the show instead of blocking payment.
   let purchaseRequested = false;
-  await page.route("**/api/payments/bootpay/purchase", (route) => {
+  await page.route("**/api/tickets/buy", (route) => {
     purchaseRequested = true;
     return route.continue();
   });

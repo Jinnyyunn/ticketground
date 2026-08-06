@@ -7,9 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
 import {
-  buyTicketWithBootpay,
+  buyTicket,
   confirmDanalIdentityVerification,
-  getBootpayConfig,
   getIdentityStatus,
   getState,
   getTosspaymentsConfig,
@@ -22,24 +21,14 @@ import {
 import type { TicketShow } from "@/types";
 
 const paymentMethods = [
-  { id: "credit", label: "신용카드", note: "카드사 할인 적용", bootpayKey: "CREDIT_CARD" },
-  { id: "simple", label: "간편결제", note: "카카오페이·네이버페이", bootpayKey: "SIMPLE_PAY" },
-  { id: "bank", label: "계좌이체", note: "실시간 출금", bootpayKey: "BANK_TRANSFER" },
-  { id: "mobile", label: "휴대폰 결제", note: "통신사 한도 확인", bootpayKey: "MOBILE" },
-  { id: "deposit", label: "무통장입금", note: "입금대기 후 확정", bootpayKey: "BANK_DEPOSIT" },
+  { id: "credit", label: "신용카드", note: "카드사 할인 적용", paymentMethod: "CREDIT_CARD" },
+  { id: "simple", label: "간편결제", note: "카카오페이·네이버페이", paymentMethod: "SIMPLE_PAY" },
+  { id: "bank", label: "계좌이체", note: "실시간 출금", paymentMethod: "BANK_TRANSFER" },
+  { id: "mobile", label: "휴대폰 결제", note: "통신사 한도 확인", paymentMethod: "MOBILE" },
+  { id: "deposit", label: "무통장입금", note: "입금대기 후 확정", paymentMethod: "BANK_DEPOSIT" },
 ] as const;
 
 const serviceFeePerSeat = 2000;
-
-type BootpaySdk = {
-  readonly requestPayment: (options: Record<string, unknown>) => Promise<{ receipt_id?: string; error_code?: string; message?: string }>;
-};
-
-declare global {
-  interface Window {
-    readonly Bootpay?: BootpaySdk;
-  }
-}
 
 type TossPaymentsWidgets = {
   readonly setAmount: (amount: { value: number; currency: "KRW" }) => Promise<void>;
@@ -349,7 +338,7 @@ export function CheckoutPanel({
     setStatus("토스페이먼츠 결제창을 여는 중입니다.");
     try {
       const resultParams = new URLSearchParams({
-        paymentMethod: selectedMethod.bootpayKey,
+        paymentMethod: selectedMethod.paymentMethod,
         date: selection.date,
         time: selection.time,
       });
@@ -390,35 +379,7 @@ export function CheckoutPanel({
     setSubmitting(true);
     setStatus("결제 처리 중");
     try {
-      const bootpayConfig = await getBootpayConfig();
-      let receiptId: string | undefined;
-      if (bootpayConfig.configured) {
-        const bootpay = window.Bootpay;
-        if (!bootpay) {
-          setStatus("BootPay 결제 SDK를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
-          return;
-        }
-        setStatus("BootPay 결제창을 여는 중입니다.");
-        const result = await bootpay.requestPayment({
-          application_id: bootpayConfig.applicationId,
-          price: trustedTotalAmount,
-          order_name: show.title,
-          order_id: ticketId,
-          method: selectedMethod.bootpayKey === "SIMPLE_PAY" ? "kakaopay" : "card",
-        });
-        if (!result.receipt_id) {
-          setStatus(result.message || "BootPay 결제가 취소되었거나 실패했습니다.");
-          return;
-        }
-        receiptId = result.receipt_id;
-      }
-
-      const purchase = await buyTicketWithBootpay({
-        ticketId,
-        userId: sessionUserId,
-        paymentMethod: selectedMethod.bootpayKey,
-        receiptId,
-      });
+      const purchase = await buyTicket(ticketId, sessionUserId);
       const params = new URLSearchParams({
         date: selection.date,
         time: selection.time,
@@ -426,7 +387,7 @@ export function CheckoutPanel({
         count: "1",
         ticketId: purchase.ticket.id,
       });
-      setStatus(`${purchase.payment.label} ${purchase.payment.status} · BootPay ${purchase.bootpay.receiptId}`);
+      setStatus(`${purchase.payment.label} ${purchase.payment.status} · ${purchase.ticket.id}`);
       router.push(`/reservation/${purchase.ticket.id}?${params.toString()}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "결제 처리에 실패했습니다.");
@@ -438,7 +399,6 @@ export function CheckoutPanel({
   return (
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
       <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="afterInteractive" />
-      <Script src="https://cdn.bootpay.co.kr/js/bootpay-5.8.0.min.js" strategy="afterInteractive" />
       <Script src="https://js.tosspayments.com/v2/standard" strategy="afterInteractive" onLoad={() => setTossSdkLoaded(true)} />
       <section className="rounded-md border border-line p-6">
         <p className="text-sm font-bold text-ticketground">STEP 3</p>

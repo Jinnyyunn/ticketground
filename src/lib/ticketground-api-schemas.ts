@@ -1,7 +1,5 @@
 import { z, type ZodType } from "zod";
 import type {
-  ApiBootpayConfig,
-  ApiBootpayPurchaseResult,
   ApiDirectTransferResult,
   ApiEvent,
   ApiIdentityStart,
@@ -171,19 +169,6 @@ export const apiPurchaseResultSchema = z.object({
     activationChannel: z.string(),
   }),
 }) satisfies ZodType<ApiPurchaseResult>;
-
-export const apiBootpayConfigSchema = z.object({
-  configured: z.boolean(),
-  applicationId: z.string(),
-}) satisfies ZodType<ApiBootpayConfig>;
-
-export const apiBootpayPurchaseResultSchema = apiPurchaseResultSchema.extend({
-  bootpay: z.object({
-    receiptId: z.string(),
-    method: z.string(),
-    mock: z.boolean(),
-  }),
-}) satisfies ZodType<ApiBootpayPurchaseResult>;
 
 export const apiTosspaymentsConfigSchema = z.object({
   configured: z.boolean(),

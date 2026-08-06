@@ -37,8 +37,8 @@ struct TosspaymentsPurchaseResult: Decodable, Equatable {
 // Mirrors GoogleNativeSessionClient's shape: a direct, standalone caller of
 // APIClient rather than going through LiveBackendService's health-check-gated
 // capability map - these routes are always on (mock-mode fallback server side
-// when unconfigured), the same way Bootpay's routes are, so there is no
-// "native-tosspayments-v1" capability string to negotiate.
+// when unconfigured), so there is no "native-tosspayments-v1" capability
+// string to negotiate.
 final class TosspaymentsClient {
     private let apiClient: APIClient
     private let sessionStore: SessionStore

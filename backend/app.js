@@ -2,7 +2,6 @@ import { createAdmissionBackend } from "./admission.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
 import { createBookingHoldsBackend } from "./booking-holds.js";
-import { createBootpayBackend } from "./bootpay.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
@@ -181,11 +180,6 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     saleSummary: catalog.saleSummary
   });
-  const bootpay = createBootpayBackend({
-    hash: runtime.hash,
-    httpError: runtime.httpError,
-    now: runtime.now
-  });
   const tosspayments = createTosspaymentsBackend({
     hash: runtime.hash,
     httpError: runtime.httpError,
@@ -216,10 +210,8 @@ export async function createTicketgroundApp(options) {
     ...session,
     accountTicketsForUser: dtos.accountTicketsForUser,
     appendLedger: persistence.appendLedger,
-    bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
     cancelTosspaymentsPayment: tosspayments.cancelTosspaymentsPayment,
-    confirmBootpayPayment: bootpay.confirmBootpayPayment,
     confirmTosspaymentsPayment: tosspayments.confirmTosspaymentsPayment,
     currentTimeMs: runtime.currentTimeMs,
     hmac: runtime.hmac,
