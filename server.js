@@ -50,6 +50,7 @@ if (!isDev && adminPassword.length < 12) {
 const app = await createTicketgroundApp({
   dbPath,
   businessRegistrationDir: { directory: path.join(path.dirname(dbPath), "group-booking-uploads") },
+  isDev,
   mediaDir: { directory: adminUploadDir, urlPrefix: "/uploads/admin" },
   runtime: {
     appAttestationSecret: process.env.TIG_APP_ATTESTATION_SECRET,
@@ -126,6 +127,7 @@ const sessionRoutePermissions = [
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/accounts$/, permission: "accounts.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/support$/, permission: "support.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/seller-applications$/, permission: "sellerApplications.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/workspaces\/seller-events$/, permission: "sellerEventReview.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/resale$/, permission: "finance.read" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/group-booking$/, permission: "groupBooking.manage" },
   { method: "GET", pattern: /^\/api\/admin\/group-booking\/requests\/[^/]+\/business-registration-file$/, permission: "groupBooking.manage" },
@@ -134,6 +136,8 @@ const sessionRoutePermissions = [
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/acl$/, permission: "acl.read" },
   { method: "POST", pattern: /^\/api\/admin\/events\//, permission: "catalog.manage" },
   { method: "POST", pattern: /^\/api\/admin\/seller-applications\//, permission: "sellerApplications.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/seller-accounts\/issue$/, permission: "sellerAccounts.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/seller-events\//, permission: "sellerEventReview.manage" },
   { method: "POST", pattern: /^\/api\/admin\/admin-accounts(?:\/update)?$/, permission: "acl.manage" },
   { method: "POST", pattern: /^\/api\/admin\/users\/status/, permission: "accounts.manage" },
   { method: "POST", pattern: /^\/api\/admin\/tickets\/statuses?$/, permission: "catalog.manage" },

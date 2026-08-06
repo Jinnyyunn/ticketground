@@ -19,7 +19,7 @@ type SupportFilters = { readonly category?: string; readonly status?: string };
 type GroupBookingFilters = { readonly status?: string; readonly page?: number };
 type SellerApplicationFilters = { readonly status?: string; readonly page?: number };
 
-async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { credentials: "include", ...options, headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) } });
   const payload: ApiResult<T> = await response.json();
   if (!response.ok || !payload.ok || !payload.data) throw new Error(payload.error?.message || `${path} 요청 실패`);

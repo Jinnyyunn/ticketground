@@ -2,11 +2,13 @@ import { CalendarPlus, CheckCircle2, Ticket, UsersRound } from "lucide-react";
 import Link from "next/link";
 import type { ChangeEvent, FormEvent } from "react";
 import { useState } from "react";
+import { apiRequest } from "./admin-console";
 import {
   Field,
   hasEvents,
   hasGroupBookingRequests,
   hasSellerApplications,
+  hasSellerEvents,
   hasSupportThreads,
   hasTickets,
   hasUsers,
@@ -42,7 +44,9 @@ import {
   type Mutation,
   type OverviewWorkspace,
   type ResaleWorkspace,
+  type SellerAccount,
   type SellerApplicationsWorkspace,
+  type SellerEventsWorkspace,
   type SupportWorkspace,
   type WorkspaceData,
 } from "./console-types";
@@ -86,7 +90,8 @@ export function WorkspaceContent(props: WorkspaceProps) {
   if (workspace === "audit" && "ledger" in data) return <AuditWorkspace data={data} onAuditFilterChange={onAuditFilterChange} />;
   if (workspace === "acl" && "adminAccounts" in data) return <AclWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} session={session} />;
   if (workspace === "group-booking" && hasGroupBookingRequests(data)) return <GroupBookingWorkspace data={data} feedback={feedback} mutate={mutate} onGroupBookingFilterChange={onGroupBookingFilterChange} onLocalError={onLocalError} />;
-  if (workspace === "seller-applications" && hasSellerApplications(data)) return <SellerApplicationsWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} onSellerApplicationFilterChange={onSellerApplicationFilterChange} />;
+  if (workspace === "seller-applications" && hasSellerApplications(data)) return <SellerApplicationsWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} onSellerApplicationFilterChange={onSellerApplicationFilterChange} session={session} />;
+  if (workspace === "seller-events" && hasSellerEvents(data)) return <SellerEventsWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
   return <WorkspacePanel><p aria-live="polite" className="text-sm font-bold text-ticketground">작업공간 데이터를 표시할 수 없습니다.</p></WorkspacePanel>;
 }
 
@@ -1247,13 +1252,62 @@ function GroupBookingWorkspace({
   );
 }
 
+function IssueSellerAccountForm({ applicationId, session }: { readonly applicationId: string; readonly session: AdminSession }) {
+  const [issued, setIssued] = useState<{ readonly account: SellerAccount; readonly tempPassword: string } | null>(null);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const username = valueFromForm(form, "username");
+    if (!username) {
+      setError("아이디를 입력해주세요.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const result = await apiRequest<{ readonly account: SellerAccount; readonly tempPassword: string }>("/api/admin/seller-accounts/issue", {
+        method: "POST",
+        body: JSON.stringify({ applicationId, username }),
+        headers: { "x-tig-csrf": session.csrf },
+      });
+      setIssued(result);
+    } catch (issueError) {
+      setError(issueError instanceof Error ? issueError.message : "계정 발급에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (issued) {
+    return (
+      <div className="mt-3 rounded-lg border border-ok bg-surface p-3 text-sm font-bold text-ink">
+        <p>판매자 계정이 발급되었습니다. 아래 정보는 지금만 표시되며 다시 조회할 수 없으니 이 자리에서 전달해주세요.</p>
+        <p className="mt-2">아이디: <span className="font-black text-ticketground">{issued.account.username}</span></p>
+        <p>임시 비밀번호: <span className="font-black text-ticketground">{issued.tempPassword}</span></p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]" noValidate onSubmit={submit}>
+      <Field label="판매자 로그인 아이디" name="username" placeholder="영문 소문자, 숫자, . _ -" />
+      <button className="h-10 self-end rounded-lg bg-ok px-4 text-sm font-black text-white disabled:bg-surface-3 disabled:text-ink-4" disabled={submitting} type="submit">판매자 계정 발급</button>
+      {error ? <p className="text-xs font-bold text-ticketground sm:col-span-2">{error}</p> : null}
+    </form>
+  );
+}
+
 function SellerApplicationsWorkspace({
   data,
   feedback,
   mutate,
   onLocalError,
   onSellerApplicationFilterChange,
-}: { readonly data: SellerApplicationsWorkspace; readonly onSellerApplicationFilterChange: (filters: { readonly status?: string; readonly page?: number }) => void } & MutableWorkspaceProps) {
+  session,
+}: { readonly data: SellerApplicationsWorkspace; readonly onSellerApplicationFilterChange: (filters: { readonly status?: string; readonly page?: number }) => void; readonly session: AdminSession } & MutableWorkspaceProps) {
   const [selectedId, setSelectedId] = useState(data.applications[0]?.id ?? "");
   const application = data.applications.find((item) => item.id === selectedId) || data.applications[0];
   const checklist = application?.review.verificationChecklist;
@@ -1362,8 +1416,9 @@ function SellerApplicationsWorkspace({
                 <div className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm font-bold text-ink-3" key={application.id}>
                   {application.status === "APPROVED" ? (
                     <>
-                      <p>승인 완료 — 카탈로그 등록 도구에서 실제 공연을 생성하면 이 신청이 자동으로 등록 완료 상태로 바뀝니다.</p>
+                      <p>승인 완료 — 판매자 계정을 발급하면 기업이 직접 로그인해 공연을 등록할 수 있고, 관리자가 대신 카탈로그 등록 도구에서 만들어줄 수도 있습니다.</p>
                       <Link className="mt-2 inline-block font-black text-ticketground underline" href={`/console/catalog?sourceApplicationId=${application.id}`}>카탈로그에 등록하기</Link>
+                      <IssueSellerAccountForm applicationId={application.id} key={application.id} session={session} />
                     </>
                   ) : application.status === "REGISTERED" ? (
                     <p>카탈로그에 등록 완료됨 (이벤트 ID: {application.review.linkedEventId})</p>
@@ -1374,6 +1429,71 @@ function SellerApplicationsWorkspace({
               )}
             </>
           ) : <p className="text-sm font-bold text-ink-3">검토할 신청이 없습니다.</p>}
+        </div>
+      </div>
+      <div className="mt-4"><Notice feedback={feedback} /></div>
+    </WorkspacePanel>
+  );
+}
+
+function SellerEventsWorkspace({ data, feedback, mutate, onLocalError }: { readonly data: SellerEventsWorkspace } & MutableWorkspaceProps) {
+  const [selectedId, setSelectedId] = useState(data.events[0]?.id ?? "");
+  const event = data.events.find((item) => item.id === selectedId) || data.events[0];
+
+  const publish = (): void => {
+    if (!event) return;
+    void mutate(`/api/admin/seller-events/${event.id}/publish`, {}, `${event.title} 공연이 공개되었습니다.`);
+  };
+
+  const reject = (formEvent: FormEvent<HTMLFormElement>): void => {
+    formEvent.preventDefault();
+    if (!event) return;
+    const form = formEvent.currentTarget;
+    const reviewNote = valueFromForm(form, "reviewNote");
+    if (!reviewNote) {
+      onLocalError?.("반려 사유를 입력해주세요.");
+      focusInput(form, "reviewNote");
+      return;
+    }
+    void mutate(`/api/admin/seller-events/${event.id}/reject`, { reviewNote }, `${event.title} 공연을 반려했습니다.`);
+  };
+
+  return (
+    <WorkspacePanel>
+      <div className="border-b border-line pb-3">
+        <h2 className="text-base font-black">기업 등록 공연 검토</h2>
+        <p className="mt-1 text-sm font-bold text-ink-3">검토 대기 {data.events.length.toLocaleString("ko-KR")}건</p>
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(240px,360px)_minmax(0,1fr)]">
+        <div className="grid content-start gap-2">
+          {data.events.map((item) => (
+            <button className={`rounded-lg border p-3 text-left ${event?.id === item.id ? "border-ink bg-surface" : "border-line bg-background"}`} key={item.id} onClick={() => setSelectedId(item.id)} type="button">
+              <span className="block text-sm font-black text-ink">{item.title}</span>
+              <span className="mt-1 block text-xs font-bold text-ink-3">{operatorLabel(item.category)} · {item.venue}</span>
+            </button>
+          ))}
+          {data.events.length ? null : <p className="rounded-lg border border-line p-3 text-sm font-bold text-ink-3">검토할 공연이 없습니다.</p>}
+        </div>
+        <div className="min-w-0 rounded-lg border border-line p-4">
+          {event ? (
+            <div key={event.id}>
+              <h3 className="text-base font-black text-ink">{event.title}</h3>
+              <p className="mt-1 text-sm font-bold text-ink-3">{operatorLabel(event.category)} · {event.venue} · {event.date.slice(0, 10)}</p>
+              <p className="mt-2 text-sm font-bold text-ink-3">등록 티켓 {money(event.ticketCount)}장 · 판매 {money(event.soldCount)}장</p>
+              <div className="mt-4 grid gap-4 border-t border-line pt-4 md:grid-cols-2">
+                <div className="grid gap-3">
+                  <h4 className="text-sm font-black text-ink">공개 승인</h4>
+                  <p className="text-sm font-bold text-ink-3">공개 카탈로그와 홈, 검색에 즉시 노출됩니다.</p>
+                  <button className="h-10 rounded-lg bg-ok px-4 text-sm font-black text-white" onClick={publish} type="button">게시 승인</button>
+                </div>
+                <form className="grid gap-3" noValidate onSubmit={reject}>
+                  <h4 className="text-sm font-black text-ink">반려</h4>
+                  <TextareaField label="반려 사유" name="reviewNote" rows={2} />
+                  <button className="h-10 rounded-lg border border-ticketground px-4 text-sm font-black text-ticketground" type="submit">반려</button>
+                </form>
+              </div>
+            </div>
+          ) : <p className="text-sm font-bold text-ink-3">검토할 공연을 선택해주세요.</p>}
         </div>
       </div>
       <div className="mt-4"><Notice feedback={feedback} /></div>

@@ -312,7 +312,33 @@ export type SellerApplication = {
   };
 };
 export type SellerApplicationsWorkspace = { readonly applications: readonly SellerApplication[]; readonly page: PageInfo };
-export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace | SellerApplicationsWorkspace;
+export type SellerAccount = {
+  readonly id: string;
+  readonly applicationId: string;
+  readonly organizationName: string;
+  readonly username: string;
+  readonly active: boolean;
+  readonly mustChangePassword: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+export type SellerEventPublishStatus = "DRAFT" | "PENDING_ADMIN_REVIEW" | "PUBLISHED";
+export type SellerEvent = {
+  readonly id: string;
+  readonly slug: string;
+  readonly title: string;
+  readonly shortTitle?: string;
+  readonly category: string;
+  readonly venue: string;
+  readonly date: string;
+  readonly publishStatus: SellerEventPublishStatus;
+  readonly sellerAccountId: string;
+  readonly ticketCount: number;
+  readonly soldCount: number;
+  readonly updatedAt: string | null;
+};
+export type SellerEventsWorkspace = { readonly events: readonly SellerEvent[] };
+export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace | SellerApplicationsWorkspace | SellerEventsWorkspace;
 export type Feedback = { readonly tone: "error" | "success"; readonly message: string } | null;
 export type Mutation = (path: string, body: Record<string, unknown>, success: string) => Promise<boolean>;
 
@@ -338,6 +364,7 @@ export const workspaceDefinitions = {
   acl: { label: "관리자/ACL", heading: "관리자/ACL", description: "관리자 계정, 역할, 접근 허용 IP를 관리합니다.", permission: "acl.read", Icon: ShieldCheck },
   "group-booking": { label: "단체/기관 예매", heading: "단체/기관 예매", description: "학교·기업·기관의 단체 예매 신청을 검토하고 승인합니다.", permission: "groupBooking.manage", Icon: Building2 },
   "seller-applications": { label: "기업 판매자 신청", heading: "기업 판매자 신청", description: "제작사·기획사·공연장·구단의 판매 등록 신청을 검토하고 승인합니다.", permission: "sellerApplications.manage", Icon: Building },
+  "seller-events": { label: "기업 등록 공연 검토", heading: "기업 등록 공연 검토", description: "기업이 직접 등록한 공연을 검토하고 공개 여부를 승인합니다.", permission: "sellerEventReview.manage", Icon: Building },
 } satisfies Record<WorkspaceKey, WorkspaceDefinition>;
 
 export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"] as const;
@@ -402,7 +429,10 @@ const operatorLabels: Record<string, string> = {
   EXCLUSIVE: "전용판매",
   SHARED: "공동판매",
   SEAT_PRIORITY: "좌석우위판매",
-  PRESALE: "프리세일 참여"
+  PRESALE: "프리세일 참여",
+  DRAFT: "반려됨(수정 대기)",
+  PENDING_ADMIN_REVIEW: "검토 대기",
+  PUBLISHED: "게시됨"
 };
 
 export function operatorLabel(value: string): string {

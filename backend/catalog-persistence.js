@@ -30,6 +30,7 @@ function normalizeDb(db) {
   db.paymentTransactions ||= [];
   db.groupBookingRequests ||= [];
   db.sellerApplications ||= [];
+  db.sellerAccounts ||= [];
   db.adminAccounts ||= [];
   db.nativeSessions ||= [];
   db.ledger ||= [];
@@ -93,6 +94,8 @@ function normalizeDb(db) {
     const before = JSON.stringify(event);
     event.slug ||= `event-${event.id}`;
     event.checkoutNotice ||= defaultCheckoutNotice;
+    event.sellerAccountId ??= null;
+    event.publishStatus ||= "PUBLISHED";
     primaryDate(event);
     syncEventVenue(db, event);
     if (JSON.stringify(event) !== before) changed = true;
@@ -176,6 +179,7 @@ function seedDb() {
     paymentTransactions: [],
     groupBookingRequests: [],
     sellerApplications: [],
+    sellerAccounts: [],
     adminAccounts: [],
     nativeSessions: [],
     queueEntries: [],
@@ -185,6 +189,8 @@ function seedDb() {
   };
   for (const event of db.events) {
     event.slug ||= `event-${event.id}`;
+    event.sellerAccountId ??= null;
+    event.publishStatus ||= "PUBLISHED";
     ensureTicketsForEvent(db, event);
   }
   appendLedger(db, "SYSTEM", "BOOTSTRAP", { message: "Initial event, venue map and ticket minting snapshot" });

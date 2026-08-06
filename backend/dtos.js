@@ -131,12 +131,16 @@ function soldCountByEventId(db) {
 
 function publicCatalog(db, { limit } = {}) {
   const soldCounts = soldCountByEventId(db);
-  const visibleEvents = db.events.filter((event) => Array.isArray(event.prices) && event.prices.length > 0);
+  // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
+  // catalog schema and never carry a prices[] array - they power internal
+  // ticket/resale-engine demos, not the public show listing. Events a
+  // corporate seller registered directly stay hidden until an admin
+  // reviews and publishes them (see backend/seller-events.js).
+  const visibleEvents = db.events.filter((event) => (
+    Array.isArray(event.prices) && event.prices.length > 0 && (event.publishStatus ?? "PUBLISHED") === "PUBLISHED"
+  ));
   const selectedEvents = limit === undefined ? visibleEvents : visibleEvents.slice(0, limit);
   return {
-    // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
-    // catalog schema and never carry a prices[] array - they power internal
-    // ticket/resale-engine demos, not the public show listing.
     events: selectedEvents.map((event) => ({
       id: event.id,
       slug: event.slug,
@@ -178,7 +182,7 @@ function publicCatalog(db, { limit } = {}) {
 
 function publicState(db) {
   return {
-    events: db.events.map((event) => ({
+    events: db.events.filter((event) => (event.publishStatus ?? "PUBLISHED") === "PUBLISHED").map((event) => ({
       ...event,
       sale: saleSummary(event)
     })),

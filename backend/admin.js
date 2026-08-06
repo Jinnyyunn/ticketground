@@ -20,7 +20,8 @@ export function createAdminBackend({
   seatLayoutForVenue,
   stableId,
   verifyLedger,
-  listSellerApplications
+  listSellerApplications,
+  listPendingSellerEvents
 }) {
   const {
     assertInventorySize,
@@ -390,6 +391,8 @@ async function createEventDraft(db, payload) {
     checkoutNotice: input.checkoutNotice,
     discountRate: input.discountRate,
     rating: "0.0",
+    sellerAccountId: null,
+    publishStatus: "PUBLISHED",
     ...content
   };
   db.events.push(event);
@@ -800,6 +803,9 @@ function adminWorkspace(db, workspace, actor, options = {}) {
   }
   if (workspace === "seller-applications") {
     return listSellerApplications(db, options);
+  }
+  if (workspace === "seller-events") {
+    return { events: listPendingSellerEvents(db) };
   }
   if (workspace === "resale") {
     const usersById = new Map(db.users.map((user) => [user.id, user]));
