@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
 import {
@@ -12,10 +12,12 @@ import {
   getBootpayConfig,
   getIdentityStatus,
   getState,
+  getTosspaymentsConfig,
   startDanalIdentityVerification,
   storedSessionUserId,
   TicketgroundApiError,
   type ApiIdentityStatus,
+  type ApiTosspaymentsConfig,
 } from "@/lib/ticketground-api";
 import type { TicketShow } from "@/types";
 
@@ -37,6 +39,40 @@ declare global {
   interface Window {
     readonly Bootpay?: BootpaySdk;
   }
+}
+
+type TossPaymentsWidgets = {
+  readonly setAmount: (amount: { value: number; currency: "KRW" }) => Promise<void>;
+  readonly renderPaymentMethods: (options: { selector: string }) => Promise<unknown>;
+  readonly renderAgreement: (options: { selector: string }) => Promise<unknown>;
+  readonly requestPayment: (options: {
+    orderId: string;
+    orderName: string;
+    successUrl: string;
+    failUrl: string;
+  }) => Promise<void>;
+};
+
+type TossPaymentsSdk = {
+  readonly widgets: (options: { customerKey: string }) => TossPaymentsWidgets;
+};
+
+declare global {
+  interface Window {
+    readonly TossPayments?: (clientKey: string) => TossPaymentsSdk;
+  }
+}
+
+// TossPayments requires an unpredictable customerKey (never the raw account
+// userId) - a random id, generated once per browser and reused after that.
+function tossCustomerKey(): string {
+  if (typeof window === "undefined") return "ANONYMOUS";
+  const storageKey = "ticketground:tosspayments-customer-key";
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing) return existing;
+  const generated = window.crypto.randomUUID();
+  window.localStorage.setItem(storageKey, generated);
+  return generated;
 }
 
 type PaymentMethodId = (typeof paymentMethods)[number]["id"];
@@ -96,6 +132,10 @@ export function CheckoutPanel({
   const [identityVerificationId, setIdentityVerificationId] = useState("");
   const [identityBusy, setIdentityBusy] = useState(false);
   const [identityMessage, setIdentityMessage] = useState("간편 로그인 후 본인인증 상태를 확인합니다.");
+  const [tosspaymentsConfig, setTosspaymentsConfig] = useState<ApiTosspaymentsConfig | null>(null);
+  const [tossSdkLoaded, setTossSdkLoaded] = useState(false);
+  const [tossWidgetReady, setTossWidgetReady] = useState(false);
+  const tossWidgetsRef = useRef<TossPaymentsWidgets | null>(null);
   const backendEventId = getTicketShowBackendEventId(show);
   const performanceDateId = getTicketShowPerformanceDateId(show, selection.date, selection.time);
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
@@ -142,6 +182,54 @@ export function CheckoutPanel({
       mounted = false;
     };
   }, [backendEventId, performanceDateId, selection.ticketId]);
+
+  useEffect(() => {
+    let mounted = true;
+    getTosspaymentsConfig()
+      .then((config) => {
+        if (mounted) setTosspaymentsConfig(config);
+      })
+      .catch(() => {
+        if (mounted) setTosspaymentsConfig({ configured: false, clientKey: "" });
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Mounts the TossPayments widget once the SDK script has loaded and the
+  // server-trusted amount is known - never before, since setAmount() needs a
+  // real value and the widget shouldn't be able to request a payment for an
+  // amount the client made up.
+  useEffect(() => {
+    if (!tosspaymentsConfig?.configured || !tossSdkLoaded || amountPending || tossWidgetsRef.current) return;
+    const createTossPayments = window.TossPayments;
+    if (!createTossPayments) return;
+    let cancelled = false;
+    let widgets: TossPaymentsWidgets;
+    try {
+      widgets = createTossPayments(tosspaymentsConfig.clientKey).widgets({ customerKey: tossCustomerKey() });
+    } catch {
+      setStatus("토스페이먼츠 결제 위젯을 초기화하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    tossWidgetsRef.current = widgets;
+    widgets
+      .setAmount({ value: trustedTotalAmount, currency: "KRW" })
+      .then(() => Promise.all([
+        widgets.renderPaymentMethods({ selector: "#toss-payment-method" }),
+        widgets.renderAgreement({ selector: "#toss-agreement" }),
+      ]))
+      .then(() => {
+        if (!cancelled) setTossWidgetReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("토스페이먼츠 결제 위젯을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tosspaymentsConfig, tossSdkLoaded, amountPending, trustedTotalAmount]);
 
   useEffect(() => {
     let mounted = true;
@@ -252,22 +340,56 @@ export function CheckoutPanel({
     }
   }
 
+  async function completeTosspaymentsPayment(ticketId: string) {
+    if (!tossWidgetsRef.current) {
+      setStatus("결제 위젯이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    setSubmitting(true);
+    setStatus("토스페이먼츠 결제창을 여는 중입니다.");
+    try {
+      const resultParams = new URLSearchParams({
+        paymentMethod: selectedMethod.bootpayKey,
+        date: selection.date,
+        time: selection.time,
+      });
+      const resultUrl = `${window.location.origin}/checkout/${show.slug}/result?${resultParams.toString()}`;
+      // On success this navigates the whole page away to resultUrl (via Toss's
+      // redirect flow) - it never resolves back into this component. Only a
+      // rejection (popup blocked, SDK error, etc.) returns control here.
+      await tossWidgetsRef.current.requestPayment({
+        orderId: ticketId,
+        orderName: show.title,
+        successUrl: resultUrl,
+        failUrl: resultUrl,
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "토스페이먼츠 결제 요청에 실패했습니다.");
+      setSubmitting(false);
+    }
+  }
+
   async function completePayment() {
     if (!agreed || submitting || !identityVerified || !sessionUserId) {
       setStatus("결제 전 간편 로그인과 본인인증이 필요합니다.");
       return;
     }
+    const ticketId = selection.ticketId;
+    if (!ticketId) {
+      // 사용자가 실제로 고른 좌석이 없으면 임의 좌석으로 대체 구매하지 않는다 —
+      // URL 파라미터 손상이나 좌석맵 로딩 실패로 여기 도달했을 수 있다.
+      setStatus("선택된 좌석 정보를 확인할 수 없습니다. 좌석을 다시 선택해주세요.");
+      return;
+    }
+
+    if (tosspaymentsConfig?.configured) {
+      await completeTosspaymentsPayment(ticketId);
+      return;
+    }
+
     setSubmitting(true);
     setStatus("결제 처리 중");
     try {
-      const ticketId = selection.ticketId;
-      if (!ticketId) {
-        // 사용자가 실제로 고른 좌석이 없으면 임의 좌석으로 대체 구매하지 않는다 —
-        // URL 파라미터 손상이나 좌석맵 로딩 실패로 여기 도달했을 수 있다.
-        setStatus("선택된 좌석 정보를 확인할 수 없습니다. 좌석을 다시 선택해주세요.");
-        return;
-      }
-
       const bootpayConfig = await getBootpayConfig();
       let receiptId: string | undefined;
       if (bootpayConfig.configured) {
@@ -317,6 +439,7 @@ export function CheckoutPanel({
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
       <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="afterInteractive" />
       <Script src="https://cdn.bootpay.co.kr/js/bootpay-5.8.0.min.js" strategy="afterInteractive" />
+      <Script src="https://js.tosspayments.com/v2/standard" strategy="afterInteractive" onLoad={() => setTossSdkLoaded(true)} />
       <section className="rounded-md border border-line p-6">
         <p className="text-sm font-bold text-ticketground">STEP 3</p>
         <h1 className="mt-1 text-4xl font-black text-ink-2">결제 정보 확인</h1>
@@ -341,24 +464,34 @@ export function CheckoutPanel({
 
         <div className="mt-7 rounded-md border border-line p-5">
           <h2 className="text-[19px] font-black">결제수단</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {paymentMethods.map((item) => (
-              <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-line px-4 py-3 text-sm font-bold">
-                <input
-                  suppressHydrationWarning
-                  type="radio"
-                  name="payment-method"
-                  checked={method === item.id}
-                  onChange={() => setMethod(item.id)}
-                  className="accent-link"
-                />
-                <span>
-                  {item.label}
-                  <small className="block pt-1 text-sm font-medium text-ink-3">{item.note}</small>
-                </span>
-              </label>
-            ))}
-          </div>
+          {tosspaymentsConfig?.configured ? (
+            <div className="mt-4">
+              <div id="toss-payment-method" />
+              <div id="toss-agreement" className="mt-4" />
+              {!tossWidgetReady ? (
+                <p className="mt-3 text-sm font-bold text-ink-3">결제 위젯을 불러오는 중입니다.</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {paymentMethods.map((item) => (
+                <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-line px-4 py-3 text-sm font-bold">
+                  <input
+                    suppressHydrationWarning
+                    type="radio"
+                    name="payment-method"
+                    checked={method === item.id}
+                    onChange={() => setMethod(item.id)}
+                    className="accent-link"
+                  />
+                  <span>
+                    {item.label}
+                    <small className="block pt-1 text-sm font-medium text-ink-3">{item.note}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         <div data-testid="identity-gate" className="mt-7 rounded-md border border-line bg-surface p-5">
@@ -460,7 +593,7 @@ export function CheckoutPanel({
         </dl>
         <button
           type="button"
-          disabled={!hasSelectedTicket || !agreed || submitting || amountPending || !identityVerified || !sessionUserId}
+          disabled={!hasSelectedTicket || !agreed || submitting || amountPending || !identityVerified || !sessionUserId || (tosspaymentsConfig?.configured === true && !tossWidgetReady)}
           onClick={completePayment}
           className="mt-5 h-12 w-full rounded-sm bg-ticketground text-lg font-bold text-white disabled:bg-surface-3"
         >

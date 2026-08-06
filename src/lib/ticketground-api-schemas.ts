@@ -16,6 +16,8 @@ import type {
   ApiState,
   ApiSupportThread,
   ApiTicket,
+  ApiTosspaymentsConfig,
+  ApiTosspaymentsPurchaseResult,
   ApiVirtualQr,
   ApiWatchlistBase,
   ApiWatchlistItem,
@@ -182,6 +184,20 @@ export const apiBootpayPurchaseResultSchema = apiPurchaseResultSchema.extend({
     mock: z.boolean(),
   }),
 }) satisfies ZodType<ApiBootpayPurchaseResult>;
+
+export const apiTosspaymentsConfigSchema = z.object({
+  configured: z.boolean(),
+  clientKey: z.string(),
+}) satisfies ZodType<ApiTosspaymentsConfig>;
+
+export const apiTosspaymentsPurchaseResultSchema = apiPurchaseResultSchema.extend({
+  tosspayments: z.object({
+    tossPaymentKey: z.string(),
+    method: z.string().optional(),
+    mock: z.boolean().optional(),
+    replayed: z.boolean().optional(),
+  }),
+}) satisfies ZodType<ApiTosspaymentsPurchaseResult>;
 
 export const apiIdentityStatusSchema = z.object({
   userId: z.string(),
