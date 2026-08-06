@@ -303,6 +303,21 @@ final class TicketGroundAppTests: XCTestCase {
         XCTAssertEqual(exchanger.receivedTokens, ["google-id-token"])
     }
 
+    @MainActor
+    func testGoogleCoordinatorRejectsInsecureBackendBeforeOpeningProvider() async {
+        let identityProvider = CountingGoogleIdentityProvider()
+        let coordinator = GoogleLoginCoordinator(
+            identityProvider: identityProvider,
+            sessionExchanger: StubGoogleSessionExchanger(),
+            isSecureBackend: false
+        )
+
+        await coordinator.signIn()
+
+        XCTAssertEqual(coordinator.state, .failed(message: GoogleLoginError.httpsRequired.localizedDescription))
+        XCTAssertEqual(identityProvider.signInCount, 0)
+    }
+
     func testSocialStartURLRequiresHTTPS() throws {
         let secureURL = try SocialLoginCoordinator.startURL(
             baseURL: URL(string: "https://api.ticketground.test")!,
@@ -592,6 +607,17 @@ private final class StubGoogleIdentityProvider: GoogleIdentityProviding {
 
     init(result: Result<String, GoogleLoginError>) { self.result = result }
     func signInIDToken() async throws -> String { try result.get() }
+    func signOut() {}
+}
+
+private final class CountingGoogleIdentityProvider: GoogleIdentityProviding {
+    private(set) var signInCount = 0
+
+    func signInIDToken() async throws -> String {
+        signInCount += 1
+        return "unused"
+    }
+
     func signOut() {}
 }
 
