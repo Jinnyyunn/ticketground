@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { DetailBookingPanel } from "@/components/ticketing/detail-booking-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
+import { WatchlistAddButton } from "@/components/watchlist/watchlist-add-button";
 import { currency } from "@/data/ticketing";
 import { getShowBySlug } from "@/data/catalog-server";
 import { getVenueForShow } from "@/data/venues";
@@ -54,7 +55,10 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               {show.ranking && <span className="text-sm font-bold text-ticketground">{show.ranking}</span>}
               <span className="rounded border border-line px-2 py-1 text-xs font-black text-ink-3">{show.sale.label}</span>
             </div>
-            <h2 className="balanced-title mt-4 text-[30px] font-black leading-tight text-ink sm:text-4xl">{show.title}</h2>
+            <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+              <h2 className="balanced-title text-[30px] font-black leading-tight text-ink sm:text-4xl">{show.title}</h2>
+              {show.backendEventId ? <WatchlistAddButton className="shrink-0" eventId={show.backendEventId} title={show.title} /> : null}
+            </div>
             <p className="mt-4 max-w-[680px] text-base leading-loose text-ink-3">{show.summary}</p>
 
             <dl className="mt-8 grid gap-0 overflow-hidden rounded-lg border border-line text-sm md:grid-cols-2">
