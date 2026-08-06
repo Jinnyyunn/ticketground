@@ -25,6 +25,7 @@ export function createApiRouter({
   bootpayConfig,
   changeSellerPassword,
   confirmBootpayPayment,
+  cancelTosspaymentsPayment,
   confirmTosspaymentsPayment,
   createAdminAccount,
   cancelResaleListing,
@@ -96,6 +97,7 @@ export function createApiRouter({
   submitGroupBookingRequest,
   supportThreadForUser,
   supportThreadsForPrincipal,
+  isWebhookSignatureValid,
   tosspaymentsConfig,
   trustDevice,
   updateEventSale,
@@ -208,9 +210,10 @@ async function parseBody(req, maxBytes) {
     }
     chunks.push(chunk);
   }
-  if (!chunks.length) return {};
+  if (!chunks.length) return { raw: "", parsed: {} };
+  const raw = Buffer.concat(chunks).toString("utf8");
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return { raw, parsed: JSON.parse(raw) };
   } catch {
     throw httpError(400, "BAD_JSON", "JSON 본문을 확인해주세요.");
   }
@@ -225,7 +228,7 @@ async function handleApi(req, res, db, surface) {
   // same reasoning.
   const largeBodyRoutes = new Set(["/api/seller-applications", "/api/seller/events/create", "/api/seller/events/update"]);
   const maxBodyBytes = largeBodyRoutes.has(url.pathname) ? 16 * 1024 * 1024 : 8 * 1024 * 1024;
-  const body = ["POST", "PUT", "PATCH"].includes(req.method) ? await parseBody(req, maxBodyBytes) : {};
+  const { raw: rawBody, parsed: body } = ["POST", "PUT", "PATCH"].includes(req.method) ? await parseBody(req, maxBodyBytes) : { raw: "", parsed: {} };
   const sellerSessionResult = sellerSession(db, req);
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
@@ -688,6 +691,69 @@ async function handleApi(req, res, db, surface) {
       });
     }
     return { ...publicPurchaseResult(result), tosspayments: receipt };
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/payments/tosspayments/cancel") {
+    requireBody(body, ["tossPaymentKey", "cancelReason"]);
+    const transaction = db.paymentTransactions.find((item) => item.pgTransactionId === body.tossPaymentKey);
+    if (!transaction) {
+      throw httpError(404, "TOSSPAYMENTS_TRANSACTION_NOT_FOUND", "결제 내역을 찾을 수 없습니다.");
+    }
+    // Payment-side refund only - this intentionally does not touch ticket
+    // ownership/status/inventory. Whether (and how) a refunded ticket should
+    // be released back to inventory is an undecided product policy question,
+    // not something to guess at here; an admin can already reach
+    // updateTicketStatus separately if they need to release the seat.
+    const result = await cancelTosspaymentsPayment({
+      tossPaymentKey: body.tossPaymentKey,
+      cancelReason: body.cancelReason,
+      cancelAmount: body.cancelAmount,
+      refundReceiveAccount: body.refundReceiveAccount,
+      taxFreeAmount: body.taxFreeAmount
+    });
+    appendLedger(db, req.admin.id, "TOSSPAYMENTS_ADMIN_CANCEL", {
+      tossPaymentKey: body.tossPaymentKey,
+      ticketId: transaction.ticketId,
+      userId: transaction.userId,
+      cancelReason: body.cancelReason,
+      cancelAmount: body.cancelAmount ?? transaction.amount,
+      mock: result.mock === true
+    });
+    return { tossPaymentKey: body.tossPaymentKey, status: result.status, cancels: result.cancels, mock: result.mock };
+  }
+  if (req.method === "POST" && url.pathname === "/api/webhooks/tosspayments") {
+    // Toss can't send a session/Bearer credential, so this route is
+    // intentionally unauthenticated. That's exactly why it must never be
+    // trusted the way an authenticated route is: PAYMENT_STATUS_CHANGED (the
+    // event actually relevant to reconciliation) carries no signature at all
+    // per TossPayments' own docs - only payout.changed/seller.changed do,
+    // neither of which this integration uses. This handler only ever writes
+    // a reconciliation ledger entry; it must never call buyPrimary or mutate
+    // ticket/payment state, signed or not.
+    const signatureHeader = req.headers["tosspayments-webhook-signature"];
+    const transmissionTime = req.headers["tosspayments-webhook-transmission-time"];
+    const signed = typeof signatureHeader === "string"
+      ? isWebhookSignatureValid(signatureHeader, { payload: rawBody, transmissionTime })
+      : false;
+    if (typeof signatureHeader === "string" && !signed) {
+      // A signature was present but did not verify - unlike the "no
+      // signature at all" case (expected for PAYMENT_STATUS_CHANGED), this
+      // is someone presenting a signature that doesn't check out, so it's
+      // rejected outright rather than merely logged as unverified.
+      throw httpError(401, "TOSSPAYMENTS_WEBHOOK_SIGNATURE_INVALID", "웹훅 서명을 확인할 수 없습니다.");
+    }
+    const eventType = typeof body.eventType === "string" ? body.eventType : "UNKNOWN";
+    const tossPaymentKey = body.data?.paymentKey;
+    const transaction = typeof tossPaymentKey === "string"
+      ? db.paymentTransactions.find((item) => item.pgTransactionId === tossPaymentKey)
+      : undefined;
+    appendLedger(db, "TOSSPAYMENTS_WEBHOOK", "TOSSPAYMENTS_WEBHOOK_RECEIVED", {
+      eventType,
+      tossPaymentKey: tossPaymentKey ?? null,
+      status: body.data?.status ?? null,
+      signed,
+      matchedTicketId: transaction?.ticketId ?? null
+    });
+    return { received: true };
   }
   if (req.method === "POST" && url.pathname === "/api/resale/list") {
     requireBody(body, ["sellerId", "ticketId", "price"]);

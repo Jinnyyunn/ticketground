@@ -144,6 +144,7 @@ const sessionRoutePermissions = [
   { method: "POST", pattern: /^\/api\/admin\/group-booking\//, permission: "groupBooking.manage" },
   { method: "POST", pattern: /^\/api\/admin\/admission\/hold$/, permission: "admission.manage" },
   { method: "POST", pattern: /^\/api\/admin\/resale\/cancel$/, permission: "security.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/payments\/tosspayments\/cancel$/, permission: "security.manage" },
   { method: "POST", pattern: /^\/api\/admin\/alerts\/ack$/, permission: "security.manage" },
   { method: "POST", pattern: /^\/api\/admin\/support\//, permission: "support.manage" },
   { method: "GET", pattern: /^\/api\/admin\/ledger\/export$/, permission: "security.manage" },
