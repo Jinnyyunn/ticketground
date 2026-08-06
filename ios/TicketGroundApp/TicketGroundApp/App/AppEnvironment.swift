@@ -1019,8 +1019,8 @@ final class AppContainer {
 
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry || scenario == .watchlistCommittedResponseLost || scenario == .watchlistCTALost || scenario == .watchlistProbeUnauthorized {
-            let suffix = scenario == .supportAuthenticated ? "support" : "watchlist"
+        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry || scenario == .watchlistCommittedResponseLost || scenario == .watchlistCTALost || scenario == .watchlistProbeUnauthorized || scenario == .routeLoading {
+            let suffix = scenario == .supportAuthenticated ? "support" : scenario == .routeLoading ? "route-loading" : "watchlist"
             sessionStore.saveNativeCredential("ui-test-\(suffix)-credential", serverUserID: "ui-test-\(suffix)-user")
         }
         return AppContainer(environment: AppEnvironment(
@@ -1126,6 +1126,7 @@ private enum UITestLiveHomeScenario: String {
     case watchlistCommittedResponseLost
     case watchlistProbeUnauthorized
     case watchlistRetry
+    case routeLoading
     case empty
     case offline
     case rateLimited
@@ -1140,7 +1141,7 @@ private enum UITestLiveHomeScenario: String {
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
     var baseURL: URL? {
-        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistProbeUnauthorized || scenario == .watchlistRetry
+        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistProbeUnauthorized || scenario == .watchlistRetry || scenario == .routeLoading
             ? "https://ui-test.ticketground.invalid/"
             : "http://ui-test.ticketground.invalid/")
     }
@@ -1171,6 +1172,10 @@ private final class UITestLiveHomeAPIClient: APIClient {
         switch (request.path, request.query) {
         case ("/api/health", _):
             healthRequestCount += 1
+            if scenario == .routeLoading {
+                try await Task.sleep(for: .seconds(15))
+                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-account-v1\",\"native-support-v1\",\"native-watchlist-v1\"]}")
+            }
             if scenario == .watchlistProbeUnauthorized && healthRequestCount > 2 {
                 throw APIClientError.server(status: 401, code: "GATEWAY_UNAUTHORIZED", message: "gateway rejected public probe")
             }

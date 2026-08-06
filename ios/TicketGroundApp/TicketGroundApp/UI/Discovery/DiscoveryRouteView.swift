@@ -1757,33 +1757,40 @@ private struct LiveAccountRouteView: View {
     @State private var admittedAccountCapabilityMap: LiveCapabilityMap?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                Text("마이페이지 · LIVE")
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(TicketgroundColor.accent)
-                    .accessibilityIdentifier("live-account")
-                accountBody
-                VStack(spacing: TicketgroundSpacing.sm) {
-                    NavigationLink {
-                        LiveWatchlistRouteView()
-                    } label: {
-                        Label("관심공연", systemImage: "heart")
-                            .frame(maxWidth: .infinity, minHeight: 46)
+        Group {
+            if case .loading = state {
+                TicketgroundLoadingSurface(title: "계정 불러오는 중", identifier: "live-account-loading")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                        Text("마이페이지 · LIVE")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(TicketgroundColor.accent)
+                            .accessibilityIdentifier("live-account")
+                        accountBody
+                        VStack(spacing: TicketgroundSpacing.sm) {
+                            NavigationLink {
+                                LiveWatchlistRouteView()
+                            } label: {
+                                Label("관심공연", systemImage: "heart")
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("live-mypage-watchlist")
+                            NavigationLink {
+                                LiveSupportRouteView(route: .help)
+                            } label: {
+                                Label("고객센터 문의", systemImage: "questionmark.circle")
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("live-mypage-support")
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("live-mypage-watchlist")
-                    NavigationLink {
-                        LiveSupportRouteView(route: .help)
-                    } label: {
-                        Label("고객센터 문의", systemImage: "questionmark.circle")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("live-mypage-support")
+                    .padding(TicketgroundSpacing.xl)
                 }
             }
-            .padding(TicketgroundSpacing.xl)
         }
         .navigationTitle("마이페이지")
         .navigationBarTitleDisplayMode(.inline)
@@ -1849,7 +1856,7 @@ private struct LiveAccountRouteView: View {
     private var accountBody: some View {
         switch state {
         case .loading:
-            LiveRouteMessageView(title: "계정", message: "세션과 티켓을 불러오는 중입니다.", identifier: "live-account-loading")
+            TicketgroundLoadingSurface(title: "계정 불러오는 중", identifier: "live-account-loading")
         case .capability(let capability):
             LiveAccountCapabilitySurface(
                 state: capability,
@@ -2251,45 +2258,52 @@ private struct LiveWatchlistRouteView: View {
     @State private var mutationError: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                Text("관심공연 · LIVE")
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(TicketgroundColor.accent)
-                    .accessibilityIdentifier("live-watchlist")
-                switch state {
-                case .loading:
-                    LiveRouteMessageView(title: "관심공연", message: "계정에 저장된 관심공연을 불러오는 중입니다.", identifier: "live-watchlist-loading")
-                case .capability(let capability):
-                    LiveAccountCapabilitySurface(
-                        state: capability,
-                        title: "관심공연을 표시할 수 없습니다",
-                        loginMessage: "관심공연은 실제 로그인 세션이 필요합니다.",
-                        identifier: "live-watchlist",
-                        retry: { reloadID += 1 }
-                    )
-                case .loaded(let items):
-                    if items.isEmpty {
-                        LiveRouteMessageView(title: "관심공연이 없습니다", message: "공연 상세에서 관심공연을 추가하면 여기에 표시됩니다.", identifier: "live-watchlist-empty")
-                    } else {
-                        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                            Text("관심공연 \(items.count)개")
-                                .font(.title2.weight(.black))
-                                .accessibilityIdentifier("live-watchlist-items")
-                            ForEach(items, id: \.id) { item in
-                                watchlistCard(item)
+        Group {
+            if case .loading = state {
+                TicketgroundLoadingSurface(title: "관심공연 불러오는 중", identifier: "live-watchlist-loading")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                        Text("관심공연 · LIVE")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(TicketgroundColor.accent)
+                            .accessibilityIdentifier("live-watchlist")
+                        switch state {
+                        case .loading:
+                            EmptyView()
+                        case .capability(let capability):
+                            LiveAccountCapabilitySurface(
+                                state: capability,
+                                title: "관심공연을 표시할 수 없습니다",
+                                loginMessage: "관심공연은 실제 로그인 세션이 필요합니다.",
+                                identifier: "live-watchlist",
+                                retry: { reloadID += 1 }
+                            )
+                        case .loaded(let items):
+                            if items.isEmpty {
+                                LiveRouteMessageView(title: "관심공연이 없습니다", message: "공연 상세에서 관심공연을 추가하면 여기에 표시됩니다.", identifier: "live-watchlist-empty")
+                            } else {
+                                VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                                    Text("관심공연 \(items.count)개")
+                                        .font(.title2.weight(.black))
+                                        .accessibilityIdentifier("live-watchlist-items")
+                                    ForEach(items, id: \.id) { item in
+                                        watchlistCard(item)
+                                    }
+                                }
                             }
                         }
+                        if let mutationError {
+                            Text(mutationError)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.red)
+                                .accessibilityIdentifier("live-watchlist-mutation-error")
+                        }
                     }
-                }
-                if let mutationError {
-                    Text(mutationError)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.red)
-                        .accessibilityIdentifier("live-watchlist-mutation-error")
+                    .padding(TicketgroundSpacing.xl)
                 }
             }
-            .padding(TicketgroundSpacing.xl)
         }
         .navigationTitle("관심공연")
         .navigationBarTitleDisplayMode(.inline)
@@ -2675,59 +2689,66 @@ private struct LiveSupportRouteView: View {
     @State private var submissionError: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                Text(routeTitle)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(TicketgroundColor.accent)
-                    .accessibilityIdentifier("live-support")
-                if let publicSupport {
-                    publicSupportContent(publicSupport)
-                }
-                switch state {
-                case .loading:
-                    LiveRouteMessageView(title: routeTitle, message: "고객센터 정보를 불러오는 중입니다.", identifier: "live-support-loading")
-                case .capability(let capability):
-                    LiveAccountCapabilitySurface(
-                        state: capability,
-                        title: routeTitle,
-                        loginMessage: "1:1 문의 작성과 내역 확인에는 로그인이 필요합니다.",
-                        identifier: "live-support",
-                        retry: { reloadID += 1 }
-                    )
-                case .loaded(let threads):
-                    supportComposer()
-                    if threads.isEmpty {
-                        LiveRouteMessageView(title: "문의 내역이 없습니다", message: "새 문의를 작성하면 이곳에서 답변 상태를 확인할 수 있습니다.", identifier: "live-support-empty")
-                    } else {
-                        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                            ForEach(threads, id: \.id) { thread in
-                                Group {
-                                    if let admittedCapabilityMap {
-                                        NavigationLink {
-                                            LiveSupportThreadDetailView(
-                                                initialThread: thread,
-                                                capabilityMap: admittedCapabilityMap,
-                                                sessionBinding: LiveSupportSessionBinding(
-                                                    userID: container.environment.sessionStore.current?.userID,
-                                                    revision: container.environment.sessionStore.revision
-                                                ),
-                                                onThreadUpdated: updateSupportThread
-                                            )
-                                        } label: {
-                                            supportThreadRow(thread)
+        Group {
+            if case .loading = state {
+                TicketgroundLoadingSurface(title: "\(routeTitle) 불러오는 중", identifier: "live-support-loading")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                        Text(routeTitle)
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(TicketgroundColor.accent)
+                            .accessibilityIdentifier("live-support")
+                        if let publicSupport {
+                            publicSupportContent(publicSupport)
+                        }
+                        switch state {
+                        case .loading:
+                            EmptyView()
+                        case .capability(let capability):
+                            LiveAccountCapabilitySurface(
+                                state: capability,
+                                title: routeTitle,
+                                loginMessage: "1:1 문의 작성과 내역 확인에는 로그인이 필요합니다.",
+                                identifier: "live-support",
+                                retry: { reloadID += 1 }
+                            )
+                        case .loaded(let threads):
+                            supportComposer()
+                            if threads.isEmpty {
+                                LiveRouteMessageView(title: "문의 내역이 없습니다", message: "새 문의를 작성하면 이곳에서 답변 상태를 확인할 수 있습니다.", identifier: "live-support-empty")
+                            } else {
+                                VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                                    ForEach(threads, id: \.id) { thread in
+                                        Group {
+                                            if let admittedCapabilityMap {
+                                                NavigationLink {
+                                                    LiveSupportThreadDetailView(
+                                                        initialThread: thread,
+                                                        capabilityMap: admittedCapabilityMap,
+                                                        sessionBinding: LiveSupportSessionBinding(
+                                                            userID: container.environment.sessionStore.current?.userID,
+                                                            revision: container.environment.sessionStore.revision
+                                                        ),
+                                                        onThreadUpdated: updateSupportThread
+                                                    )
+                                                } label: {
+                                                    supportThreadRow(thread)
+                                                }
+                                            } else {
+                                                supportThreadRow(thread)
+                                            }
                                         }
-                                    } else {
-                                        supportThreadRow(thread)
+                                        .accessibilityIdentifier("live-support-thread-\(thread.id)")
                                     }
                                 }
-                                .accessibilityIdentifier("live-support-thread-\(thread.id)")
                             }
                         }
                     }
+                    .padding(TicketgroundSpacing.xl)
                 }
             }
-            .padding(TicketgroundSpacing.xl)
         }
         .scrollDismissesKeyboard(.immediately)
         .navigationTitle(routeTitle)
