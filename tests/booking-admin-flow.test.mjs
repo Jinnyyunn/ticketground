@@ -334,6 +334,50 @@ test("an admin-role account cannot demote, deactivate, or reset the password of 
   assert.ok(stillLogsIn.json.data.csrf);
 });
 
+test("ACL browser console hides the edit form for a more-privileged account instead of letting it fail on submit", async (t) => {
+  const server = await startServer(t);
+  const owner = await adminSessionRequest(server, "/api/admin/login", { body: { username: "admin", password: bootstrapAdminPassword } });
+  const ownerCookie = owner.setCookie.split(";")[0];
+  const ownerCsrf = owner.json.data.csrf;
+
+  // second-owner: out of reach for the admin-role viewer below (should render read-only).
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "second-owner", password: "second-owner-password", roleKeys: ["owner"], ipAllowlist: [] }
+  });
+  // catalog-admin: within reach for the admin-role viewer below (should stay editable).
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "catalog-admin", password: "catalog-admin-password", roleKeys: ["catalog"], ipAllowlist: [] }
+  });
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "acl-admin", password: "acl-admin-password", roleKeys: ["admin"], ipAllowlist: [] }
+  });
+
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+  await page.goto(`${server.adminUrl}/console`);
+  await page.locator('input[name="username"]').fill("acl-admin");
+  await page.locator('input[name="password"]').fill("acl-admin-password");
+  await page.getByRole("button", { name: "로그인" }).click();
+  await page.getByRole("link", { name: "관리자/ACL" }).click();
+  await page.getByRole("heading", { name: "관리자/ACL", exact: true }).waitFor();
+
+  await page.getByText("second-owner").waitFor();
+  await page.getByText("catalog-admin").waitFor();
+
+  // Only catalog-admin (in reach) and the viewer's own row get a save button;
+  // second-owner (out of reach) must not, or the viewer could fill out a form
+  // that only fails after they submit it.
+  assert.equal(await page.getByRole("button", { name: "계정/ACL 저장" }).count(), 2);
+});
+
 test("administrator IP ACL rejects malformed CIDR entries", () => {
   assert.throws(() => normalizeAdminIpAllowlist(["10.0.0.0/8/32"]), /IPv4 주소 또는 CIDR/);
 });

@@ -209,6 +209,7 @@ export type AdminAccount = {
   readonly id: string;
   readonly username: string;
   readonly roleKeys: readonly string[];
+  readonly permissions: readonly string[];
   readonly active: boolean;
   readonly ipAllowlist: readonly string[];
   readonly bootstrap?: boolean;
