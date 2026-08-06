@@ -225,7 +225,7 @@ final class AppEnvironmentTests: XCTestCase {
             .home, .search, .ranking, .genre(name: "concert"), .region, .open,
             .event(slug: "event"), .place(slug: nil), .artist(slug: "artist"),
             .goods(slug: "goods"), .seatMap(slug: "seat-map"), .queue(slug: "queue"), .booking(slug: "booking"),
-            .checkout(slug: "checkout"), .reservation(id: "reservation"), .login,
+            .checkout(ticketId: "checkout"), .reservation(id: "reservation"), .login,
             .signup, .menu, .mypage, .cancel, .resale, .transfer, .watchlist, .help, .inquiry, .capabilityLedger
         ]
         XCTAssertEqual(Set(routes.map(\.id)).count, routes.count)
@@ -239,7 +239,7 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(AppRoute.open.classification.connectivity, .publicRead)
         XCTAssertEqual(AppRoute.seatMap(slug: "seat-map").classification.connectivity, .publicRead)
         XCTAssertEqual(AppRoute.login.classification.connectivity, .externalGate)
-        XCTAssertEqual(AppRoute.checkout(slug: "checkout").classification.connectivity, .intentionallyUnsupported)
+        XCTAssertEqual(AppRoute.checkout(ticketId: "checkout").classification.connectivity, .externalGate)
         XCTAssertEqual(AppRoute.queue(slug: "queue").classification.connectivity, .intentionallyUnsupported)
         XCTAssertEqual(AppRoute.booking(slug: "booking").classification.connectivity, .intentionallyUnsupported)
         XCTAssertNil(RouteResolver.resolve(path: "/admin"))

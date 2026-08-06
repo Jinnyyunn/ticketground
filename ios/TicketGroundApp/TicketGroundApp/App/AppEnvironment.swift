@@ -21,7 +21,7 @@ enum AppRoute: Hashable, Codable {
     case seatMap(slug: String)
     case queue(slug: String)
     case booking(slug: String)
-    case checkout(slug: String)
+    case checkout(ticketId: String)
     case reservation(id: String)
     case login
     case signup
@@ -50,7 +50,7 @@ enum AppRoute: Hashable, Codable {
         case .seatMap(let slug): return "seat-map:\(slug)"
         case .queue(let slug): return "queue:\(slug)"
         case .booking(let slug): return "booking:\(slug)"
-        case .checkout(let slug): return "checkout:\(slug)"
+        case .checkout(let ticketId): return "checkout:\(ticketId)"
         case .reservation(let id): return "reservation:\(id)"
         case .login: return "login"
         case .signup: return "signup"
@@ -88,8 +88,10 @@ extension AppRoute {
             return AppRouteClassification(connectivity: .publicRead, reason: "버전 1 공개 탐색 계약")
         case .login, .signup, .mypage, .watchlist, .help, .inquiry:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
-        case .queue, .booking, .checkout, .reservation, .cancel, .resale, .transfer:
-            return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "거래별 HTTPS·인증·결제 계약 필요")
+        case .checkout:
+            return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 사용자 세션, 토스페이먼츠 결제 승인")
+        case .queue, .booking, .reservation, .cancel, .resale, .transfer:
+            return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "좌석/티켓 선택 화면이 아직 없어 거래를 시작할 진입점이 없음")
         }
     }
 }
@@ -132,7 +134,7 @@ struct RouteResolver {
         case "seat-map": return .seatMap(slug: value)
         case "queue": return .queue(slug: value)
         case "booking": return .booking(slug: value)
-        case "checkout": return .checkout(slug: value)
+        case "checkout": return .checkout(ticketId: value)
         case "reservation": return .reservation(id: value)
         default: return nil
         }
@@ -1006,6 +1008,9 @@ final class AppContainer {
         if let scenario = RuntimeConfiguration.liveHomeTestScenario {
             return liveHomeTest(scenario)
         }
+        if let scenario = RuntimeConfiguration.liveCheckoutTestScenario {
+            return liveCheckoutTest(scenario)
+        }
         guard let apiURL = RuntimeConfiguration.apiBaseURL else {
             let credentialStore = KeychainCredentialStore()
             return AppContainer(environment: AppEnvironment(
@@ -1015,6 +1020,28 @@ final class AppContainer {
             ))
         }
         return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL)
+    }
+
+    // Drives LiveCheckoutRouteView against an in-process scripted client
+    // (UITestCheckoutAPIClient), the same way liveHomeTest() drives other live
+    // routes with UITestLiveHomeAPIClient - the app's own HTTPS-only gate
+    // makes pointing "live" networking at a real, unencrypted local dev
+    // backend impossible, so success/failure paths are scripted here instead
+    // of hitting a real server. There is no native seat/ticket selection flow
+    // yet to reach .checkout(ticketId:) through, so this scenario also seeds
+    // navigationPath directly rather than tapping through Discovery UI.
+    private static func liveCheckoutTest(_ scenario: UITestCheckoutScenario) -> AppContainer {
+        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
+        if scenario != .loggedOut {
+            sessionStore.saveNativeCredential("ui-test-checkout-credential", serverUserID: "ui-test-checkout-user")
+        }
+        let container = AppContainer(environment: AppEnvironment(
+            mode: .live,
+            apiClient: UITestCheckoutAPIClient(scenario: scenario),
+            sessionStore: sessionStore
+        ))
+        container.navigationPath = [.checkout(ticketId: UITestCheckoutAPIClient.fixtureTicketId)]
+        return container
     }
 
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
@@ -1040,6 +1067,19 @@ enum RuntimeConfiguration {
             return nil
         }
         return UITestLiveHomeScenario(rawValue: arguments[index + 1])
+    }
+
+    // UITest-only hook that lets a test land directly on the checkout screen
+    // for a fixed, scripted ticket without needing a native seat/ticket
+    // selection flow (which does not exist yet) to get there.
+    fileprivate static var liveCheckoutTestScenario: UITestCheckoutScenario? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ui-testing"),
+              let index = arguments.firstIndex(of: "-live-checkout-scenario"),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return UITestCheckoutScenario(rawValue: arguments[index + 1])
     }
 
     static var liveAccountCapabilityTestState: LiveAccountCapabilityState? {
@@ -1314,6 +1354,79 @@ private final class UITestLiveHomeAPIClient: APIClient {
         }
         return body
     }
+
+    private func json(_ value: String) -> Data {
+        Data(value.utf8)
+    }
+}
+
+// Scripted client for LiveCheckoutRouteView UITests. Kept separate from
+// UITestLiveHomeAPIClient (rather than adding more branches to that already
+// large scripted client) since checkout has its own small, self-contained
+// set of endpoints. Like UITestLiveHomeAPIClient, this never touches the
+// network - the fake HTTPS host only exists to satisfy the app's own
+// HTTPS-only gate before any request is scripted here.
+private enum UITestCheckoutScenario: String {
+    case ready
+    case loggedOut
+    case httpsRequired
+    case notConfigured
+    case ticketNotFound
+    case purchaseFails
+}
+
+private final class UITestCheckoutAPIClient: APIClient {
+    static let fixtureTicketId = "ui-test-checkout-ticket"
+
+    let mode: APIDataMode = .live
+    var baseURL: URL? {
+        URL(string: scenario == .httpsRequired ? "http://ui-test.ticketground.invalid/" : "https://ui-test.ticketground.invalid/")
+    }
+    private let scenario: UITestCheckoutScenario
+
+    init(scenario: UITestCheckoutScenario) {
+        self.scenario = scenario
+    }
+
+    // Matches LiveAPIClient's own contract: data(for:) returns the already
+    // unwrapped `data` payload, not the raw {"ok":...,"data":...} envelope -
+    // LiveAPIClient does that unwrapping itself before returning.
+    func data(for request: APIRequest) async throws -> Data {
+        switch (request.method, request.path) {
+        case (.get, "/api/state"):
+            if scenario == .ticketNotFound {
+                return json(#"{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}"#)
+            }
+            return json("""
+            {"events":[],"venues":[],"users":[],"tickets":[
+              {"id":"\(Self.fixtureTicketId)","eventId":"ui-test-event","performanceDateId":"ui-test-perf",
+               "zoneId":"ui-test-zone","seatLabel":"VIP A1","status":"ON_SALE","available":true,
+               "faceValue":120000,"minPrice":120000,"maxPrice":120000,"transferCount":0,"maxTransferCount":3}
+            ],"resalePools":[],"backendSummary":{"events":1,"tickets":1},"ledger":{"verified":true,"totalEntries":0}}
+            """)
+        case (.get, "/api/payments/tosspayments/config"):
+            if scenario == .notConfigured {
+                return json(#"{"configured":false,"clientKey":""}"#)
+            }
+            return json(#"{"configured":true,"clientKey":"test_gck_ui_test_fake_key"}"#)
+        case (.post, "/api/payments/tosspayments/purchase"):
+            if scenario == .purchaseFails {
+                throw APIClientError.server(status: 402, code: "TOSSPAYMENTS_PAYMENT_NOT_CONFIRMED", message: "토스페이먼츠 결제 승인 상태를 확인할 수 없습니다.")
+            }
+            return json("""
+            {
+              "ticket":{"id":"\(Self.fixtureTicketId)","seatLabel":"VIP A1"},
+              "event":{"id":"ui-test-event","title":"UI 테스트 공연","venue":"테스트홀"},
+              "performanceDate":{},"payment":{},"admission":{},
+              "tosspayments":{"tossPaymentKey":"toss_ui_test_key","method":"카드","mock":true}
+            }
+            """)
+        default:
+            throw APIClientError.requestFailed(code: 404)
+        }
+    }
+
+    func resolveResource(_ reference: String?) -> String? { nil }
 
     private func json(_ value: String) -> Data {
         Data(value.utf8)

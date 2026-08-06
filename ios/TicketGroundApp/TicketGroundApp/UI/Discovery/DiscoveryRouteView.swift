@@ -1,4 +1,5 @@
 import SwiftUI
+import TossPayments
 
 struct DiscoveryRouteView: View {
     @Environment(AppContainer.self) private var container
@@ -839,7 +840,9 @@ private struct LiveDiscoveryRouteView: View {
             LiveSupportRouteView(route: route)
         case .region, .artist, .open:
             LiveDiscoveryContractView(route: route)
-        case .signup, .resale, .transfer, .cancel, .queue, .booking, .checkout, .reservation:
+        case .checkout(let ticketId):
+            LiveCheckoutRouteView(ticketId: ticketId)
+        case .signup, .resale, .transfer, .cancel, .queue, .booking, .reservation:
             LiveUnsupportedRouteView(route: route)
         default:
             LiveUnsupportedRouteView(route: route)
@@ -1746,6 +1749,219 @@ private struct LiveAccountCapabilitySurface: View {
             LiveRouteMessageView(title: title, message: "기능 상태가 호환되지 않습니다. 고객센터에 문의해 주세요.", identifier: "\(identifier)-help")
         }
     }
+}
+
+@Observable
+private final class CheckoutViewModel: NSObject, TossPaymentsDelegate {
+    var successResult: TossPaymentsResult.Success?
+    var failResult: TossPaymentsResult.Fail?
+
+    func handleSuccessResult(_ success: TossPaymentsResult.Success) {
+        successResult = success
+    }
+
+    func handleFailResult(_ fail: TossPaymentsResult.Fail) {
+        failResult = fail
+    }
+}
+
+private enum LiveCheckoutLoadState: Equatable {
+    case loading
+    case ready(ticket: LiveTicket, config: TosspaymentsConfig)
+    case notConfigured
+    case failed(String)
+}
+
+private struct LiveCheckoutRouteView: View {
+    let ticketId: String
+    @Environment(AppContainer.self) private var container
+    @State private var gate: LiveAccountCapabilityState = .loginRequired
+    @State private var loadState: LiveCheckoutLoadState = .loading
+    @State private var widget: PaymentWidget?
+    @State private var model = CheckoutViewModel()
+    @State private var submitting = false
+    @State private var purchaseError: String?
+    @State private var purchasedTicket: TosspaymentsPurchaseResult.Ticket?
+
+    var body: some View {
+        Group {
+            if case .available(let userID) = gate {
+                content(userID: userID)
+            } else {
+                LiveAccountCapabilitySurface(
+                    state: gate,
+                    title: "결제하기",
+                    loginMessage: "결제는 로그인 후 진행할 수 있습니다.",
+                    identifier: "live-checkout",
+                    retry: { resolveGate() }
+                )
+            }
+        }
+        .navigationTitle("결제하기")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: container.environment.sessionStore.current?.userID ?? "") {
+            resolveGate()
+        }
+        .onChange(of: model.successResult) { _, result in
+            guard let result else { return }
+            Task { await confirmPurchase(tossPaymentKey: result.paymentKey) }
+        }
+        .onChange(of: model.failResult) { _, result in
+            guard let result else { return }
+            purchaseError = result.errorMessage
+        }
+    }
+
+    private func resolveGate() {
+        let baseURL = container.environment.apiClient.baseURL
+        if let baseURL, baseURL.scheme?.lowercased() != "https" {
+            gate = .httpsRequired
+            return
+        }
+        guard let session = container.environment.sessionStore.current,
+              !session.userID.isEmpty,
+              let credential = session.credential,
+              !credential.isEmpty else {
+            gate = .loginRequired
+            return
+        }
+        gate = .available(userID: session.userID)
+        Task { await load() }
+    }
+
+    @ViewBuilder
+    private func content(userID: String) -> some View {
+        if let purchasedTicket {
+            successView(ticket: purchasedTicket)
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                    Text("결제 · LIVE")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(TicketgroundColor.accent)
+                        .accessibilityIdentifier("live-checkout")
+                    loadStateBody(userID: userID)
+                }
+                .padding(TicketgroundSpacing.xl)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func loadStateBody(userID: String) -> some View {
+        switch loadState {
+        case .loading:
+            TicketgroundLoadingSurface(title: "결제 준비 중", identifier: "live-checkout-loading")
+        case .notConfigured:
+            TicketgroundErrorSurface(title: "결제하기", message: "토스페이먼츠가 아직 설정되어 있지 않습니다.", actionTitle: "다시 시도", action: { Task { await load() } })
+                .accessibilityIdentifier("live-checkout-not-configured")
+        case .failed(let message):
+            TicketgroundErrorSurface(title: "결제하기", message: message, actionTitle: "다시 시도", action: { Task { await load() } })
+                .accessibilityIdentifier("live-checkout-error")
+        case .ready(let ticket, let config):
+            readyBody(userID: userID, ticket: ticket, config: config)
+        }
+    }
+
+    @ViewBuilder
+    private func readyBody(userID: String, ticket: LiveTicket, config: TosspaymentsConfig) -> some View {
+        if let widget {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+                Text("좌석 \(ticket.seatLabel) · \(ticket.faceValue)원")
+                    .font(.subheadline.weight(.bold))
+                    .accessibilityIdentifier("live-checkout-amount")
+                PaymentMethodWidgetView(widget: widget, amount: PaymentMethodWidget.Amount(value: Double(ticket.faceValue)))
+                    .accessibilityIdentifier("live-checkout-payment-method")
+                AgreementWidgetView(widget: widget)
+                    .accessibilityIdentifier("live-checkout-agreement")
+                if let purchaseError {
+                    Text(purchaseError)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("live-checkout-failure")
+                }
+                Button(submitting ? "결제 처리 중" : "결제하기") {
+                    requestPayment(ticket: ticket)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(TicketgroundColor.accent)
+                .disabled(submitting)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .accessibilityIdentifier("live-checkout-pay")
+            }
+        } else {
+            TicketgroundLoadingSurface(title: "결제 위젯 불러오는 중", identifier: "live-checkout-widget-loading")
+        }
+    }
+
+    private func successView(ticket: TosspaymentsPurchaseResult.Ticket) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+            Text("결제 완료")
+                .font(.headline.weight(.black))
+                .accessibilityIdentifier("live-checkout-success")
+            Text("좌석 \(ticket.seatLabel)의 결제가 완료되었습니다.")
+                .font(.body)
+                .foregroundStyle(TicketgroundColor.inkSecondary)
+        }
+        .padding(TicketgroundSpacing.xl)
+    }
+
+    private func load() async {
+        loadState = .loading
+        widget = nil
+        let client = TosspaymentsClient(apiClient: container.environment.apiClient, sessionStore: container.environment.sessionStore)
+        do {
+            async let ticketTask = client.fetchTicket(ticketID: ticketId)
+            async let configTask = client.fetchConfig()
+            let (ticket, config) = try await (ticketTask, configTask)
+            guard config.configured else {
+                loadState = .notConfigured
+                return
+            }
+            loadState = .ready(ticket: ticket, config: config)
+            let createdWidget = PaymentWidget(clientKey: config.clientKey, customerKey: tossCustomerKey())
+            createdWidget.delegate = model
+            widget = createdWidget
+        } catch {
+            loadState = .failed((error as? LocalizedError)?.errorDescription ?? "결제 정보를 불러오지 못했습니다.")
+        }
+    }
+
+    private func requestPayment(ticket: LiveTicket) {
+        guard let widget else { return }
+        purchaseError = nil
+        submitting = true
+        widget.requestPayment(info: DefaultWidgetPaymentInfo(orderId: ticket.id, orderName: ticket.seatLabel))
+    }
+
+    private func confirmPurchase(tossPaymentKey: String) async {
+        let client = TosspaymentsClient(apiClient: container.environment.apiClient, sessionStore: container.environment.sessionStore)
+        do {
+            let result = try await client.confirmPurchase(
+                ticketID: ticketId,
+                paymentMethod: "CREDIT_CARD",
+                tossPaymentKey: tossPaymentKey,
+                idempotencyKey: tossPaymentKey
+            )
+            submitting = false
+            purchasedTicket = result.ticket
+        } catch {
+            submitting = false
+            purchaseError = (error as? LocalizedError)?.errorDescription ?? "결제 승인 처리에 실패했습니다."
+        }
+    }
+}
+
+// TossPayments requires an unpredictable customerKey (never the raw account
+// userID) - a random id generated once per install and reused after that.
+private func tossCustomerKey() -> String {
+    let key = "ticketground.tosspayments.customerKey"
+    if let existing = UserDefaults.standard.string(forKey: key) {
+        return existing
+    }
+    let generated = UUID().uuidString
+    UserDefaults.standard.set(generated, forKey: key)
+    return generated
 }
 
 private struct LiveAccountRouteView: View {
@@ -3333,7 +3549,6 @@ private struct LiveUnsupportedRouteView: View {
         case .cancel: return "예매 취소 · 지원 보류"
         case .queue: return "대기열 · 지원 보류"
         case .booking: return "예매 · 지원 보류"
-        case .checkout: return "결제 · 지원 보류"
         case .reservation: return "예약 · 지원 보류"
         case .artist: return "아티스트 · 지원 보류"
         case .region: return "지역별 공연 · 지원 보류"
@@ -3346,7 +3561,7 @@ private struct LiveUnsupportedRouteView: View {
         switch route {
         case .signup:
             return "회원가입 POST endpoint가 LiveBackendService에 없어 계정을 만들지 않습니다."
-        case .queue, .booking, .resale, .transfer, .cancel, .checkout, .reservation:
+        case .queue, .booking, .resale, .transfer, .cancel, .reservation:
             return "해당 거래/예약 mutation 또는 조회 endpoint가 현재 공개 backend contract에 없어 작업을 실행하지 않습니다."
         case .artist:
             return "아티스트 전용 공개 GET endpoint가 현재 확인되지 않아 catalog에 포함된 공연만 표시할 수 있습니다."
