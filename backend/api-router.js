@@ -25,6 +25,7 @@ export function createApiRouter({
   bootpayConfig,
   changeSellerPassword,
   confirmBootpayPayment,
+  confirmTosspaymentsPayment,
   createAdminAccount,
   cancelResaleListing,
   createReservationDraft,
@@ -40,6 +41,7 @@ export function createApiRouter({
   drawPool,
   enterQueue,
   extendSeatHold,
+  findIdempotentPurchase,
   getQueueEntry,
   getReservationDraft,
   getSeatHold,
@@ -94,6 +96,7 @@ export function createApiRouter({
   submitGroupBookingRequest,
   supportThreadForUser,
   supportThreadsForPrincipal,
+  tosspaymentsConfig,
   trustDevice,
   updateEventSale,
   updateEventVenue,
@@ -389,6 +392,7 @@ async function handleApi(req, res, db, surface) {
     );
   }
   if (req.method === "GET" && url.pathname === "/api/payments/bootpay/config") return bootpayConfig();
+  if (req.method === "GET" && url.pathname === "/api/payments/tosspayments/config") return tosspaymentsConfig();
   if (req.method === "POST" && url.pathname === "/api/group-booking/requests") return submitGroupBookingRequest(db, body);
   if (req.method === "GET" && url.pathname === "/api/auth/kakao/start") return socialAuthStart(req, "kakao");
   if (req.method === "GET" && url.pathname === "/api/auth/naver/start") return socialAuthStart(req, "naver");
@@ -629,6 +633,61 @@ async function handleApi(req, res, db, surface) {
       });
     }
     return { ...publicPurchaseResult(result), bootpay: receipt };
+  }
+  if (req.method === "POST" && url.pathname === "/api/payments/tosspayments/purchase") {
+    requireBody(body, ["userId", "ticketId", "paymentMethod", "tossPaymentKey"]);
+    const idempotencyKey = requireIdempotencyKey(req);
+    const purchaseUserId = resolvePurchaseUserId(db, req, body);
+
+    // A retry with the same idempotency key must not re-confirm payment with
+    // TossPayments: that would cost a second API call for nothing, and would
+    // fail outright once the ticket is already OWNED from the first attempt.
+    const replay = findIdempotentPurchase(db, purchaseUserId, idempotencyKey, {
+      ticketId: body.ticketId,
+      paymentMethod: body.paymentMethod
+    });
+    if (replay) {
+      const replayedResult = buyPrimary(db, {
+        userId: purchaseUserId,
+        ticketId: body.ticketId,
+        paymentMethod: body.paymentMethod,
+        idempotencyKey
+      });
+      return { ...publicPurchaseResult(replayedResult), tosspayments: { tossPaymentKey: replay.pgTransactionId, replayed: true } };
+    }
+
+    const purchasable = assertTicketPurchasable(db, body.ticketId);
+    const receipt = await confirmTosspaymentsPayment(db, {
+      ticketId: body.ticketId,
+      userId: purchaseUserId,
+      paymentKey: String(body.paymentMethod || "").toUpperCase(),
+      tossPaymentKey: body.tossPaymentKey,
+      orderId: body.ticketId,
+      expectedAmount: purchasable.ticket.faceValue
+    });
+    let result;
+    try {
+      result = buyPrimary(db, {
+        userId: purchaseUserId,
+        ticketId: body.ticketId,
+        paymentMethod: body.paymentMethod,
+        pgTransactionId: receipt.tossPaymentKey,
+        idempotencyKey
+      });
+    } catch (error) {
+      appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {
+        ticketId: body.ticketId,
+        tossPaymentKey: receipt.tossPaymentKey,
+        amount: purchasable.ticket.faceValue,
+        reason: error.code || "ALLOCATION_FAILED"
+      });
+      throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {
+        ticketId: body.ticketId,
+        tossPaymentKey: receipt.tossPaymentKey,
+        reason: error.code || "ALLOCATION_FAILED"
+      });
+    }
+    return { ...publicPurchaseResult(result), tosspayments: receipt };
   }
   if (req.method === "POST" && url.pathname === "/api/resale/list") {
     requireBody(body, ["sellerId", "ticketId", "price"]);
