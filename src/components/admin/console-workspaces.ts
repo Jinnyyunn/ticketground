@@ -11,6 +11,7 @@ export const workspaceKeys = [
   "audit",
   "acl",
   "group-booking",
+  "seller-applications",
 ] as const;
 
 export type WorkspaceKey = (typeof workspaceKeys)[number];

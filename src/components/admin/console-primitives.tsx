@@ -6,6 +6,7 @@ import type {
   Feedback,
   GroupBookingWorkspace,
   InventoryWorkspace,
+  SellerApplicationsWorkspace,
   SupportWorkspace,
   WorkspaceData,
 } from "./console-types";
@@ -41,6 +42,10 @@ export function hasSupportThreads(data: WorkspaceData | null): data is SupportWo
 
 export function hasGroupBookingRequests(data: WorkspaceData | null): data is GroupBookingWorkspace {
   return Boolean(data && "requests" in data);
+}
+
+export function hasSellerApplications(data: WorkspaceData | null): data is SellerApplicationsWorkspace {
+  return Boolean(data && "applications" in data);
 }
 
 export function Notice({ feedback }: { readonly feedback: Feedback }) {

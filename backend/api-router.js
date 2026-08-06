@@ -61,6 +61,9 @@ export function createApiRouter({
   removeWatchlistForPrincipal,
   publicTicketsForUser,
   publicIdentityStatus,
+  approveSellerApplication,
+  rejectSellerApplication,
+  submitSellerApplication,
   socialAuthCallback,
   socialAuthPreflight,
   socialAuthSession,
@@ -79,6 +82,7 @@ export function createApiRouter({
   updateAdminAccount,
   updateDemoProfile,
   updateSupportStatus,
+  updateSellerApplicationChecklist,
   updateTicketStatus,
   updateTicketStatuses,
   updateUserStatus,
@@ -158,12 +162,12 @@ function resolvePurchaseUserId(db, req, body) {
   return session ? session.user.id : body.userId;
 }
 
-async function parseBody(req) {
+async function parseBody(req, maxBytes) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 8 * 1024 * 1024) {
+    if (size > maxBytes) {
       throw httpError(413, "REQUEST_TOO_LARGE", "요청 본문이 너무 큽니다.");
     }
     chunks.push(chunk);
@@ -178,7 +182,11 @@ async function parseBody(req) {
 
 async function handleApi(req, res, db, surface) {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const body = ["POST", "PUT", "PATCH"].includes(req.method) ? await parseBody(req) : {};
+  // The seller-application submission carries two independently-allowed
+  // 5MB files (business registration doc + poster) as base64, which
+  // inflates ~4/3x past the default cap - give that one route more room.
+  const maxBodyBytes = url.pathname === "/api/seller-applications" ? 16 * 1024 * 1024 : 8 * 1024 * 1024;
+  const body = ["POST", "PUT", "PATCH"].includes(req.method) ? await parseBody(req, maxBodyBytes) : {};
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
   const userProfileMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/profile$/);
@@ -393,6 +401,7 @@ async function handleApi(req, res, db, surface) {
       performanceDateId: url.searchParams.get("performanceDateId") || undefined,
       status: url.searchParams.get("status") || undefined,
       search: url.searchParams.get("search") || undefined,
+      sourceApplicationId: url.searchParams.get("sourceApplicationId") || undefined,
       to: url.searchParams.get("to") || undefined,
       zoneId: url.searchParams.get("zoneId") || undefined,
       limit: url.searchParams.get("limit") || undefined,
@@ -437,6 +446,9 @@ async function handleApi(req, res, db, surface) {
     requireDemoSupportAPI();
     requireBody(body, ["threadId", "actorId", "message"]);
     return addSupportMessage(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/seller-applications") {
+    return submitSellerApplication(db, body);
   }
   if (req.method === "POST" && url.pathname === "/api/auth/google") {
     requireBody(body, ["credential"]);
@@ -591,6 +603,22 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/events/create") {
     requireBody(body, ["title", "category", "startsAt", "venueId", "imageDataUrl"]);
     return createEventDraft(db, body);
+  }
+  const sellerApplicationActionMatch = url.pathname.match(/^\/api\/admin\/seller-applications\/([^/]+)\/(checklist|approve|reject)$/);
+  if (req.method === "POST" && sellerApplicationActionMatch) {
+    const applicationId = decodeURIComponent(sellerApplicationActionMatch[1]);
+    const action = sellerApplicationActionMatch[2];
+    if (action === "checklist") {
+      const checklistPayload = { applicationId };
+      for (const key of ["bizNumberVerified", "contactPhoneVerified", "eventAuthenticityChecked"]) {
+        if (Object.hasOwn(body, key)) checklistPayload[key] = body[key];
+      }
+      return updateSellerApplicationChecklist(db, checklistPayload, req.admin);
+    }
+    if (action === "approve") {
+      return approveSellerApplication(db, { applicationId, reviewNote: body.reviewNote }, req.admin);
+    }
+    return rejectSellerApplication(db, { applicationId, reviewNote: body.reviewNote }, req.admin);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/admin-accounts") {
     requireBody(body, ["username", "password", "roleKeys"]);

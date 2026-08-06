@@ -15,6 +15,7 @@ import { createNativeSessionBackend } from "./native-session.js";
 import { createPersistence } from "./persistence.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
+import { createSellerApplicationBackend } from "./seller-applications.js";
 
 export async function createTicketgroundApp(options) {
   const runtime = createRuntime(options.runtime);
@@ -42,6 +43,13 @@ export async function createTicketgroundApp(options) {
     publicCatalog: dtos.publicCatalog
   });
   let groupBooking;
+  const sellerApplications = createSellerApplicationBackend({
+    appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
   const admin = createAdminBackend({
     adminTicket: dtos.adminTicket,
     appendLedger: persistence.appendLedger,
@@ -55,7 +63,8 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     seatLayoutForVenue: catalog.seatLayoutForVenue,
     stableId: runtime.stableId,
-    verifyLedger: persistence.verifyLedger
+    verifyLedger: persistence.verifyLedger,
+    listSellerApplications: sellerApplications.listSellerApplications
   });
   const admission = createAdmissionBackend({
     appendLedger: persistence.appendLedger,
@@ -163,6 +172,7 @@ export async function createTicketgroundApp(options) {
     ...groupBooking,
     ...identity,
     ...nativeSession,
+    ...sellerApplications,
     ...session,
     accountTicketsForUser: dtos.accountTicketsForUser,
     appendLedger: persistence.appendLedger,

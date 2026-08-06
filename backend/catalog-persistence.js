@@ -29,6 +29,7 @@ function normalizeDb(db) {
   db.operatorAlerts ||= [];
   db.paymentTransactions ||= [];
   db.groupBookingRequests ||= [];
+  db.sellerApplications ||= [];
   db.adminAccounts ||= [];
   db.nativeSessions ||= [];
   db.ledger ||= [];
@@ -174,6 +175,7 @@ function seedDb() {
     operatorAlerts: [],
     paymentTransactions: [],
     groupBookingRequests: [],
+    sellerApplications: [],
     adminAccounts: [],
     nativeSessions: [],
     queueEntries: [],
