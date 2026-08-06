@@ -249,6 +249,11 @@ export type ApiWatchlistUpsertResult = {
   readonly notificationJobs: readonly ApiNotificationJob[];
 };
 
+export type ApiWatchlistRemoveResult = {
+  readonly deleted: boolean;
+  readonly eventId: string;
+};
+
 export type ApiSupportThread = {
   readonly id: string;
   readonly userId: string;

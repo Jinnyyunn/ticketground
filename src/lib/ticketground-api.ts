@@ -14,8 +14,7 @@ import {
   apiTicketSchema,
   apiVirtualQrSchema,
   apiWatchlistItemSchema,
-  notifyWatchlistResultSchema,
-  upsertWatchlistResultSchema,
+  removeWatchlistResultSchema,
 } from "./ticketground-api-schemas";
 import type { ApiIdentityStart, ApiIdentityStatus, ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
 import { currentSessionUserId, DEMO_USER_ID, storedSessionCredential } from "./ticketground-session-storage";
@@ -311,26 +310,34 @@ export function updateProfile(name: string, userId = currentSessionUserId()) {
   });
 }
 
-export function getWatchlist(userId = DEMO_USER_ID) {
-  return readApi(`/api/users/${encodeURIComponent(userId)}/watchlist`, z.array(apiWatchlistItemSchema));
-}
-
-export function upsertWatchlist(eventId: string, channels: readonly string[], userId = DEMO_USER_ID) {
-  return post("/api/watchlist", upsertWatchlistResultSchema, {
-    userId,
-    eventId,
-    channels,
-    calendarEnabled: true,
-    notificationEnabled: true,
+// The watchlist is per-session-user data (not the client-trusted body.userId
+// legacy pattern used elsewhere in this file) - it always goes through the
+// Bearer-authenticated /api/me/watchlist routes, same as purchase/identity.
+function authedRequest<T>(path: string, dataSchema: ZodType<T>, init: RequestInit = {}): Promise<T> {
+  const credential = storedSessionCredential();
+  if (!credential) {
+    return Promise.reject(new TicketgroundApiError("로그인이 필요합니다.", "LOGIN_REQUIRED", 401));
+  }
+  return readApi(path, dataSchema, {
+    ...init,
+    headers: { Authorization: `Bearer ${credential}`, ...init.headers },
   });
 }
 
-export function notifyWatchlist(eventId: string, userId = DEMO_USER_ID) {
-  return post("/api/watchlist/notify", notifyWatchlistResultSchema, {
-    userId,
-    eventId,
-    type: "STATUS_CHANGE",
-    dispatchNow: true,
+export function getMyWatchlist() {
+  return authedRequest("/api/me/watchlist", z.array(apiWatchlistItemSchema));
+}
+
+export function addToMyWatchlist(eventId: string) {
+  return authedRequest(`/api/me/watchlist/${encodeURIComponent(eventId)}`, apiWatchlistItemSchema, {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+}
+
+export function removeFromMyWatchlist(eventId: string) {
+  return authedRequest(`/api/me/watchlist/${encodeURIComponent(eventId)}`, removeWatchlistResultSchema, {
+    method: "DELETE",
   });
 }
 

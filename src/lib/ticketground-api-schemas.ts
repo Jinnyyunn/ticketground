@@ -19,6 +19,7 @@ import type {
   ApiVirtualQr,
   ApiWatchlistBase,
   ApiWatchlistItem,
+  ApiWatchlistRemoveResult,
   ApiWatchlistUpsertResult,
 } from "./ticketground-api-types";
 
@@ -287,6 +288,11 @@ export const upsertWatchlistResultSchema = z.object({
   watchlist: apiWatchlistBaseSchema,
   notificationJobs: z.array(apiNotificationJobSchema),
 }) satisfies ZodType<ApiWatchlistUpsertResult>;
+
+export const removeWatchlistResultSchema = z.object({
+  deleted: z.boolean(),
+  eventId: z.string(),
+}) satisfies ZodType<ApiWatchlistRemoveResult>;
 
 export const notifyWatchlistResultSchema = z.object({
   notificationJob: z.object({
