@@ -1,4 +1,5 @@
 import type { PosterGradient } from "@/components/poster-card";
+import type { CategoryId } from "@/components/header-links";
 
 const R = "/images/real-posters";
 const P = "/images/posters";
@@ -31,7 +32,6 @@ export type FeaturedShow = {
   readonly href: string;
   readonly gradient: PosterGradient;
   readonly poster: string;
-  readonly cta: string;
 };
 
 export type RankingShow = {
@@ -56,9 +56,10 @@ export type TicketOpen = {
   readonly dday: string;
 };
 
+export type EditorialEventId = "cleanTicketPicks" | "summerConcerts" | "firstMusical";
+
 export type EventCard = {
-  readonly title: string;
-  readonly description: string;
+  readonly id: EditorialEventId;
   readonly href: string;
   readonly tone: "dark" | "red" | "cream";
 };
@@ -74,7 +75,7 @@ export type Recommendation = {
 };
 
 export type RecommendationGroup = {
-  readonly title: string;
+  readonly categoryId: CategoryId;
   readonly items: readonly Recommendation[];
 };
 
@@ -86,7 +87,6 @@ export const featuredShow: FeaturedShow = {
   href: "/goods/iu-world-tour",
   gradient: "g1",
   poster: posterImages.iu,
-  cta: "예매하기",
 };
 
 export const miniShows: readonly FeaturedShow[] = [
@@ -98,7 +98,6 @@ export const miniShows: readonly FeaturedShow[] = [
     href: "/goods/berlin-phil",
     gradient: "g4",
     poster: posterImages.berlinPhil,
-    cta: "알림받기",
   },
 ];
 
@@ -115,29 +114,14 @@ export const ticketOpens: readonly TicketOpen[] = [
 ];
 
 export const events: readonly EventCard[] = [
-  {
-    title: "클린티켓 추천관",
-    description: "Tig 공식 양도 티켓과 동적 QR 입장이 적용된 공연만 모았습니다.",
-    href: "/event/ticketground-day",
-    tone: "dark",
-  },
-  {
-    title: "여름 대형 콘서트",
-    description: "고척, 잠실, KSPO 주요 좌석 오픈 일정을 한 화면에서 확인하세요.",
-    href: "/event/ticketground-day",
-    tone: "red",
-  },
-  {
-    title: "첫 관람 뮤지컬",
-    description: "러닝타임, 좌석 등급, 할인 정책을 비교하기 쉬운 입문 큐레이션입니다.",
-    href: "/event/ticketground-day",
-    tone: "cream",
-  },
+  { id: "cleanTicketPicks", href: "/event/ticketground-day", tone: "dark" },
+  { id: "summerConcerts", href: "/event/ticketground-day", tone: "red" },
+  { id: "firstMusical", href: "/event/ticketground-day", tone: "cream" },
 ];
 
 export const genreRecommendations: readonly RecommendationGroup[] = [
   {
-    title: "콘서트",
+    categoryId: "concert",
     items: [
       { title: "IU 2026 WORLD TOUR", venue: "잠실종합운동장", date: "2026.09.12", href: "/goods/iu-world-tour", gradient: "g1", poster: posterImages.iu },
       { title: "SEVENTEEN TOUR", venue: "고척스카이돔", date: "2026.08.08", href: "/goods/seventeen-tour", gradient: "g6", poster: posterImages.seventeen },
@@ -147,7 +131,7 @@ export const genreRecommendations: readonly RecommendationGroup[] = [
     ],
   },
   {
-    title: "뮤지컬",
+    categoryId: "musical",
     items: [
       { title: "오페라의 유령", venue: "세종문화회관", date: "2026.06.30", href: "/goods/phantom-of-the-opera", gradient: "g5", poster: posterImages.phantom },
       { title: "뮤지컬 베토벤", venue: "세종문화회관", date: "2026.06.18", href: "/goods/beethoven", gradient: "g9", poster: posterImages.beethoven, posterFit: "contain" },
@@ -155,37 +139,39 @@ export const genreRecommendations: readonly RecommendationGroup[] = [
     ],
   },
   {
-    title: "연극",
+    categoryId: "theater",
     items: [
       { title: "연극 벚꽃동산", venue: "대학로예술극장", date: "2026.08.06", href: "/goods/cherry-orchard", gradient: "g11", poster: posterImages.cherryOrchard },
     ],
   },
   {
-    title: "클래식",
+    categoryId: "classical",
     items: [
       { title: "베를린필 내한공연", venue: "예술의전당", date: "2026.10.21", href: "/goods/berlin-phil", gradient: "g4", poster: posterImages.berlinPhil },
       { title: "백건우와 라벨", venue: "통영국제음악당", date: "2026.09.04", href: "/goods/kun-woo-paik-ravel", gradient: "g8", poster: posterImages.kunWooPaik },
     ],
   },
   {
-    title: "전시",
+    categoryId: "exhibition",
     items: [],
   },
   {
-    title: "아동",
+    categoryId: "kids",
     items: [],
   },
   {
-    title: "스포츠",
+    categoryId: "sports",
     items: [],
   },
 ];
 
-export const shortcuts = [
-  { label: "지방 공연", href: "/contents/region", helper: "부산·대구·광주" },
-  { label: "대학로", href: "/contents/genre/musical", helper: "소극장 신작" },
-  { label: "양도", href: "/resale", helper: "공식 풀 거래" },
-  { label: "VIP석", href: "/contents/ranking", helper: "등급별 보기" },
-  { label: "오픈캘린더", href: "/open", helper: "D-3 알림" },
-  { label: "당일 공연", href: "/contents/search", helper: "오늘 입장 가능" },
-] as const;
+export type ShortcutId = "regional" | "daehakro" | "resale" | "vip" | "calendar" | "sameDay";
+
+export const shortcuts: readonly { readonly id: ShortcutId; readonly href: string }[] = [
+  { id: "regional", href: "/contents/region" },
+  { id: "daehakro", href: "/contents/genre/musical" },
+  { id: "resale", href: "/resale" },
+  { id: "vip", href: "/contents/ranking" },
+  { id: "calendar", href: "/open" },
+  { id: "sameDay", href: "/contents/search" },
+];

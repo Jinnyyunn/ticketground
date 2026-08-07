@@ -20,7 +20,7 @@ test("desktop header hides private mypage entry points when signed out", async (
     await utilityBar.getByRole("link", { name: "로그인", exact: true }).waitFor({ timeout: 5000 });
     await utilityBar.getByRole("link", { name: "회원가입", exact: true }).waitFor({ timeout: 5000 });
     const signedOutUtilityOrder = await getUtilityControlOrder(utilityBar);
-    assert.deepEqual(signedOutUtilityOrder, ["고객센터", "로그인", "회원가입", "다크 모드 켜기"]);
+    assert.deepEqual(signedOutUtilityOrder, ["고객센터", "로그인", "회원가입", "한국어", "다크 모드 켜기"]);
     assert.equal(await utilityBar.getByRole("link", { name: "MY", exact: true }).count(), 0);
     assert.equal(await utilityBar.getByRole("link", { name: "마이", exact: true }).count(), 0);
     assert.equal(await fastNav.getByRole("link", { name: "MY", exact: true }).count(), 0);
@@ -59,7 +59,7 @@ test("desktop header utility auth control logs out and preserves MY label", asyn
     const logoutButton = utilityBar.getByRole("button", { name: "로그아웃", exact: true });
     await logoutButton.waitFor({ timeout: 5000 });
     const signedInUtilityOrder = await getUtilityControlOrder(utilityBar);
-    assert.deepEqual(signedInUtilityOrder, ["고객센터", "MY", "로그아웃", "다크 모드 켜기"]);
+    assert.deepEqual(signedInUtilityOrder, ["고객센터", "MY", "로그아웃", "한국어", "다크 모드 켜기"]);
     assert.equal(await utilityBar.getByRole("link", { name: "로그인", exact: true }).count(), 0);
     assert.equal(await utilityBar.getByRole("link", { name: "회원가입", exact: true }).count(), 0);
 
