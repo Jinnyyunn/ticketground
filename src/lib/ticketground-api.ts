@@ -17,7 +17,7 @@ import {
   removeWatchlistResultSchema,
 } from "./ticketground-api-schemas";
 import type { ApiIdentityStart, ApiIdentityStatus, ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
-import { currentSessionUserId, DEMO_USER_ID, storedSessionCredential } from "./ticketground-session-storage";
+import { currentSessionUserId, DEMO_USER_ID, storedSessionCredential, storedSessionUserId } from "./ticketground-session-storage";
 import { z, type ZodType } from "zod";
 
 export const DEMO_BUYER_ID = "user_fan_b";
@@ -300,6 +300,18 @@ export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYE
 }
 
 export function getSession(userId = currentSessionUserId()) {
+  // GET /api/users/:userId/session is a demo-only route
+  // (backend/api-router.js's requireDemoUserAPI) that 404s outside
+  // dev/QA flags - calling it for a real logged-in session makes this
+  // check fail in any production-configured deployment, even though the
+  // user is genuinely logged in. Use the session-authenticated endpoint
+  // whenever a Bearer credential for this exact user is available; only
+  // fall back to the legacy demo route when there isn't one (e.g. the QA
+  // mock-login buttons intentionally call this without a real provider
+  // login/credential).
+  if (storedSessionCredential() && storedSessionUserId() === userId) {
+    return authedRequest("/api/me", apiSessionSchema);
+  }
   return readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
 }
 
@@ -314,6 +326,18 @@ export function loginWithGoogle(credential: string) {
 }
 
 export function updateProfile(name: string, userId = currentSessionUserId()) {
+  // POST /api/users/:userId/profile is the same demo-only route as
+  // getSession's legacy path (backend/api-router.js's requireDemoUserAPI) -
+  // it 404s outside dev/QA flags, meaning a real logged-in user could never
+  // actually save their nickname in a production-configured deployment.
+  // PATCH /api/me/profile is the already-existing, already-tested,
+  // session-authenticated equivalent (see tests/native-account-api.test.mjs).
+  if (storedSessionCredential() && storedSessionUserId() === userId) {
+    return authedRequest("/api/me/profile", apiSessionSchema, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+  }
   return post(`/api/users/${encodeURIComponent(userId)}/profile`, apiSessionSchema, {
     name,
   });
