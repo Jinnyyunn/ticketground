@@ -222,7 +222,10 @@ test("unauthenticated login page waits for an explicit login action before showi
     assert.equal(await page.getByRole("button", { name: "mock 로그인 확인" }).count(), 0);
 
     await page.getByRole("button", { name: "Google로 계속하기", exact: true }).click();
-    await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+    // Google already verified this identity and supplied a real name, so
+    // there is nothing left to confirm - login goes straight to home
+    // instead of showing a nickname form.
+    await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
     assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), "google_user_test");
   } finally {
     await page.close();
@@ -240,31 +243,53 @@ test("successful social callback clears the one-time provider query before refre
   await context.addCookies(await issueSocialBridgeCookies(baseUrl, "kakao", PROVIDERS.kakao.code));
   const page = await context.newPage();
 
+  // Kakao already verified this identity and supplied a real nickname, so
+  // there is nothing left to confirm - the callback clears its one-time
+  // query param and goes straight home instead of staying on /login.
   await page.goto(`${baseUrl}/login?socialProvider=kakao`, { waitUntil: "domcontentloaded" });
-  await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
-  assert.equal(new URL(page.url()).pathname, "/login");
-  assert.equal(new URL(page.url()).search, "");
-  assert.equal(await page.getByLabel("닉네임").inputValue(), "카카오 테스트 사용자");
-  assert.equal(await page.getByText("세션 상태", { exact: true }).count(), 0);
+  await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
   const storedUserId = await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id"));
   assert.match(String(storedUserId), /^provider_user_/);
 
-  // Profile not yet confirmed: reloading must not bounce the user home before they save a nickname.
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
-  assert.equal(new URL(page.url()).pathname, "/login");
-  assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), storedUserId);
-
-  await page.getByRole("button", { name: "프로필 저장", exact: true }).click();
-  await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
-
-  // Profile confirmed: a later reload of the login page redirects straight home.
+  // Already authenticated: a later visit to the login page redirects straight home.
   await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
   await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
   assert.equal(await page.evaluate(() => window.localStorage.getItem("ticketground:session-user-id")), storedUserId);
 });
 
-test("successful Kakao and Naver callbacks persist an accessible last-login indicator", async (t) => {
+test("successful Kakao and Naver callbacks persist the last-login provider before navigating home", async (t) => {
+  configureSocialEnv(t, true);
+  useProviderMode(t);
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  for (const provider of ["kakao", "naver"]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    await context.addCookies(await issueSocialBridgeCookies(baseUrl, provider, PROVIDERS[provider].code));
+    const page = await context.newPage();
+
+    // The provider already verified this identity and supplied a real
+    // nickname, so login goes straight to home instead of staying on
+    // /login - rememberLastLoginProvider() runs synchronously before that
+    // navigation (src/components/ticketing/login-panel.tsx), so the
+    // localStorage write is guaranteed to have landed either way.
+    await page.goto(`${baseUrl}/login?socialProvider=${provider}`, { waitUntil: "domcontentloaded" });
+    await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
+    assert.equal(
+      await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
+      provider,
+    );
+
+    await context.close();
+  }
+});
+
+test("a returning anonymous visitor sees an accessible reminder of their last login method", async (t) => {
+  // The last-login indicator's whole purpose is helping someone who logged
+  // out (or never finished a session) pick the right button again - so it
+  // only ever needs to render for an anonymous visitor, which is exactly
+  // what's seeded here instead of driving a live OAuth callback for it.
   configureSocialEnv(t, true);
   useProviderMode(t);
   const { baseUrl } = await startServer(t);
@@ -276,20 +301,17 @@ test("successful Kakao and Naver callbacks persist an accessible last-login indi
     ["naver", "네이버", "네이버로 계속하기"],
   ]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-    await context.addCookies(await issueSocialBridgeCookies(baseUrl, provider, PROVIDERS[provider].code));
+    await context.addInitScript((value) => {
+      window.localStorage.setItem("ticketground:last-login-provider", value);
+    }, provider);
     const page = await context.newPage();
 
-    await page.goto(`${baseUrl}/login?socialProvider=${provider}`, { waitUntil: "domcontentloaded" });
-    await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
-
-    assert.equal(
-      await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
-      provider,
-    );
+    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
     const providerControl = page.getByRole("link", {
       name: providerLabel,
       exact: true,
     });
+    await providerControl.waitFor({ timeout: 5000 });
     const descriptionId = await providerControl.getAttribute("aria-describedby");
     assert.ok(descriptionId, `${providerName} control references its last-login indicator`);
     const indicator = page.locator(`#${descriptionId}`);
