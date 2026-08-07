@@ -42,6 +42,10 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     const id = claims.ticketgroundUserId || stableId("google_user", subject);
     const existingUser = db.users.find((user) => user.id === id);
     if (existingUser) {
+      // Backfill accounts stuck from before Google's own name was trusted
+      // as confirmed - they already proved this is a real Google identity
+      // by logging in again just now.
+      if (!existingUser.profileConfirmedAt) existingUser.profileConfirmedAt = now();
       return existingUser;
     }
 
@@ -52,7 +56,12 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       status: "ACTIVE",
       trustScore: 90,
       sanctions: [],
-      profileConfirmedAt: null
+      // Google already verified this identity and supplied a real display
+      // name (claims.name) - Ticketground has no separate identity of its
+      // own to confirm, so there is nothing left to ask the user to
+      // re-enter. profileConfirmedAt only exists to gate other UI, not to
+      // force a redundant nickname step for provider-verified logins.
+      profileConfirmedAt: now()
     };
     db.users.push(user);
     appendLedger(db, user.id, "GOOGLE_USER_REGISTERED", {

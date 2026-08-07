@@ -59,7 +59,7 @@ test("Google returning user keeps a manually saved nickname across later Google 
     credential: GOOGLE_AUTH_TEST_CREDENTIAL
   });
   assert.equal(firstSession.data.name, "Google 테스트 사용자");
-  assert.equal(firstSession.data.profileConfirmed, false);
+  assert.equal(firstSession.data.profileConfirmed, true);
 
   const updatedProfile = await api(server.baseUrl, `/api/users/${firstSession.data.id}/profile`, {
     name: "내가 정한 닉네임"
@@ -425,21 +425,15 @@ test("deterministic iframe contract preserves failed credentials and exposes the
     window.__ticketgroundGoogleCredential = "ticketground-google-test-credential";
   });
   await googleButton.click();
-  await page.getByLabel("닉네임").waitFor({ timeout: 5000 });
+  // A successful, already-provider-verified login has nothing left to
+  // confirm (see backend/session.js's googleSessionUser), so it navigates
+  // straight to home instead of showing a nickname form - this tears down
+  // the login page's own indicator DOM, which is why the parent-document
+  // status indicator's aria wiring is only re-verified in the still-on-page
+  // naver (failed-credential) state above, not here.
+  await page.waitForURL(`${baseUrl}/`, { timeout: 5000 });
   assert.equal(
     await page.evaluate(() => window.localStorage.getItem("ticketground:last-login-provider")),
     "google",
   );
-
-  const descriptionId = await googleGroup.getAttribute("aria-describedby");
-  assert.ok(descriptionId, "Google parent group references its parent-document status");
-  const indicator = page.locator(`#${descriptionId}`);
-  assert.equal(await indicator.getAttribute("role"), "status");
-  assert.equal(await indicator.getAttribute("aria-live"), "polite");
-  assert.equal(await indicator.getAttribute("aria-atomic"), "true");
-  assert.equal(await indicator.textContent(), "최근 로그인한 수단: Google");
-
-  const visibleChip = page.getByText("최근 로그인", { exact: true });
-  assert.equal(await visibleChip.isVisible(), true);
-  assert.equal(await visibleChip.getAttribute("aria-hidden"), "true");
 });
