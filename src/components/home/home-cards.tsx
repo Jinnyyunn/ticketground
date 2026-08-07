@@ -18,6 +18,7 @@ type GradientPosterProps = {
 type FeaturedCardProps = {
   readonly show: FeaturedShow;
   readonly size: "large" | "mini";
+  readonly ctaLabel: string;
 };
 
 export function GradientPoster({ title, gradient, poster, fit = "cover", className, priority = false }: GradientPosterProps) {
@@ -53,7 +54,7 @@ export function GradientPoster({ title, gradient, poster, fit = "cover", classNa
   );
 }
 
-export function FeaturedCard({ show, size }: FeaturedCardProps) {
+export function FeaturedCard({ show, size, ctaLabel }: FeaturedCardProps) {
   return (
     <Link
       href={show.href}
@@ -101,7 +102,7 @@ export function FeaturedCard({ show, size }: FeaturedCardProps) {
           <p className="mt-1 text-sm text-white/75">{show.date}</p>
         </div>
         <span className="mt-6 inline-flex h-10 min-w-[112px] w-fit items-center justify-center whitespace-nowrap rounded-lg bg-card px-4 text-base font-black text-ink transition-colors group-hover:bg-ticketground group-hover:text-white">
-          {show.cta} →
+          {ctaLabel} →
         </span>
       </div>
     </Link>
@@ -112,10 +113,11 @@ type SectionHeadProps = {
   readonly title: string;
   readonly subtitle?: string;
   readonly moreHref: string;
+  readonly moreLabel: string;
   readonly badge?: string;
 };
 
-export function SectionHead({ title, subtitle, moreHref, badge }: SectionHeadProps) {
+export function SectionHead({ title, subtitle, moreHref, moreLabel, badge }: SectionHeadProps) {
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div className="min-w-0">
@@ -130,7 +132,7 @@ export function SectionHead({ title, subtitle, moreHref, badge }: SectionHeadPro
         {subtitle && <p data-section-subtitle className="mt-2 break-keep text-sm leading-snug text-ink-3 sm:text-base">{subtitle}</p>}
       </div>
       <Link href={moreHref} className="shrink-0 text-sm font-black text-ink hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">
-        더보기
+        {moreLabel}
       </Link>
     </div>
   );

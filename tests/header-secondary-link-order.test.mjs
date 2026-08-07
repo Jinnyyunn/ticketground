@@ -75,13 +75,20 @@ test("desktop utility bar keeps theme switch at the far end after auth links", a
     const utilityBar = page.locator("header > div").first();
     await utilityBar.getByRole("switch").waitFor({ timeout: 5000 });
     const itemOrder = await utilityBar.locator(".ticketground-container").evaluate((container) =>
-      [...container.children].map((child) => {
-        if (child.getAttribute("role") === "switch") return "ThemeToggle";
-        return child.textContent?.trim() ?? "";
-      }),
+      [...container.children]
+        .filter((child) => child.tagName === "A" || ["switch", "combobox"].includes(child.getAttribute("role") ?? ""))
+        .map((child) => {
+          const role = child.getAttribute("role");
+          if (role === "switch") return "ThemeToggle";
+          if (role === "combobox") return "LanguageSwitcher";
+          return child.textContent?.trim() ?? "";
+        }),
     );
 
-    assert.deepEqual(itemOrder, ["고객센터", "로그인", "회원가입", "ThemeToggle"]);
+    // 언어 선택 메뉴 (나라별 언어 적용 계획서.md 4.4: "데스크톱: 헤더 유틸리티
+    // 영역의 언어 메뉴") sits after the auth links and before the theme
+    // switch, which stays the last control.
+    assert.deepEqual(itemOrder, ["고객센터", "로그인", "회원가입", "LanguageSwitcher", "ThemeToggle"]);
   } finally {
     await page.close();
   }

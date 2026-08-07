@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
+import { getDictionary } from "@/i18n/get-dictionary";
+import { requestLocale } from "@/i18n/request-locale";
+import { siteUrl } from "@/i18n/site-url";
 import "./globals.css";
 
 const themeBootstrapScript = `
@@ -23,8 +26,10 @@ const themeBootstrapScript = `
   var resolvedTheme = theme === "system" ? (systemPrefersDark ? "dark" : "light") : theme;
   function syncThemeControls() {
     var isDark = root.classList.contains("dark");
-    var label = isDark ? "라이트 모드 켜기" : "다크 모드 켜기";
     document.querySelectorAll("[data-theme-toggle]").forEach(function (button) {
+      var label = isDark
+        ? (button.dataset.labelLight || "라이트 모드 켜기")
+        : (button.dataset.labelDark || "다크 모드 켜기");
       button.setAttribute("aria-checked", isDark ? "true" : "false");
       button.setAttribute("aria-label", label);
       button.setAttribute("title", label);
@@ -62,25 +67,31 @@ const notoSansKr = Noto_Sans_KR({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Ticketground",
-  description: "공연, 콘서트, 뮤지컬, 스포츠 티켓 예매는 Ticketground",
-  icons: {
-    icon: [
-      { url: "/seo/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/seo/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/seo/favicon-96x96.png", sizes: "96x96", type: "image/png" },
-    ],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await requestLocale();
+  const dict = await getDictionary(locale);
+  return {
+    metadataBase: siteUrl(),
+    title: dict.metadata.title,
+    description: dict.metadata.description,
+    icons: {
+      icon: [
+        { url: "/seo/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+        { url: "/seo/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+        { url: "/seo/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+      ],
+    },
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await requestLocale();
   return (
-    <html lang="ko" data-scroll-behavior="smooth" className={`${notoSansKr.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang={locale} data-scroll-behavior="smooth" className={`${notoSansKr.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-background">
         <script id="ticketground-theme-bootstrap" dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         {children}
