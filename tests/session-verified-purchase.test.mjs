@@ -133,10 +133,15 @@ test("Kakao web login session also issues a credential that identity verificatio
   assert.equal(confirmed.data.verified, true);
 
   // 실제로는 세션의 진짜 주인(카카오 사용자)에게 귀속되어야 하고, 사칭 대상에게는 아무 일도 없어야 한다.
-  const identity = await api(baseUrl, `/api/users/${session.id}/identity`);
+  // 본인인증 상태 조회 자체도 세션 소유자만 가능하다 (다른 사람의 인증 상태를 훔쳐볼 수 없음).
+  const identity = await api(baseUrl, `/api/users/${session.id}/identity`, undefined, 200, {
+    Authorization: `Bearer ${session.credential}`
+  });
   assert.equal(identity.data.verified, true);
   assert.equal(identity.data.phoneMasked, "010-****-6666");
 
-  const spoofedTargetIdentity = await api(baseUrl, "/api/users/someone-else/identity", undefined, 404);
-  assert.equal(spoofedTargetIdentity.error.code, "USER_NOT_FOUND");
+  const spoofedTargetIdentity = await api(baseUrl, "/api/users/someone-else/identity", undefined, 403, {
+    Authorization: `Bearer ${session.credential}`
+  });
+  assert.equal(spoofedTargetIdentity.error.code, "NOT_OWNER");
 });
