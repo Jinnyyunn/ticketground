@@ -27,6 +27,29 @@ export function createAdmissionBackend({
     return user.status === "WATCHLIST" || user.trustScore < 50;
   }
 
+  // Graduated replacement for the old binary isRiskUser() check. Kept in
+  // this module (not admission-qr.js) because ensureAdmissionCredential
+  // also needs riskStatus, same reason isRiskUser lives here.
+  //
+  // trustScore drives a continuous score (100 - trustScore) so accounts
+  // degrading through commerce.js's per-infraction trustScore penalty pass
+  // through the OTP/delay bands before ever reaching WATCHLIST, instead of
+  // jumping straight from "normal" to "flagged" with no middle ground.
+  // WATCHLIST floors the score at 80 (HOLD) regardless of trustScore,
+  // since an operator/system already flagged the account explicitly.
+  function riskScoreFor(user) {
+    let score = Math.max(0, 100 - user.trustScore);
+    if (user.status === "WATCHLIST") score = Math.max(score, 80);
+    return Math.min(score, 100);
+  }
+
+  function riskGate(score) {
+    if (score < 30) return { action: "ALLOW", riskScore: score };
+    if (score < 60) return { action: "OTP_REQUIRED", riskScore: score };
+    if (score < 80) return { action: "DELAY_OR_SUPPORT_CHECK", riskScore: score, delaySeconds: 30 };
+    return { action: "HOLD", riskScore: score, requiresAdminReview: true };
+  }
+
   function admissionCredentialForTicket(db, ticket) {
     return db.admissionCredentials.find((credential) => credential.ticketId === ticket.id);
   }
@@ -113,11 +136,12 @@ export function createAdmissionBackend({
     hmac,
     httpError,
     id,
-    isRiskUser,
     now,
     randomHex,
-    requireTrustedDevice
+    requireTrustedDevice,
+    riskGate,
+    riskScoreFor
   });
 
-  return { ensureAdmissionCredential, issueQr, trustDevice, verifyQr, virtualQr };
+  return { ensureAdmissionCredential, issueQr, riskGate, riskScoreFor, trustDevice, verifyQr, virtualQr };
 }

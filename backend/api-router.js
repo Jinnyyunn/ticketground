@@ -51,12 +51,14 @@ export function createApiRouter({
   isDev,
   confirmPortOneDanalVerification,
   SERVICE_FEE_PER_SEAT,
+  issueGateSession,
   issueQr,
   issueNativeSession,
   issueSellerAccount,
   joinPool,
   leaveQueue,
   listForResale,
+  listGateSessions,
   listSellerEvents,
   notifyWatchlist,
   nativeLogout,
@@ -65,6 +67,8 @@ export function createApiRouter({
   purchaseResale,
   readBusinessRegistrationFile,
   releaseSeatHold,
+  requireGateSession,
+  revokeGateSession,
   publicCatalog,
   publicSupportContent,
   publicArtist,
@@ -759,26 +763,29 @@ async function handleApi(req, res, db, surface) {
     return publicDirectTransferResult(directTransferAttempt(db, { ...body, actorId: resolveActorId(db, req, body.actorId) }));
   }
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
-    requireBody(body, ["userId", "deviceId", "biometricVerified"]);
-    verifyAppAttestation(body, "TRUST_DEVICE", [body.userId, body.deviceId]);
-    return trustDevice(db, { ...body, attestationVerified: true });
+    requireBody(body, ["deviceId", "biometricVerified"]);
+    const trustUserId = resolvePurchaseUserId(db, req, body);
+    verifyAppAttestation(body, "TRUST_DEVICE", [trustUserId, body.deviceId]);
+    return trustDevice(db, { ...body, userId: trustUserId, attestationVerified: true });
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/qr") {
-    requireBody(body, ["userId", "ticketId"]);
+    requireBody(body, ["ticketId"]);
+    const qrUserId = resolvePurchaseUserId(db, req, body);
     if (String(body.channel || "WEB").toUpperCase() === "APP") {
       requireBody(body, ["deviceId", "appAttestation"]);
-      verifyAppAttestation(body, "ISSUE_QR", [body.userId, body.deviceId, body.ticketId]);
-      return issueQr(db, { ...body, attestationVerified: true });
+      verifyAppAttestation(body, "ISSUE_QR", [qrUserId, body.deviceId, body.ticketId]);
+      return issueQr(db, { ...body, userId: qrUserId, attestationVerified: true });
     }
-    return issueQr(db, body);
+    return issueQr(db, { ...body, userId: qrUserId });
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/virtual-qr") {
-    requireBody(body, ["userId", "ticketId"]);
-    return virtualQr(db, body);
+    requireBody(body, ["ticketId"]);
+    return virtualQr(db, { ...body, userId: resolvePurchaseUserId(db, req, body) });
   }
   if (req.method === "POST" && url.pathname === "/api/gate/verify") {
     requireBody(body, ["ticketId", "ownerId", "expiresAt", "nonce", "signature"]);
-    return verifyQr(db, body);
+    const gate = requireGateSession(db, req);
+    return verifyQr(db, { ...body, gateId: gate.id, gateEventId: gate.eventId });
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/venue") {
     requireBody(body, ["eventId", "venueId"]);
@@ -811,6 +818,17 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/seller-accounts/issue") {
     requireBody(body, ["applicationId", "username"]);
     return issueSellerAccount(db, body, req.admin);
+  }
+  if (req.method === "GET" && url.pathname === "/api/admin/gate-sessions") {
+    return { gateSessions: listGateSessions(db) };
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/gate-sessions") {
+    requireBody(body, ["gateLabel"]);
+    return issueGateSession(db, body, req.admin);
+  }
+  const gateSessionRevokeMatch = url.pathname.match(/^\/api\/admin\/gate-sessions\/([^/]+)\/revoke$/);
+  if (req.method === "POST" && gateSessionRevokeMatch) {
+    return revokeGateSession(db, { gateId: decodeURIComponent(gateSessionRevokeMatch[1]) }, req.admin);
   }
   const sellerEventReviewMatch = url.pathname.match(/^\/api\/admin\/seller-events\/([^/]+)\/(publish|reject)$/);
   if (req.method === "POST" && sellerEventReviewMatch) {

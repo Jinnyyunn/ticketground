@@ -124,6 +124,11 @@ export async function adminApi(server, pathName, body, expectedStatus = 200) {
   return api(server.adminUrl, pathName, body, expectedStatus, { "x-tig-admin-token": server.adminToken });
 }
 
+export async function issueGateToken(server, gateLabel = "GATE-A") {
+  const issued = await adminApi(server, "/api/admin/gate-sessions", { gateLabel });
+  return issued.data.token;
+}
+
 export async function verifyIdentity(baseUrl, userId = "user_fan_a", phone = "010-9000-0001") {
   const started = await api(baseUrl, "/api/identity/portone-danal/start", { userId, phone });
   const verified = await api(baseUrl, "/api/identity/portone-danal/confirm", {
