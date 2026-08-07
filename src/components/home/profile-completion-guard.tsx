@@ -43,7 +43,16 @@ export function ProfileCompletionGuard({ children }: { readonly children: React.
         setState({ kind: "allowed" });
       } catch (error: unknown) {
         if (!active || currentValidationId !== validationId || storedSessionUserId() !== userId) return;
-        if (error instanceof TicketgroundApiError && error.code === "USER_NOT_FOUND") {
+        // USER_NOT_FOUND: the legacy demo session lookup's account is gone.
+        // NATIVE_SESSION_INVALID: /api/me's Bearer credential is missing/expired.
+        // Both mean the same thing here - the stored session is no longer
+        // valid, so clear it and fall through to the anonymous home view
+        // instead of showing a scary "can't verify" error for what is,
+        // from the user's perspective, just being logged out.
+        if (
+          error instanceof TicketgroundApiError
+          && (error.code === "USER_NOT_FOUND" || error.code === "NATIVE_SESSION_INVALID")
+        ) {
           clearSessionUser();
           return;
         }

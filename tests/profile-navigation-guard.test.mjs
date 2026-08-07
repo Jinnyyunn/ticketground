@@ -26,6 +26,22 @@ async function newPageWithSession(browser, userId) {
   return { context, page: await context.newPage() };
 }
 
+const credentialStorageKey = "ticketground:session-credential";
+
+// Mirrors what rememberSessionUser() actually writes to localStorage after
+// a real provider login - unlike newPageWithSession() (userId only, used
+// throughout this file to simulate the *legacy demo* session shape), this
+// is what a genuine Google/Kakao/Naver login leaves behind.
+async function newPageWithCredentialedSession(browser, { userId, credential }) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await context.addInitScript(({ key, value, credKey, credValue }) => {
+    window.localStorage.setItem(key, value);
+    window.localStorage.setItem(credKey, credValue);
+    window.localStorage.removeItem("ticketground:demo-auth-state");
+  }, { key: sessionStorageKey, value: userId, credKey: credentialStorageKey, credValue: credential });
+  return { context, page: await context.newPage() };
+}
+
 test("incomplete profiles cannot reach home by direct URL or refresh", async (t) => {
   configureGoogleEnv(t, true);
   const { baseUrl } = await startServer(t);
@@ -220,4 +236,49 @@ test("a late missing-user response cannot clear a newer completed session", asyn
   );
   assert.equal(await page.evaluate((key) => window.localStorage.getItem(key), signedOutStorageKey), null);
   assert.equal(await page.locator("[data-section='spec-hero']").isVisible(), true);
+});
+
+test("a real logged-in session reaches home even when the legacy demo session API is disabled", async (t) => {
+  // TIG_DEMO_PROFILE_API defaults to "1" in startServer() specifically so
+  // the rest of this file's tests (which simulate sessions the legacy way,
+  // userId-only, no credential) keep working. Forcing it off here
+  // reproduces the actual dev.ticketground.co.kr environment, where a real
+  // provider login was landing on "프로필 상태를 확인할 수 없습니다"
+  // because getSession()/updateProfile() only ever called that demo-gated
+  // route, which 404s outside dev/QA flags.
+  configureGoogleEnv(t, true);
+  const server = await startServer(t, { env: { TIG_DEMO_PROFILE_API: "0" } });
+  const { baseUrl } = server;
+  const login = await api(baseUrl, "/api/auth/google", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
+  assert.equal(login.data.profileConfirmed, false);
+  assert.ok(login.data.credential, "a real login issues a Bearer credential");
+
+  // Complete the profile the same way login-panel.tsx does post-fix: PATCH
+  // /api/me/profile, session-authenticated, not the demo-gated POST route.
+  // (api()'s test helper only ever sends GET/POST, so this needs a raw fetch.)
+  const profileSaveResponse = await fetch(`${baseUrl}/api/me/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${login.data.credential}` },
+    body: JSON.stringify({ name: "테스트닉네임" }),
+  });
+  const profileSave = await profileSaveResponse.json();
+  assert.equal(profileSaveResponse.status, 200, JSON.stringify(profileSave));
+  assert.equal(profileSave.data.profileConfirmed, true);
+
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const { context, page } = await newPageWithCredentialedSession(browser, {
+    userId: login.data.id,
+    credential: login.data.credential,
+  });
+  t.after(() => context.close());
+
+  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await page.locator("[data-section='spec-hero']").waitFor({ timeout: 5000 });
+  assert.equal(new URL(page.url()).pathname, "/");
+  assert.equal(
+    await page.locator("p[role='alert']").count(),
+    0,
+    "home must not show the 프로필 상태를 확인할 수 없습니다 error for a genuinely logged-in, complete profile",
+  );
 });
