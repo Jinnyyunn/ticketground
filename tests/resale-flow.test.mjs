@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { adminApi, api, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 test("backend rejects out-of-policy resale prices", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -142,4 +143,27 @@ test("backend rejects removed balance payment method without mutating resale poo
   assert.deepEqual(poolState.buyers, []);
   assert.equal(ticketState.status, "IN_RESALE_POOL");
   assert.equal(poolState.winnerId, undefined);
+});
+
+test("a logged-in session cannot list someone else's ticket by naming their id as sellerId", async (t) => {
+  configureGoogleEnv(t, true);
+  const { baseUrl } = await startServer(t);
+  const { ticket } = await buyFirstTicket(baseUrl);
+
+  // An unrelated, logged-in attacker claims to be the ticket's real owner
+  // (user_fan_a) by putting that id straight in the request body.
+  const login = await api(baseUrl, "/api/auth/google", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
+  const attempt = await api(baseUrl, "/api/resale/list", {
+    sellerId: "user_fan_a",
+    ticketId: ticket.id,
+    price: ticket.faceValue
+  }, 403, { Authorization: `Bearer ${login.data.credential}` });
+
+  // The server must resolve the actor from the session (google_user_test,
+  // who does not own the ticket), not from the claimed body.sellerId.
+  assert.equal(attempt.error.code, "NOT_OWNER");
+
+  const state = await api(baseUrl, "/api/state");
+  const untouched = state.data.tickets.find((item) => item.id === ticket.id);
+  assert.equal(untouched.status, "OWNED", "the real owner's ticket was never moved into a resale pool");
 });

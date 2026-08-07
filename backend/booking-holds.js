@@ -388,6 +388,7 @@ export function createBookingHoldsBackend({
     releaseSeatHold,
     createReservationDraft,
     getReservationDraft,
-    cancelReservationDraft
+    cancelReservationDraft,
+    SERVICE_FEE_PER_SEAT
   };
 }

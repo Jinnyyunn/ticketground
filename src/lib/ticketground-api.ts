@@ -192,7 +192,7 @@ export function confirmTosspaymentsPurchase({
 }
 
 export function getIdentityStatus(userId = currentSessionUserId()) {
-  return readApi(`/api/users/${encodeURIComponent(userId)}/identity`, apiIdentityStatusSchema);
+  return authedRequest(`/api/users/${encodeURIComponent(userId)}/identity`, apiIdentityStatusSchema);
 }
 
 export function startDanalIdentityVerification({

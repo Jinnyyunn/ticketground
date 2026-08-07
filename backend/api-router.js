@@ -50,6 +50,7 @@ export function createApiRouter({
   httpError,
   isDev,
   confirmPortOneDanalVerification,
+  SERVICE_FEE_PER_SEAT,
   issueQr,
   issueNativeSession,
   issueSellerAccount,
@@ -190,12 +191,16 @@ function requireIdempotencyKey(req) {
   return value;
 }
 
-// 로그인 세션이 있으면 그 세션의 사용자로만 동작하고 body.userId는 무시한다.
-// 세션이 아예 없을 때만(비로그인 데모) body.userId를 그대로 신뢰한다 —
-// 로그인한 사용자를 다른 userId 문자열로 사칭하는 걸 막기 위함.
-function resolvePurchaseUserId(db, req, body) {
+// 로그인 세션이 있으면 그 세션의 사용자로만 동작하고 클라이언트가 보낸
+// id 필드는 무시한다. 세션이 아예 없을 때만(비로그인 데모) 그 필드를
+// 그대로 신뢰한다 — 로그인한 사용자를 다른 사용자로 사칭하는 걸 막기 위함.
+function resolveActorId(db, req, fallbackId) {
   const session = optionalAuthenticateNativeSession(db, req);
-  return session ? session.user.id : body.userId;
+  return session ? session.user.id : fallbackId;
+}
+
+function resolvePurchaseUserId(db, req, body) {
+  return resolveActorId(db, req, body.userId);
 }
 
 async function parseBody(req, maxBytes) {
@@ -453,7 +458,14 @@ async function handleApi(req, res, db, surface) {
     requireDemoUserAPI();
     return demoSession(db, decodeURIComponent(userSessionMatch[1]));
   }
-  if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
+  if (req.method === "GET" && userIdentityMatch) {
+    const requestedUserId = decodeURIComponent(userIdentityMatch[1]);
+    const sessionUserId = authenticateNativeSession(db, req).user.id;
+    if (sessionUserId !== requestedUserId) {
+      throw httpError(403, "NOT_OWNER", "본인의 본인인증 상태만 조회할 수 있습니다.");
+    }
+    return publicIdentityStatus(db, requestedUserId);
+  }
   if (req.method === "GET" && userTicketsMatch) {
     requireDemoUserAPI();
     return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
@@ -629,7 +641,11 @@ async function handleApi(req, res, db, surface) {
       paymentKey: String(body.paymentMethod || "").toUpperCase(),
       tossPaymentKey: body.tossPaymentKey,
       orderId: body.ticketId,
-      expectedAmount: purchasable.ticket.faceValue
+      // The TossPayments widget always charges faceValue + one seat's
+      // service fee (checkout-panel.tsx trustedTotalAmount) - the server
+      // must expect that same total, not faceValue alone, or every real
+      // (non-mock) purchase fails TOSSPAYMENTS_AMOUNT_MISMATCH.
+      expectedAmount: purchasable.ticket.faceValue + SERVICE_FEE_PER_SEAT
     });
     let result;
     try {
@@ -720,15 +736,15 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/resale/list") {
     requireBody(body, ["sellerId", "ticketId", "price"]);
-    return publicResalePool(listForResale(db, body));
+    return publicResalePool(listForResale(db, { ...body, sellerId: resolveActorId(db, req, body.sellerId) }));
   }
   if (req.method === "POST" && url.pathname === "/api/resale/join") {
     requireBody(body, ["buyerId", "poolId"]);
-    return publicResalePool(joinPool(db, body));
+    return publicResalePool(joinPool(db, { ...body, buyerId: resolveActorId(db, req, body.buyerId) }));
   }
   if (req.method === "POST" && url.pathname === "/api/resale/cancel") {
     requireBody(body, ["sellerId", "poolId"]);
-    return publicResalePool(cancelResaleListing(db, body));
+    return publicResalePool(cancelResaleListing(db, { ...body, sellerId: resolveActorId(db, req, body.sellerId) }));
   }
   if (req.method === "POST" && url.pathname === "/api/resale/draw") {
     requireBody(body, ["poolId"]);
@@ -736,11 +752,11 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/resale/purchase") {
     requireBody(body, ["buyerId", "poolId"]);
-    return publicResaleDrawResult(purchaseResale(db, body));
+    return publicResaleDrawResult(purchaseResale(db, { ...body, buyerId: resolveActorId(db, req, body.buyerId) }));
   }
   if (req.method === "POST" && url.pathname === "/api/security/direct-transfer-attempt") {
     requireBody(body, ["actorId", "ticketId", "targetUserId"]);
-    return publicDirectTransferResult(directTransferAttempt(db, body));
+    return publicDirectTransferResult(directTransferAttempt(db, { ...body, actorId: resolveActorId(db, req, body.actorId) }));
   }
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
     requireBody(body, ["userId", "deviceId", "biometricVerified"]);

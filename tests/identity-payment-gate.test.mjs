@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { api, startServer } from "./backend-test-utils.mjs";
+import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 test("primary ticket purchase requires PortOne Danal identity verification and blocks duplicate verified phone numbers", async (t) => {
   // Given: an on-sale ticket and a user that has not completed identity verification.
@@ -61,4 +62,41 @@ test("primary ticket purchase requires PortOne Danal identity verification and b
   // Then: payment and ticket ownership can proceed.
   assert.equal(purchase.data.ticket.status, "OWNED");
   assert.equal(purchase.data.payment.status, "PAID");
+});
+
+test("identity status lookup requires a session and refuses to reveal another account's verification status", async (t) => {
+  configureGoogleEnv(t, true);
+  const { baseUrl } = await startServer(t);
+
+  // Given: two accounts, one of which has completed identity verification.
+  const started = await api(baseUrl, "/api/identity/portone-danal/start", {
+    userId: "user_fan_a",
+    phone: "010-1234-5678",
+  });
+  await api(baseUrl, "/api/identity/portone-danal/confirm", {
+    userId: "user_fan_a",
+    phone: "010-1234-5678",
+    identityVerificationId: started.data.identityVerificationId,
+  });
+
+  // When: nobody is logged in at all.
+  const anonymous = await api(baseUrl, "/api/users/user_fan_a/identity", undefined, 401);
+  assert.equal(anonymous.error.code, "NATIVE_SESSION_INVALID");
+
+  // Given: a different, unrelated logged-in session (google_user_test).
+  const login = await api(baseUrl, "/api/auth/google", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
+  const credential = login.data.credential;
+
+  // When: that session tries to read user_fan_a's verification status by
+  // guessing/knowing their userId (the actual attack #105 flagged).
+  const crossAccountLookup = await api(baseUrl, "/api/users/user_fan_a/identity", undefined, 403, {
+    Authorization: `Bearer ${credential}`,
+  });
+  assert.equal(crossAccountLookup.error.code, "NOT_OWNER");
+
+  // Then: the same session can still read its own (unverified) status.
+  const ownStatus = await api(baseUrl, "/api/users/google_user_test/identity", undefined, 200, {
+    Authorization: `Bearer ${credential}`,
+  });
+  assert.equal(ownStatus.data.verified, false);
 });
