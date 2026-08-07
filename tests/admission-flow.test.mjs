@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, appAttestation, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, appAttestation, buyFirstTicket, issueGateToken, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 test("backend issues virtual ticket, app-only admission QR, and one-use gate verification", async (t) => {
-  const { baseUrl } = await startServer(t);
+  const server = await startServer(t);
+  const { baseUrl } = server;
   const { ticket, purchase } = await buyFirstTicket(baseUrl);
 
   assert.equal(purchase.admission.activationChannel, "APP_ONLY");
@@ -44,11 +46,12 @@ test("backend issues virtual ticket, app-only admission QR, and one-use gate ver
   assert.equal(admissionQr.data.ttlSeconds, 20);
   assert.ok(Date.parse(admissionQr.data.expiresAt) - Date.parse(admissionQr.data.issuedAt) <= 20_000);
 
-  const gateAccepted = await api(baseUrl, "/api/gate/verify", admissionQr.data);
+  const gateToken = await issueGateToken(server, "GATE-A");
+  const gateAccepted = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, { "x-gate-token": gateToken });
   assert.equal(gateAccepted.data.valid, true);
   assert.equal(gateAccepted.data.credential, undefined);
 
-  const replay = await api(baseUrl, "/api/gate/verify", admissionQr.data);
+  const replay = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, { "x-gate-token": gateToken });
   assert.equal(replay.data.valid, false);
 
   const stateAfterQr = await api(baseUrl, "/api/state");
@@ -82,7 +85,8 @@ test("gate verification rejects a superseded QR even though its signature is sti
   // own (ticketId, ownerId, expiresAt, nonce) tuple, so it must be rejected
   // for freshness (not matching the ticket's current QR), not for a bad
   // signature - this exercises the exact comparison the gate check performs.
-  const { baseUrl } = await startServer(t);
+  const server = await startServer(t);
+  const { baseUrl } = server;
   const { ticket } = await buyFirstTicket(baseUrl);
   const device = await api(baseUrl, "/api/devices/trust", {
     userId: "user_fan_a",
@@ -103,10 +107,11 @@ test("gate verification rejects a superseded QR even though its signature is sti
   const freshQr = await api(baseUrl, "/api/tickets/qr", issueParams);
   assert.notEqual(staleQr.data.nonce, freshQr.data.nonce, "re-issuing produces a new nonce/signature pair");
 
-  const staleAttempt = await api(baseUrl, "/api/gate/verify", staleQr.data);
+  const gateToken = await issueGateToken(server, "GATE-A");
+  const staleAttempt = await api(baseUrl, "/api/gate/verify", staleQr.data, 200, { "x-gate-token": gateToken });
   assert.equal(staleAttempt.data.valid, false, "the superseded QR is rejected even though its own signature verifies");
 
-  const freshAttempt = await api(baseUrl, "/api/gate/verify", freshQr.data);
+  const freshAttempt = await api(baseUrl, "/api/gate/verify", freshQr.data, 200, { "x-gate-token": gateToken });
   assert.equal(freshAttempt.data.valid, true, "the currently active QR is still accepted");
 });
 
@@ -215,4 +220,43 @@ test("official resale clears an old owner admin admission hold before new owner 
   assert.equal(reassignedCredential.userId, "user_fan_b");
   assert.equal(reassignedCredential.adminHold, false);
   assert.equal(reassignedCredential.adminHoldReason, null);
+});
+
+test("a logged-in session cannot issue an admission QR for someone else's ticket by naming them as userId", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t);
+  const { baseUrl } = server;
+  const { ticket } = await buyFirstTicket(baseUrl);
+
+  // An unrelated, logged-in attacker registers their own device, then claims
+  // to be the real owner (user_fan_a) by putting that id in the request body.
+  const login = await api(baseUrl, "/api/auth/google", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
+  const credential = login.data.credential;
+  const authHeaders = { Authorization: `Bearer ${credential}` };
+
+  const device = await api(baseUrl, "/api/devices/trust", {
+    userId: "user_fan_a",
+    deviceId: "attacker-iphone",
+    biometricVerified: true,
+    appAttestation: appAttestation("TRUST_DEVICE", "google_user_test", "attacker-iphone")
+  }, 200, authHeaders);
+  // The trusted device is registered under the session's real user
+  // (google_user_test), not the impersonated user_fan_a from the body.
+  assert.equal(device.data.device.userId, "google_user_test");
+
+  const attempt = await api(baseUrl, "/api/tickets/qr", {
+    userId: "user_fan_a",
+    ticketId: ticket.id,
+    channel: "APP",
+    deviceId: "attacker-iphone",
+    deviceToken: device.data.deviceToken,
+    appAttestation: appAttestation("ISSUE_QR", "google_user_test", "attacker-iphone", ticket.id)
+  }, 403, authHeaders);
+  // The server resolves the actor from the session (google_user_test, who
+  // does not own the ticket), not from the claimed body.userId.
+  assert.equal(attempt.error.code, "NOT_OWNER");
+
+  const state = await api(baseUrl, "/api/state");
+  const untouched = state.data.tickets.find((item) => item.id === ticket.id);
+  assert.equal(untouched.currentQr, undefined, "no admission QR was issued for the real owner's ticket");
 });

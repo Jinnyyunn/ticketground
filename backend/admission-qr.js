@@ -10,10 +10,11 @@ export function createAdmissionQrBackend({
   hmac,
   httpError,
   id,
-  isRiskUser,
   now,
   randomHex,
-  requireTrustedDevice
+  requireTrustedDevice,
+  riskGate,
+  riskScoreFor
 }) {
   function admissionCredentialForTicket(db, ticket) {
     return db.admissionCredentials.find((credential) => credential.ticketId === ticket.id);
@@ -33,6 +34,7 @@ export function createAdmissionQrBackend({
       deviceId,
       deviceToken,
       otpVerified = false,
+      delayAcknowledged = false,
       emergencyOverride = false,
       emergencyReason,
       attestationVerified = false
@@ -62,8 +64,22 @@ export function createAdmissionQrBackend({
       throw httpError(403, "APP_ATTESTATION_REQUIRED", "전용앱 인증 서명이 필요합니다.");
     }
     const trustedDevice = emergencyAllowed ? null : requireTrustedDevice(db, { user, deviceId, deviceToken });
-    if (isRiskUser(user) && otpVerified !== true && !emergencyAllowed) {
-      throw httpError(403, "OTP_REQUIRED", "위험 계정은 입장 QR 활성화 전 추가 인증이 필요합니다.");
+    const risk = riskGate(riskScoreFor(user));
+    if (!emergencyAllowed) {
+      if (risk.action === "HOLD") {
+        throw httpError(423, "RISK_HOLD_ACTIVE", "위험도 평가에 따라 QR 발급이 보류되었습니다.", risk);
+      }
+      if (risk.action === "OTP_REQUIRED" && otpVerified !== true) {
+        throw httpError(403, "OTP_REQUIRED", "위험 계정은 입장 QR 활성화 전 추가 인증이 필요합니다.", risk);
+      }
+      // DELAY_OR_SUPPORT_CHECK is a soft gate, not a dead end: the client
+      // is told to wait risk.delaySeconds and resubmit with
+      // delayAcknowledged: true. Nothing about the account changes during
+      // that wait - the delay itself, plus giving a self-selecting scalper
+      // a moment to reconsider before a gate scan, is the point.
+      if (risk.action === "DELAY_OR_SUPPORT_CHECK" && delayAcknowledged !== true) {
+        throw httpError(409, "DELAY_REQUIRED", "잠시 후 다시 시도하거나 고객센터 확인이 필요합니다.", risk);
+      }
     }
     if (currentTimeMs() < Date.parse(credential.activeAt) && !emergencyAllowed) {
       throw httpError(409, "REAL_QR_NOT_READY", "입장 QR은 공연 3시간 전부터 활성화됩니다.", {
@@ -118,7 +134,7 @@ export function createAdmissionQrBackend({
     };
   }
 
-  function verifyQr(db, { ticketId, ownerId, expiresAt, nonce, signature }) {
+  function verifyQr(db, { ticketId, ownerId, expiresAt, nonce, signature, gateId }) {
     const expected = hmac(`${ticketId}:${ownerId}:${expiresAt}:${nonce}`);
     const ticket = db.tickets.find((item) => item.id === ticketId);
     const credential = ticket ? admissionCredentialForTicket(db, ticket) : null;
@@ -127,28 +143,40 @@ export function createAdmissionQrBackend({
     // check below) would let short-circuit evaluation skip the safe
     // comparison and leak byte-position match info through response
     // timing for forged/replayed signatures.
-    const valid = Boolean(ticket)
+    const signatureValid = Boolean(ticket)
       && ticket.ownerId === ownerId
       && timingSafeStringMatches(signature, expected)
       && timingSafeStringMatches(signature, ticket.currentQr?.signature)
-      && Date.parse(expiresAt) > currentTimeMs()
-      && !ticket.currentQr?.usedAt
-      && credential?.status !== "USED";
+      && Date.parse(expiresAt) > currentTimeMs();
+    // Split out of the original single `valid` expression so a second gate
+    // that loses the race can be told *why* (already admitted, and where)
+    // instead of just "invalid" - this is what the gate PWA shows as
+    // "이미 다른 게이트에서 입장 처리됨".
+    const alreadyUsed = signatureValid && (Boolean(ticket.currentQr?.usedAt) || credential?.status === "USED");
+    const valid = signatureValid && !alreadyUsed;
     if (valid) {
       ticket.currentQr.usedAt = now();
+      ticket.currentQr.usedByGateId = gateId || null;
       ticket.status = "ADMITTED";
       if (credential) {
         credential.status = "USED";
         credential.usedAt = ticket.currentQr.usedAt;
+        credential.usedByGateId = gateId || null;
         credential.updatedAt = now();
       }
     }
     appendLedger(db, ownerId || "GATE", valid ? "GATE_QR_ACCEPTED" : "GATE_QR_REJECTED", {
       ticketId,
       admissionCredentialId: credential?.id || null,
-      reason: valid ? "valid-dynamic-token-one-use-consumed" : "invalid-expired-or-replayed-token"
+      gateId: gateId || "UNKNOWN",
+      reason: valid ? "valid-dynamic-token-one-use-consumed" : alreadyUsed ? "already-used" : "invalid-expired-or-replayed-token"
     });
-    return { valid };
+    return {
+      valid,
+      alreadyUsed,
+      usedAt: alreadyUsed ? (credential?.usedAt || ticket?.currentQr?.usedAt || null) : null,
+      usedByGateId: alreadyUsed ? (credential?.usedByGateId || ticket?.currentQr?.usedByGateId || null) : null
+    };
   }
 
   return { issueQr, verifyQr };

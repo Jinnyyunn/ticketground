@@ -37,6 +37,7 @@ function normalizeDb(db) {
   db.queueEntries ||= [];
   db.seatHolds ||= [];
   db.reservationDrafts ||= [];
+  db.gateSessions ||= [];
 
   if (!db.venues?.length) {
     db.venues = venueBlueprints();
@@ -185,6 +186,7 @@ function seedDb() {
     queueEntries: [],
     seatHolds: [],
     reservationDrafts: [],
+    gateSessions: [],
     ledger: []
   };
   for (const event of db.events) {

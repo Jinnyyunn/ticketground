@@ -1,4 +1,5 @@
 import { createAdmissionBackend } from "./admission.js";
+import { createGateSessionBackend } from "./gate-sessions.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
 import { createBookingHoldsBackend } from "./booking-holds.js";
@@ -113,6 +114,14 @@ export async function createTicketgroundApp(options) {
     stableId: runtime.stableId
   });
   ({ ensureAdmissionCredential } = admission);
+  const gateSessions = createGateSessionBackend({
+    appendLedger: persistence.appendLedger,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now,
+    randomHex: runtime.randomHex
+  });
   const engagement = createEngagementBackend({
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
@@ -201,6 +210,7 @@ export async function createTicketgroundApp(options) {
     ...commerce,
     ...discovery,
     ...engagement,
+    ...gateSessions,
     ...groupBooking,
     ...identity,
     ...nativeSession,
@@ -232,7 +242,7 @@ export async function createTicketgroundApp(options) {
     trustDevice: admission.trustDevice,
     verifyAppAttestation: runtime.verifyAppAttestation,
     verifyLedger: persistence.verifyLedger,
-    verifyQr: (db, payload) => ({ valid: admission.verifyQr(db, payload).valid }),
+    verifyQr: admission.verifyQr,
     virtualQr: admission.virtualQr,
     issueQr: admission.issueQr
   });
