@@ -15,6 +15,7 @@ export interface GateVerifyPayload {
 export interface GateVerifyResult {
   readonly valid: boolean;
   readonly alreadyUsed?: boolean;
+  readonly eventScopeMismatch?: boolean;
   readonly usedAt?: string | null;
   readonly usedByGateId?: string | null;
 }

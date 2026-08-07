@@ -134,7 +134,7 @@ export function createAdmissionQrBackend({
     };
   }
 
-  function verifyQr(db, { ticketId, ownerId, expiresAt, nonce, signature, gateId }) {
+  function verifyQr(db, { ticketId, ownerId, expiresAt, nonce, signature, gateId, gateEventId }) {
     const expected = hmac(`${ticketId}:${ownerId}:${expiresAt}:${nonce}`);
     const ticket = db.tickets.find((item) => item.id === ticketId);
     const credential = ticket ? admissionCredentialForTicket(db, ticket) : null;
@@ -153,7 +153,14 @@ export function createAdmissionQrBackend({
     // instead of just "invalid" - this is what the gate PWA shows as
     // "이미 다른 게이트에서 입장 처리됨".
     const alreadyUsed = signatureValid && (Boolean(ticket.currentQr?.usedAt) || credential?.status === "USED");
-    const valid = signatureValid && !alreadyUsed;
+    // A gate token issued for a specific event (gateEventId set at
+    // issuance) must not admit tickets for a different event - the QR
+    // signature only proves the QR is genuine for that ticket, not that
+    // this particular gate is authorized for that ticket's event. An
+    // unscoped gate token (gateEventId null) is unaffected.
+    const eventScopeMismatch = signatureValid && !alreadyUsed
+      && Boolean(gateEventId) && ticket.eventId !== gateEventId;
+    const valid = signatureValid && !alreadyUsed && !eventScopeMismatch;
     if (valid) {
       ticket.currentQr.usedAt = now();
       ticket.currentQr.usedByGateId = gateId || null;
@@ -169,11 +176,18 @@ export function createAdmissionQrBackend({
       ticketId,
       admissionCredentialId: credential?.id || null,
       gateId: gateId || "UNKNOWN",
-      reason: valid ? "valid-dynamic-token-one-use-consumed" : alreadyUsed ? "already-used" : "invalid-expired-or-replayed-token"
+      reason: valid
+        ? "valid-dynamic-token-one-use-consumed"
+        : alreadyUsed
+          ? "already-used"
+          : eventScopeMismatch
+            ? "gate-event-scope-mismatch"
+            : "invalid-expired-or-replayed-token"
     });
     return {
       valid,
       alreadyUsed,
+      eventScopeMismatch,
       usedAt: alreadyUsed ? (credential?.usedAt || ticket?.currentQr?.usedAt || null) : null,
       usedByGateId: alreadyUsed ? (credential?.usedByGateId || ticket?.currentQr?.usedByGateId || null) : null
     };

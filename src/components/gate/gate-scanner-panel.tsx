@@ -181,7 +181,11 @@ export function GateScannerPanel() {
       }
       recordOutcome({
         kind: result.alreadyUsed ? "already-used" : "rejected",
-        message: result.alreadyUsed ? "이미 사용된 QR입니다" : "입장 불가",
+        message: result.alreadyUsed
+          ? "이미 사용된 QR입니다"
+          : result.eventScopeMismatch
+            ? "이 게이트에서 처리할 수 없는 공연의 티켓입니다"
+            : "입장 불가",
         detail: result.alreadyUsed
           ? `처리 게이트: ${result.usedByGateId ?? "알 수 없음"}${result.usedAt ? ` · ${new Date(result.usedAt).toLocaleTimeString("ko-KR")}` : ""}`
           : undefined,

@@ -785,7 +785,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/gate/verify") {
     requireBody(body, ["ticketId", "ownerId", "expiresAt", "nonce", "signature"]);
     const gate = requireGateSession(db, req);
-    return verifyQr(db, { ...body, gateId: gate.id });
+    return verifyQr(db, { ...body, gateId: gate.id, gateEventId: gate.eventId });
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/venue") {
     requireBody(body, ["eventId", "venueId"]);

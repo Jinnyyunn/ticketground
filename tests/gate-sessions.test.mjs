@@ -82,6 +82,34 @@ test("two gates racing the same QR: exactly one is admitted, the other is told w
   assert.ok(loser.data.usedByGateId, "the losing gate can see which gate won the race");
 });
 
+test("a gate token scoped to one event cannot admit a ticket from a different event", async (t) => {
+  const server = await startServer(t);
+  const { baseUrl, qr, ticket } = await issueAdmissionQr(server);
+
+  const wrongEventToken = await adminApi(server, "/api/admin/gate-sessions", {
+    gateLabel: "GATE-WRONG-EVENT",
+    eventId: "event_c945b7fa842c" // a real, but different, seeded event (les-miserables)
+  });
+  assert.notEqual(ticket.eventId, "event_c945b7fa842c", "sanity check: the ticket really belongs to a different event");
+
+  const rejected = await api(baseUrl, "/api/gate/verify", qr.data, 200, { "x-gate-token": wrongEventToken.data.token });
+  assert.equal(rejected.data.valid, false);
+  assert.equal(rejected.data.eventScopeMismatch, true);
+
+  const state = await api(baseUrl, "/api/state");
+  const untouched = state.data.tickets.find((item) => item.id === qr.data.ticketId);
+  assert.notEqual(untouched.status, "ADMITTED", "a gate scoped to the wrong event must not admit the ticket");
+
+  // The same QR is still valid for a token scoped to the correct event (or
+  // an unscoped token) - the mismatch check only blocks the wrong event.
+  const rightEventToken = await adminApi(server, "/api/admin/gate-sessions", {
+    gateLabel: "GATE-RIGHT-EVENT",
+    eventId: ticket.eventId
+  });
+  const accepted = await api(baseUrl, "/api/gate/verify", qr.data, 200, { "x-gate-token": rightEventToken.data.token });
+  assert.equal(accepted.data.valid, true);
+});
+
 test("gate token issuance and revocation are admin-only", async (t) => {
   const server = await startServer(t);
   // Every /api/admin/* route 404s on the public surface regardless of the
