@@ -38,6 +38,29 @@ test("on an untranslated page, only Korean is selectable and the other locales a
   await page.getByText("번역 준비 중").first().waitFor({ timeout: 5000 });
 });
 
+test("the popup opens above the mobile drawer's own stacking context, not hidden behind it", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
+  t.after(() => page.close());
+
+  // Regression: the switcher's popup (a React portal) rendered at a lower
+  // z-index than MobileNav's own Dialog.Popup, so opening it from inside
+  // the drawer painted the option list behind the drawer panel - visually
+  // indistinguishable from the tap doing nothing.
+  await page.goto(`${baseUrl}/contents/shortcuts`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "전체 메뉴 열기", exact: true }).click();
+  await page.getByRole("combobox", { name: "언어 선택" }).click();
+  const listbox = page.getByRole("listbox");
+  await listbox.waitFor({ state: "visible", timeout: 5000 });
+  const optionTexts = await page.getByRole("option").allTextContents();
+  assert.deepEqual(optionTexts, ["한국어", "English번역 준비 중", "日本語번역 준비 중", "简体中文번역 준비 중"]);
+
+  const listboxZ = await listbox.evaluate((el) => Number(getComputedStyle(el.closest('[class*="z-"]') ?? el).zIndex) || 0);
+  assert.ok(listboxZ >= 100, `expected the popup's stacking context (z=${listboxZ}) to clear the drawer's z-90 popup`);
+});
+
 test("switching away from /en back to Korean returns to the unprefixed home URL", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });

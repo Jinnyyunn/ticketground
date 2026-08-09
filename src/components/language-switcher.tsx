@@ -52,7 +52,10 @@ export function LanguageSwitcher({ currentLocale, label, names, comingSoonLabel,
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Positioner side="bottom" align="end" sideOffset={8} alignItemWithTrigger={false} className="z-[60]">
+        {/* z-[100]: must clear MobileNav's Dialog.Popup (z-[90]) since this
+            switcher also renders inside that modal drawer on mobile, not
+            just the z-50 desktop header. */}
+        <Select.Positioner side="bottom" align="end" sideOffset={8} alignItemWithTrigger={false} className="z-[100]">
           <Select.Popup className="min-w-[168px] rounded-lg border border-line bg-card p-1 shadow-ticket-2">
             <Select.List>
               {locales.map((locale) => {
