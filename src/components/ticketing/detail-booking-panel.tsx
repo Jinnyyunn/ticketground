@@ -127,20 +127,23 @@ export function DetailBookingPanel({ slug, title, venueHref, schedules, lowestPr
         <Link
           data-testid="detail-queue-link"
           href={queueHref}
-          className="mt-2 flex h-13 items-center justify-center rounded-sm bg-ticketground text-base font-black text-white whitespace-nowrap transition-colors hover:bg-ink hover:text-on-ink focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px"
+          className="mt-2 flex h-13 items-center justify-center rounded-sm bg-ticketground text-base font-black text-white whitespace-nowrap transition-colors hover:bg-ink hover:text-on-ink focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px lg:static lg:z-auto lg:w-auto lg:border-0 lg:bg-ticketground lg:p-0 lg:pb-0 fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ticketground p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         >
-          선택 회차 예매
+          예매하기
         </Link>
       ) : (
         <button
           data-testid="detail-queue-link"
           disabled
-          className="mt-2 flex h-13 w-full cursor-not-allowed items-center justify-center rounded-sm border border-line bg-surface text-base font-black text-ink-3 whitespace-nowrap"
+          className="mt-2 flex h-13 w-full cursor-not-allowed items-center justify-center rounded-sm border border-line bg-surface text-base font-black text-ink-3 whitespace-nowrap lg:static lg:z-auto lg:border lg:p-0 lg:pb-0 fixed inset-x-0 bottom-0 z-40 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           type="button"
         >
           {saleLabel}
         </button>
       )}
+      {/* Reserves the fixed bottom bar's height on mobile so it doesn't
+          cover the content below it (venue preview link, helper text). */}
+      <div aria-hidden className="h-13 lg:hidden" />
       <Link
         href={venueHref}
         className="mt-3 flex h-11 items-center justify-center rounded-sm border border-line bg-background text-sm font-bold text-ink-2 whitespace-nowrap transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"

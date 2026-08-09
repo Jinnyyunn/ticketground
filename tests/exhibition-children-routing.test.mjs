@@ -53,5 +53,5 @@ test("children route has its own content and booking entry", async (t) => {
   await page.locator('a[href="/goods/breadbarbershop"]').first().click();
   await page.waitForURL(/\/goods\/breadbarbershop$/);
   await page.getByRole("heading", { name: /브레드이발소/ }).first().waitFor({ timeout: 5000 });
-  await page.getByRole("link", { name: "선택 회차 예매" }).waitFor({ timeout: 5000 });
+  await page.getByRole("link", { name: "예매하기" }).waitFor({ timeout: 5000 });
 });
