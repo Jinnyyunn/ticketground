@@ -19,15 +19,15 @@ const layoutSeat = (id, displayLabel, price, x) => ({
   objectType: "row",
 });
 
-const backendSeat = (id, displayCode, price) => ({
+const backendSeat = (id, displayCode, price, available = true) => ({
   id,
   label: displayCode,
   displayCode,
   zoneId: price === 190000 ? "zone_vip" : "zone_r",
   zoneName: price === 190000 ? "VIP" : "R",
   price,
-  status: "ON_SALE",
-  available: true,
+  status: available ? "ON_SALE" : "SOLD",
+  available,
 });
 
 test("binds chart coordinates to real backend ticket ids when labels and prices match", () => {
@@ -70,6 +70,25 @@ test("omits layout places that have no sellable backend ticket", () => {
 
   // Then
   assert.deepEqual(bound.map(({ id }) => id), ["ticket-1"]);
+});
+
+test("binds unavailable tickets before filtering so remaining seats keep their coordinates", () => {
+  const layout = [
+    layoutSeat("layout-1", "unmatched-1", 160000, 10),
+    layoutSeat("layout-2", "unmatched-2", 160000, 30),
+  ];
+  const backend = [
+    backendSeat("sold-ticket", "R-01", 160000, false),
+    backendSeat("open-ticket", "R-02", 160000),
+  ];
+
+  const bound = bindChartLayoutToBackendSeats(layout, backend);
+
+  assert.deepEqual(bound.map(({ id, sold, x }) => ({ id, sold, x })), [
+    { id: "sold-ticket", sold: true, x: 10 },
+    { id: "open-ticket", sold: false, x: 30 },
+  ]);
+  assert.equal(chartCoversAllBackendSeats(bound, backend), true);
 });
 
 test("uses a published chart only when it covers every sellable backend ticket", () => {

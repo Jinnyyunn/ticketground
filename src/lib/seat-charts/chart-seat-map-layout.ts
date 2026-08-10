@@ -46,6 +46,16 @@ function closestDistance(pointsByX: readonly SeatPoint[]): number {
   return stripClosest;
 }
 
+export function minimumRenderedWidthForRelativePoints(
+  points: readonly SeatPoint[],
+  targetSize: number,
+  defaultWidth: number,
+) {
+  const closest = closestDistance([...points].sort((a, b) => a.x - b.x || a.y - b.y));
+  if (!Number.isFinite(closest) || closest <= 0) return defaultWidth;
+  return Math.ceil(Math.max(defaultWidth, targetSize / closest));
+}
+
 export function chartMinimumRenderedWidth(
   seats: readonly SeatPoint[],
   bounds: ChartBounds,
@@ -55,7 +65,9 @@ export function chartMinimumRenderedWidth(
   const width = Math.max(bounds.maxX - bounds.minX, 40) + pad * 2;
   const height = Math.max(bounds.maxY - bounds.minY, 40) + pad * 2;
   const defaultWidth = Math.max(720, (320 * width) / height);
-  const closest = closestDistance([...seats].sort((a, b) => a.x - b.x || a.y - b.y));
-  if (!Number.isFinite(closest) || closest <= 0) return defaultWidth;
-  return Math.ceil(Math.max(defaultWidth, (targetSize * width) / closest));
+  return minimumRenderedWidthForRelativePoints(
+    seats.map((seat) => ({ x: seat.x / width, y: seat.y / width })),
+    targetSize,
+    defaultWidth,
+  );
 }

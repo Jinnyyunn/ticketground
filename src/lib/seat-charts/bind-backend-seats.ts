@@ -9,7 +9,7 @@ export function bindChartLayoutToBackendSeats(
   layoutSeats: readonly SellableSeat[],
   backendSeats: readonly ApiSeat[],
 ): readonly SellableSeat[] {
-  const remaining = backendSeats.filter((seat) => seat.available);
+  const remaining = [...backendSeats];
   const bound: SellableSeat[] = [];
 
   for (const layoutSeat of layoutSeats) {
@@ -30,7 +30,7 @@ export function bindChartLayoutToBackendSeats(
       label: backendSeat.label,
       displayLabel: backendSeat.displayCode,
       price: backendSeat.price,
-      sold: false,
+      sold: !backendSeat.available,
     });
   }
 
@@ -41,8 +41,8 @@ export function chartCoversAllBackendSeats(
   boundSeats: readonly SellableSeat[],
   backendSeats: readonly ApiSeat[],
 ): boolean {
-  const availableIds = new Set(backendSeats.filter((seat) => seat.available).map((seat) => seat.id));
-  return availableIds.size > 0
-    && boundSeats.length === availableIds.size
-    && boundSeats.every((seat) => availableIds.has(seat.id));
+  const backendIds = new Set(backendSeats.map((seat) => seat.id));
+  return backendSeats.some((seat) => seat.available)
+    && boundSeats.length === backendIds.size
+    && boundSeats.every((seat) => backendIds.has(seat.id));
 }

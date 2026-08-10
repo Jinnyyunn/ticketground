@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { SellableSeat } from "@/lib/seat-charts/inventory";
 import { chartMinimumRenderedWidth } from "@/lib/seat-charts/chart-seat-map-layout";
 import { cn } from "@/lib/utils";
@@ -13,16 +13,20 @@ const tierFill: Record<SellableSeat["tier"], string> = {
   A: "#2563eb",
 };
 
-export function ChartSeatMap({
+function visibleSeatCode(label: string) {
+  return label.match(/\d+[a-z]?$/i)?.[0] ?? label.slice(-3);
+}
+
+function ChartSeatMapComponent({
   seats,
   bounds,
   selectedSeatIds,
-  onToggleSeat,
+  onSelect,
 }: {
   readonly seats: readonly SellableSeat[];
   readonly bounds: { minX: number; minY: number; maxX: number; maxY: number };
   readonly selectedSeatIds: readonly string[];
-  readonly onToggleSeat: (seat: SellableSeat) => void;
+  readonly onSelect: (ticketId: string) => void;
 }) {
   const pad = 24;
   const width = Math.max(bounds.maxX - bounds.minX, 40) + pad * 2;
@@ -44,7 +48,10 @@ export function ChartSeatMap({
         ))}
         <span className="text-ink-4">· 배치도 기반 선택</span>
       </div>
-      <div className="max-h-[min(70vh,640px)] w-full overflow-auto rounded-lg bg-white">
+      <div
+        className="w-full overflow-x-auto rounded-lg bg-white lg:max-h-[min(70vh,640px)] lg:overflow-auto"
+        data-chart-seat-scroll
+      >
         <div
           className="relative mx-auto w-full"
           style={{ aspectRatio: width / height, minWidth: `${minimumRenderedWidth}px` }}
@@ -112,9 +119,11 @@ export function ChartSeatMap({
                   left: `${((seat.x - (bounds.minX - pad)) / width) * 100}%`,
                   top: `${((seat.y - (bounds.minY - pad)) / height) * 100}%`,
                 }}
-                onClick={() => onToggleSeat(seat)}
+                onClick={() => onSelect(seat.id)}
               >
-                <span className="sr-only">{seat.displayLabel}</span>
+                <span className="pointer-events-none block rounded-sm bg-white/85 px-0.5 text-[8px] font-black leading-none text-ink shadow-sm">
+                  {visibleSeatCode(seat.displayLabel)}
+                </span>
               </button>
             );
           })}
@@ -126,6 +135,8 @@ export function ChartSeatMap({
     </div>
   );
 }
+
+export const ChartSeatMap = memo(ChartSeatMapComponent);
 
 export function ChartSeatListFallback({
   seats,

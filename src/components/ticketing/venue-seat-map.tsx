@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { memo, useId, useMemo, useState } from "react";
+import { minimumRenderedWidthForRelativePoints } from "@/lib/seat-charts/chart-seat-map-layout";
 import type { ApiSeat } from "@/lib/ticketground-api";
 import { seatMarkerPage, seatMarkerPageCount } from "@/lib/seat-marker-pages";
 import { cn } from "@/lib/utils";
@@ -59,10 +60,9 @@ function buildZoneMarkerStyles(zoneIds: readonly string[]): Record<string, strin
   return styles;
 }
 
-function spreadAxis(value: number, values: readonly number[], start: number, end: number): number {
-  if (values.length < 2) return 50;
-  const index = values.indexOf(value);
-  return start + (index / (values.length - 1)) * (end - start);
+function normalizeAxis(value: number, min: number, max: number, start: number, end: number): number {
+  if (min === max) return 50;
+  return start + ((value - min) / (max - min)) * (end - start);
 }
 
 function VenueSeatMapComponent({
@@ -82,39 +82,46 @@ function VenueSeatMapComponent({
   const [markerPage, setMarkerPage] = useState(0);
   const scrollHintId = useId();
   const positionedSeats = useMemo(() => seats.filter((seat) => seat.mapPosition), [seats]);
-  const markerPageCount = seatMarkerPageCount(positionedSeats.length);
+  const availablePositionedSeats = useMemo(() => positionedSeats.filter((seat) => seat.available), [positionedSeats]);
+  const markerPageCount = seatMarkerPageCount(availablePositionedSeats.length);
   const activeMarkerPage = Math.min(markerPage, markerPageCount - 1);
   const markerSeats = useMemo(
-    () => seatMarkerPage(positionedSeats, activeMarkerPage),
-    [activeMarkerPage, positionedSeats],
+    () => seatMarkerPage(availablePositionedSeats, activeMarkerPage),
+    [activeMarkerPage, availablePositionedSeats],
   );
-  const zoneIds = useMemo(() => Array.from(new Set(positionedSeats.map((seat) => seat.zoneId))), [positionedSeats]);
+  const zoneIds = useMemo(() => Array.from(new Set(availablePositionedSeats.map((seat) => seat.zoneId))), [availablePositionedSeats]);
   const zoneMarkerStyles = useMemo(() => buildZoneMarkerStyles(zoneIds), [zoneIds]);
   const markerPositions = useMemo(() => {
-    const ys = Array.from(
-      new Set(markerSeats.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.y] : [])),
-    ).sort((a, b) => a - b);
-    const rowXs = new Map<number, number[]>();
-    for (const seat of markerSeats) {
-      const position = seat.mapPosition;
-      if (!position) continue;
-      const xs = rowXs.get(position.y) ?? [];
-      if (!xs.includes(position.x)) xs.push(position.x);
-      rowXs.set(position.y, xs);
-    }
-    for (const xs of rowXs.values()) xs.sort((a, b) => a - b);
+    const xs = positionedSeats.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.x] : []);
+    const ys = positionedSeats.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.y] : []);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
     const positions = new Map<string, { x: number; y: number }>();
     for (const seat of markerSeats) {
       const position = seat.mapPosition;
       if (!position) continue;
       positions.set(seat.id, {
-        x: spreadAxis(position.x, rowXs.get(position.y) ?? [position.x], 8, 92),
-        y: spreadAxis(position.y, ys, 10, 90),
+        x: normalizeAxis(position.x, minX, maxX, 8, 92),
+        y: normalizeAxis(position.y, minY, maxY, 10, 90),
       });
     }
     return positions;
-  }, [markerSeats]);
-  if (positionedSeats.length === 0) return null;
+  }, [markerSeats, positionedSeats]);
+  const renderedAspectRatio = aspectRatio ?? fallbackAspectRatio;
+  const minimumMarkerWidth = useMemo(
+    () => minimumRenderedWidthForRelativePoints(
+      Array.from(markerPositions.values(), (position) => ({
+        x: position.x / 100,
+        y: position.y / 100 / renderedAspectRatio,
+      })),
+      24,
+      520,
+    ),
+    [markerPositions, renderedAspectRatio],
+  );
+  if (availablePositionedSeats.length === 0) return null;
 
   return (
     <div className="min-w-0 rounded-lg border border-line bg-card p-4 sm:p-5" data-realtime-seat-map>
@@ -134,7 +141,7 @@ function VenueSeatMapComponent({
         >
           <div
             className="relative mx-auto w-full min-w-[520px] max-w-[720px] overflow-hidden rounded-lg border border-line bg-surface-3"
-            style={{ aspectRatio: aspectRatio ?? fallbackAspectRatio }}
+            style={{ aspectRatio: renderedAspectRatio, minWidth: `${minimumMarkerWidth}px` }}
           >
             <Image
               alt={mapTitle}
@@ -210,7 +217,7 @@ function VenueSeatMapComponent({
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold" aria-label="구역 범례">
         {zoneIds.map((zoneId) => {
-          const zoneSeat = positionedSeats.find((seat) => seat.zoneId === zoneId);
+          const zoneSeat = availablePositionedSeats.find((seat) => seat.zoneId === zoneId);
           const zoneName = zoneSeat?.zoneName ?? zoneId;
           return (
             <span key={zoneId} className="inline-flex items-center gap-2">

@@ -126,15 +126,17 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
   // Stable across the once-a-second timer re-render so VenueSeatMap (wrapped in
   // React.memo) doesn't reconcile its marker set every tick.
-  const availableBackendSeats = useMemo(() => seatMap?.seats.filter((seat) => seat.available) ?? [], [seatMap]);
-  const boundChartSeats = useMemo(
+  const backendSeats = useMemo(() => seatMap?.seats ?? [], [seatMap]);
+  const availableBackendSeats = useMemo(() => backendSeats.filter((seat) => seat.available), [backendSeats]);
+  const allBoundChartSeats = useMemo(
     () => publishedChart?.requestKey === chartRequestKey && publishedChart.inventory
-      ? bindChartLayoutToBackendSeats(publishedChart.inventory.seats, availableBackendSeats)
+      ? bindChartLayoutToBackendSeats(publishedChart.inventory.seats, backendSeats)
       : [],
-    [availableBackendSeats, chartRequestKey, publishedChart],
+    [backendSeats, chartRequestKey, publishedChart],
   );
+  const boundChartSeats = useMemo(() => allBoundChartSeats.filter((seat) => !seat.sold), [allBoundChartSeats]);
   const usePublishedChart = Boolean(
-    publishedChart?.inventory && chartCoversAllBackendSeats(boundChartSeats, availableBackendSeats),
+    publishedChart?.inventory && chartCoversAllBackendSeats(allBoundChartSeats, backendSeats),
   );
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && availableBackendSeats.length > 0);
@@ -278,13 +280,13 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                       seats={boundChartSeats}
                       bounds={publishedChart.inventory.bounds}
                       selectedSeatIds={selectedBackendTicketIds}
-                      onToggleSeat={(seat) => selectBackendSeat(seat.id)}
+                      onSelect={selectBackendSeat}
                     />
                   ) : (
                     <VenueSeatMap
                       mapImage={seatMap.map.image}
                       mapTitle={seatMap.map.title}
-                      seats={availableBackendSeats}
+                      seats={backendSeats}
                       selectedTicketIds={selectedBackendTicketIds}
                       onSelect={selectBackendSeat}
                     />
