@@ -17,6 +17,9 @@ test("booking seat selection goes to the single checkout page without an interme
   assert.equal(await page.getByRole("heading", { name: "결제수단" }).count(), 0);
   await page.locator("[data-backend-seat]").first().waitFor({ timeout: 5000 });
   assert.equal(await page.locator("[data-static-seat-map]").count(), 0);
+  assert.equal(await page.getByRole("heading", { name: "실제 구매 가능한 티켓 선택" }).count(), 0);
+  assert.equal(await page.locator("[data-realtime-seat-map]").count(), 1);
+  assert.equal(await page.locator("[data-realtime-seat-map] img").count(), 1);
 
   const paymentButton = page.getByRole("link", { name: "결제하기", exact: true });
   await page.locator("[data-backend-seat]").first().click();

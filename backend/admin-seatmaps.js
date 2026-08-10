@@ -86,6 +86,7 @@ function seatMap(db, { category, venueId, eventId, performanceDateId }) {
   }
   const venue = venueId ? resolveVenue(db, venueId) : resolveVenue(db, event.venueId);
   const adminVenue = adminVenueRecord(venue);
+  const layoutSeats = seatLayoutForVenue(venue.id);
   const zones = event.zones.map((zone) => ({
     id: zone.id,
     name: zone.name,
@@ -102,6 +103,7 @@ function seatMap(db, { category, venueId, eventId, performanceDateId }) {
   );
   const seats = eventTickets.map((ticket, index) => {
     const zone = event.zones.find((item) => item.id === ticket.zoneId);
+    const layoutSeat = layoutSeats.find((seat) => seat.seatLabel === ticket.seatLabel);
     const angle = (index / Math.max(eventTickets.length, 1)) * Math.PI * 2 - Math.PI / 2;
     const radius = ticket.zoneId === "zone_vip" ? 28 : ticket.zoneId === "zone_r" ? 35 : 42;
     return {
@@ -114,10 +116,10 @@ function seatMap(db, { category, venueId, eventId, performanceDateId }) {
       status: ticket.status,
       available: ticket.status === "ON_SALE",
       mapPosition: {
-        x: Number((50 + Math.cos(angle) * radius).toFixed(1)),
-        y: Number((52 + Math.sin(angle) * radius * 0.82).toFixed(1)),
-        width: 5.4,
-        height: 7.2,
+        x: layoutSeat?.x ?? Number((50 + Math.cos(angle) * radius).toFixed(1)),
+        y: layoutSeat?.y ?? Number((52 + Math.sin(angle) * radius * 0.82).toFixed(1)),
+        width: 3.2,
+        height: 4.4,
         rotate: Math.round((angle * 180) / Math.PI + 90),
         shape: "actual-map"
       }

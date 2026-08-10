@@ -211,8 +211,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 <p className="text-sm font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
               </div>
               <div className="mt-5 min-w-0">
-                {useBackendSeatMap ? (
-                  <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
+                {useBackendSeatMap && seatMap ? (
+                  <BackendSeatPicker map={seatMap.map} seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
                     {seatMapStatus}

@@ -116,6 +116,14 @@ export const apiSeatSchema = z.object({
   price: z.number(),
   status: z.string(),
   available: z.boolean(),
+  mapPosition: z.object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+    rotate: z.number(),
+    shape: z.string(),
+  }),
 }) satisfies ZodType<ApiSeat>;
 
 export const apiSeatMapSchema = z.object({

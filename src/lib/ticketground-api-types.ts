@@ -101,6 +101,14 @@ export type ApiSeat = {
   readonly price: number;
   readonly status: string;
   readonly available: boolean;
+  readonly mapPosition: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly rotate: number;
+    readonly shape: string;
+  };
 };
 
 export type ApiSeatMap = {

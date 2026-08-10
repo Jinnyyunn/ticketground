@@ -59,6 +59,7 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   );
   assert.ok(seatMap.data.seats.length > 0);
   assert.ok(seatMap.data.zones.length > 0);
+  assert.ok(seatMap.data.seats.every((seat) => Number.isFinite(seat.mapPosition.x) && Number.isFinite(seat.mapPosition.y)));
   const expectedTicketIDs = state.data.tickets
     .filter((ticket) =>
       ticket.eventId === "event_kpop_001" && ticket.performanceDateId === performanceDateId
