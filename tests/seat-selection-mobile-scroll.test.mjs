@@ -166,7 +166,7 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   const backendSeats = Array.from({ length: 202 }, (_, index) => (
     apiSeat(
       index === 0 ? "sold-ticket" : `open-ticket-${index}`,
-      `R-${String(index + 1).padStart(3, "0")}`,
+      index === 1 ? "ORA-1" : index === 2 ? "ORB-1" : `R-${String(index + 1).padStart(3, "0")}`,
       10 + index,
       index !== 0,
     )
@@ -199,7 +199,8 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   assert.equal(await page.locator('[data-seat-map-seat="sold-ticket"]').count(), 0);
   const firstOpen = page.locator('[data-seat-map-seat="open-ticket-1"]');
   await firstOpen.waitFor();
-  assert.equal((await firstOpen.textContent())?.trim(), "002");
+  assert.equal((await firstOpen.textContent())?.trim(), "ORA-1");
+  assert.equal((await page.locator('[data-seat-map-seat="open-ticket-2"]').textContent())?.trim(), "ORB-1");
   const left = Number.parseFloat((await firstOpen.getAttribute("style"))?.match(/left:\s*([\d.]+)%/)?.[1] ?? "NaN");
   assert.ok(Math.abs(left - ((18 + 24) / 228) * 100) < 0.01, `open seat shifted to ${left}%`);
   assert.equal(await page.locator("[data-seat-map-seat]").count(), 200);
@@ -216,7 +217,7 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   await finalSeat.waitFor();
   assert.equal(await finalSeat.evaluate((element) => document.activeElement === element), true);
   assert.equal(await page.locator("[data-seat-map-seat]").count(), 1);
-  assert.equal((await finalSeat.textContent())?.trim(), "202");
+  assert.equal((await finalSeat.textContent())?.trim(), "R-202");
   await finalSeat.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
   const box = await finalSeat.boundingBox();
   assert.ok(box);

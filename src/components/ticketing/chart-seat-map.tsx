@@ -14,10 +14,6 @@ const tierFill: Record<SellableSeat["tier"], string> = {
   A: "#2563eb",
 };
 
-function visibleSeatCode(label: string) {
-  return label.match(/\d+[a-z]?$/i)?.[0] ?? label.slice(-3);
-}
-
 function ChartSeatMapComponent({
   seats,
   bounds,
@@ -142,8 +138,8 @@ function ChartSeatMapComponent({
                 }}
                 onClick={() => onSelect(seat.id)}
               >
-                <span className="pointer-events-none block rounded-sm bg-white/85 px-0.5 text-[8px] font-black leading-none text-ink shadow-sm">
-                  {visibleSeatCode(seat.displayLabel)}
+                <span className="pointer-events-none block whitespace-nowrap rounded-sm bg-white/85 px-0.5 text-[7px] font-black leading-none text-ink shadow-sm">
+                  {seat.displayLabel}
                 </span>
               </button>
             );
