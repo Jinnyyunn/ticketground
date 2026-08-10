@@ -217,7 +217,7 @@ export function SiteHeader({
             })}
           </nav>
           <div className="relative hidden min-w-0 flex-1 sm:block">
-            <nav aria-label={dict.ariaCategoryNav} className="no-scrollbar flex min-w-0 items-center justify-center gap-5 overflow-x-auto">
+            <nav aria-label={dict.ariaCategoryNav} className="no-scrollbar flex min-w-0 items-center justify-[safe_center] gap-5 overflow-x-auto">
               {categoryNav.map((c) => (
                 <Link
                   key={c}
