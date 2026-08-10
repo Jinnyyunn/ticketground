@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Baby, CalendarDays, Drama, Home, Image as ImageIcon, Mic2, Music2, RefreshCcw, Theater, Trophy, type LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSessionAuth } from "@/lib/use-session-auth";
 import { categoryNav, categoryNavHighlight } from "@/data/content";
@@ -118,7 +118,7 @@ export function SiteHeader({
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 110);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -217,7 +217,7 @@ export function SiteHeader({
             })}
           </nav>
           <div className="relative hidden min-w-0 flex-1 sm:block">
-            <nav aria-label={dict.ariaCategoryNav} className="no-scrollbar flex min-w-0 items-center justify-[safe_center] gap-5 overflow-x-auto">
+            <nav aria-label={dict.ariaCategoryNav} className="no-scrollbar flex min-w-0 items-center justify-center-safe gap-5 overflow-x-auto">
               {categoryNav.map((c) => (
                 <Link
                   key={c}
@@ -235,19 +235,17 @@ export function SiteHeader({
           {showSearchBar && (
             <div
               className={cn(
-                "hidden overflow-hidden transition-[flex-grow] duration-200 lg:block",
-                scrolled ? "flex-1" : "flex-none basis-0",
+                "hidden transition-[flex-grow,flex-shrink,opacity] duration-200 lg:block",
+                scrolled ? "flex-1 opacity-100" : "flex-none basis-0 overflow-hidden pointer-events-none opacity-0",
               )}
             >
-              <div className={cn("transition-opacity duration-200", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
-                <SiteSearchBar
-                  key={`sticky-${pathname}`}
-                  className="mx-auto max-w-[420px]"
-                  keyboardReachable={scrolled}
-                  ariaLabel={commonDict.searchPlaceholder}
-                  buttonLabel={commonDict.searchButtonLabel}
-                />
-              </div>
+              <SiteSearchBar
+                key={`sticky-${pathname}`}
+                className="mx-auto max-w-[420px]"
+                keyboardReachable={scrolled}
+                ariaLabel={commonDict.searchPlaceholder}
+                buttonLabel={commonDict.searchButtonLabel}
+              />
             </div>
           )}
           <nav aria-label={dict.ariaTicketOpenNav} className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
