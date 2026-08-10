@@ -45,7 +45,7 @@ test("binds chart coordinates to real backend ticket ids when labels and prices 
   ]);
 });
 
-test("falls back to price order without inventing ticket ids", () => {
+test("does not guess ticket positions when seat labels differ", () => {
   // Given
   const layout = [layoutSeat("layout-1", "디자인 좌석 1", 160000, 10), layoutSeat("layout-2", "디자인 좌석 2", 160000, 30)];
   const backend = [backendSeat("ticket-1", "R-01", 160000), backendSeat("ticket-2", "R-02", 160000)];
@@ -54,10 +54,7 @@ test("falls back to price order without inventing ticket ids", () => {
   const bound = bindChartLayoutToBackendSeats(layout, backend);
 
   // Then
-  assert.deepEqual(bound.map(({ id, displayLabel }) => ({ id, displayLabel })), [
-    { id: "ticket-1", displayLabel: "R-01" },
-    { id: "ticket-2", displayLabel: "R-02" },
-  ]);
+  assert.deepEqual(bound, []);
 });
 
 test("omits layout places that have no sellable backend ticket", () => {
@@ -74,8 +71,8 @@ test("omits layout places that have no sellable backend ticket", () => {
 
 test("binds unavailable tickets before filtering so remaining seats keep their coordinates", () => {
   const layout = [
-    layoutSeat("layout-1", "unmatched-1", 160000, 10),
-    layoutSeat("layout-2", "unmatched-2", 160000, 30),
+    layoutSeat("layout-1", "R-01", 160000, 10),
+    layoutSeat("layout-2", "R-02", 160000, 30),
   ];
   const backend = [
     backendSeat("sold-ticket", "R-01", 160000, false),
@@ -89,6 +86,21 @@ test("binds unavailable tickets before filtering so remaining seats keep their c
     { id: "open-ticket", sold: false, x: 30 },
   ]);
   assert.equal(chartCoversAllBackendSeats(bound, backend), true);
+});
+
+test("binds ten thousand exact seat identities without quadratic fallback scans", () => {
+  const layout = Array.from({ length: 10000 }, (_, index) => (
+    layoutSeat(`layout-${index}`, `R-${index}`, 160000, index)
+  ));
+  const backend = Array.from({ length: 10000 }, (_, index) => (
+    backendSeat(`ticket-${index}`, `R-${index}`, 160000)
+  )).reverse();
+  const startedAt = performance.now();
+
+  const bound = bindChartLayoutToBackendSeats(layout, backend);
+
+  assert.equal(bound.length, 10000);
+  assert.ok(performance.now() - startedAt < 1000);
 });
 
 test("uses a published chart only when it covers every sellable backend ticket", () => {

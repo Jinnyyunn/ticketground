@@ -5,25 +5,29 @@ function normalizeSeatCode(value: string): string {
   return value.trim().toLocaleLowerCase("ko-KR").replaceAll(/\s+/g, "");
 }
 
+function seatBindingKey(price: number, displayCode: string): string {
+  return `${price}\u0000${normalizeSeatCode(displayCode)}`;
+}
+
 export function bindChartLayoutToBackendSeats(
   layoutSeats: readonly SellableSeat[],
   backendSeats: readonly ApiSeat[],
 ): readonly SellableSeat[] {
-  const remaining = [...backendSeats];
+  const backendByKey = new Map<string, ApiSeat[]>();
+  for (const backendSeat of backendSeats) {
+    const key = seatBindingKey(backendSeat.price, backendSeat.displayCode);
+    const matches = backendByKey.get(key);
+    if (matches) matches.push(backendSeat);
+    else backendByKey.set(key, [backendSeat]);
+  }
   const bound: SellableSeat[] = [];
 
   for (const layoutSeat of layoutSeats) {
-    const layoutCode = normalizeSeatCode(layoutSeat.displayLabel);
-    let backendIndex = remaining.findIndex(
-      (seat) => seat.price === layoutSeat.price && normalizeSeatCode(seat.displayCode) === layoutCode,
-    );
-    if (backendIndex < 0) {
-      backendIndex = remaining.findIndex((seat) => seat.price === layoutSeat.price);
-    }
-    if (backendIndex < 0) continue;
-
-    const [backendSeat] = remaining.splice(backendIndex, 1);
-    if (!backendSeat) continue;
+    const key = seatBindingKey(layoutSeat.price, layoutSeat.displayLabel);
+    const matches = backendByKey.get(key);
+    if (matches?.length !== 1) continue;
+    const [backendSeat] = matches;
+    backendByKey.delete(key);
     bound.push({
       ...layoutSeat,
       id: backendSeat.id,

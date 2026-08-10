@@ -167,20 +167,23 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   t.after(() => page.close());
 
-  const backendSeats = [
-    apiSeat("sold-ticket", "R-01", 10, false),
-    apiSeat("open-ticket-1", "R-02", 20),
-    apiSeat("open-ticket-2", "R-03", 30),
-  ];
+  const backendSeats = Array.from({ length: 202 }, (_, index) => (
+    apiSeat(
+      index === 0 ? "sold-ticket" : `open-ticket-${index}`,
+      `R-${String(index + 1).padStart(3, "0")}`,
+      10 + index,
+      index !== 0,
+    )
+  ));
   const chartSeats = backendSeats.map((seat, index) => ({
     id: `layout-${index + 1}`,
-    label: `unmatched-${index + 1}`,
-    displayLabel: `unmatched-${index + 1}`,
+    label: seat.displayCode,
+    displayLabel: seat.displayCode,
     tier: "R",
     price: 165000,
     sold: false,
-    x: 10 + index * 8,
-    y: 20,
+    x: 10 + (index % 20) * 8,
+    y: 20 + Math.floor(index / 20) * 8,
     objectId: "dense-row",
     objectType: "row",
   }));
@@ -191,7 +194,7 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
       source: "published",
       chart: null,
       record: { id: "dense-chart", name: "조밀 좌석 QA", boundShowSlugs: ["iu-world-tour"] },
-      inventory: { seats: chartSeats, bounds: { minX: 0, minY: 0, maxX: 100, maxY: 100 } },
+      inventory: { seats: chartSeats, bounds: { minX: 0, minY: 0, maxX: 180, maxY: 120 } },
     },
   }));
 
@@ -200,9 +203,11 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   assert.equal(await page.locator('[data-seat-map-seat="sold-ticket"]').count(), 0);
   const firstOpen = page.locator('[data-seat-map-seat="open-ticket-1"]');
   await firstOpen.waitFor();
-  assert.equal((await firstOpen.textContent())?.trim(), "02");
+  assert.equal((await firstOpen.textContent())?.trim(), "002");
   const left = Number.parseFloat((await firstOpen.getAttribute("style"))?.match(/left:\s*([\d.]+)%/)?.[1] ?? "NaN");
-  assert.ok(Math.abs(left - ((18 + 24) / 148) * 100) < 0.01, `open seat shifted to ${left}%`);
+  assert.ok(Math.abs(left - ((18 + 24) / 228) * 100) < 0.01, `open seat shifted to ${left}%`);
+  assert.equal(await page.locator("[data-seat-map-seat]").count(), 200);
+  assert.equal((await page.locator("[data-chart-seat-page]").textContent())?.trim(), "1 / 2");
   const scrollState = await page.locator("[data-chart-seat-scroll]").evaluate((element) => ({
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
@@ -210,11 +215,16 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   }));
   assert.equal(scrollState.maxHeight, "none");
   assert.equal(scrollState.scrollHeight, scrollState.clientHeight);
-  await firstOpen.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
-  const box = await firstOpen.boundingBox();
+  await page.getByRole("button", { name: "다음 좌석" }).click();
+  const finalSeat = page.locator('[data-seat-map-seat="open-ticket-201"]');
+  await finalSeat.waitFor();
+  assert.equal(await page.locator("[data-seat-map-seat]").count(), 1);
+  assert.equal((await finalSeat.textContent())?.trim(), "202");
+  await finalSeat.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
+  const box = await finalSeat.boundingBox();
   assert.ok(box);
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  assert.equal(await firstOpen.getAttribute("aria-pressed"), "true");
+  assert.equal(await finalSeat.getAttribute("aria-pressed"), "true");
 });
 
 test("venue fallback keeps available markers anchored to the full seat layout", async (t) => {

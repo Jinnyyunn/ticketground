@@ -1,7 +1,8 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
+import { seatMarkerPage, seatMarkerPageCount } from "@/lib/seat-marker-pages";
 import type { SellableSeat } from "@/lib/seat-charts/inventory";
 import { chartMinimumRenderedWidth } from "@/lib/seat-charts/chart-seat-map-layout";
 import { cn } from "@/lib/utils";
@@ -32,9 +33,16 @@ function ChartSeatMapComponent({
   const width = Math.max(bounds.maxX - bounds.minX, 40) + pad * 2;
   const height = Math.max(bounds.maxY - bounds.minY, 40) + pad * 2;
   const selected = useMemo(() => new Set(selectedSeatIds), [selectedSeatIds]);
+  const [markerPage, setMarkerPage] = useState(0);
+  const markerPageCount = seatMarkerPageCount(seats.length);
+  const activeMarkerPage = Math.min(markerPage, markerPageCount - 1);
+  const markerSeats = useMemo(
+    () => seatMarkerPage(seats, activeMarkerPage),
+    [activeMarkerPage, seats],
+  );
   const minimumRenderedWidth = useMemo(
-    () => chartMinimumRenderedWidth(seats, bounds, 24),
-    [bounds, seats],
+    () => chartMinimumRenderedWidth(markerSeats, bounds, 24),
+    [bounds, markerSeats],
   );
 
   return (
@@ -62,7 +70,7 @@ function ChartSeatMapComponent({
             role="img"
             aria-label="좌석 배치도"
           >
-          {seats.map((seat) => {
+          {markerSeats.map((seat) => {
             const isSelected = selected.has(seat.id);
             const r = seat.objectType === "booth" || seat.objectType === "area" ? 7 : 4.2;
             return (
@@ -99,7 +107,7 @@ function ChartSeatMapComponent({
             );
           })}
           </svg>
-          {seats.map((seat) => {
+          {markerSeats.map((seat) => {
             const isSelected = selected.has(seat.id);
             return (
               <button
@@ -129,6 +137,29 @@ function ChartSeatMapComponent({
           })}
         </div>
       </div>
+      {markerPageCount > 1 ? (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm font-bold" aria-label="좌석 묶음 이동">
+          <button
+            type="button"
+            className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={activeMarkerPage === 0}
+            onClick={() => setMarkerPage((page) => Math.max(0, page - 1))}
+          >
+            이전 좌석
+          </button>
+          <span className="inline-flex min-h-11 items-center rounded-lg border border-line bg-card px-3" data-chart-seat-page>
+            {activeMarkerPage + 1} / {markerPageCount}
+          </span>
+          <button
+            type="button"
+            className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={activeMarkerPage === markerPageCount - 1}
+            onClick={() => setMarkerPage((page) => Math.min(markerPageCount - 1, page + 1))}
+          >
+            다음 좌석
+          </button>
+        </div>
+      ) : null}
       <p className="mt-2 text-[12px] text-ink-4">
         선택 {selectedSeatIds.length}석 · 전체 {seats.filter((s) => !s.sold).length}석 가능 / {seats.length}석
       </p>
