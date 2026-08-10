@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { memo, useId, useMemo, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { minimumRenderedWidthForRelativePoints } from "@/lib/seat-charts/chart-seat-map-layout";
 import type { ApiSeat } from "@/lib/ticketground-api";
 import { seatMarkerPage, seatMarkerPageCount } from "@/lib/seat-marker-pages";
@@ -43,6 +43,7 @@ const zonePalette = [
 ];
 
 const fallbackAspectRatio = 4 / 3;
+const denseVenuePageSize = 50;
 
 // Assigned per the zones actually displayed (not hashed) so two zones shown
 // together never collide onto the same palette slot.
@@ -80,20 +81,27 @@ function VenueSeatMapComponent({
 }) {
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const [markerPage, setMarkerPage] = useState(0);
+  const focusPageOnRender = useRef(false);
+  const firstMarker = useRef<HTMLButtonElement>(null);
   const scrollHintId = useId();
   const positionedSeats = useMemo(() => seats.filter((seat) => seat.mapPosition), [seats]);
   const availablePositionedSeats = useMemo(() => positionedSeats.filter((seat) => seat.available), [positionedSeats]);
-  const markerPageCount = seatMarkerPageCount(availablePositionedSeats.length);
+  const markerPageSize = positionedSeats.length > 200 ? denseVenuePageSize : 200;
+  const markerPageCount = seatMarkerPageCount(positionedSeats.length, markerPageSize);
   const activeMarkerPage = Math.min(markerPage, markerPageCount - 1);
+  const markerWindow = useMemo(
+    () => seatMarkerPage(positionedSeats, activeMarkerPage, markerPageSize),
+    [activeMarkerPage, markerPageSize, positionedSeats],
+  );
   const markerSeats = useMemo(
-    () => seatMarkerPage(availablePositionedSeats, activeMarkerPage),
-    [activeMarkerPage, availablePositionedSeats],
+    () => markerWindow.filter((seat) => seat.available),
+    [markerWindow],
   );
   const zoneIds = useMemo(() => Array.from(new Set(availablePositionedSeats.map((seat) => seat.zoneId))), [availablePositionedSeats]);
   const zoneMarkerStyles = useMemo(() => buildZoneMarkerStyles(zoneIds), [zoneIds]);
   const markerPositions = useMemo(() => {
-    const xs = positionedSeats.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.x] : []);
-    const ys = positionedSeats.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.y] : []);
+    const xs = markerWindow.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.x] : []);
+    const ys = markerWindow.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.y] : []);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
@@ -108,7 +116,7 @@ function VenueSeatMapComponent({
       });
     }
     return positions;
-  }, [markerSeats, positionedSeats]);
+  }, [markerSeats, markerWindow]);
   const renderedAspectRatio = aspectRatio ?? fallbackAspectRatio;
   const minimumMarkerWidth = useMemo(() => {
     const desiredWidth = minimumRenderedWidthForRelativePoints(
@@ -121,6 +129,16 @@ function VenueSeatMapComponent({
     );
     return Math.min(desiredWidth, Math.max(520, Math.floor(640 * renderedAspectRatio)));
   }, [markerPositions, renderedAspectRatio]);
+  useEffect(() => {
+    if (!focusPageOnRender.current) return;
+    focusPageOnRender.current = false;
+    firstMarker.current?.focus();
+  }, [activeMarkerPage]);
+
+  function changeMarkerPage(page: number) {
+    focusPageOnRender.current = true;
+    setMarkerPage(page);
+  }
   if (availablePositionedSeats.length === 0) return null;
 
   return (
@@ -175,13 +193,14 @@ function VenueSeatMapComponent({
                 if (naturalWidth > 0 && naturalHeight > 0) setAspectRatio(naturalWidth / naturalHeight);
               }}
             />
-            {markerSeats.map((seat) => {
+            {markerSeats.map((seat, index) => {
               const position = markerPositions.get(seat.id);
               if (!position) return null;
               const picked = selectedTicketIds.includes(seat.id);
               return (
                 <button
                   key={seat.id}
+                  ref={index === 0 ? firstMarker : undefined}
                   type="button"
                   aria-label={`${seat.zoneName} ${seat.displayCode} · ${seat.price.toLocaleString("ko-KR")}원`}
                   aria-pressed={picked}
@@ -207,7 +226,7 @@ function VenueSeatMapComponent({
             type="button"
             className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
             disabled={activeMarkerPage === 0}
-            onClick={() => setMarkerPage((page) => Math.max(0, page - 1))}
+            onClick={() => changeMarkerPage(Math.max(0, activeMarkerPage - 1))}
           >
             이전 좌석
           </button>
@@ -217,7 +236,7 @@ function VenueSeatMapComponent({
               aria-label="좌석 묶음"
               className="bg-transparent font-black"
               value={activeMarkerPage}
-              onChange={(event) => setMarkerPage(Number(event.target.value))}
+              onChange={(event) => changeMarkerPage(Number(event.target.value))}
             >
               {Array.from({ length: markerPageCount }, (_, page) => (
                 <option key={page} value={page}>{page + 1} / {markerPageCount}</option>
@@ -228,13 +247,13 @@ function VenueSeatMapComponent({
             type="button"
             className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
             disabled={activeMarkerPage === markerPageCount - 1}
-            onClick={() => setMarkerPage((page) => Math.min(markerPageCount - 1, page + 1))}
+            onClick={() => changeMarkerPage(Math.min(markerPageCount - 1, activeMarkerPage + 1))}
           >
             다음 좌석
           </button>
         </div>
       ) : null}
-      <p className="mt-3 break-keep text-sm font-bold text-ink-3">이 지도는 구역별 대략적인 위치를 보여주는 개략도이며, 실제 좌석 배치와 다를 수 있습니다. 구매할 좌석을 도면에서 직접 선택하세요.</p>
+      <p className="mt-3 break-keep text-sm font-bold text-ink-3">이 지도는 구역별 대략적인 위치를 보여주는 개략도이며, 좌석 묶음마다 선택 영역을 확대해 표시합니다. 구매할 좌석을 도면에서 직접 선택하세요.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold" aria-label="구역 범례">
         {zoneIds.map((zoneId) => {

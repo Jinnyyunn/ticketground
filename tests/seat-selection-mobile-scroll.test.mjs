@@ -259,4 +259,19 @@ test("venue fallback keeps available markers anchored to the full seat layout", 
   const mapBox = await page.locator("[data-seat-map-scroll] > div").boundingBox();
   assert.ok(mapBox);
   assert.ok(mapBox.height < 700, `10,000-seat map grew to ${mapBox.height}px tall`);
+  assert.equal(await page.locator("[data-venue-seat-marker]").count(), 49);
+  assert.equal(await page.locator("[data-seat-map-seat=\"bulk-49\"]").count(), 1);
+  const differentRow = page.locator('[data-seat-map-seat="bulk-49"]');
+  await differentRow.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
+  const differentRowBox = await differentRow.boundingBox();
+  assert.ok(differentRowBox);
+  await page.touchscreen.tap(
+    differentRowBox.x + differentRowBox.width / 2,
+    differentRowBox.y + differentRowBox.height / 2,
+  );
+  assert.equal(await differentRow.getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: "다음 좌석" }).click();
+  const nextPageSeat = page.locator('[data-seat-map-seat="bulk-50"]');
+  await nextPageSeat.waitFor();
+  assert.equal(await nextPageSeat.evaluate((element) => document.activeElement === element), true);
 });
