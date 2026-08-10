@@ -163,18 +163,20 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   t.after(() => page.close());
 
-  const backendSeats = Array.from({ length: 202 }, (_, index) => (
-    apiSeat(
+  const backendSeats = Array.from({ length: 202 }, (_, index) => {
+    const fullLabel = index === 1 ? "ORA-1" : index === 2 ? "ORB-1" : `R-${String(index + 1).padStart(3, "0")}`;
+    const seat = apiSeat(
       index === 0 ? "sold-ticket" : `open-ticket-${index}`,
-      index === 1 ? "ORA-1" : index === 2 ? "ORB-1" : `R-${String(index + 1).padStart(3, "0")}`,
+      index === 1 || index === 2 ? "1" : fullLabel,
       10 + index,
       index !== 0,
-    )
-  ));
+    );
+    return { ...seat, label: fullLabel };
+  });
   const chartSeats = backendSeats.map((seat, index) => ({
     id: `layout-${index + 1}`,
-    label: seat.displayCode,
-    displayLabel: seat.displayCode,
+    label: seat.label,
+    displayLabel: seat.label,
     tier: "R",
     price: 165000,
     sold: false,

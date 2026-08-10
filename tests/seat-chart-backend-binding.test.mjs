@@ -19,9 +19,9 @@ const layoutSeat = (id, displayLabel, price, x) => ({
   objectType: "row",
 });
 
-const backendSeat = (id, displayCode, price, available = true) => ({
+const backendSeat = (id, displayCode, price, available = true, label = displayCode) => ({
   id,
-  label: displayCode,
+  label,
   displayCode,
   zoneId: price === 190000 ? "zone_vip" : "zone_r",
   zoneName: price === 190000 ? "VIP" : "R",
@@ -42,6 +42,24 @@ test("binds chart coordinates to real backend ticket ids when labels and prices 
   assert.deepEqual(bound.map(({ id, x }) => ({ id, x })), [
     { id: "ticket-vip", x: 10 },
     { id: "ticket-r", x: 30 },
+  ]);
+});
+
+test("binds full row identities even when the backend display code is shortened", () => {
+  const layout = [
+    layoutSeat("layout-ora", "ORA-1", 160000, 10),
+    layoutSeat("layout-orb", "ORB-1", 160000, 30),
+  ];
+  const backend = [
+    backendSeat("ticket-orb", "1", 160000, true, "ORB-1"),
+    backendSeat("ticket-ora", "1", 160000, true, "ORA-1"),
+  ];
+
+  const bound = bindChartLayoutToBackendSeats(layout, backend);
+
+  assert.deepEqual(bound.map(({ id, displayLabel, x }) => ({ id, displayLabel, x })), [
+    { id: "ticket-ora", displayLabel: "ORA-1", x: 10 },
+    { id: "ticket-orb", displayLabel: "ORB-1", x: 30 },
   ]);
 });
 

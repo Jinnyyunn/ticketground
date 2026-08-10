@@ -146,7 +146,7 @@ function seatMap(db, { category, venueId, eventId, performanceDateId }) {
     const fallbackRow = Math.floor(fallbackIndex / 18);
     return {
       id: ticket.id,
-      label: ticket.seatLabel.replace(/^.*-/, ""),
+      label: ticket.seatLabel,
       displayCode: ticket.seatLabel.replace(/^.*-/, ""),
       zoneId: ticket.zoneId,
       zoneName: zone?.name || ticket.zoneId,

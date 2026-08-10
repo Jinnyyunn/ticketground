@@ -15,7 +15,7 @@ export function bindChartLayoutToBackendSeats(
 ): readonly SellableSeat[] {
   const backendByKey = new Map<string, ApiSeat[]>();
   for (const backendSeat of backendSeats) {
-    const key = seatBindingKey(backendSeat.price, backendSeat.displayCode);
+    const key = seatBindingKey(backendSeat.price, backendSeat.label);
     const matches = backendByKey.get(key);
     if (matches) matches.push(backendSeat);
     else backendByKey.set(key, [backendSeat]);
@@ -32,7 +32,7 @@ export function bindChartLayoutToBackendSeats(
       ...layoutSeat,
       id: backendSeat.id,
       label: backendSeat.label,
-      displayLabel: backendSeat.displayCode,
+      displayLabel: layoutSeat.displayLabel,
       price: backendSeat.price,
       sold: !backendSeat.available,
     });

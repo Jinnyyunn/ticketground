@@ -60,6 +60,7 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   assert.ok(seatMap.data.seats.length > 0);
   assert.ok(seatMap.data.zones.length > 0);
   const firstVipSeat = seatMap.data.seats.find((seat) => seat.zoneId === "zone_vip" && seat.displayCode === "01");
+  assert.equal(firstVipSeat?.label, "VIP-01");
   assert.deepEqual(
     { x: firstVipSeat?.mapPosition.x, y: firstVipSeat?.mapPosition.y },
     { x: 34, y: 58 },
