@@ -29,7 +29,7 @@ export function ChartSeatMap({
   const selected = useMemo(() => new Set(selectedSeatIds), [selectedSeatIds]);
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-[12px] border border-line bg-surface p-3 sm:p-4">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[12px] border border-line bg-surface p-3 sm:p-4" data-realtime-seat-map>
       <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px] font-bold text-ink-3">
         {(["VIP", "R", "S", "A"] as const).map((tier) => (
           <span key={tier} className="inline-flex items-center gap-1.5">
@@ -52,6 +52,7 @@ export function ChartSeatMap({
             return (
               <g key={seat.id}>
                 <circle
+                  data-seat-map-seat={seat.id}
                   cx={seat.x}
                   cy={seat.y}
                   r={isSelected ? r + 1 : r}

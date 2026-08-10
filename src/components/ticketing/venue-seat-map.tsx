@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { memo, useMemo, useState } from "react";
+import { memo, useId, useMemo, useState } from "react";
 import type { ApiSeat } from "@/lib/ticketground-api";
+import { seatMarkerPage, seatMarkerPageCount } from "@/lib/seat-marker-pages";
 import { cn } from "@/lib/utils";
 
 const zoneTierStyles: Record<string, string> = {
@@ -42,12 +43,6 @@ const zonePalette = [
 
 const fallbackAspectRatio = 4 / 3;
 
-// Admin events can carry up to 10,000 tickets (maxArrayItems.ticketCandidates
-// in backend/admin-event-content.js), so the marker set is capped per zone —
-// otherwise a large event renders one DOM node per ticket, and the booking
-// timer's once-a-second re-render would keep reconciling all of them.
-const maxMarkersPerZone = 24;
-
 // Assigned per the zones actually displayed (not hashed) so two zones shown
 // together never collide onto the same palette slot.
 function buildZoneMarkerStyles(zoneIds: readonly string[]): Record<string, string> {
@@ -64,96 +59,154 @@ function buildZoneMarkerStyles(zoneIds: readonly string[]): Record<string, strin
   return styles;
 }
 
-// Evenly samples up to maxMarkersPerZone seats per zone so every zone stays
-// visually represented on the map regardless of how large it is, while always
-// keeping any already-selected seat visible even if sampling would drop it.
-function sampleMarkerSeats(seats: readonly ApiSeat[], selectedTicketIds: readonly string[]): readonly ApiSeat[] {
-  const byZone = new Map<string, ApiSeat[]>();
-  for (const seat of seats) {
-    const zoneSeats = byZone.get(seat.zoneId);
-    if (zoneSeats) zoneSeats.push(seat);
-    else byZone.set(seat.zoneId, [seat]);
-  }
-  const sampled = new Map<string, ApiSeat>();
-  for (const zoneSeats of byZone.values()) {
-    if (zoneSeats.length <= maxMarkersPerZone) {
-      for (const seat of zoneSeats) sampled.set(seat.id, seat);
-      continue;
-    }
-    const step = zoneSeats.length / maxMarkersPerZone;
-    for (let index = 0; index < maxMarkersPerZone; index += 1) {
-      const seat = zoneSeats[Math.floor(index * step)];
-      sampled.set(seat.id, seat);
-    }
-  }
-  for (const seat of seats) {
-    if (selectedTicketIds.includes(seat.id)) sampled.set(seat.id, seat);
-  }
-  return Array.from(sampled.values());
+function spreadAxis(value: number, values: readonly number[], start: number, end: number): number {
+  if (values.length < 2) return 50;
+  const index = values.indexOf(value);
+  return start + (index / (values.length - 1)) * (end - start);
 }
 
 function VenueSeatMapComponent({
   mapImage,
   mapTitle,
+  onSelect,
   seats,
   selectedTicketIds,
 }: {
   readonly mapImage: string;
   readonly mapTitle: string;
+  readonly onSelect: (ticketId: string) => void;
   readonly seats: readonly ApiSeat[];
   readonly selectedTicketIds: readonly string[];
 }) {
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [markerPage, setMarkerPage] = useState(0);
+  const scrollHintId = useId();
   const positionedSeats = useMemo(() => seats.filter((seat) => seat.mapPosition), [seats]);
+  const markerPageCount = seatMarkerPageCount(positionedSeats.length);
+  const activeMarkerPage = Math.min(markerPage, markerPageCount - 1);
+  const markerSeats = useMemo(
+    () => seatMarkerPage(positionedSeats, activeMarkerPage),
+    [activeMarkerPage, positionedSeats],
+  );
   const zoneIds = useMemo(() => Array.from(new Set(positionedSeats.map((seat) => seat.zoneId))), [positionedSeats]);
   const zoneMarkerStyles = useMemo(() => buildZoneMarkerStyles(zoneIds), [zoneIds]);
-  const markerSeats = useMemo(
-    () => sampleMarkerSeats(positionedSeats, selectedTicketIds),
-    [positionedSeats, selectedTicketIds],
-  );
-
+  const markerPositions = useMemo(() => {
+    const ys = Array.from(
+      new Set(markerSeats.flatMap((seat) => seat.mapPosition ? [seat.mapPosition.y] : [])),
+    ).sort((a, b) => a - b);
+    const rowXs = new Map<number, number[]>();
+    for (const seat of markerSeats) {
+      const position = seat.mapPosition;
+      if (!position) continue;
+      const xs = rowXs.get(position.y) ?? [];
+      if (!xs.includes(position.x)) xs.push(position.x);
+      rowXs.set(position.y, xs);
+    }
+    for (const xs of rowXs.values()) xs.sort((a, b) => a - b);
+    const positions = new Map<string, { x: number; y: number }>();
+    for (const seat of markerSeats) {
+      const position = seat.mapPosition;
+      if (!position) continue;
+      positions.set(seat.id, {
+        x: spreadAxis(position.x, rowXs.get(position.y) ?? [position.x], 8, 92),
+        y: spreadAxis(position.y, ys, 10, 90),
+      });
+    }
+    return positions;
+  }, [markerSeats]);
   if (positionedSeats.length === 0) return null;
 
   return (
-    <div className="min-w-0 rounded-lg border border-line bg-card p-4 sm:p-5">
+    <div className="min-w-0 rounded-lg border border-line bg-card p-4 sm:p-5" data-realtime-seat-map>
       <p className="text-sm font-black text-ticketground">실시간 좌석도</p>
       <h3 className="balanced-title mt-1 text-xl font-black text-ink">{mapTitle}</h3>
 
-      <div className="no-scrollbar mt-4 overflow-x-auto pb-2">
+      <p id={scrollHintId} className="mt-3 break-keep text-xs font-bold text-ink-3 sm:hidden">
+        좌석표가 화면보다 넓으면 좌우로 밀어 전체 좌석을 확인하고 선택할 수 있습니다.
+      </p>
+      <div className="relative mt-3 sm:mt-4">
+        <span className="pointer-events-none absolute inset-y-2 left-0 z-30 w-5 bg-linear-to-r from-card to-transparent sm:hidden" />
+        <span className="pointer-events-none absolute inset-y-2 right-0 z-30 w-5 bg-linear-to-l from-card to-transparent sm:hidden" />
         <div
-          className="relative mx-auto w-full min-w-[520px] max-w-[720px] overflow-hidden rounded-lg border border-line bg-surface-3"
-          style={{ aspectRatio: aspectRatio ?? fallbackAspectRatio }}
+          aria-describedby={scrollHintId}
+          className="no-scrollbar overflow-x-auto pb-2"
+          data-seat-map-scroll
         >
-          <Image
-            alt={mapTitle}
-            className="object-contain opacity-70"
-            fill
-            sizes="(min-width: 1024px) 640px, 100vw"
-            src={mapImage}
-            onLoad={(event) => {
-              const { naturalWidth, naturalHeight } = event.currentTarget;
-              if (naturalWidth > 0 && naturalHeight > 0) setAspectRatio(naturalWidth / naturalHeight);
-            }}
-          />
-          {markerSeats.map((seat) => {
-            const position = seat.mapPosition!;
-            const picked = selectedTicketIds.includes(seat.id);
-            return (
-              <span
-                key={seat.id}
-                aria-hidden="true"
-                data-venue-seat-marker={seat.id}
-                style={{ left: `${position.x}%`, top: `${position.y}%` }}
-                className={cn(
-                  "absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-sm sm:size-3",
-                  picked ? "z-10 scale-150 border-ink bg-ink" : zoneMarkerStyles[seat.zoneId],
-                )}
-              />
-            );
-          })}
+          <div
+            className="relative mx-auto w-full min-w-[520px] max-w-[720px] overflow-hidden rounded-lg border border-line bg-surface-3"
+            style={{ aspectRatio: aspectRatio ?? fallbackAspectRatio }}
+          >
+            <Image
+              alt={mapTitle}
+              className="object-contain opacity-70"
+              fill
+              sizes="(min-width: 1024px) 640px, 100vw"
+              src={mapImage}
+              onLoad={(event) => {
+                const { naturalWidth, naturalHeight } = event.currentTarget;
+                if (naturalWidth > 0 && naturalHeight > 0) setAspectRatio(naturalWidth / naturalHeight);
+              }}
+            />
+            {markerSeats.map((seat) => {
+              const position = markerPositions.get(seat.id);
+              if (!position) return null;
+              const picked = selectedTicketIds.includes(seat.id);
+              return (
+                <button
+                  key={seat.id}
+                  type="button"
+                  aria-label={`${seat.zoneName} ${seat.displayCode} · ${seat.price.toLocaleString("ko-KR")}원`}
+                  aria-pressed={picked}
+                  data-seat-map-seat={seat.id}
+                  data-venue-seat-marker={seat.id}
+                  style={{ left: `${position.x}%`, top: `${position.y}%` }}
+                  onClick={() => onSelect(seat.id)}
+                  className={cn(
+                    "touch-manipulation absolute size-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-sm transition-transform hover:z-20 hover:scale-125 focus-visible:z-30 focus-visible:ring-3 focus-visible:ring-ring/60",
+                    picked ? "z-10 scale-125 border-accent-2 bg-ink ring-2 ring-accent-2" : zoneMarkerStyles[seat.zoneId],
+                  )}
+                >
+                  <span className="sr-only">{seat.displayCode}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
-      <p className="mt-3 text-sm font-bold text-ink-3">이 지도는 구역별 대략적인 위치를 보여주는 개략도이며, 실제 좌석 배치와 다를 수 있습니다. 좌석 선택은 아래 목록에서 진행하세요.</p>
+      {markerPageCount > 1 ? (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm font-bold" aria-label="좌석 묶음 이동">
+          <button
+            type="button"
+            className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={activeMarkerPage === 0}
+            onClick={() => setMarkerPage((page) => Math.max(0, page - 1))}
+          >
+            이전 좌석
+          </button>
+          <label className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-card px-3">
+            좌석 묶음
+            <select
+              aria-label="좌석 묶음"
+              className="bg-transparent font-black"
+              value={activeMarkerPage}
+              onChange={(event) => setMarkerPage(Number(event.target.value))}
+            >
+              {Array.from({ length: markerPageCount }, (_, page) => (
+                <option key={page} value={page}>{page + 1} / {markerPageCount}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={activeMarkerPage === markerPageCount - 1}
+            onClick={() => setMarkerPage((page) => Math.min(markerPageCount - 1, page + 1))}
+          >
+            다음 좌석
+          </button>
+        </div>
+      ) : null}
+      <p className="mt-3 break-keep text-sm font-bold text-ink-3">이 지도는 구역별 대략적인 위치를 보여주는 개략도이며, 실제 좌석 배치와 다를 수 있습니다. 구매할 좌석을 도면에서 직접 선택하세요.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold" aria-label="구역 범례">
         {zoneIds.map((zoneId) => {

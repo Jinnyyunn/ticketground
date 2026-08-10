@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bindChartLayoutToBackendSeats } from "../src/lib/seat-charts/bind-backend-seats.ts";
+import {
+  bindChartLayoutToBackendSeats,
+  chartCoversAllBackendSeats,
+} from "../src/lib/seat-charts/bind-backend-seats.ts";
 
 const layoutSeat = (id, displayLabel, price, x) => ({
   id,
@@ -66,4 +69,16 @@ test("omits layout places that have no sellable backend ticket", () => {
 
   // Then
   assert.deepEqual(bound.map(({ id }) => id), ["ticket-1"]);
+});
+
+test("uses a published chart only when it covers every sellable backend ticket", () => {
+  const backend = [backendSeat("ticket-1", "R-01", 160000), backendSeat("ticket-2", "R-02", 160000)];
+  const partial = bindChartLayoutToBackendSeats([layoutSeat("layout-1", "R-01", 160000, 10)], backend);
+  const complete = bindChartLayoutToBackendSeats([
+    layoutSeat("layout-1", "R-01", 160000, 10),
+    layoutSeat("layout-2", "R-02", 160000, 30),
+  ], backend);
+
+  assert.equal(chartCoversAllBackendSeats(partial, backend), false);
+  assert.equal(chartCoversAllBackendSeats(complete, backend), true);
 });

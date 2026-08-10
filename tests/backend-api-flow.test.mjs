@@ -59,6 +59,12 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   );
   assert.ok(seatMap.data.seats.length > 0);
   assert.ok(seatMap.data.zones.length > 0);
+  const firstVipSeat = seatMap.data.seats.find((seat) => seat.zoneId === "zone_vip" && seat.displayCode === "01");
+  assert.deepEqual(
+    { x: firstVipSeat?.mapPosition.x, y: firstVipSeat?.mapPosition.y },
+    { x: 34, y: 58 },
+    "selectable seat markers should use the venue layout instead of a dense synthetic ring",
+  );
   const expectedTicketIDs = state.data.tickets
     .filter((ticket) =>
       ticket.eventId === "event_kpop_001" && ticket.performanceDateId === performanceDateId

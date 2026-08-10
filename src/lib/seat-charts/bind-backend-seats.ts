@@ -36,3 +36,13 @@ export function bindChartLayoutToBackendSeats(
 
   return bound;
 }
+
+export function chartCoversAllBackendSeats(
+  boundSeats: readonly SellableSeat[],
+  backendSeats: readonly ApiSeat[],
+): boolean {
+  const availableIds = new Set(backendSeats.filter((seat) => seat.available).map((seat) => seat.id));
+  return availableIds.size > 0
+    && boundSeats.length === availableIds.size
+    && boundSeats.every((seat) => availableIds.has(seat.id));
+}

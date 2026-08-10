@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
 import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
-import { bindChartLayoutToBackendSeats } from "@/lib/seat-charts/bind-backend-seats";
+import {
+  bindChartLayoutToBackendSeats,
+  chartCoversAllBackendSeats,
+} from "@/lib/seat-charts/bind-backend-seats";
 import { apiChartForShow } from "@/lib/seat-charts/client";
 import type { InventoryResult } from "@/lib/seat-charts/inventory";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
-import { BackendSeatPicker } from "./backend-seat-picker";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
 import { ChartSeatMap } from "./chart-seat-map";
@@ -125,16 +127,17 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   // Stable across the once-a-second timer re-render so VenueSeatMap (wrapped in
   // React.memo) doesn't reconcile its marker set every tick.
   const availableBackendSeats = useMemo(() => seatMap?.seats.filter((seat) => seat.available) ?? [], [seatMap]);
-  const backendSeats = useMemo(() => availableBackendSeats.slice(0, 48), [availableBackendSeats]);
   const boundChartSeats = useMemo(
     () => publishedChart?.requestKey === chartRequestKey && publishedChart.inventory
       ? bindChartLayoutToBackendSeats(publishedChart.inventory.seats, availableBackendSeats)
       : [],
     [availableBackendSeats, chartRequestKey, publishedChart],
   );
-  const usePublishedChart = Boolean(publishedChart?.inventory && boundChartSeats.length > 0);
+  const usePublishedChart = Boolean(
+    publishedChart?.inventory && chartCoversAllBackendSeats(boundChartSeats, availableBackendSeats),
+  );
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
-  const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
+  const useBackendSeatMap = Boolean(seatMap && availableBackendSeats.length > 0);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
   const selectedCount = selectedBackendSeats.length;
   const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
@@ -144,13 +147,13 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const canPay = show.sale.bookable && !timerExpired && selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity;
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}`;
 
-  function selectBackendSeat(ticketId: string) {
+  const selectBackendSeat = useCallback((ticketId: string) => {
     setSelectedBackendTicketIds((current) => {
       if (current.includes(ticketId)) return current.filter((id) => id !== ticketId);
       const allowedCount = Math.min(quantity, maxSelectableSeats);
       return [...current, ticketId].slice(-allowedCount);
     });
-  }
+  }, [quantity]);
 
   function changeDate(nextDate: string) {
     const nextTimes = show.schedules.find((schedule) => schedule.date === nextDate)?.times;
@@ -213,7 +216,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               <span className="font-black text-ticketground">{show.sale.label}</span> · {show.sale.note}
             </div>
           ) : null}
-          <div data-testid="booking-identity-notice" className="rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3">
+          <div data-testid="booking-identity-notice" className="break-keep rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3">
             {show.checkoutNotice} 이미 다른 계정에서 인증된 휴대폰 번호는 다시 사용할 수 없습니다.
           </div>
 
@@ -265,28 +268,27 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   {publishedChart?.requestKey !== chartRequestKey && "게시 배치도 확인 중"}
                   {publishedChart?.requestKey === chartRequestKey && usePublishedChart && `게시 배치도 · ${publishedChart.name ?? "이름 없음"}`}
                   {publishedChart?.requestKey === chartRequestKey && !usePublishedChart && "실시간 공연장 좌석도"}
+                  {seatMap && ` · ${seatMapStatus}`}
                 </p>
               </div>
               <div className="mt-5 min-w-0 space-y-4">
                 {useBackendSeatMap && seatMap ? (
-                  <>
-                    {usePublishedChart && publishedChart?.inventory ? (
-                      <ChartSeatMap
-                        seats={boundChartSeats}
-                        bounds={publishedChart.inventory.bounds}
-                        selectedSeatIds={selectedBackendTicketIds}
-                        onToggleSeat={(seat) => selectBackendSeat(seat.id)}
-                      />
-                    ) : (
-                      <VenueSeatMap
-                        mapImage={seatMap.map.image}
-                        mapTitle={seatMap.map.title}
-                        seats={availableBackendSeats}
-                        selectedTicketIds={selectedBackendTicketIds}
-                      />
-                    )}
-                    <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
-                  </>
+                  usePublishedChart && publishedChart?.inventory ? (
+                    <ChartSeatMap
+                      seats={boundChartSeats}
+                      bounds={publishedChart.inventory.bounds}
+                      selectedSeatIds={selectedBackendTicketIds}
+                      onToggleSeat={(seat) => selectBackendSeat(seat.id)}
+                    />
+                  ) : (
+                    <VenueSeatMap
+                      mapImage={seatMap.map.image}
+                      mapTitle={seatMap.map.title}
+                      seats={availableBackendSeats}
+                      selectedTicketIds={selectedBackendTicketIds}
+                      onSelect={selectBackendSeat}
+                    />
+                  )
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
                     {seatMapStatus}
