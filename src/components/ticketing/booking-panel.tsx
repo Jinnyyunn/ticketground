@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
 import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
@@ -144,13 +144,16 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const canPay = show.sale.bookable && !timerExpired && selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity;
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}`;
 
-  function selectBackendSeat(ticketId: string) {
+  // Stable across the once-a-second timer re-render for the same reason as
+  // availableBackendSeats/backendSeats above: VenueSeatMap is memoized, and
+  // a fresh function identity on every tick would defeat that.
+  const selectBackendSeat = useCallback((ticketId: string) => {
     setSelectedBackendTicketIds((current) => {
       if (current.includes(ticketId)) return current.filter((id) => id !== ticketId);
       const allowedCount = Math.min(quantity, maxSelectableSeats);
       return [...current, ticketId].slice(-allowedCount);
     });
-  }
+  }, [quantity]);
 
   function changeDate(nextDate: string) {
     const nextTimes = show.schedules.find((schedule) => schedule.date === nextDate)?.times;
@@ -283,6 +286,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                         mapTitle={seatMap.map.title}
                         seats={availableBackendSeats}
                         selectedTicketIds={selectedBackendTicketIds}
+                        onSelect={selectBackendSeat}
                       />
                     )}
                     <BackendSeatPicker seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />

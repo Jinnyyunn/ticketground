@@ -22,7 +22,14 @@ export function BackendSeatPicker({
         </div>
         <span className="max-w-full rounded-full bg-surface px-3 py-1 text-sm font-black text-ink-3">{status}</span>
       </div>
-      <div className="mt-4 grid max-h-[260px] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+      {/* max-h + overflow-y-auto only above lg: on mobile this nested
+          scroll region, reached only after scrolling the outer page down
+          to it, is exactly the setup WebKit's tap-vs-scroll gesture
+          disambiguation misfires on (issue #173) - the first tap right
+          after a scroll can get eaten as a scroll-settle instead of
+          registering as a click. The list just flows in the page's own
+          scroll on mobile instead. */}
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:max-h-[260px] lg:grid-cols-3 lg:overflow-y-auto">
         {seats.map((seat) => (
           <button
             key={seat.id}

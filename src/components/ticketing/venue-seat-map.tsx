@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { memo, useMemo, useState } from "react";
+import { currency } from "@/data/ticketing";
 import type { ApiSeat } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 
@@ -97,11 +98,13 @@ function VenueSeatMapComponent({
   mapTitle,
   seats,
   selectedTicketIds,
+  onSelect,
 }: {
   readonly mapImage: string;
   readonly mapTitle: string;
   readonly seats: readonly ApiSeat[];
   readonly selectedTicketIds: readonly string[];
+  readonly onSelect: (ticketId: string) => void;
 }) {
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const positionedSeats = useMemo(() => seats.filter((seat) => seat.mapPosition), [seats]);
@@ -139,21 +142,34 @@ function VenueSeatMapComponent({
             const position = seat.mapPosition!;
             const picked = selectedTicketIds.includes(seat.id);
             return (
-              <span
+              <button
                 key={seat.id}
-                aria-hidden="true"
+                type="button"
                 data-venue-seat-marker={seat.id}
+                aria-label={`${seat.displayCode} · ${seat.zoneName} · ${currency(seat.price)}`}
+                aria-pressed={picked}
+                onClick={() => onSelect(seat.id)}
                 style={{ left: `${position.x}%`, top: `${position.y}%` }}
-                className={cn(
-                  "absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-sm sm:size-3",
-                  picked ? "z-10 scale-150 border-ink bg-ink" : zoneMarkerStyles[seat.zoneId],
-                )}
-              />
+                // Hit area matches the visible dot exactly (no expanded
+                // touch target): markers are sampled up to maxMarkersPerZone
+                // per zone along the venue's curve and can sit only a few
+                // px apart, so a larger invisible hit box overlaps the
+                // neighboring marker and silently selects the wrong seat.
+                className="absolute grid size-3 -translate-x-1/2 -translate-y-1/2 place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "size-2.5 rounded-full border shadow-sm sm:size-3",
+                    picked ? "z-10 scale-150 border-ink bg-ink" : zoneMarkerStyles[seat.zoneId],
+                  )}
+                />
+              </button>
             );
           })}
         </div>
       </div>
-      <p className="mt-3 text-sm font-bold text-ink-3">이 지도는 구역별 대략적인 위치를 보여주는 개략도이며, 실제 좌석 배치와 다를 수 있습니다. 좌석 선택은 아래 목록에서 진행하세요.</p>
+      <p className="mt-3 text-sm font-bold text-ink-3">이 지도는 구역별 대략적인 위치를 보여주는 개략도이며, 실제 좌석 배치와 다를 수 있습니다. 지도의 좌석을 눌러 선택하거나, 아래 목록에서 선택할 수 있습니다.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold" aria-label="구역 범례">
         {zoneIds.map((zoneId) => {
