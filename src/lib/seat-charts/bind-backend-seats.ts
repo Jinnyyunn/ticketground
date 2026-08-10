@@ -23,7 +23,7 @@ export function bindChartLayoutToBackendSeats(
   const bound: SellableSeat[] = [];
 
   for (const layoutSeat of layoutSeats) {
-    const key = seatBindingKey(layoutSeat.price, layoutSeat.displayLabel);
+    const key = seatBindingKey(layoutSeat.price, layoutSeat.label);
     const matches = backendByKey.get(key);
     if (matches?.length !== 1) continue;
     const [backendSeat] = matches;

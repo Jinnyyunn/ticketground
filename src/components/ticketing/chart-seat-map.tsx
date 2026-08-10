@@ -4,7 +4,10 @@ import { Check } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { seatMarkerPage, seatMarkerPageCount } from "@/lib/seat-marker-pages";
 import type { SellableSeat } from "@/lib/seat-charts/inventory";
-import { chartMinimumRenderedWidth } from "@/lib/seat-charts/chart-seat-map-layout";
+import {
+  chartMinimumRenderedWidth,
+  shouldUseDenseChartGrid,
+} from "@/lib/seat-charts/chart-seat-map-layout";
 import { cn } from "@/lib/utils";
 
 const tierFill: Record<SellableSeat["tier"], string> = {
@@ -29,7 +32,9 @@ function ChartSeatMapComponent({
   const width = Math.max(bounds.maxX - bounds.minX, 40) + pad * 2;
   const height = Math.max(bounds.maxY - bounds.minY, 40) + pad * 2;
   const selected = useMemo(() => new Set(selectedSeatIds), [selectedSeatIds]);
-  const [markerPage, setMarkerPage] = useState(0);
+  const inventoryKey = useMemo(() => seats.map((seat) => seat.id).join("\u0000"), [seats]);
+  const [markerPageState, setMarkerPageState] = useState({ inventoryKey, page: 0 });
+  const markerPage = markerPageState.inventoryKey === inventoryKey ? markerPageState.page : 0;
   const focusPageOnRender = useRef(false);
   const firstMarker = useRef<HTMLButtonElement>(null);
   const markerPageCount = seatMarkerPageCount(seats.length);
@@ -42,7 +47,7 @@ function ChartSeatMapComponent({
     () => chartMinimumRenderedWidth(markerSeats, bounds, 24),
     [bounds, markerSeats],
   );
-  const useDenseGrid = (minimumRenderedWidth * height) / width > 640;
+  const useDenseGrid = shouldUseDenseChartGrid(minimumRenderedWidth, width, height);
   useEffect(() => {
     if (!focusPageOnRender.current) return;
     focusPageOnRender.current = false;
@@ -50,7 +55,7 @@ function ChartSeatMapComponent({
   }, [activeMarkerPage]);
   function changeMarkerPage(page: number) {
     focusPageOnRender.current = true;
-    setMarkerPage(page);
+    setMarkerPageState({ inventoryKey, page });
   }
 
   return (

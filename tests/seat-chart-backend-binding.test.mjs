@@ -4,7 +4,10 @@ import {
   bindChartLayoutToBackendSeats,
   chartCoversAllBackendSeats,
 } from "../src/lib/seat-charts/bind-backend-seats.ts";
-import { chartMinimumRenderedWidth } from "../src/lib/seat-charts/chart-seat-map-layout.ts";
+import {
+  chartMinimumRenderedWidth,
+  shouldUseDenseChartGrid,
+} from "../src/lib/seat-charts/chart-seat-map-layout.ts";
 
 const layoutSeat = (id, displayLabel, price, x) => ({
   id,
@@ -61,6 +64,22 @@ test("binds full row identities even when the backend display code is shortened"
     { id: "ticket-ora", displayLabel: "ORA-1", x: 10 },
     { id: "ticket-orb", displayLabel: "ORB-1", x: 30 },
   ]);
+});
+
+test("binds by the canonical seat label while preserving a buyer-facing override", () => {
+  const layout = [{
+    ...layoutSeat("layout-wheelchair", "휠체어석", 160000, 10),
+    label: "R-01",
+  }];
+  const backend = [backendSeat("ticket-r-01", "01", 160000, true, "R-01")];
+
+  const bound = bindChartLayoutToBackendSeats(layout, backend);
+
+  assert.deepEqual(bound.map(({ id, label, displayLabel }) => ({ id, label, displayLabel })), [{
+    id: "ticket-r-01",
+    label: "R-01",
+    displayLabel: "휠체어석",
+  }]);
 });
 
 test("does not guess ticket positions when seat labels differ", () => {
@@ -157,4 +176,9 @@ test("expands dense published charts so 24px seat targets cannot overlap", () =>
   const renderedScale = minWidth / 148;
 
   assert.ok(Math.max(8, 6) * renderedScale >= 24);
+});
+
+test("uses the touch grid for an excessively wide shallow chart", () => {
+  assert.equal(shouldUseDenseChartGrid(36000, 10048, 88), true);
+  assert.equal(shouldUseDenseChartGrid(920, 10048, 88), false);
 });

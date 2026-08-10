@@ -71,3 +71,12 @@ export function chartMinimumRenderedWidth(
     defaultWidth,
   );
 }
+
+export function shouldUseDenseChartGrid(
+  renderedWidth: number,
+  chartWidth: number,
+  chartHeight: number,
+) {
+  const renderedHeight = (renderedWidth * chartHeight) / chartWidth;
+  return renderedWidth > 1440 || renderedHeight > 640;
+}

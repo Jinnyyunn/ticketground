@@ -79,7 +79,9 @@ function VenueSeatMapComponent({
   readonly selectedTicketIds: readonly string[];
 }) {
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
-  const [markerPage, setMarkerPage] = useState(0);
+  const inventoryKey = useMemo(() => seats.map((seat) => seat.id).join("\u0000"), [seats]);
+  const [markerPageState, setMarkerPageState] = useState({ inventoryKey, page: 0 });
+  const markerPage = markerPageState.inventoryKey === inventoryKey ? markerPageState.page : 0;
   const focusPageOnRender = useRef(false);
   const firstMarker = useRef<HTMLButtonElement>(null);
   const scrollHintId = useId();
@@ -144,7 +146,7 @@ function VenueSeatMapComponent({
 
   function changeMarkerPage(page: number) {
     focusPageOnRender.current = true;
-    setMarkerPage(page);
+    setMarkerPageState({ inventoryKey, page });
   }
   if (availablePositionedSeats.length === 0) return null;
 
