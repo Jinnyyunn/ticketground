@@ -217,7 +217,7 @@ export function SiteHeader({
             })}
           </nav>
           <div className="relative hidden min-w-0 flex-1 sm:block">
-            <nav aria-label={dict.ariaCategoryNav} className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto">
+            <nav aria-label={dict.ariaCategoryNav} className="no-scrollbar flex min-w-0 items-center justify-center gap-5 overflow-x-auto">
               {categoryNav.map((c) => (
                 <Link
                   key={c}
@@ -233,14 +233,21 @@ export function SiteHeader({
             </nav>
           </div>
           {showSearchBar && (
-            <div className={cn("hidden flex-1 transition-opacity duration-200 lg:block", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
-              <SiteSearchBar
-                key={`sticky-${pathname}`}
-                className="mx-auto max-w-[420px]"
-                keyboardReachable={scrolled}
-                ariaLabel={commonDict.searchPlaceholder}
-                buttonLabel={commonDict.searchButtonLabel}
-              />
+            <div
+              className={cn(
+                "hidden overflow-hidden transition-[flex-grow] duration-200 lg:block",
+                scrolled ? "flex-1" : "flex-none basis-0",
+              )}
+            >
+              <div className={cn("transition-opacity duration-200", scrolled ? "opacity-100" : "pointer-events-none opacity-0")}>
+                <SiteSearchBar
+                  key={`sticky-${pathname}`}
+                  className="mx-auto max-w-[420px]"
+                  keyboardReachable={scrolled}
+                  ariaLabel={commonDict.searchPlaceholder}
+                  buttonLabel={commonDict.searchButtonLabel}
+                />
+              </div>
             </div>
           )}
           <nav aria-label={dict.ariaTicketOpenNav} className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
