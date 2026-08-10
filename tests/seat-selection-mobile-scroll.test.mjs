@@ -203,6 +203,8 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   await firstOpen.waitFor();
   assert.equal((await firstOpen.textContent())?.trim(), "ORA-1");
   assert.equal((await page.locator('[data-seat-map-seat="open-ticket-2"]').textContent())?.trim(), "ORB-1");
+  await firstOpen.click();
+  await page.locator("aside").getByText("ORA-1", { exact: true }).waitFor();
   const left = Number.parseFloat((await firstOpen.getAttribute("style"))?.match(/left:\s*([\d.]+)%/)?.[1] ?? "NaN");
   assert.ok(Math.abs(left - ((18 + 24) / 228) * 100) < 0.01, `open seat shifted to ${left}%`);
   assert.equal(await page.locator("[data-seat-map-seat]").count(), 200);

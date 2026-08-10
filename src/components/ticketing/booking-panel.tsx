@@ -144,7 +144,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   );
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
   const useBackendSeatMap = Boolean(seatMap && availableBackendSeats.length > 0);
-  const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
+  const selectedLabels = selectedBackendSeats.map((seat) => seat.label).join(", ");
   const selectedCount = selectedBackendSeats.length;
   const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
   const feeAmount = selectedCount * serviceFeePerSeat;
