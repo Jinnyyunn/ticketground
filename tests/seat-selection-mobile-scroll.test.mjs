@@ -22,6 +22,8 @@ test("mobile selects tickets directly from the seat map without a duplicate list
   const seat = page.locator("[data-seat-map-seat]").first();
   await seat.waitFor({ timeout: 10000 });
   assert.equal(await page.getByRole("heading", { name: "실제 구매 가능한 티켓 선택" }).count(), 0);
+  assert.equal((await seat.textContent())?.trim(), "01");
+  await page.getByLabel("구역 범례").getByText(/VIP석 · 198,000원/).waitFor();
   const seatBox = await seat.boundingBox();
   assert.ok(seatBox);
   assert.ok(seatBox.width >= 24 && seatBox.height >= 24, `seat touch target was ${seatBox.width}x${seatBox.height}`);

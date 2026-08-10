@@ -166,7 +166,7 @@ function VenueSeatMapComponent({
                     picked ? "z-10 scale-125 border-accent-2 bg-ink ring-2 ring-accent-2" : zoneMarkerStyles[seat.zoneId],
                   )}
                 >
-                  <span className="sr-only">{seat.displayCode}</span>
+                  <span className="text-[8px] font-black leading-none text-white">{seat.displayCode}</span>
                 </button>
               );
             })}
@@ -210,11 +210,12 @@ function VenueSeatMapComponent({
 
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-bold" aria-label="구역 범례">
         {zoneIds.map((zoneId) => {
-          const zoneName = positionedSeats.find((seat) => seat.zoneId === zoneId)?.zoneName ?? zoneId;
+          const zoneSeat = positionedSeats.find((seat) => seat.zoneId === zoneId);
+          const zoneName = zoneSeat?.zoneName ?? zoneId;
           return (
             <span key={zoneId} className="inline-flex items-center gap-2">
               <span className={cn("size-3 rounded-full border", zoneMarkerStyles[zoneId])} />
-              {zoneName}
+              {zoneName}{zoneSeat ? ` · ${zoneSeat.price.toLocaleString("ko-KR")}원` : ""}
             </span>
           );
         })}

@@ -40,19 +40,22 @@ export function ChartSeatMap({
         <span className="text-ink-4">· 배치도 기반 선택</span>
       </div>
       <div className="max-h-[min(70vh,640px)] w-full overflow-auto rounded-lg bg-white">
-        <svg
-          viewBox={`${bounds.minX - pad} ${bounds.minY - pad} ${width} ${height}`}
-          className="mx-auto block h-auto w-full min-h-[320px]"
-          role="img"
-          aria-label="좌석 배치도"
+        <div
+          className="relative mx-auto w-full"
+          style={{ aspectRatio: width / height, minWidth: `${Math.max(720, (320 * width) / height)}px` }}
         >
+          <svg
+            viewBox={`${bounds.minX - pad} ${bounds.minY - pad} ${width} ${height}`}
+            className="pointer-events-none absolute inset-0 size-full"
+            role="img"
+            aria-label="좌석 배치도"
+          >
           {seats.map((seat) => {
             const isSelected = selected.has(seat.id);
             const r = seat.objectType === "booth" || seat.objectType === "area" ? 7 : 4.2;
             return (
               <g key={seat.id}>
                 <circle
-                  data-seat-map-seat={seat.id}
                   cx={seat.x}
                   cy={seat.y}
                   r={isSelected ? r + 1 : r}
@@ -60,21 +63,7 @@ export function ChartSeatMap({
                   stroke={isSelected ? "#111" : "rgba(0,0,0,0.2)"}
                   strokeWidth={isSelected ? 1.5 : 0.5}
                   opacity={seat.sold ? 0.55 : 1}
-                  className={cn(seat.sold ? "cursor-not-allowed" : "cursor-pointer")}
-                  role="button"
-                  tabIndex={seat.sold ? -1 : 0}
-                  aria-disabled={seat.sold}
-                  aria-label={`${seat.displayLabel} · ${seat.price.toLocaleString("ko-KR")}원`}
-                  aria-pressed={isSelected}
-                  onClick={() => {
-                    if (!seat.sold) onToggleSeat(seat);
-                  }}
-                  onKeyDown={(event) => {
-                    if (!seat.sold && (event.key === "Enter" || event.key === " ")) {
-                      event.preventDefault();
-                      onToggleSeat(seat);
-                    }
-                  }}
+                  aria-hidden="true"
                 >
                   <title>
                     {seat.displayLabel}
@@ -97,7 +86,34 @@ export function ChartSeatMap({
               </g>
             );
           })}
-        </svg>
+          </svg>
+          {seats.map((seat) => {
+            const isSelected = selected.has(seat.id);
+            return (
+              <button
+                key={seat.id}
+                type="button"
+                aria-label={`${seat.displayLabel} · ${seat.price.toLocaleString("ko-KR")}원`}
+                aria-pressed={isSelected}
+                data-seat-map-seat={seat.id}
+                disabled={seat.sold}
+                title={`${seat.displayLabel}${seat.sold ? " (매진)" : ""} · ${seat.price.toLocaleString("ko-KR")}원`}
+                className={cn(
+                  "absolute size-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent touch-manipulation hover:ring-2 hover:ring-ink/40 focus-visible:ring-3 focus-visible:ring-ring/60",
+                  seat.sold && "cursor-not-allowed",
+                  isSelected && "ring-2 ring-ink",
+                )}
+                style={{
+                  left: `${((seat.x - (bounds.minX - pad)) / width) * 100}%`,
+                  top: `${((seat.y - (bounds.minY - pad)) / height) * 100}%`,
+                }}
+                onClick={() => onToggleSeat(seat)}
+              >
+                <span className="sr-only">{seat.displayLabel}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
       <p className="mt-2 text-[12px] text-ink-4">
         선택 {selectedSeatIds.length}석 · 전체 {seats.filter((s) => !s.sold).length}석 가능 / {seats.length}석
