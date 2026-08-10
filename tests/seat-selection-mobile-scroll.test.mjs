@@ -225,7 +225,7 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   assert.equal(await finalSeat.getAttribute("aria-pressed"), "true");
 });
 
-test("dense single-row published charts keep checkout controls reachable", async (t) => {
+test("dense single-row published charts use page scrolling for reliable mobile taps", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -261,22 +261,21 @@ test("dense single-row published charts keep checkout controls reachable", async
   }));
 
   await openSeatStep(page, baseUrl);
-  const scrollState = await page.locator("[data-chart-seat-scroll]").evaluate((element) => ({
+  const scrollState = await page.locator("[data-dense-chart-grid]").evaluate((element) => ({
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
     maxHeight: getComputedStyle(element).maxHeight,
+    overflowY: getComputedStyle(element).overflowY,
   }));
-  assert.notEqual(scrollState.maxHeight, "none");
-  assert.ok(scrollState.clientHeight <= 640, `dense chart viewport grew to ${scrollState.clientHeight}px`);
-  assert.ok(scrollState.scrollHeight > scrollState.clientHeight);
-  const viewportBox = await page.locator("[data-chart-seat-scroll]").boundingBox();
-  const firstSeatBox = await page.locator('[data-seat-map-seat="dense-ticket-0"]').boundingBox();
-  assert.ok(viewportBox && firstSeatBox);
-  assert.ok(firstSeatBox.y >= viewportBox.y && firstSeatBox.y + firstSeatBox.height <= viewportBox.y + viewportBox.height);
-  assert.equal(await page.locator('[data-seat-map-seat="dense-ticket-0"]').evaluate((element) => getComputedStyle(element).backgroundColor), "rgb(217, 119, 6)");
+  assert.equal(scrollState.maxHeight, "none");
+  assert.equal(scrollState.overflowY, "visible");
+  assert.equal(scrollState.scrollHeight, scrollState.clientHeight);
+  assert.ok(scrollState.clientHeight < 640, `dense chart grid grew to ${scrollState.clientHeight}px`);
   const lastSeat = page.locator('[data-seat-map-seat="dense-ticket-39"]');
   await lastSeat.scrollIntoViewIfNeeded();
-  await lastSeat.click();
+  const lastSeatBox = await lastSeat.boundingBox();
+  assert.ok(lastSeatBox);
+  await page.touchscreen.tap(lastSeatBox.x + lastSeatBox.width / 2, lastSeatBox.y + lastSeatBox.height / 2);
   assert.equal(await lastSeat.getAttribute("aria-pressed"), "true");
   await page.getByRole("link", { name: "결제하기", exact: true }).waitFor();
 });
