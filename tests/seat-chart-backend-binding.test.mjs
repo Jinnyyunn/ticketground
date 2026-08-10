@@ -4,6 +4,7 @@ import {
   bindChartLayoutToBackendSeats,
   chartCoversAllBackendSeats,
 } from "../src/lib/seat-charts/bind-backend-seats.ts";
+import { chartMinimumRenderedWidth } from "../src/lib/seat-charts/chart-seat-map-layout.ts";
 
 const layoutSeat = (id, displayLabel, price, x) => ({
   id,
@@ -81,4 +82,20 @@ test("uses a published chart only when it covers every sellable backend ticket",
 
   assert.equal(chartCoversAllBackendSeats(partial, backend), false);
   assert.equal(chartCoversAllBackendSeats(complete, backend), true);
+});
+
+test("expands dense published charts so 24px seat targets cannot overlap", () => {
+  const denseSeats = [
+    layoutSeat("layout-1", "A-01", 190000, 10),
+    { ...layoutSeat("layout-2", "A-02", 190000, 18), y: 26 },
+  ];
+
+  const minWidth = chartMinimumRenderedWidth(
+    denseSeats,
+    { minX: 0, minY: 0, maxX: 100, maxY: 100 },
+    24,
+  );
+  const renderedScale = minWidth / 148;
+
+  assert.ok(Math.max(8, 6) * renderedScale >= 24);
 });

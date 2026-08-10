@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 import { useMemo } from "react";
 import type { SellableSeat } from "@/lib/seat-charts/inventory";
+import { chartMinimumRenderedWidth } from "@/lib/seat-charts/chart-seat-map-layout";
 import { cn } from "@/lib/utils";
 
 const tierFill: Record<SellableSeat["tier"], string> = {
@@ -27,6 +28,10 @@ export function ChartSeatMap({
   const width = Math.max(bounds.maxX - bounds.minX, 40) + pad * 2;
   const height = Math.max(bounds.maxY - bounds.minY, 40) + pad * 2;
   const selected = useMemo(() => new Set(selectedSeatIds), [selectedSeatIds]);
+  const minimumRenderedWidth = useMemo(
+    () => chartMinimumRenderedWidth(seats, bounds, 24),
+    [bounds, seats],
+  );
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-[12px] border border-line bg-surface p-3 sm:p-4" data-realtime-seat-map>
@@ -42,7 +47,7 @@ export function ChartSeatMap({
       <div className="max-h-[min(70vh,640px)] w-full overflow-auto rounded-lg bg-white">
         <div
           className="relative mx-auto w-full"
-          style={{ aspectRatio: width / height, minWidth: `${Math.max(720, (320 * width) / height)}px` }}
+          style={{ aspectRatio: width / height, minWidth: `${minimumRenderedWidth}px` }}
         >
           <svg
             viewBox={`${bounds.minX - pad} ${bounds.minY - pad} ${width} ${height}`}
