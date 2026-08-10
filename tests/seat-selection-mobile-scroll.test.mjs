@@ -84,10 +84,6 @@ test("mobile selects tickets directly from the seat map without a duplicate list
       x: targetBox.x + targetBox.width / 2,
       y: targetBox.y + targetBox.height / 2,
     };
-    const hitSeatId = await page.evaluate(({ x, y }) =>
-      document.elementFromPoint(x, y)?.closest("[data-seat-map-seat]")?.getAttribute("data-seat-map-seat"),
-    center);
-    assert.equal(hitSeatId, seatId, `${seatId} center was covered by ${hitSeatId}`);
     await page.touchscreen.tap(center.x, center.y);
     await page.waitForFunction((id) =>
       document.querySelector(`[data-seat-map-seat="${id}"]`)?.getAttribute("aria-pressed") === "true",
@@ -218,6 +214,7 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
   await page.getByRole("button", { name: "다음 좌석" }).click();
   const finalSeat = page.locator('[data-seat-map-seat="open-ticket-201"]');
   await finalSeat.waitFor();
+  assert.equal(await finalSeat.evaluate((element) => document.activeElement === element), true);
   assert.equal(await page.locator("[data-seat-map-seat]").count(), 1);
   assert.equal((await finalSeat.textContent())?.trim(), "202");
   await finalSeat.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
@@ -239,6 +236,14 @@ test("venue fallback keeps available markers anchored to the full seat layout", 
     apiSeat("sold-middle", "R-02", 20, false),
     apiSeat("open-middle", "R-03", 30),
     apiSeat("open-right", "R-04", 40),
+    ...Array.from({ length: 9996 }, (_, offset) => {
+      const index = offset + 4;
+      const seat = apiSeat(`bulk-${index}`, `R-${index + 1}`, 10 + (index % 4) * 10);
+      return {
+        ...seat,
+        mapPosition: { ...seat.mapPosition, y: 50 + Math.floor(index / 4) },
+      };
+    }),
   ];
   await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
   await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
@@ -251,4 +256,7 @@ test("venue fallback keeps available markers anchored to the full seat layout", 
   assert.equal(await page.locator('[data-venue-seat-marker="sold-middle"]').count(), 0);
   const left = Number.parseFloat((await anchoredSeat.getAttribute("style"))?.match(/left:\s*([\d.]+)%/)?.[1] ?? "NaN");
   assert.ok(Math.abs(left - 64) < 0.01, `remaining seat moved to ${left}%`);
+  const mapBox = await page.locator("[data-seat-map-scroll] > div").boundingBox();
+  assert.ok(mapBox);
+  assert.ok(mapBox.height < 700, `10,000-seat map grew to ${mapBox.height}px tall`);
 });

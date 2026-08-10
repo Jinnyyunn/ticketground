@@ -46,7 +46,9 @@ export function chartCoversAllBackendSeats(
   backendSeats: readonly ApiSeat[],
 ): boolean {
   const backendIds = new Set(backendSeats.map((seat) => seat.id));
+  const coordinateIds = new Set(boundSeats.map((seat) => `${seat.x}\u0000${seat.y}`));
   return backendSeats.some((seat) => seat.available)
     && boundSeats.length === backendIds.size
+    && coordinateIds.size === boundSeats.length
     && boundSeats.every((seat) => backendIds.has(seat.id));
 }

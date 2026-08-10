@@ -110,17 +110,17 @@ function VenueSeatMapComponent({
     return positions;
   }, [markerSeats, positionedSeats]);
   const renderedAspectRatio = aspectRatio ?? fallbackAspectRatio;
-  const minimumMarkerWidth = useMemo(
-    () => minimumRenderedWidthForRelativePoints(
+  const minimumMarkerWidth = useMemo(() => {
+    const desiredWidth = minimumRenderedWidthForRelativePoints(
       Array.from(markerPositions.values(), (position) => ({
         x: position.x / 100,
         y: position.y / 100 / renderedAspectRatio,
       })),
       24,
       520,
-    ),
-    [markerPositions, renderedAspectRatio],
-  );
+    );
+    return Math.min(desiredWidth, Math.max(520, Math.floor(640 * renderedAspectRatio)));
+  }, [markerPositions, renderedAspectRatio]);
   if (availablePositionedSeats.length === 0) return null;
 
   return (
@@ -142,6 +142,27 @@ function VenueSeatMapComponent({
           <div
             className="relative mx-auto w-full min-w-[520px] max-w-[720px] overflow-hidden rounded-lg border border-line bg-surface-3"
             style={{ aspectRatio: renderedAspectRatio, minWidth: `${minimumMarkerWidth}px` }}
+            onClickCapture={(event) => {
+              const clickedMarker = event.target instanceof Element
+                ? event.target.closest("[data-venue-seat-marker]")
+                : null;
+              if (event.detail === 0 || !clickedMarker) return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              let nearest: { id: string; distance: number } | null = null;
+              for (const seat of markerSeats) {
+                const position = markerPositions.get(seat.id);
+                if (!position) continue;
+                const distance = Math.max(
+                  Math.abs(event.clientX - (bounds.left + (position.x / 100) * bounds.width)),
+                  Math.abs(event.clientY - (bounds.top + (position.y / 100) * bounds.height)),
+                );
+                if (!nearest || distance < nearest.distance) nearest = { id: seat.id, distance };
+              }
+              if (!nearest) return;
+              event.preventDefault();
+              event.stopPropagation();
+              onSelect(nearest.id);
+            }}
           >
             <Image
               alt={mapTitle}

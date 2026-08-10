@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { seatMarkerPage, seatMarkerPageCount } from "@/lib/seat-marker-pages";
 import type { SellableSeat } from "@/lib/seat-charts/inventory";
 import { chartMinimumRenderedWidth } from "@/lib/seat-charts/chart-seat-map-layout";
@@ -34,6 +34,8 @@ function ChartSeatMapComponent({
   const height = Math.max(bounds.maxY - bounds.minY, 40) + pad * 2;
   const selected = useMemo(() => new Set(selectedSeatIds), [selectedSeatIds]);
   const [markerPage, setMarkerPage] = useState(0);
+  const focusPageOnRender = useRef(false);
+  const firstMarker = useRef<HTMLButtonElement>(null);
   const markerPageCount = seatMarkerPageCount(seats.length);
   const activeMarkerPage = Math.min(markerPage, markerPageCount - 1);
   const markerSeats = useMemo(
@@ -44,6 +46,16 @@ function ChartSeatMapComponent({
     () => chartMinimumRenderedWidth(markerSeats, bounds, 24),
     [bounds, markerSeats],
   );
+  useEffect(() => {
+    if (!focusPageOnRender.current) return;
+    focusPageOnRender.current = false;
+    firstMarker.current?.focus();
+  }, [activeMarkerPage]);
+
+  function changeMarkerPage(page: number) {
+    focusPageOnRender.current = true;
+    setMarkerPage(page);
+  }
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-[12px] border border-line bg-surface p-3 sm:p-4" data-realtime-seat-map>
@@ -107,11 +119,12 @@ function ChartSeatMapComponent({
             );
           })}
           </svg>
-          {markerSeats.map((seat) => {
+          {markerSeats.map((seat, index) => {
             const isSelected = selected.has(seat.id);
             return (
               <button
                 key={seat.id}
+                ref={index === 0 ? firstMarker : undefined}
                 type="button"
                 aria-label={`${seat.displayLabel} · ${seat.price.toLocaleString("ko-KR")}원`}
                 aria-pressed={isSelected}
@@ -143,18 +156,18 @@ function ChartSeatMapComponent({
             type="button"
             className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
             disabled={activeMarkerPage === 0}
-            onClick={() => setMarkerPage((page) => Math.max(0, page - 1))}
+            onClick={() => changeMarkerPage(Math.max(0, activeMarkerPage - 1))}
           >
             이전 좌석
           </button>
-          <span className="inline-flex min-h-11 items-center rounded-lg border border-line bg-card px-3" data-chart-seat-page>
+          <span aria-live="polite" className="inline-flex min-h-11 items-center rounded-lg border border-line bg-card px-3" data-chart-seat-page>
             {activeMarkerPage + 1} / {markerPageCount}
           </span>
           <button
             type="button"
             className="min-h-11 rounded-lg border border-line bg-card px-4 disabled:cursor-not-allowed disabled:opacity-40"
             disabled={activeMarkerPage === markerPageCount - 1}
-            onClick={() => setMarkerPage((page) => Math.min(markerPageCount - 1, page + 1))}
+            onClick={() => changeMarkerPage(Math.min(markerPageCount - 1, activeMarkerPage + 1))}
           >
             다음 좌석
           </button>

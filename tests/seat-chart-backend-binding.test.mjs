@@ -115,6 +115,16 @@ test("uses a published chart only when it covers every sellable backend ticket",
   assert.equal(chartCoversAllBackendSeats(complete, backend), true);
 });
 
+test("rejects a published chart with coincident seat coordinates", () => {
+  const backend = [backendSeat("ticket-1", "R-01", 160000), backendSeat("ticket-2", "R-02", 160000)];
+  const coincident = bindChartLayoutToBackendSeats([
+    layoutSeat("layout-1", "R-01", 160000, 10),
+    layoutSeat("layout-2", "R-02", 160000, 10),
+  ], backend);
+
+  assert.equal(chartCoversAllBackendSeats(coincident, backend), false);
+});
+
 test("expands dense published charts so 24px seat targets cannot overlap", () => {
   const denseSeats = [
     layoutSeat("layout-1", "A-01", 190000, 10),
