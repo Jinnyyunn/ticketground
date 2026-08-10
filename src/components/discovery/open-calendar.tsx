@@ -22,7 +22,7 @@ const genreTone: Record<TicketShow["category"], string> = {
   클래식: "bg-accent-2 text-on-accent-2",
   스포츠: "bg-warn text-white",
   "전시/행사": "bg-ok text-white",
-  "아동/가족": "bg-accent-2 text-on-accent-2",
+  "아동/가족": "bg-tier-r text-on-tier-r",
 };
 
 function showForDay(shows: readonly TicketShow[], day: number, hiddenGenres: ReadonlySet<TicketShow["category"]>) {
@@ -77,9 +77,8 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
                   data-open-genre-hidden={hidden ? "true" : "false"}
                   className={cn(
                     "inline-flex h-8 items-center rounded-full border px-3 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                    hidden ? "border-line text-on-accent-2" : cn("border-transparent", genreTone[genre]),
+                    hidden ? "border-line bg-card text-ink-3 hover:border-line-strong" : cn("border-transparent", genreTone[genre]),
                   )}
-                  style={hidden ? { backgroundColor: "rgb(255, 255, 255)" } : undefined}
                   onClick={() => toggleGenre(genre)}
                 >
                   {genre}
@@ -87,24 +86,24 @@ export function OpenCalendar({ shows }: OpenCalendarProps) {
               );
             })}
           </div>
-          <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-ink">
+          <div data-open-calendar-scroll className="no-scrollbar mt-4 overflow-x-auto rounded-lg border border-line bg-card">
             <div data-open-calendar-grid className="grid grid-cols-7 overflow-hidden md:min-w-[720px]">
               {["월", "화", "수", "목", "금", "토", "일"].map((day) => (
-                <div key={day} className="border-b border-white/10 bg-black/20 px-1.5 py-2 text-center text-xs font-black text-on-ink/60 sm:px-3 sm:text-sm">
+                <div key={day} className="border-b border-line bg-surface px-1.5 py-2 text-center text-xs font-black text-ink-3 sm:px-3 sm:text-sm">
                   {day}
                 </div>
               ))}
               {days.map((day) => {
                 const show = showForDay(shows, day, hiddenGenres);
                 return (
-                  <div key={day} data-open-day={day} className="min-h-[88px] min-w-0 border-b border-r border-white/10 p-1.5 transition-colors last:border-r-0 hover:bg-white/5 sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3">
-                    <time className="text-sm font-black text-on-ink">{day}</time>
+                  <div key={day} data-open-day={day} className="min-h-[88px] min-w-0 border-b border-r border-line p-1.5 transition-colors last:border-r-0 hover:bg-surface sm:min-h-[96px] sm:p-2 md:min-h-[116px] md:p-3">
+                    <time className="text-sm font-black text-ink">{day}</time>
                     {show && (
                       <Link
                         href={`/goods/${show.slug}`}
                         data-allow-wrap="true"
                         data-open-show-category={show.category}
-                        className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight shadow-[0_1px_8px_rgba(0,0,0,0.35)] sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}
+                        className={cn("clamp-2 mt-1.5 block rounded px-1 py-1 text-[10px] font-black leading-tight shadow-ticket-1 sm:px-1.5 sm:text-[11px] md:mt-3 md:px-2 md:text-xs", genreTone[show.category])}
                       >
                         {show.shortTitle}
                       </Link>
