@@ -87,7 +87,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
       .then((nextSeatMap) => {
         if (!mounted) return;
         setSeatMap(nextSeatMap);
-        setSeatMapStatus(`${nextSeatMap.event.title} · ${nextSeatMap.seats.length}석 로드`);
+        setSeatMapStatus(
+          nextSeatMap.seats.some((seat) => seat.available)
+            ? `${nextSeatMap.event.title} · ${nextSeatMap.seats.length}석 로드`
+            : "선택 가능한 좌석이 없습니다.",
+        );
       })
       .catch((error: unknown) => {
         if (!mounted) return;

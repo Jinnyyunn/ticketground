@@ -356,3 +356,27 @@ test("venue fallback skips unavailable-only seat pages", async (t) => {
   await firstSellableSeat.click();
   assert.equal(await firstSellableSeat.getAttribute("aria-pressed"), "true");
 });
+
+test("sold-out seat maps show an explicit unavailable state", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
+  t.after(() => page.close());
+
+  const backendSeats = Array.from({ length: 4 }, (_, index) => apiSeat(
+    `sold-${index}`,
+    `R-${index + 1}`,
+    10 + index * 10,
+    false,
+  ));
+  await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
+  await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
+    json: { ok: true, source: "fallback", chart: null, record: null, inventory: null },
+  }));
+
+  await openSeatStep(page, baseUrl);
+  await page.getByRole("status").filter({ hasText: "선택 가능한 좌석이 없습니다." }).waitFor();
+  assert.equal(await page.locator("[data-seat-map-seat]").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "결제하기", exact: true }).isDisabled(), true);
+});
