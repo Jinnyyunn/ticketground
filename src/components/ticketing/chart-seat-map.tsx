@@ -32,6 +32,7 @@ function ChartSeatMapComponent({
   const [markerPage, setMarkerPage] = useState(0);
   const focusPageOnRender = useRef(false);
   const firstMarker = useRef<HTMLButtonElement>(null);
+  const chartViewport = useRef<HTMLDivElement>(null);
   const markerPageCount = seatMarkerPageCount(seats.length);
   const activeMarkerPage = Math.min(markerPage, markerPageCount - 1);
   const markerSeats = useMemo(
@@ -42,11 +43,22 @@ function ChartSeatMapComponent({
     () => chartMinimumRenderedWidth(markerSeats, bounds, 24),
     [bounds, markerSeats],
   );
+  const needsVerticalViewport = (minimumRenderedWidth * height) / width > 640;
   useEffect(() => {
     if (!focusPageOnRender.current) return;
     focusPageOnRender.current = false;
     firstMarker.current?.focus();
   }, [activeMarkerPage]);
+  useEffect(() => {
+    if (!needsVerticalViewport) return;
+    const viewport = chartViewport.current;
+    const marker = firstMarker.current;
+    if (!viewport || !marker) return;
+    viewport.scrollTo({
+      left: Math.max(0, marker.offsetLeft - viewport.clientWidth / 2),
+      top: Math.max(0, marker.offsetTop - viewport.clientHeight / 2),
+    });
+  }, [activeMarkerPage, needsVerticalViewport]);
 
   function changeMarkerPage(page: number) {
     focusPageOnRender.current = true;
@@ -65,7 +77,13 @@ function ChartSeatMapComponent({
         <span className="text-ink-4">· 배치도 기반 선택</span>
       </div>
       <div
-        className="w-full overflow-x-auto rounded-lg bg-white lg:max-h-[min(70vh,640px)] lg:overflow-auto"
+        ref={chartViewport}
+        className={cn(
+          "w-full overflow-x-auto rounded-lg bg-white",
+          needsVerticalViewport
+            ? "max-h-[min(70vh,640px)] overflow-auto"
+            : "lg:max-h-[min(70vh,640px)] lg:overflow-auto",
+        )}
         data-chart-seat-scroll
       >
         <div
@@ -74,7 +92,7 @@ function ChartSeatMapComponent({
         >
           <svg
             viewBox={`${bounds.minX - pad} ${bounds.minY - pad} ${width} ${height}`}
-            className="pointer-events-none absolute inset-0 size-full"
+            className={cn("pointer-events-none absolute inset-0 size-full", needsVerticalViewport && "hidden")}
             role="img"
             aria-label="좌석 배치도"
           >
@@ -129,12 +147,14 @@ function ChartSeatMapComponent({
                 title={`${seat.displayLabel}${seat.sold ? " (매진)" : ""} · ${seat.price.toLocaleString("ko-KR")}원`}
                 className={cn(
                   "absolute size-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent touch-manipulation hover:ring-2 hover:ring-ink/40 focus-visible:ring-3 focus-visible:ring-ring/60",
+                  needsVerticalViewport && "border border-black/20",
                   seat.sold && "cursor-not-allowed",
                   isSelected && "ring-2 ring-ink",
                 )}
                 style={{
                   left: `${((seat.x - (bounds.minX - pad)) / width) * 100}%`,
                   top: `${((seat.y - (bounds.minY - pad)) / height) * 100}%`,
+                  backgroundColor: needsVerticalViewport ? (seat.sold ? "#cbd5e1" : tierFill[seat.tier]) : undefined,
                 }}
                 onClick={() => onSelect(seat.id)}
               >

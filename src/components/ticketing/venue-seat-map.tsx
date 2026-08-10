@@ -4,7 +4,6 @@ import Image from "next/image";
 import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { minimumRenderedWidthForRelativePoints } from "@/lib/seat-charts/chart-seat-map-layout";
 import type { ApiSeat } from "@/lib/ticketground-api";
-import { seatMarkerPage, seatMarkerPageCount } from "@/lib/seat-marker-pages";
 import { cn } from "@/lib/utils";
 
 const zoneTierStyles: Record<string, string> = {
@@ -87,11 +86,19 @@ function VenueSeatMapComponent({
   const positionedSeats = useMemo(() => seats.filter((seat) => seat.mapPosition), [seats]);
   const availablePositionedSeats = useMemo(() => positionedSeats.filter((seat) => seat.available), [positionedSeats]);
   const markerPageSize = positionedSeats.length > 200 ? denseVenuePageSize : 200;
-  const markerPageCount = seatMarkerPageCount(positionedSeats.length, markerPageSize);
+  const markerWindows = useMemo(() => {
+    const windows: ApiSeat[][] = [];
+    for (let start = 0; start < positionedSeats.length; start += markerPageSize) {
+      const window = positionedSeats.slice(start, start + markerPageSize);
+      if (window.some((seat) => seat.available)) windows.push(window);
+    }
+    return windows;
+  }, [markerPageSize, positionedSeats]);
+  const markerPageCount = Math.max(1, markerWindows.length);
   const activeMarkerPage = Math.min(markerPage, markerPageCount - 1);
   const markerWindow = useMemo(
-    () => seatMarkerPage(positionedSeats, activeMarkerPage, markerPageSize),
-    [activeMarkerPage, markerPageSize, positionedSeats],
+    () => markerWindows[activeMarkerPage] ?? [],
+    [activeMarkerPage, markerWindows],
   );
   const markerSeats = useMemo(
     () => markerWindow.filter((seat) => seat.available),
