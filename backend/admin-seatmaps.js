@@ -111,6 +111,8 @@ function seatMap(db, { category, venueId, eventId, performanceDateId }) {
   }
   const venue = venueId ? resolveVenue(db, venueId) : resolveVenue(db, event.venueId);
   const adminVenue = adminVenueRecord(venue);
+  const layoutSeats = seatLayoutForVenue(venue.id);
+  const layoutByTicket = new Map(layoutSeats.map((seat) => [`${seat.zoneId}\u0000${seat.seatLabel}`, seat]));
   const zones = event.zones.map((zone) => ({
     id: zone.id,
     name: zone.name,
@@ -125,13 +127,26 @@ function seatMap(db, { category, venueId, eventId, performanceDateId }) {
   const eventTickets = db.tickets.filter((ticket) =>
     ticket.eventId === event.id && ticket.performanceDateId === performanceDate.id
   );
-  const seats = eventTickets.map((ticket, index) => {
+  const fallbackRowOffsets = new Map();
+  let nextFallbackRow = 110;
+  for (const zone of event.zones) {
+    const fallbackCount = eventTickets.filter((ticket) =>
+      ticket.zoneId === zone.id && !layoutByTicket.has(`${ticket.zoneId}\u0000${ticket.seatLabel}`)
+    ).length;
+    fallbackRowOffsets.set(zone.id, nextFallbackRow);
+    nextFallbackRow += Math.max(1, Math.ceil(fallbackCount / 18)) * 5 + 5;
+  }
+  const fallbackIndexes = new Map();
+  const seats = eventTickets.map((ticket) => {
     const zone = event.zones.find((item) => item.id === ticket.zoneId);
-    const angle = (index / Math.max(eventTickets.length, 1)) * Math.PI * 2 - Math.PI / 2;
-    const radius = ticket.zoneId === "zone_vip" ? 28 : ticket.zoneId === "zone_r" ? 35 : 42;
+    const layoutSeat = layoutByTicket.get(`${ticket.zoneId}\u0000${ticket.seatLabel}`);
+    const fallbackIndex = fallbackIndexes.get(ticket.zoneId) || 0;
+    if (!layoutSeat) fallbackIndexes.set(ticket.zoneId, fallbackIndex + 1);
+    const fallbackColumn = fallbackIndex % 18;
+    const fallbackRow = Math.floor(fallbackIndex / 18);
     return {
       id: ticket.id,
-      label: ticket.seatLabel.replace(/^.*-/, ""),
+      label: ticket.seatLabel,
       displayCode: ticket.seatLabel.replace(/^.*-/, ""),
       zoneId: ticket.zoneId,
       zoneName: zone?.name || ticket.zoneId,
@@ -139,12 +154,12 @@ function seatMap(db, { category, venueId, eventId, performanceDateId }) {
       status: ticket.status,
       available: ticket.status === "ON_SALE",
       mapPosition: {
-        x: Number((50 + Math.cos(angle) * radius).toFixed(1)),
-        y: Number((52 + Math.sin(angle) * radius * 0.82).toFixed(1)),
+        x: layoutSeat?.x ?? Number((8 + fallbackColumn * (84 / 17)).toFixed(2)),
+        y: layoutSeat?.y ?? (fallbackRowOffsets.get(ticket.zoneId) || 110) + fallbackRow * 5,
         width: 5.4,
         height: 7.2,
-        rotate: Math.round((angle * 180) / Math.PI + 90),
-        shape: "actual-map"
+        rotate: 0,
+        shape: layoutSeat ? "actual-map" : "generated-grid"
       }
     };
   });
