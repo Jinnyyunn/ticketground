@@ -19,7 +19,8 @@ test("homepage footer exposes the approved Ticketground business contact details
   // Then
   await footer.getByRole("heading", { name: "티켓그라운드 사업자 정보" }).waitFor({ timeout: 5000 });
   await footer.getByText("주소 : 경기도 고양시 주교동 독곶이길 117", { exact: true }).waitFor();
-  await footer.getByText("대표이사 : 윤진영", { exact: true }).waitFor();
+  await footer.getByText("대표 : 윤진영", { exact: true }).waitFor();
+  assert.equal(await footer.getByText("대표이사 : 윤진영", { exact: true }).count(), 0);
   await footer.getByText("사업자등록번호 : 527-44-01245", { exact: true }).waitFor();
   const email = footer.getByRole("link", { name: "이메일 : tigmaster@ticketground.co.kr" });
   assert.equal(await email.getAttribute("href"), "mailto:tigmaster@ticketground.co.kr");
