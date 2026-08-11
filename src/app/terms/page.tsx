@@ -3,7 +3,7 @@ import { TicketingPageShell } from "@/components/ticketing/page-shell";
 const terms = [
   {
     title: "서비스 이용",
-    body: "Ticketground는 공연 예매, 클린티켓 확인, Tig 공식 양도 티켓과 고객 문의를 연결하는 티켓 서비스입니다. 회원은 본인 계정으로 예매와 문의 내역을 관리해야 합니다.",
+    body: "Ticketground는 공연 예매, Tig 티켓 확인, CLEAN 티켓 공식 양도와 고객 문의를 연결하는 티켓 서비스입니다. 회원은 본인 계정으로 예매와 문의 내역을 관리해야 합니다.",
   },
   {
     title: "예매와 결제",
@@ -14,8 +14,8 @@ const terms = [
     body: "취소 가능 여부와 환불 금액은 공연별 정책과 관람일 기준에 따라 달라질 수 있습니다. 취소/환불 화면에서 예상 수수료를 확인한 뒤 진행합니다.",
   },
   {
-    title: "Tig 공식 양도 티켓",
-    body: "Tig 공식 양도 티켓은 Ticketground가 제공하는 절차 안에서만 등록할 수 있습니다. 외부 거래, 캡처 이미지 전달, 비공식 양도는 지원하지 않습니다.",
+    title: "CLEAN 티켓 공식 양도",
+    body: "CLEAN 티켓 공식 양도는 Ticketground가 제공하는 절차 안에서만 등록할 수 있습니다. 외부 거래, 캡처 이미지 전달, 비공식 양도는 지원하지 않습니다.",
   },
   {
     title: "고객 문의",

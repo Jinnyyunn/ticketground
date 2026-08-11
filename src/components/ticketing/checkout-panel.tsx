@@ -513,7 +513,7 @@ export function CheckoutPanel({
             onChange={(event) => setAgreed(event.target.checked)}
             className="mt-1 accent-link"
           />
-          결제 조건, 클린티켓 QR 정책, 취소/환불 규정에 동의합니다
+          결제 조건, Tig 티켓 QR 정책, 취소/환불 규정에 동의합니다
         </label>
         <div className="mt-5 rounded-md border border-line bg-surface p-4" aria-live="polite">
           <p className="text-sm font-black text-ink">결제 상태</p>

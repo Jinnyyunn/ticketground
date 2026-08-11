@@ -3,11 +3,11 @@ import { InformationPage } from "@/components/ticketing/information-page";
 const sections = [
   {
     title: "서비스 소개",
-    body: "Ticketground는 공연 예매, 클린티켓 확인, Tig 공식 양도 티켓과 고객 문의를 한 화면에서 연결하는 티켓 서비스입니다.",
+    body: "Ticketground는 공연 예매, Tig 티켓 확인, CLEAN 티켓 공식 양도와 고객 문의를 한 화면에서 연결하는 티켓 서비스입니다.",
   },
   {
     title: "운영 원칙",
-    body: "예매 정보와 좌석 상태를 명확하게 보여주고, 공식 경로 안에서 취소와 Tig 공식 양도 티켓을 처리할 수 있도록 설계합니다.",
+    body: "예매 정보와 좌석 상태를 명확하게 보여주고, 공식 경로 안에서 취소와 CLEAN 티켓 공식 양도를 처리할 수 있도록 설계합니다.",
   },
   {
     title: "고객 지원",

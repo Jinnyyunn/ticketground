@@ -102,7 +102,7 @@ export const dictionary = {
       items: {
         cleanTicketPicks: {
           title: "클린티켓 추천관",
-          description: "Tig 공식 양도 티켓과 동적 QR 입장이 적용된 공연만 모았습니다.",
+          description: "CLEAN 티켓 공식 양도와 동적 QR 입장이 적용된 공연만 모았습니다.",
         },
         summerConcerts: {
           title: "여름 대형 콘서트",
@@ -138,7 +138,7 @@ export const dictionary = {
     },
   },
   footer: {
-    description: "공식 예매, 클린티켓, 고객 문의를 한 곳에서 다루는 공연 티켓 서비스입니다.",
+    description: "공식 예매, Tig 티켓, 고객 문의를 한 곳에서 다루는 공연 티켓 서비스입니다.",
     links: {
       company: "회사소개",
       terms: "이용약관",
