@@ -11,7 +11,7 @@ const sections = [
   },
   {
     title: "클린티켓 공지",
-    body: "CLEAN 티켓 공식 양도, 동적 QR, 양도 제한과 관련된 CLEAN 티켓 운영 안내를 공지사항으로 제공합니다.",
+    body: "CLEAN 티켓 공식 양도, 동적 QR, 양도 제한과 관련된 클린티켓 운영 안내를 공지사항으로 제공합니다.",
   },
 ] as const;
 

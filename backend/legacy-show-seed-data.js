@@ -81,7 +81,7 @@ export const legacyShows = [
     prices: [{ grade: "R", seat: "R석", price: 70000 }, { grade: "S", seat: "S석", price: 50000 }, { grade: "A", seat: "A석", price: 30000 }],
     schedules: [{ label: "7월 18일", date: "2026.07.18", times: ["19:30"] }, { label: "7월 19일", date: "2026.07.19", times: ["15:00"] }, { label: "7월 20일", date: "2026.07.20", times: ["15:00"] }],
     casts: ["국립극단", "리어", "코델리아"],
-    notices: ["연극 장르 대표 예매 흐름입니다.", "공식 양도와 취소 정책은 클린티켓 기준을 따릅니다."],
+    notices: ["연극 장르 대표 예매 흐름입니다.", "공식 양도와 취소 정책은 CLEAN 티켓 기준을 따릅니다."],
     summary: "셰익스피어 비극을 국립극단 무대로 만나는 연극 예매 대표 상품입니다."
   },
   {
