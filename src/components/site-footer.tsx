@@ -10,7 +10,7 @@ type SiteFooterProps = {
 
 export function SiteFooter({
   dict = koDictionary.footer,
-  showBusinessInformation = false,
+  showBusinessInformation = true,
 }: SiteFooterProps) {
   return (
     <footer className="mt-[70px] border-t border-line bg-background text-ink">

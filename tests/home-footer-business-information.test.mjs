@@ -62,7 +62,7 @@ test("mobile footer copyright remains readable beside the fixed back-to-top butt
   );
 });
 
-test("shared footer routes do not expose the homepage business information block", async (t) => {
+test("shared Korean footer routes expose the approved business information block", async (t) => {
   // Given
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -71,10 +71,13 @@ test("shared footer routes do not expose the homepage business information block
   t.after(() => page.close());
 
   // When
-  await page.goto(`${baseUrl}/contents/search`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl}/company`, { waitUntil: "networkidle" });
+  const footer = page.locator("footer");
 
   // Then
-  assert.equal(await page.getByRole("heading", { name: "티켓그라운드 사업자 정보" }).count(), 0);
+  await footer.getByRole("heading", { name: "티켓그라운드 사업자 정보" }).waitFor();
+  const email = footer.getByRole("link", { name: "이메일 : tigmaster@ticketground.co.kr" });
+  assert.equal(await email.getAttribute("href"), "mailto:tigmaster@ticketground.co.kr");
 });
 
 test("localized homepages do not mix Korean business labels into translated footers", async (t) => {
