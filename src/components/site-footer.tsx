@@ -5,9 +5,13 @@ import type { Dictionary } from "@/i18n/get-dictionary";
 
 type SiteFooterProps = {
   readonly dict?: Dictionary["footer"];
+  readonly showBusinessInformation?: boolean;
 };
 
-export function SiteFooter({ dict = koDictionary.footer }: SiteFooterProps) {
+export function SiteFooter({
+  dict = koDictionary.footer,
+  showBusinessInformation = false,
+}: SiteFooterProps) {
   return (
     <footer className="mt-[70px] border-t border-line bg-background text-ink">
       <div className="ticketground-container grid gap-8 py-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,3fr)]">
@@ -47,6 +51,32 @@ export function SiteFooter({ dict = koDictionary.footer }: SiteFooterProps) {
           })}
         </div>
       </div>
+
+      {showBusinessInformation ? (
+        <section className="border-t border-line" aria-labelledby="footer-business-information-title">
+          <div className="ticketground-container grid gap-6 py-8 text-sm text-ink-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:gap-10">
+            <div>
+              <h2 id="footer-business-information-title" className="font-black text-ink">
+                티켓그라운드 사업자 정보
+              </h2>
+              <address className="mt-3 break-words not-italic leading-loose">
+                <p>주소 : 경기도 고양시 주교동 독곶이길 117</p>
+                <p>대표이사 : 윤진영</p>
+                <p>사업자등록번호 : 527-44-01245</p>
+              </address>
+            </div>
+            <div>
+              <h2 className="font-black text-ink">고객센터</h2>
+              <a
+                className="mt-3 inline-block break-all leading-loose text-ink-3 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50"
+                href="mailto:tigmaster@ticketground.co.kr"
+              >
+                이메일 : tigmaster@ticketground.co.kr
+              </a>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="border-t border-line">
         <div className="ticketground-container flex flex-col gap-3 py-5 text-sm text-ink-4 md:flex-row md:items-center">
