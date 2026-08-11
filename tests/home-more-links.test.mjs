@@ -22,7 +22,7 @@ const sectionMoreLinks = [
   {
     section: "editorial-events",
     expectedPath: "/event/ticketground-day",
-    expectedHeading: "클린티켓으로 여는 여름 공연 큐레이션",
+    expectedHeading: "Tig 티켓으로 여는 여름 공연 큐레이션",
   },
   {
     section: "genre-recommendations",

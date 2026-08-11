@@ -41,7 +41,7 @@ export const legacyShows = [
     prices: [{ grade: "VIP", seat: "VIP석", price: 198000 }, { grade: "R", seat: "R석", price: 165000 }, { grade: "S", seat: "S석", price: 132000 }, { grade: "A", seat: "A석", price: 99000 }],
     schedules: [{ label: "9월 12일", date: "2026.09.12", times: ["19:00"] }, { label: "9월 13일", date: "2026.09.13", times: ["18:00"] }],
     casts: ["IU", "밴드", "스트링 세션"],
-    notices: ["회차별 1인 2매까지 예매할 수 있습니다.", "모바일 티켓과 현장 본인 확인이 함께 진행됩니다.", "Tig 공식 양도 티켓 정책은 공연별 공지에 따라 제한될 수 있습니다."],
+    notices: ["회차별 1인 2매까지 예매할 수 있습니다.", "모바일 티켓과 현장 본인 확인이 함께 진행됩니다.", "CLEAN 티켓 공식 양도 정책은 공연별 공지에 따라 제한될 수 있습니다."],
     summary: "잠실종합운동장에서 열리는 IU 월드투어 서울 공연입니다. 홈 대표 카드와 대기열 예매 흐름의 기준 상품입니다."
   },
   {
@@ -132,7 +132,7 @@ export const legacyShows = [
     prices: [{ grade: "VIP", seat: "VIP석", price: 170000 }, { grade: "R", seat: "R석", price: 140000 }, { grade: "S", seat: "S석", price: 100000 }, { grade: "A", seat: "A석", price: 70000 }],
     schedules: [{ label: "7월 4일", date: "2026.07.04", times: ["19:30"] }, { label: "7월 5일", date: "2026.07.05", times: ["14:00", "19:00"] }],
     casts: ["오르페우스", "에우리디케", "하데스", "페르세포네"],
-    notices: ["Tig 공식 양도 티켓은 정가 범위 안에서만 등록할 수 있습니다.", "캐스팅은 회차별로 달라질 수 있습니다."],
+    notices: ["CLEAN 티켓 공식 양도는 정가 범위 안에서만 등록할 수 있습니다.", "캐스팅은 회차별로 달라질 수 있습니다."],
     summary: "샤롯데씨어터에서 만나는 뮤지컬 하데스타운 대표 회차입니다."
   },
   {
