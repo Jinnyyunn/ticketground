@@ -81,7 +81,7 @@ export default async function Home() {
         <ShortcutsSection dict={dict} />
         <GroupBookingBanner dict={dict} />
       </main>
-      <SiteFooter dict={dict.footer} showBusinessInformation />
+      <SiteFooter dict={dict.footer} showBusinessInformation={locale === "ko"} />
       <FloatingSide />
     </div>
   );

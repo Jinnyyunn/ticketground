@@ -39,3 +39,20 @@ test("shared footer routes do not expose the homepage business information block
   // Then
   assert.equal(await page.getByRole("heading", { name: "티켓그라운드 사업자 정보" }).count(), 0);
 });
+
+test("localized homepages do not mix Korean business labels into translated footers", async (t) => {
+  // Given
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 }, isMobile: true });
+  t.after(() => page.close());
+
+  for (const locale of ["en", "ja", "zh-CN"]) {
+    // When
+    await page.goto(`${baseUrl}/${locale}`, { waitUntil: "networkidle" });
+
+    // Then
+    assert.equal(await page.getByRole("heading", { name: "티켓그라운드 사업자 정보" }).count(), 0);
+  }
+});
