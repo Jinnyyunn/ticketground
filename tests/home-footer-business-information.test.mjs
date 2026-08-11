@@ -25,6 +25,43 @@ test("homepage footer exposes the approved Ticketground business contact details
   assert.equal(await email.getAttribute("href"), "mailto:tigmaster@ticketground.co.kr");
 });
 
+test("mobile footer copyright remains readable beside the fixed back-to-top button", async (t) => {
+  // Given
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 }, isMobile: true });
+  t.after(() => page.close());
+
+  // When
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.locator("footer").scrollIntoViewIfNeeded();
+  const scrollTopButton = page.getByRole("button", { name: "맨 위로 이동" });
+  await scrollTopButton.waitFor();
+
+  // Then
+  const copyrightRects = await page.locator("footer").getByText(/^© Ticketground Inc\./).evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return Array.from(range.getClientRects(), (rect) => ({
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+    }));
+  });
+  const buttonBox = await scrollTopButton.boundingBox();
+  assert.ok(buttonBox);
+  assert.ok(
+    copyrightRects.every((rect) =>
+      rect.right <= buttonBox.x ||
+      rect.left >= buttonBox.x + buttonBox.width ||
+      rect.bottom <= buttonBox.y ||
+      rect.top >= buttonBox.y + buttonBox.height),
+    `the fixed back-to-top button must not cover any copyright text: ${JSON.stringify({ buttonBox, copyrightRects })}`,
+  );
+});
+
 test("shared footer routes do not expose the homepage business information block", async (t) => {
   // Given
   const { baseUrl } = await startServer(t);
