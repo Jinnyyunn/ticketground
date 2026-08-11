@@ -61,7 +61,7 @@ export function SiteFooter({
               </h2>
               <address className="mt-3 break-words not-italic leading-loose">
                 <p>주소 : 경기도 고양시 주교동 독곶이길 117</p>
-                <p>대표이사 : 윤진영</p>
+                <p>대표 : 윤진영</p>
                 <p>사업자등록번호 : 527-44-01245</p>
               </address>
             </div>
