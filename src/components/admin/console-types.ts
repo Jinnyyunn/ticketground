@@ -4,7 +4,6 @@ import {
   Building,
   Building2,
   ClipboardCheck,
-  LifeBuoy,
   PackagePlus,
   QrCode,
   ReceiptText,
@@ -88,26 +87,10 @@ export type AdminTicket = {
   readonly ownerId: string | null;
   readonly faceValue: number;
 };
-export type SupportCategory = "GENERAL" | "PAYMENT" | "TICKET_QR" | "URGENT";
-export type SupportThread = {
-  readonly id: string;
-  readonly userId: string;
-  readonly subject?: string;
-  readonly status: string;
-  readonly category: SupportCategory;
-  readonly priority: string;
-  readonly messageCount: number;
-  readonly lastMessagePreview: string;
-  readonly relatedTicketId: string | null;
-  readonly relatedBookingId: string | null;
-  readonly messages: readonly { readonly id: string; readonly actorId: string; readonly role: string; readonly body: string; readonly at: string | null }[];
-};
-
 export type OverviewWorkspace = {
   readonly stats: {
     readonly totalTickets: number;
     readonly onSaleTickets: number;
-    readonly supportOpen: number;
     readonly ledgerVerified: boolean;
     readonly todayPaymentCount: number;
     readonly todayPaymentAmount: number;
@@ -147,7 +130,6 @@ export type InventoryWorkspace = {
 };
 export type PageInfo = { readonly page: number; readonly limit: number; readonly total: number; readonly hasNext: boolean; readonly hasPrevious: boolean };
 export type AccountsWorkspace = { readonly filters: { readonly search: string | null }; readonly users: readonly AdminUser[] };
-export type SupportWorkspace = { readonly filters: { readonly category: string | null; readonly status: string | null }; readonly supportThreads: readonly SupportThread[] };
 export type FinanceWorkspace = {
   readonly eventSummaries: readonly AdminEventSummary[];
   readonly filters: { readonly eventId: string | null; readonly from: string | null; readonly method: string | null; readonly status: string | null; readonly to: string | null };
@@ -338,7 +320,7 @@ export type SellerEvent = {
   readonly updatedAt: string | null;
 };
 export type SellerEventsWorkspace = { readonly events: readonly SellerEvent[] };
-export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace | SellerApplicationsWorkspace | SellerEventsWorkspace;
+export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace | SellerApplicationsWorkspace | SellerEventsWorkspace;
 export type Feedback = { readonly tone: "error" | "success"; readonly message: string } | null;
 export type Mutation = (path: string, body: Record<string, unknown>, success: string) => Promise<boolean>;
 
@@ -356,7 +338,6 @@ export const workspaceDefinitions = {
   sales: { label: "판매 설정", heading: "판매 설정", description: "공연별 판매 상태와 가격을 조정합니다.", permission: "catalog.manage", Icon: Ticket },
   inventory: { label: "티켓 재고", heading: "티켓 재고", description: "판매 가능 티켓의 운영 보류 상태를 관리합니다.", permission: "catalog.manage", Icon: ClipboardCheck },
   accounts: { label: "계정", heading: "계정", description: "회원 신뢰도와 계정 상태를 검토합니다.", permission: "accounts.manage", Icon: UserCog },
-  support: { label: "고객 지원", heading: "고객 지원", description: "열린 문의를 답변하고 처리 상태를 갱신합니다.", permission: "support.manage", Icon: LifeBuoy },
   finance: { label: "정산", heading: "정산", description: "결제 거래, 수수료, 판매자 정산 합계를 조회합니다.", permission: "finance.read", Icon: ReceiptText },
   resale: { label: "재판매/양도", heading: "재판매/양도", description: "재판매 풀을 강제 취소하고 운영 알림을 확인합니다.", permission: "finance.read", Icon: Banknote },
   admission: { label: "입장/QR", heading: "입장/QR", description: "입장 자격과 현장 리스크 상태를 확인합니다.", permission: "admission.manage", Icon: QrCode },
@@ -370,8 +351,6 @@ export const workspaceDefinitions = {
 export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"] as const;
 export const userStatuses = ["ACTIVE", "WATCHLIST", "BANNED"] as const;
 export const ticketStatuses = ["ON_SALE", "ADMIN_HOLD"] as const;
-export const supportStatuses = ["OPEN", "ANSWERED", "CLOSED"] as const;
-export const supportCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"] as const;
 export const groupBookingStatuses = ["PENDING", "APPROVED", "REJECTED"] as const;
 export const groupBookingOrgTypes = ["SCHOOL", "ACADEMY", "WELFARE", "COMPANY", "GOVERNMENT", "OTHER"] as const;
 export const groupBookingPaymentMethods = ["CARD", "TAX_INVOICE", "BANK_TRANSFER"] as const;

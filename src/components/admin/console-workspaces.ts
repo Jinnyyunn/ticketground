@@ -4,7 +4,6 @@ export const workspaceKeys = [
   "sales",
   "inventory",
   "accounts",
-  "support",
   "finance",
   "resale",
   "admission",
