@@ -766,7 +766,7 @@ async function handleApi(req, res, db, surface) {
       appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {
         ticketId: body.ticketId,
         tossPaymentKey: receipt.tossPaymentKey,
-        amount: purchasable.ticket.faceValue,
+        amount: purchasable.reservationDraft?.amount?.total ?? purchasable.ticket.faceValue,
         reason: error.code || "ALLOCATION_FAILED"
       });
       throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {

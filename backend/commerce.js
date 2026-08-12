@@ -99,7 +99,10 @@ export function createCommerceBackend({
     if (existingTransaction) {
       const context = ticketPurchaseContext(db, existingTransaction.ticketId);
       const credential = db.admissionCredentials.find((item) => item.ticketId === existingTransaction.ticketId);
-      return { user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate, payment, admissionCredential: credential };
+      return {
+        user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate,
+        payment: { ...payment, amount: existingTransaction.amount }, admissionCredential: credential
+      };
     }
 
     const { ticket, event, zone, performanceDate, seatHold, reservationDraft } = assertTicketPurchasable(db, ticketId, {
@@ -127,12 +130,13 @@ export function createCommerceBackend({
       type: "VIRTUAL_TICKET"
     };
     const credential = ensureAdmissionCredential(db, { user, ticket, event, performanceDate });
+    const paidAmount = reservationDraft?.amount?.total ?? ticket.faceValue;
     db.paymentTransactions.push({
       id: id("pay"),
       ticketId: ticket.id,
       userId: user.id,
       type: "PRIMARY",
-      amount: ticket.faceValue,
+      amount: paidAmount,
       method: payment.key,
       status: payment.status,
       pgTransactionId: pgTransactionId || `${payment.key}-${hash(`${ticket.id}:${user.id}:${now()}`).slice(0, 12)}`,
@@ -146,14 +150,15 @@ export function createCommerceBackend({
       performanceDateId: performanceDate.id,
       seatLabel: ticket.seatLabel,
       zone: zone.name,
-      price: ticket.faceValue,
+      price: paidAmount,
+      amount: paidAmount,
       paymentMethod: payment.key,
       paymentLabel: payment.label,
       paymentStatus: payment.status,
       approvalId: `${payment.key}-${id("pay").toUpperCase()}`,
       policy: "date-selected-seat-owner-assignment"
     });
-    return { user, ticket, event, performanceDate, payment, admissionCredential: credential };
+    return { user, ticket, event, performanceDate, payment: { ...payment, amount: paidAmount }, admissionCredential: credential };
   }
 
   function listForResale(db, { sellerId, ticketId, price, showSlug }) {

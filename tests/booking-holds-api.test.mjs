@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 import { configureSocialEnv, cookieHeaderFromSetCookie, PROVIDERS, redirected } from "./social-auth-test-helpers.mjs";
 
@@ -227,6 +227,7 @@ test("a single-seat hold can be purchased only by its owner and is converted", a
     }
   });
   assert.equal(purchase.data.ticket.status, "OWNED");
+  assert.equal(purchase.data.payment.amount, tickets[0].faceValue);
 
   const ownedTickets = await request(server, "/api/me/tickets", {
     authorization: user.authorization
@@ -281,11 +282,35 @@ test("a reservation draft purchases its reserved ticket with the server total", 
   });
 
   assert.equal(purchase.data.ticket.status, "OWNED");
+  assert.equal(purchase.data.payment.amount, draft.data.amount.total);
+  assert.equal(purchase.data.ticket.faceValue, tickets[0].faceValue);
+  const replay = await request(server, "/api/payments/tosspayments/purchase", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-purchase",
+    body: {
+      userId: user.userId,
+      ticketId,
+      reservationDraftId: draft.data.id,
+      paymentMethod: "CREDIT_CARD",
+      tossPaymentKey: "ignored-on-replay"
+    }
+  });
+  assert.equal(replay.data.payment.amount, draft.data.amount.total);
+  assert.equal(replay.data.tosspayments.replayed, true);
   const confirmed = await request(server, `/api/me/reservation-drafts/${draft.data.id}`, {
     authorization: user.authorization
   });
   assert.equal(confirmed.data.status, "CONFIRMED");
   assert.equal(draft.data.amount.total, tickets[0].faceValue + 2000);
+  const owned = await request(server, "/api/me/tickets", { authorization: user.authorization });
+  assert.equal(owned.data.find((ticket) => ticket.id === ticketId).payment.amount, draft.data.amount.total);
+  const finance = await adminApi(server, `/api/admin/workspaces/finance?eventId=${tickets[0].eventId}&limit=100`);
+  assert.equal(finance.data.transactions.find((item) => item.ticketId === ticketId).amount, draft.data.amount.total);
+  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=PRIMARY_PURCHASE");
+  const ledger = audit.data.ledger.find((item) => item.payload.ticketId === ticketId);
+  assert.equal(ledger.payload.price, draft.data.amount.total);
+  assert.equal(ledger.payload.amount, draft.data.amount.total);
 });
 
 test("seat hold requires an idempotency key and replays identical retries", async (t) => {

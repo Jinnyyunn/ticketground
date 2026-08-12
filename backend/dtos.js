@@ -52,7 +52,8 @@ function publicPayment(payment) {
   return {
     method: payment.key,
     label: payment.label,
-    status: payment.status
+    status: payment.status,
+    ...(Number.isFinite(payment.amount) ? { amount: payment.amount } : {})
   };
 }
 
