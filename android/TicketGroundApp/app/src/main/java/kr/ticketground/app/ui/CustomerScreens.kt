@@ -30,6 +30,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,9 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.vector.ImageVector
 import kr.ticketground.app.AppDestination
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.WatchlistItem
@@ -60,7 +70,7 @@ fun TicketGroundNavigation(
           NavigationRailItem(
             selected = destination == selected,
             onClick = { onNavigate(destination) },
-            icon = { Text(destination.shortLabel.take(1)) },
+            icon = { Icon(destination.navigationIcon(), contentDescription = null) },
             label = { Text(destination.label) },
           )
         }
@@ -75,7 +85,7 @@ fun TicketGroundNavigation(
             NavigationBarItem(
               selected = destination == selected,
               onClick = { onNavigate(destination) },
-              icon = { Text(destination.shortLabel.take(1)) },
+              icon = { Icon(destination.navigationIcon(), contentDescription = null) },
               label = { Text(destination.label) },
             )
           }
@@ -184,7 +194,9 @@ fun EventListScreen(
           SurfaceCard {
             Text(events.first().title, style = MaterialTheme.typography.titleLarge)
             Text(events.first().venue)
-            Text(events.first().summary ?: "공연 상세에서 일정과 좌석 현황을 확인하세요.")
+            KeepLastWordTogether(
+              events.first().summary ?: "공연 상세에서 일정과 좌석 현황을 확인하세요.",
+            )
           }
         }
       }
@@ -306,7 +318,7 @@ fun SearchScreen(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit) {
 fun WatchlistScreen(state: AsyncContent<List<WatchlistItem>>, onRetry: () -> Unit) {
   AsyncSurface(state, onRetry) { entries ->
     if (entries.isEmpty()) StateCard("관심공연이 없습니다", "공연 상세에서 찜하기를 눌러보세요.", null)
-    else LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+    else LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.xl), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
       item { SectionTitle("관심공연·알림") }
       items(entries, key = { it.id }) { entry ->
         SurfaceCard {
@@ -434,7 +446,10 @@ fun CheckoutHandoffScreen(
       Text(seatLabel, style = MaterialTheme.typography.titleMedium)
       Text("결제 예정 금액 ${amount.krw()}원")
       if (!configured) Text("Toss Payments 연결이 필요합니다", color = MaterialTheme.colorScheme.error)
-      Text("결제 승인 결과는 Toss Payments와 서버 확인이 모두 끝난 뒤에만 반영됩니다.")
+      Text(
+        "결제 승인 확인 후 결과를 반영합니다.",
+        Modifier.testTag("toss-confirmation-policy"),
+      )
       Button(
         onClick = onOpenProvider,
         enabled = configured && !pending,
@@ -450,3 +465,28 @@ private fun SectionTitle(title: String) {
 }
 
 internal fun Int.krw(): String = String.format("%,d", this)
+
+private fun AppDestination.navigationIcon(): ImageVector = when (this) {
+  AppDestination.Home -> Icons.Default.Home
+  AppDestination.Search -> Icons.Default.Search
+  AppDestination.Watchlist -> Icons.Default.Favorite
+  AppDestination.MyPage -> Icons.Default.Person
+}
+
+@Composable
+private fun KeepLastWordTogether(value: String) {
+  val breakAt = value.lastIndexOf(' ')
+  if (breakAt <= 0) {
+    Text(value, Modifier.testTag("expanded-event-summary"))
+    return
+  }
+  Column(
+    Modifier.clearAndSetSemantics { text = AnnotatedString(value) },
+  ) {
+    Text(value.substring(0, breakAt), Modifier.clearAndSetSemantics {})
+    Text(
+      value.substring(breakAt + 1),
+      Modifier.clearAndSetSemantics {}.testTag("expanded-event-summary"),
+    )
+  }
+}

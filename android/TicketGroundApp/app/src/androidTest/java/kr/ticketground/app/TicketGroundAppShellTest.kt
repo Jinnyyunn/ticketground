@@ -2,6 +2,8 @@ package kr.ticketground.app
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
@@ -22,8 +24,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.Seat
@@ -262,6 +267,37 @@ class TicketGroundAppShellTest {
 
     composeRule.onNodeWithText("Toss Payments 연결이 필요합니다").assertIsDisplayed()
     composeRule.onNodeWithText("결제창 열기").assertIsNotEnabled()
+  }
+
+  @Test
+  fun koreanCopy_keepsPaymentPhraseAndTabletConcertWordTogether() {
+    composeRule.setContent {
+      TicketGroundTheme {
+        Column {
+          Box(Modifier.width(390.dp).height(360.dp)) {
+            kr.ticketground.app.ui.CheckoutHandoffScreen(false, false, "A구역 1열 1번", 122000, {})
+          }
+          Box(Modifier.width(840.dp).height(360.dp)) {
+            EventListScreen("티켓 랭킹", AsyncContent.Ready(listOf(event().copy(summary = "무대와 객석이 하나 되는 라이브 콘서트입니다."))), true, {}, {})
+          }
+        }
+      }
+    }
+    composeRule.onNodeWithText("결제 승인 확인 후 결과를 반영합니다.", useUnmergedTree = true).assertIsDisplayed()
+    assertTextRangeOnOneLine("toss-confirmation-policy", "승인 확인")
+    composeRule.onNodeWithText("무대와 객석이 하나 되는 라이브 콘서트입니다.").assertIsDisplayed()
+  }
+
+  private fun assertTextRangeOnOneLine(tag: String, phrase: String) {
+    val results = mutableListOf<TextLayoutResult>()
+    composeRule.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
+      action(results)
+    }
+    val result = results.single()
+    val start = result.layoutInput.text.text.indexOf(phrase)
+    check(start >= 0 && result.getLineForOffset(start) == result.getLineForOffset(start + phrase.length - 1)) {
+      "$phrase must remain on one line"
+    }
   }
 
   private fun event() = CatalogEvent(
