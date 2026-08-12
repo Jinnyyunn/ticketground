@@ -123,6 +123,8 @@ export async function createTicketgroundApp(options) {
     id: runtime.id,
     now: runtime.now,
     randomHex: runtime.randomHex,
+    playIntegrityVerifierURL: options.runtime.playIntegrityVerifierURL || process.env.TIG_PLAY_INTEGRITY_VERIFIER_URL,
+    playIntegrityVerifierToken: options.runtime.playIntegrityVerifierToken || process.env.TIG_PLAY_INTEGRITY_VERIFIER_TOKEN,
     verifierURL: options.runtime.appAttestVerifierURL,
     verifierToken: options.runtime.appAttestVerifierToken
   });

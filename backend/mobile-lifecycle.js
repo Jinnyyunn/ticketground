@@ -87,8 +87,15 @@ export function createMobileLifecycleBackend({
     }, () => mobileResalePool(joinPool(db, { buyerId: userId, poolId })));
   }
 
-  function cancelResalePoolForPrincipal(db, userId, poolId) {
-    return mobileResalePool(cancelResaleListing(db, { sellerId: userId, poolId }));
+  function cancelResalePoolForPrincipal(db, userId, poolId, idempotencyKey) {
+    const cancel = () => mobileResalePool(cancelResaleListing(db, { sellerId: userId, poolId }));
+    if (!idempotencyKey) return cancel();
+    return idempotentMutation(db, {
+      kind: "resale-cancel",
+      userId,
+      key: idempotencyKey,
+      payload: { poolId }
+    }, cancel);
   }
 
   function publicCancellationRequest(request) {

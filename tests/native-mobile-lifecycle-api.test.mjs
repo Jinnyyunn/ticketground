@@ -193,9 +193,23 @@ test("native resale pools bind seller and buyer to bearer while replaying mutati
   assert.equal(forbidden.error.code, "NOT_OWNER");
   const canceled = await request(server, `/api/me/resale-pools/${first.data.id}`, {
     authorization: seller.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "native-resale-cancel"
   });
   assert.equal(canceled.data.status, "CANCELED");
+  const cancelReplay = await request(server, `/api/me/resale-pools/${first.data.id}`, {
+    authorization: seller.authorization,
+    method: "DELETE",
+    idempotencyKey: "native-resale-cancel"
+  });
+  assert.deepEqual(cancelReplay.data, canceled.data);
+  const cancelConflict = await request(server, `/api/me/resale-pools/${second.data.id}`, {
+    authorization: seller.authorization,
+    method: "DELETE",
+    idempotencyKey: "native-resale-cancel",
+    status: 409
+  });
+  assert.equal(cancelConflict.error.code, "IDEMPOTENCY_CONFLICT");
 });
 
 test("native cancellation requests require an owned ticket, persist idempotently, and never refund automatically", async (t) => {
@@ -375,4 +389,38 @@ test("native push tokens store only a digest and safe suffix with durable idempo
   const restarted = await startServer(t, { dbPath });
   const afterRestart = await request(restarted, "/api/me/push-tokens", { authorization: seller.authorization });
   assert.deepEqual(afterRestart.data, [first.data]);
+});
+
+test("Android integrity routes discriminate platform and never persist the proof token", async (t) => {
+  const { dbPath, seller, server } = await prepareTwoPrincipals(t, 0);
+  const unsupportedPlatform = await request(server, "/api/me/device-attestation/challenges", {
+    authorization: seller.authorization,
+    method: "POST",
+    body: { platform: "windows", purpose: "TRUST_DEVICE", deviceId: "pixel-a" },
+    status: 422
+  });
+  assert.equal(unsupportedPlatform.error.code, "INVALID_ATTESTATION_PLATFORM");
+
+  const challenge = await request(server, "/api/me/device-attestation/challenges", {
+    authorization: seller.authorization,
+    method: "POST",
+    body: { platform: "android", purpose: "TRUST_DEVICE", deviceId: "pixel-a" }
+  });
+  assert.equal(challenge.data.platform, "android");
+  const rejected = await request(server, "/api/devices/trust", {
+    authorization: seller.authorization,
+    method: "POST",
+    body: {
+      platform: "android",
+      deviceId: "pixel-a",
+      deviceName: "Pixel",
+      biometricVerified: true,
+      challengeId: challenge.data.id,
+      integrityToken: "raw-play-integrity-token"
+    },
+    status: 503
+  });
+  assert.equal(rejected.error.code, "PLAY_INTEGRITY_VERIFIER_UNAVAILABLE");
+  await server.stop();
+  assert.equal((await readFile(dbPath, "utf8")).includes("raw-play-integrity-token"), false);
 });

@@ -418,7 +418,8 @@ async function handleApi(req, res, db, surface) {
     return cancelResalePoolForPrincipal(
       db,
       authenticateNativeSession(db, req).user.id,
-      principalResalePoolMatch[1]
+      principalResalePoolMatch[1],
+      parseIdempotencyKey(req)
     );
   }
   if (req.method === "GET" && url.pathname === "/api/me/cancellation-requests") {
@@ -440,6 +441,7 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["purpose", "deviceId"]);
     return issueAppAttestChallenge(db, {
       userId: authenticateNativeSession(db, req).user.id,
+      platform: body.platform,
       purpose: body.purpose,
       deviceId: body.deviceId,
       ticketId: body.ticketId
@@ -862,7 +864,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
     requireBody(body, ["deviceId", "biometricVerified"]);
     const trustUserId = resolvePurchaseUserId(db, req, body);
-    await verifyAppAttestProof(db, { userId: trustUserId, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
+    await verifyAppAttestProof(db, { userId: trustUserId, platform: body.platform, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
     return trustDevice(db, { ...body, userId: trustUserId, attestationVerified: true });
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/qr") {
@@ -870,7 +872,7 @@ async function handleApi(req, res, db, surface) {
     const qrUserId = resolvePurchaseUserId(db, req, body);
     if (String(body.channel || "WEB").toUpperCase() === "APP") {
       requireBody(body, ["deviceId"]);
-      await verifyAppAttestProof(db, { userId: qrUserId, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
+      await verifyAppAttestProof(db, { userId: qrUserId, platform: body.platform, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
       return issueQr(db, { ...body, userId: qrUserId, attestationVerified: true });
     }
     return issueQr(db, { ...body, userId: qrUserId });
