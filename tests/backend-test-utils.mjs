@@ -6,9 +6,9 @@ import crypto from "node:crypto";
 import https from "node:https";
 import net from "node:net";
 import assert from "node:assert/strict";
+import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 const repoRoot = new URL("../", import.meta.url);
-const appAttestationSecret = "backend-test-app-attestation-secret";
 const adminToken = "backend-test-admin-token";
 const adminSessionSecret = "backend-test-admin-session-secret";
 const appAttestVerifierToken = "backend-test-app-attest-verifier-token";
@@ -63,13 +63,6 @@ mi76jWlhGQDXVOI6T4bydNyPVoGm2ErHOLYoFXd6krpOTkihc9x/xbb83/baeP4D
 XpqRCs+FAM+OaVl7t4xKwXQGtrZDuuszToEH4zEi
 -----END CERTIFICATE-----`;
 
-export function appAttestation(purpose, ...parts) {
-  return crypto
-    .createHmac("sha256", appAttestationSecret)
-    .update(["app", purpose, ...parts.map((part) => String(part || ""))].join(":"))
-    .digest("hex");
-}
-
 async function freePort() {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -103,14 +96,18 @@ export async function startAppAttestVerifier(t) {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
-  t.after(() => new Promise((resolve, reject) => {
+  const close = () => new Promise((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
-  }));
+  });
+  if (t) t.after(close);
   const address = server.address();
   return {
-    TIG_APP_ATTEST_VERIFIER_TOKEN: appAttestVerifierToken,
-    TIG_APP_ATTEST_VERIFIER_URL: `https://127.0.0.1:${address.port}/verify`,
-    NODE_TLS_REJECT_UNAUTHORIZED: "0"
+    close,
+    env: {
+      TIG_APP_ATTEST_VERIFIER_TOKEN: appAttestVerifierToken,
+      TIG_APP_ATTEST_VERIFIER_URL: `https://127.0.0.1:${address.port}/verify`,
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+    }
   };
 }
 
@@ -147,7 +144,6 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_ADMIN_PASSWORD: bootstrapAdminPassword,
       TIG_DB_PATH: resolvedDbPath,
       TIG_NOW: now,
-      TIG_APP_ATTESTATION_SECRET: appAttestationSecret,
       TIG_PORTONE_IDENTITY_TEST_MODE: "1",
       TIG_DEMO_PROFILE_API: "1",
       TIG_DEMO_SUPPORT_API: "1",
@@ -205,6 +201,85 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`server did not start on ${port}/${adminPort}: stdout=${stdout} stderr=${stderr}`);
+}
+
+export async function startAttestedServer(t, options = {}) {
+  configureGoogleEnv(t, true);
+  const verifier = await startAppAttestVerifier(t);
+  return startServer(t, { ...options, env: { ...verifier.env, ...options.env } });
+}
+
+export async function nativeGoogleLogin(baseUrl) {
+  const login = await api(baseUrl, "/api/auth/google/native", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
+  return {
+    authorization: `Bearer ${login.data.session.credential}`,
+    user: login.data.user
+  };
+}
+
+export async function verifyNativeIdentity(baseUrl, login, phone = "010-9000-0011") {
+  const headers = { Authorization: login.authorization };
+  const started = await api(baseUrl, "/api/identity/portone-danal/start", {
+    userId: "ignored-body-user",
+    phone
+  }, 200, headers);
+  await api(baseUrl, "/api/identity/portone-danal/confirm", {
+    userId: "ignored-body-user",
+    phone,
+    identityVerificationId: started.data.identityVerificationId
+  }, 200, headers);
+}
+
+export async function buyFirstNativeTicket(baseUrl, login, eventId = "event_kpop_001") {
+  await verifyNativeIdentity(baseUrl, login);
+  const state = await api(baseUrl, "/api/state");
+  const ticket = state.data.tickets.find((item) => item.eventId === eventId && item.status === "ON_SALE");
+  assert.ok(ticket, `seeded on-sale ticket exists for ${eventId}`);
+  const purchase = await api(baseUrl, "/api/tickets/buy", {
+    userId: "ignored-body-user",
+    ticketId: ticket.id,
+    paymentMethod: "CREDIT_CARD"
+  }, 200, { Authorization: login.authorization });
+  return { ticket: purchase.data.ticket, purchase: purchase.data };
+}
+
+export async function trustIosDevice(baseUrl, login, { deviceId, deviceName }) {
+  const proof = await issueIosAppAttestProof(baseUrl, login.authorization, {
+    purpose: "TRUST_DEVICE",
+    deviceId,
+    kind: "attestation"
+  });
+  return api(baseUrl, "/api/devices/trust", {
+    userId: "ignored-body-user",
+    deviceId,
+    deviceName,
+    biometricVerified: true,
+    ...proof
+  }, 200, { Authorization: login.authorization });
+}
+
+export async function issueIosAdmissionQr(baseUrl, login, {
+  ticketId,
+  deviceId,
+  deviceToken,
+  expectedStatus = 200,
+  ...extraBody
+}) {
+  const proof = await issueIosAppAttestProof(baseUrl, login.authorization, {
+    purpose: "ISSUE_QR",
+    deviceId,
+    ticketId,
+    kind: "assertion"
+  });
+  return api(baseUrl, "/api/tickets/qr", {
+    userId: "ignored-body-user",
+    ticketId,
+    channel: "APP",
+    deviceId,
+    deviceToken,
+    ...proof,
+    ...extraBody
+  }, expectedStatus, { Authorization: login.authorization });
 }
 
 export async function api(baseUrl, pathName, body, expectedStatus = 200, headers = {}) {

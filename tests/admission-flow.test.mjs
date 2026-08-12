@@ -4,89 +4,20 @@ import {
   adminApi,
   api,
   buyFirstTicket,
+  buyFirstNativeTicket,
   issueGateToken,
+  issueIosAdmissionQr,
   issueIosAppAttestProof,
-  startAppAttestVerifier,
-  startServer
+  nativeGoogleLogin,
+  startAttestedServer,
+  trustIosDevice,
+  verifyNativeIdentity
 } from "./backend-test-utils.mjs";
-import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
-
-async function startAdmissionServer(t, options = {}) {
-  configureGoogleEnv(t, true);
-  const verifierEnv = await startAppAttestVerifier(t);
-  return startServer(t, { ...options, env: { ...verifierEnv, ...options.env } });
-}
-
-async function nativeLogin(baseUrl) {
-  const login = await api(baseUrl, "/api/auth/google/native", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
-  return {
-    authorization: `Bearer ${login.data.session.credential}`,
-    user: login.data.user
-  };
-}
-
-async function verifyNativeIdentity(baseUrl, login, phone = "010-9000-0011") {
-  const headers = { Authorization: login.authorization };
-  const started = await api(baseUrl, "/api/identity/portone-danal/start", {
-    userId: "ignored-body-user",
-    phone
-  }, 200, headers);
-  await api(baseUrl, "/api/identity/portone-danal/confirm", {
-    userId: "ignored-body-user",
-    phone,
-    identityVerificationId: started.data.identityVerificationId
-  }, 200, headers);
-}
-
-async function buyFirstNativeTicket(baseUrl, login) {
-  await verifyNativeIdentity(baseUrl, login);
-  const state = await api(baseUrl, "/api/state");
-  const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
-  assert.ok(ticket, "seeded kpop ticket exists");
-  const purchase = await api(baseUrl, "/api/tickets/buy", {
-    userId: "ignored-body-user",
-    ticketId: ticket.id,
-    paymentMethod: "CREDIT_CARD"
-  }, 200, { Authorization: login.authorization });
-  return { ticket: purchase.data.ticket, purchase: purchase.data };
-}
-
-async function trustIosDevice(baseUrl, login, { deviceId, deviceName }) {
-  const proof = await issueIosAppAttestProof(baseUrl, login.authorization, {
-    purpose: "TRUST_DEVICE",
-    deviceId,
-    kind: "attestation"
-  });
-  return api(baseUrl, "/api/devices/trust", {
-    userId: "ignored-body-user",
-    deviceId,
-    deviceName,
-    biometricVerified: true,
-    ...proof
-  }, 200, { Authorization: login.authorization });
-}
-
-async function issueAdmissionQr(baseUrl, login, { ticketId, deviceId, deviceToken, expectedStatus = 200 }) {
-  const proof = await issueIosAppAttestProof(baseUrl, login.authorization, {
-    purpose: "ISSUE_QR",
-    deviceId,
-    ticketId,
-    kind: "assertion"
-  });
-  return api(baseUrl, "/api/tickets/qr", {
-    userId: "ignored-body-user",
-    ticketId,
-    channel: "APP",
-    deviceId,
-    deviceToken,
-    ...proof
-  }, expectedStatus, { Authorization: login.authorization });
-}
 
 test("backend issues virtual ticket, app-only admission QR, and one-use gate verification", async (t) => {
-  const server = await startAdmissionServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl } = server;
-  const login = await nativeLogin(baseUrl);
+  const login = await nativeGoogleLogin(baseUrl);
   const { ticket, purchase } = await buyFirstNativeTicket(baseUrl, login);
 
   assert.equal(purchase.admission.activationChannel, "APP_ONLY");
@@ -111,7 +42,7 @@ test("backend issues virtual ticket, app-only admission QR, and one-use gate ver
   assert.equal(device.data.device.status, "TRUSTED");
   assert.ok(device.data.deviceToken);
 
-  const admissionQr = await issueAdmissionQr(baseUrl, login, {
+  const admissionQr = await issueIosAdmissionQr(baseUrl, login, {
     ticketId: ticket.id,
     deviceId: "iphone-15-pro",
     deviceToken: device.data.deviceToken
@@ -161,9 +92,9 @@ test("gate verification rejects a superseded QR even though its signature is sti
   // own (ticketId, ownerId, expiresAt, nonce) tuple, so it must be rejected
   // for freshness (not matching the ticket's current QR), not for a bad
   // signature - this exercises the exact comparison the gate check performs.
-  const server = await startAdmissionServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl } = server;
-  const login = await nativeLogin(baseUrl);
+  const login = await nativeGoogleLogin(baseUrl);
   const { ticket } = await buyFirstNativeTicket(baseUrl, login);
   const device = await trustIosDevice(baseUrl, login, {
     deviceId: "iphone-15-pro",
@@ -175,8 +106,8 @@ test("gate verification rejects a superseded QR even though its signature is sti
     deviceToken: device.data.deviceToken
   };
 
-  const staleQr = await issueAdmissionQr(baseUrl, login, issueParams);
-  const freshQr = await issueAdmissionQr(baseUrl, login, issueParams);
+  const staleQr = await issueIosAdmissionQr(baseUrl, login, issueParams);
+  const freshQr = await issueIosAdmissionQr(baseUrl, login, issueParams);
   assert.notEqual(staleQr.data.nonce, freshQr.data.nonce, "re-issuing produces a new nonce/signature pair");
 
   const gateToken = await issueGateToken(server, "GATE-A");
@@ -188,8 +119,8 @@ test("gate verification rejects a superseded QR even though its signature is sti
 });
 
 test("backend rejects web admission QR, early QR activation, and forged app attestations", async (t) => {
-  const early = await startAdmissionServer(t, { now: "2026-09-19T15:00:00+09:00" });
-  const login = await nativeLogin(early.baseUrl);
+  const early = await startAttestedServer(t, { now: "2026-09-19T15:00:00+09:00" });
+  const login = await nativeGoogleLogin(early.baseUrl);
   const { ticket } = await buyFirstNativeTicket(early.baseUrl, login);
   const device = await trustIosDevice(early.baseUrl, login, {
     deviceId: "iphone-early",
@@ -210,7 +141,7 @@ test("backend rejects web admission QR, early QR activation, and forged app atte
   }, 403, { Authorization: login.authorization });
   assert.equal(webQr.error.code, "APP_CHANNEL_REQUIRED");
 
-  const earlyQr = await issueAdmissionQr(early.baseUrl, login, {
+  const earlyQr = await issueIosAdmissionQr(early.baseUrl, login, {
     ticketId: ticket.id,
     deviceId: "iphone-early",
     deviceToken: device.data.deviceToken,
@@ -249,7 +180,7 @@ test("backend rejects web admission QR, early QR activation, and forged app atte
 
 test("official resale clears an old owner admin admission hold before new owner QR issuance", async (t) => {
   // Given: an owner credential is under an admin hold.
-  const server = await startAdmissionServer(t);
+  const server = await startAttestedServer(t);
   const { ticket } = await buyFirstTicket(server.baseUrl);
   const admissionBefore = await adminApi(server, "/api/admin/workspaces/admission");
   const credential = admissionBefore.data.admissionCredentials.find((item) => item.ticketId === ticket.id);
@@ -267,7 +198,7 @@ test("official resale clears an old owner admin admission hold before new owner 
     ticketId: ticket.id,
     price: ticket.faceValue
   });
-  const buyer = await nativeLogin(server.baseUrl);
+  const buyer = await nativeGoogleLogin(server.baseUrl);
   await verifyNativeIdentity(server.baseUrl, buyer, "010-9000-0002");
   await api(server.baseUrl, "/api/resale/purchase", {
     buyerId: "ignored-body-user",
@@ -280,7 +211,7 @@ test("official resale clears an old owner admin admission hold before new owner 
   });
 
   // Then: the new legitimate owner can issue a real admission QR instead of inheriting ADMIN_HOLD_ACTIVE.
-  const admissionQr = await issueAdmissionQr(server.baseUrl, buyer, {
+  const admissionQr = await issueIosAdmissionQr(server.baseUrl, buyer, {
     ticketId: ticket.id,
     deviceId: "buyer-iphone",
     deviceToken: device.data.deviceToken
@@ -294,13 +225,13 @@ test("official resale clears an old owner admin admission hold before new owner 
 });
 
 test("a logged-in session cannot issue an admission QR for someone else's ticket by naming them as userId", async (t) => {
-  const server = await startAdmissionServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl } = server;
   const { ticket } = await buyFirstTicket(baseUrl);
 
   // An unrelated, logged-in attacker registers their own device, then claims
   // to be the real owner (user_fan_a) by putting that id in the request body.
-  const login = await nativeLogin(baseUrl);
+  const login = await nativeGoogleLogin(baseUrl);
   const authHeaders = { Authorization: login.authorization };
 
   const device = await trustIosDevice(baseUrl, login, {

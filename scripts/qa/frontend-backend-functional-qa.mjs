@@ -9,6 +9,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { chromium } from "playwright";
+import {
+  buyFirstNativeTicket,
+  issueIosAdmissionQr,
+  issueIosAppAttestProof,
+  nativeGoogleLogin,
+  startAppAttestVerifier,
+  trustIosDevice
+} from "../../tests/backend-test-utils.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +40,6 @@ if (!allowedScenarios.has(scenario)) {
 }
 
 const evidenceDir = path.resolve(repoRoot, optionValue("--evidence-dir", ".omo/evidence/frontend-backend-contract-alignment/latest"));
-const attestationSecret = "qa-app-attestation-secret";
 const adminToken = "qa-admin-token";
 
 const report = {
@@ -46,13 +53,6 @@ const report = {
   servers: [],
   portOwners: [],
 };
-
-function appAttestation(purpose, ...parts) {
-  return crypto
-    .createHmac("sha256", attestationSecret)
-    .update(["app", purpose, ...parts.map((part) => String(part || ""))].join(":"))
-    .digest("hex");
-}
 
 async function freePort() {
   return await new Promise((resolve, reject) => {
@@ -107,6 +107,7 @@ async function record(name, fn) {
 
 async function startServer(name, { now = "2026-09-19T17:00:00+09:00" } = {}) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), `ticketground-${name}-`));
+  const verifier = await startAppAttestVerifier();
   const port = await freePort();
   const adminPort = await freePort();
   const child = spawn(process.execPath, ["server.js"], {
@@ -124,7 +125,9 @@ async function startServer(name, { now = "2026-09-19T17:00:00+09:00" } = {}) {
       TIG_ADMIN_PASSWORD: crypto.randomBytes(24).toString("hex"),
       TIG_DB_PATH: path.join(tempDir, "db.json"),
       TIG_NOW: now,
-      TIG_APP_ATTESTATION_SECRET: attestationSecret,
+      ...verifier.env,
+      TIG_GOOGLE_AUTH_TEST_MODE: "1",
+      TIG_GOOGLE_CLIENT_ID: "ticketground-test-client.apps.googleusercontent.com",
       TIG_PORTONE_IDENTITY_TEST_MODE: "1",
       TIG_SECRET: "qa-runtime-secret",
     },
@@ -151,7 +154,17 @@ async function startServer(name, { now = "2026-09-19T17:00:00+09:00" } = {}) {
     try {
       const response = await fetch(`${baseUrl}/api/state`);
       if (response.ok && (response.headers.get("content-type") || "").includes("application/json")) {
-        const server = { name, baseUrl, adminUrl, adminToken, tempDir, child, stdout: () => stdout, stderr: () => stderr };
+        const server = {
+          name,
+          baseUrl,
+          adminUrl,
+          adminToken,
+          tempDir,
+          child,
+          closeVerifier: verifier.close,
+          stdout: () => stdout,
+          stderr: () => stderr
+        };
         report.servers.push({ name, baseUrl, adminUrl, tempDir });
         return server;
       }
@@ -162,6 +175,7 @@ async function startServer(name, { now = "2026-09-19T17:00:00+09:00" } = {}) {
   }
 
   child.kill("SIGTERM");
+  await verifier.close();
   await rm(tempDir, { recursive: true, force: true });
   throw new Error(`server ${name} did not start: stdout=${stdout} stderr=${stderr}`);
 }
@@ -172,6 +186,7 @@ async function stopServer(server) {
     server.child.kill("SIGTERM");
     await new Promise((resolve) => server.child.once("exit", resolve));
   }
+  await server.closeVerifier();
   await rm(server.tempDir, { recursive: true, force: true });
 }
 
@@ -423,37 +438,35 @@ async function runApiContract() {
     }, 422, {}, "resale price policy");
     assert.equal(badResale.error.code, "PRICE_OUT_OF_POLICY");
 
-    const { ticket: admissionTicket, purchase: admissionPurchase } = await buyFirstTicket(baseUrl);
+    const admissionLogin = await nativeGoogleLogin(baseUrl);
+    const { ticket: admissionTicket, purchase: admissionPurchase } = await buyFirstNativeTicket(baseUrl, admissionLogin);
     assert.equal(admissionPurchase.admission.activationChannel, "APP_ONLY");
     assert.equal(admissionPurchase.admissionCredential, undefined);
     const virtualQr = await api(baseUrl, "/api/tickets/virtual-qr", {
-      userId: "user_fan_a",
+      userId: admissionLogin.user.id,
       ticketId: admissionTicket.id,
-    }, 200, {}, "virtual qr");
+    }, 200, { Authorization: admissionLogin.authorization }, "virtual qr");
     assert.equal(virtualQr.data.type, "VIRTUAL_TICKET");
     assert.equal(virtualQr.data.signature, undefined);
-    const trustedDevice = await api(baseUrl, "/api/devices/trust", {
-      userId: "user_fan_a",
+    const trustedDevice = await trustIosDevice(baseUrl, admissionLogin, {
       deviceId: "iphone-qa",
-      deviceName: "QA iPhone",
-      platform: "iOS",
-      biometricVerified: true,
-      appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "iphone-qa"),
-    }, 200, {}, "device trust");
+      deviceName: "QA iPhone"
+    });
     assert.equal(trustedDevice.data.device.status, "TRUSTED");
-    const admissionQr = await api(baseUrl, "/api/tickets/qr", {
-      userId: "user_fan_a",
+    const admissionQr = await issueIosAdmissionQr(baseUrl, admissionLogin, {
       ticketId: admissionTicket.id,
-      channel: "APP",
       deviceId: "iphone-qa",
-      deviceToken: trustedDevice.data.deviceToken,
-      appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "iphone-qa", admissionTicket.id),
-    }, 200, {}, "real admission qr");
+      deviceToken: trustedDevice.data.deviceToken
+    });
     assert.equal(admissionQr.data.type, "ADMISSION");
     assert.equal(admissionQr.data.ttlSeconds, 20);
-    const accepted = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, {}, "gate verify accepted");
+    const gateSession = await api(server.adminUrl, "/api/admin/gate-sessions", {
+      gateLabel: "QA-GATE"
+    }, 200, { "x-tig-admin-token": adminToken }, "gate session issue");
+    const gateHeaders = { "x-gate-token": gateSession.data.token };
+    const accepted = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, gateHeaders, "gate verify accepted");
     assert.equal(accepted.data.valid, true);
-    const replay = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, {}, "gate verify replay");
+    const replay = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, gateHeaders, "gate verify replay");
     assert.equal(replay.data.valid, false);
 
     const beforeSale = await api(baseUrl, "/api/state", undefined, 200, {}, "state before admin sale");
@@ -483,44 +496,46 @@ async function runApiContract() {
   const early = await startServer("early", { now: "2026-09-19T15:00:00+09:00" });
   try {
     const { baseUrl } = early;
-    await verifyTestIdentity(baseUrl, "user_fan_a", "010-0000-0098");
-    const { ticket } = await buyFirstTicket(baseUrl);
+    const login = await nativeGoogleLogin(baseUrl);
+    const { ticket } = await buyFirstNativeTicket(baseUrl, login);
     const forgedDevice = await api(baseUrl, "/api/devices/trust", {
-      userId: "user_fan_a",
+      userId: login.user.id,
       deviceId: "forged-iphone",
       biometricVerified: true,
-    }, 403, {}, "forged device");
-    assert.equal(forgedDevice.error.code, "APP_ATTESTATION_REQUIRED");
-    const device = await api(baseUrl, "/api/devices/trust", {
-      userId: "user_fan_a",
+    }, 403, { Authorization: login.authorization }, "forged device");
+    assert.equal(forgedDevice.error.code, "APP_ATTEST_CHALLENGE_INVALID");
+    const device = await trustIosDevice(baseUrl, login, {
       deviceId: "iphone-early",
-      biometricVerified: true,
-      appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "iphone-early"),
-    }, 200, {}, "early device trust");
+      deviceName: "Early QA iPhone"
+    });
     const webQr = await api(baseUrl, "/api/tickets/qr", {
-      userId: "user_fan_a",
+      userId: login.user.id,
       ticketId: ticket.id,
       channel: "WEB",
-    }, 403, {}, "web qr rejected");
+    }, 403, { Authorization: login.authorization }, "web qr rejected");
     assert.equal(webQr.error.code, "APP_CHANNEL_REQUIRED");
-    const earlyQr = await api(baseUrl, "/api/tickets/qr", {
-      userId: "user_fan_a",
+    const earlyQr = await issueIosAdmissionQr(baseUrl, login, {
       ticketId: ticket.id,
-      channel: "APP",
       deviceId: "iphone-early",
       deviceToken: device.data.deviceToken,
-      appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "iphone-early", ticket.id),
-    }, 409, {}, "early qr rejected");
+      expectedStatus: 409
+    });
     assert.equal(earlyQr.error.code, "REAL_QR_NOT_READY");
+    const forgedProof = await issueIosAppAttestProof(baseUrl, login.authorization, {
+      purpose: "ISSUE_QR",
+      deviceId: "different-iphone",
+      ticketId: ticket.id,
+      kind: "assertion"
+    });
     const forgedQr = await api(baseUrl, "/api/tickets/qr", {
-      userId: "user_fan_a",
+      userId: login.user.id,
       ticketId: ticket.id,
       channel: "APP",
       deviceId: "iphone-early",
       deviceToken: device.data.deviceToken,
-      appAttestation: appAttestation("ISSUE_QR", "user_fan_b", "iphone-early", ticket.id),
-    }, 403, {}, "forged qr rejected");
-    assert.equal(forgedQr.error.code, "APP_ATTESTATION_REQUIRED");
+      ...forgedProof
+    }, 403, { Authorization: login.authorization }, "forged qr rejected");
+    assert.equal(forgedQr.error.code, "APP_ATTEST_CHALLENGE_INVALID");
   } finally {
     await stopServer(early);
   }

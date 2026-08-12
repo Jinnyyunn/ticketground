@@ -3,7 +3,19 @@ import assert from "node:assert/strict";
 import { rm } from "node:fs/promises";
 import { chromium } from "playwright";
 import { normalizeAdminIpAllowlist } from "../backend/admin-acl.js";
-import { adminApi, api, appAttestation, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import {
+  adminApi,
+  api,
+  bootstrapAdminPassword,
+  buyFirstNativeTicket,
+  buyFirstTicket,
+  issueIosAdmissionQr,
+  nativeGoogleLogin,
+  startAttestedServer,
+  startServer,
+  trustIosDevice,
+  verifyIdentity
+} from "./backend-test-utils.mjs";
 
 const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAF/wJ/0R5yyAAAAABJRU5ErkJggg==";
 
@@ -1123,21 +1135,17 @@ test("admin alert acknowledgement reduces overview unread count", async (t) => {
 
 test("admin admission hold surfaces QR logs and blocks subsequent QR issuance", async (t) => {
   // Given: a real ticket QR was issued successfully and is visible in admission logs.
-  const server = await startServer(t);
-  const { ticket } = await buyFirstTicket(server.baseUrl);
-  const device = await api(server.baseUrl, "/api/devices/trust", {
-    userId: "user_fan_a",
+  const server = await startAttestedServer(t);
+  const login = await nativeGoogleLogin(server.baseUrl);
+  const { ticket } = await buyFirstNativeTicket(server.baseUrl, login);
+  const device = await trustIosDevice(server.baseUrl, login, {
     deviceId: "hold-test-iphone",
-    biometricVerified: true,
-    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "hold-test-iphone")
+    deviceName: "Hold Test iPhone"
   });
-  const firstQr = await api(server.baseUrl, "/api/tickets/qr", {
-    userId: "user_fan_a",
+  const firstQr = await issueIosAdmissionQr(server.baseUrl, login, {
     ticketId: ticket.id,
-    channel: "APP",
     deviceId: "hold-test-iphone",
-    deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "hold-test-iphone", ticket.id)
+    deviceToken: device.data.deviceToken
   });
   assert.equal(firstQr.data.type, "ADMISSION");
   const admissionBefore = await adminApi(server, "/api/admin/workspaces/admission?limit=5");
@@ -1154,14 +1162,12 @@ test("admin admission hold surfaces QR logs and blocks subsequent QR issuance", 
 
   // Then: a subsequent real QR issuance attempt is rejected by the issuance path, not just marked in UI.
   assert.equal(held.data.adminHold, true);
-  const blockedQr = await api(server.baseUrl, "/api/tickets/qr", {
-    userId: "user_fan_a",
+  const blockedQr = await issueIosAdmissionQr(server.baseUrl, login, {
     ticketId: ticket.id,
-    channel: "APP",
     deviceId: "hold-test-iphone",
     deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "hold-test-iphone", ticket.id)
-  }, 423);
+    expectedStatus: 423
+  });
   assert.equal(blockedQr.error.code, "ADMIN_HOLD_ACTIVE");
   const released = await adminApi(server, "/api/admin/admission/hold", {
     credentialId: credential.id,
