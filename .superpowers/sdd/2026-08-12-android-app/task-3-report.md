@@ -92,3 +92,7 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 - Checkout preparation now consumes the authenticated `ReservationDraft` directly: its single reserved ticket ID and server-calculated `amount.total` become the Toss order context. The client no longer attempts to find the pre-payment `RESERVED` ticket in the owned-ticket inventory and never derives the charged amount from seat-map UI data.
 - The purchase contract carries `reservationDraftId`; the backend accepts only the matching principal-owned, unexpired, single-ticket pending draft and marks it confirmed after allocation. Widget cancellation or failure calls the idempotent reservation-draft DELETE endpoint immediately, returning the reserved seat to inventory.
 - Firebase Messaging `25.1.1` registration uses `register()` followed by the Firebase Installation ID from Installations `19.1.1`; the application manifest explicitly opts into installation-ID messaging. Builds without Firebase project configuration still fail closed.
+
+### Draft payment accounting follow-up
+
+- A reservation-draft purchase now persists the same server-authoritative `amount.total` that Toss confirms. The public purchase payment, owned-ticket payment, admin finance transaction, and `PRIMARY_PURCHASE` ledger `price`/`amount` all report that total, while the ticket retains its separate face value. Idempotent replay returns the original transaction amount. Purchases without a bound draft continue to account at face value.
