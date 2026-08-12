@@ -738,6 +738,8 @@ async function handleApi(req, res, db, surface) {
       userId: purchaseUserId,
       reservationDraftId: body.reservationDraftId
     });
+    const approvedAmount = purchasable.reservationDraft?.amount?.total
+      ?? purchasable.ticket.faceValue + SERVICE_FEE_PER_SEAT;
     const receipt = await confirmTosspaymentsPayment(db, {
       ticketId: body.ticketId,
       userId: purchaseUserId,
@@ -748,8 +750,7 @@ async function handleApi(req, res, db, surface) {
       // service fee (checkout-panel.tsx trustedTotalAmount) - the server
       // must expect that same total, not faceValue alone, or every real
       // (non-mock) purchase fails TOSSPAYMENTS_AMOUNT_MISMATCH.
-      expectedAmount: purchasable.reservationDraft?.amount?.total
-        ?? purchasable.ticket.faceValue + SERVICE_FEE_PER_SEAT
+      expectedAmount: approvedAmount
     });
     let result;
     try {
@@ -760,13 +761,14 @@ async function handleApi(req, res, db, surface) {
         pgTransactionId: receipt.tossPaymentKey,
         idempotencyKey,
         allowOwnedSingleSeatHold: true,
-        reservationDraftId: body.reservationDraftId
+        reservationDraftId: body.reservationDraftId,
+        approvedAmount
       });
     } catch (error) {
       appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {
         ticketId: body.ticketId,
         tossPaymentKey: receipt.tossPaymentKey,
-        amount: purchasable.reservationDraft?.amount?.total ?? purchasable.ticket.faceValue,
+        amount: approvedAmount,
         reason: error.code || "ALLOCATION_FAILED"
       });
       throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {

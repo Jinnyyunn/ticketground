@@ -41,9 +41,14 @@ test("tosspayments purchase in mock mode completes end-to-end and records no spu
 
   assert.equal(purchase.data.ticket.id, ticket.id);
   assert.equal(purchase.data.ticket.status, "OWNED");
+  assert.equal(purchase.data.ticket.faceValue, ticket.faceValue);
+  assert.equal(purchase.data.payment.amount, ticket.faceValue + 2000);
   assert.ok(purchase.data.tosspayments.tossPaymentKey.startsWith("toss_mock_"));
   assert.equal(purchase.data.tosspayments.mock, true);
   assert.equal(purchase.data.tosspayments.method, "카드");
+
+  const finance = await adminApi(server, `/api/admin/workspaces/finance?eventId=${ticket.eventId}&limit=100`);
+  assert.equal(finance.data.transactions.find((item) => item.ticketId === ticket.id).amount, ticket.faceValue + 2000);
 
   const audit = await adminApi(server, "/api/admin/workspaces/audit?action=TOSSPAYMENTS_PAYMENT_NEEDS_REFUND");
   assert.equal(audit.data.ledger.length, 0, "a successful purchase never writes a needs-refund entry");
@@ -85,6 +90,7 @@ test("retrying a tosspayments purchase with the same idempotency key returns the
   const retry = await api(server.baseUrl, "/api/payments/tosspayments/purchase", payload, 200, { "X-Idempotency-Key": "toss-retry-key" });
 
   assert.deepEqual(retry.data.ticket, first.data.ticket, "the retried response resolves to the same purchased ticket");
+  assert.equal(retry.data.payment.amount, first.data.payment.amount, "the retry preserves the server-approved total");
   assert.equal(retry.data.tosspayments.tossPaymentKey, first.data.tosspayments.tossPaymentKey, "the retry reports the same underlying transaction");
   assert.equal(retry.data.tosspayments.replayed, true, "the retry is explicitly marked as a replay, not a fresh confirmation");
 

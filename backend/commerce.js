@@ -90,7 +90,10 @@ export function createCommerceBackend({
     return existingTransaction;
   }
 
-  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey, allowOwnedSingleSeatHold = false, reservationDraftId }) {
+  function buyPrimary(db, {
+    userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey,
+    allowOwnedSingleSeatHold = false, reservationDraftId, approvedAmount
+  }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const payment = resolvePaymentMethod(paymentMethod);
@@ -130,7 +133,9 @@ export function createCommerceBackend({
       type: "VIRTUAL_TICKET"
     };
     const credential = ensureAdmissionCredential(db, { user, ticket, event, performanceDate });
-    const paidAmount = reservationDraft?.amount?.total ?? ticket.faceValue;
+    const paidAmount = Number.isFinite(approvedAmount)
+      ? money(approvedAmount)
+      : reservationDraft?.amount?.total ?? ticket.faceValue;
     db.paymentTransactions.push({
       id: id("pay"),
       ticketId: ticket.id,

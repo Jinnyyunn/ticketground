@@ -131,6 +131,7 @@ test("configured tosspayments purchase succeeds when the confirmed amount includ
   });
 
   assert.equal(purchase.data.ticket.status, "OWNED");
+  assert.equal(purchase.data.payment.amount, ticket.faceValue + 2000);
   assert.equal(purchase.data.tosspayments.mock, false);
 });
 

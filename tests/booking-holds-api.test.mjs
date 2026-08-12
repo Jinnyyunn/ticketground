@@ -227,7 +227,7 @@ test("a single-seat hold can be purchased only by its owner and is converted", a
     }
   });
   assert.equal(purchase.data.ticket.status, "OWNED");
-  assert.equal(purchase.data.payment.amount, tickets[0].faceValue);
+  assert.equal(purchase.data.payment.amount, tickets[0].faceValue + 2000);
 
   const ownedTickets = await request(server, "/api/me/tickets", {
     authorization: user.authorization
