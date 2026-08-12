@@ -364,6 +364,35 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(checkoutAmount.label.contains("R-1"))
         XCTAssertTrue(checkoutAmount.label.contains("88"))
         XCTAssertTrue(checkoutAmount.label.contains("원"))
+
+        app.buttons["BackButton"].tap()
+        let replacementMarker = app.buttons["live-seat-marker-R-2"]
+        XCTAssertTrue(replacementMarker.waitForExistence(timeout: 10))
+        replacementMarker.tap()
+        let replacementSubmit = app.buttons["live-seat-booking-submit"]
+        XCTAssertTrue(replacementSubmit.waitForExistence(timeout: 10))
+        XCTAssertTrue(replacementSubmit.isEnabled)
+        replacementSubmit.tap()
+        let replacementAmount = anyElement(app, identifier: "live-checkout-amount")
+        XCTAssertTrue(replacementAmount.waitForExistence(timeout: 10))
+        XCTAssertTrue(replacementAmount.label.contains("R-2"))
+    }
+
+    func testExpiredSeatHoldCanBeRetriedWithANewAttemptKey() {
+        let app = liveApp(homeScenario: "bookingExpiredRetry")
+        app.launch()
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
+        app.buttons["live-seat-map-link"].tap()
+        let marker = app.buttons["live-seat-marker-R-1"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 10))
+        marker.tap()
+        let submit = app.buttons["live-seat-booking-submit"]
+        submit.tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-seat-booking-error").waitForExistence(timeout: 10))
+        submit.tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-checkout-amount").waitForExistence(timeout: 10))
     }
 
     func testLiveDiscoveryCardLoadsApprovedPoster() {

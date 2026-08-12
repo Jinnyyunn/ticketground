@@ -7,6 +7,9 @@ struct LiveSeatBookingView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedTicketID: String?
     @State private var queueEntry: LiveQueueEntry?
+    @State private var activeHoldID: String?
+    @State private var heldTicketID: String?
+    @State private var holdIdempotencyKey: String?
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
@@ -173,8 +176,7 @@ struct LiveSeatBookingView: View {
         if let position = seat.mapPosition {
             let isSelected = selectedTicketID == seat.id
             Button {
-                selectedTicketID = isSelected ? nil : seat.id
-                errorMessage = nil
+                Task { await selectSeat(isSelected ? nil : seat.id) }
             } label: {
                 seatMarker(position: position, isSelected: isSelected, in: size)
             }
@@ -232,6 +234,39 @@ struct LiveSeatBookingView: View {
     }
 
     @MainActor
+    private func selectSeat(_ ticketID: String?) async {
+        let previousHoldID = activeHoldID
+        let previousHeldTicketID = heldTicketID
+        let previousHoldKey = holdIdempotencyKey
+        selectedTicketID = ticketID
+        errorMessage = nil
+        holdIdempotencyKey = nil
+        guard previousHeldTicketID != ticketID,
+              let previousHoldID,
+              let userID = container.environment.sessionStore.current?.userID else { return }
+        activeHoldID = nil
+        heldTicketID = nil
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            let service = LiveBackendService(apiClient: container.environment.apiClient)
+            _ = try await service.diagnoseBookingHoldsContract()
+            _ = try await service.releaseSeatHold(userID: userID, holdID: previousHoldID)
+        } catch {
+            let service = LiveBackendService(apiClient: container.environment.apiClient)
+            let reconciledHold = try? await service.getSeatHold(userID: userID, holdID: previousHoldID)
+            if reconciledHold?.status == .released || reconciledHold?.status == .expired {
+                return
+            }
+            selectedTicketID = previousHeldTicketID
+            activeHoldID = previousHoldID
+            heldTicketID = previousHeldTicketID
+            holdIdempotencyKey = previousHoldKey
+            errorMessage = "기존 좌석 점유를 해제하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        }
+    }
+
+    @MainActor
     private func enterQueue() async {
         guard let ticketID = selectedTicketID else { return }
         guard let userID = container.environment.sessionStore.current?.userID else {
@@ -281,12 +316,22 @@ struct LiveSeatBookingView: View {
             userID: userID,
             performanceDateID: performanceDateID,
             ticketIDs: [ticketID],
-            idempotencyKey: "ios-booking-\(entry.id)-\(ticketID)"
+            idempotencyKey: holdKey(entryID: entry.id, ticketID: ticketID)
         )
         guard hold.status == .active, hold.ticketIds == [ticketID] else {
+            holdIdempotencyKey = nil
             throw LiveSeatBookingError.invalidHold
         }
+        activeHoldID = hold.id
+        heldTicketID = ticketID
         container.navigationPath.append(.checkout(ticketId: ticketID))
+    }
+
+    private func holdKey(entryID: String, ticketID: String) -> String {
+        if let holdIdempotencyKey { return holdIdempotencyKey }
+        let key = "ios-booking-\(entryID)-\(ticketID)-\(UUID().uuidString)"
+        holdIdempotencyKey = key
+        return key
     }
 }
 

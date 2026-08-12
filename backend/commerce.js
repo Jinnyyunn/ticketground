@@ -33,10 +33,10 @@ export function createCommerceBackend({
     return { ticket, event, zone, performanceDate };
   }
 
-  function assertTicketPurchasable(db, ticketId, userId) {
+  function assertTicketPurchasable(db, ticketId, { allowOwnedSingleSeatHold = false, userId } = {}) {
     const context = ticketPurchaseContext(db, ticketId);
     let seatHold = null;
-    if (context.ticket.status === "HELD" && userId) {
+    if (context.ticket.status === "HELD" && allowOwnedSingleSeatHold && userId) {
       seatHold = db.seatHolds.find((item) => (
         item.id === context.ticket.heldBy
         && item.userId === userId
@@ -90,7 +90,10 @@ export function createCommerceBackend({
       return { user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate, payment, admissionCredential: credential };
     }
 
-    const { ticket, event, zone, performanceDate, seatHold } = assertTicketPurchasable(db, ticketId, user.id);
+    const { ticket, event, zone, performanceDate, seatHold } = assertTicketPurchasable(db, ticketId, {
+      allowOwnedSingleSeatHold: Boolean(pgTransactionId),
+      userId: user.id
+    });
 
     ticket.ownerId = user.id;
     ticket.status = "OWNED";

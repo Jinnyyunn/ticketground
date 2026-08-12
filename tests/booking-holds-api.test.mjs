@@ -182,6 +182,18 @@ test("a single-seat hold can be purchased only by its owner and is converted", a
   });
   await verifyIdentity(server.baseUrl, user.userId, "010-9000-0088");
 
+  const legacyPurchase = await request(server, "/api/tickets/buy", {
+    authorization: user.authorization,
+    method: "POST",
+    status: 409,
+    body: {
+      userId: user.userId,
+      ticketId,
+      paymentMethod: "CREDIT_CARD"
+    }
+  });
+  assert.equal(legacyPurchase.error.code, "TICKET_NOT_AVAILABLE");
+
   const strangerPurchase = await request(server, "/api/payments/tosspayments/purchase", {
     method: "POST",
     status: 409,
