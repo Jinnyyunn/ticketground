@@ -832,7 +832,7 @@ private struct LiveDiscoveryRouteView: View {
             CapabilityLedgerView()
         case .search, .ranking, .genre, .place, .event, .goods:
             catalogBody
-        case .seatMap:
+        case .seatMap, .queue, .booking:
             LiveSeatMapRouteView(route: route)
         case .watchlist:
             LiveWatchlistRouteView()
@@ -842,7 +842,7 @@ private struct LiveDiscoveryRouteView: View {
             LiveDiscoveryContractView(route: route)
         case .checkout(let ticketId):
             LiveCheckoutRouteView(ticketId: ticketId)
-        case .signup, .resale, .transfer, .cancel, .queue, .booking, .reservation:
+        case .signup, .resale, .transfer, .cancel, .reservation:
             LiveUnsupportedRouteView(route: route)
         default:
             LiveUnsupportedRouteView(route: route)
@@ -1482,7 +1482,7 @@ enum LiveSeatMapFailurePresentation: Equatable {
 
 private enum LiveSeatMapRouteState {
     case loading
-    case loaded(LiveSeatMap)
+    case loaded(LiveSeatMap, performanceDateID: String)
     case unavailable
     case failed(PublicReadPresentation)
 }
@@ -1525,10 +1525,6 @@ private struct LiveSeatMapRouteView: View {
     private func seatMapBody(for catalog: LiveCatalog) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                Text(routeTitle(for: catalog))
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(TicketgroundColor.accent)
-                    .accessibilityIdentifier("live-route-state")
                 switch seatMapState {
                 case .loading:
                     TicketgroundLoadingSurface(title: "좌석 현황 불러오는 중")
@@ -1543,8 +1539,8 @@ private struct LiveSeatMapRouteView: View {
                         action: retry
                     )
                     .accessibilityIdentifier("live-seat-map-error")
-                case .loaded(let seatMap):
-                    LiveSeatMapContent(seatMap: seatMap)
+                case .loaded(let seatMap, let performanceDateID):
+                    LiveSeatMapContent(seatMap: seatMap, performanceDateID: performanceDateID)
                 }
             }
             .padding(TicketgroundSpacing.xl)
@@ -1569,10 +1565,20 @@ private struct LiveSeatMapRouteView: View {
                 seatMapState = .unavailable
                 return
             }
-            _ = try await service.diagnoseSeatMap(eventID: event.id)
-            let seatMap = try await service.getSeatMap(eventID: event.id)
+            guard let performanceDateID = (event.dates ?? event.schedules)?.first?.id else {
+                seatMapState = .unavailable
+                return
+            }
+            _ = try await service.diagnoseSeatMap(
+                eventID: event.id,
+                performanceDateID: performanceDateID
+            )
+            let seatMap = try await service.getSeatMap(
+                eventID: event.id,
+                performanceDateID: performanceDateID
+            )
             guard !Task.isCancelled else { return }
-            seatMapState = .loaded(seatMap)
+            seatMapState = .loaded(seatMap, performanceDateID: performanceDateID)
         } catch is CancellationError {
             return
         } catch {
@@ -1599,14 +1605,11 @@ private struct LiveSeatMapRouteView: View {
 
     private var routeSlug: String? {
         switch route {
-        case .seatMap(let slug): return slug
+        case .seatMap(let slug), .queue(let slug), .booking(let slug): return slug
         default: return nil
         }
     }
 
-    private func routeTitle(for catalog: LiveCatalog) -> String {
-        event(in: catalog)?.title ?? "LIVE 좌석 현황"
-    }
 }
 
 private struct LiveSeatMapUnavailableView: View {
@@ -1641,87 +1644,10 @@ private struct LiveSeatMapUnavailableView: View {
 
 private struct LiveSeatMapContent: View {
     let seatMap: LiveSeatMap
-    @Environment(AppContainer.self) private var container
+    let performanceDateID: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                Text(seatMap.event.title)
-                    .font(.title2.weight(.black))
-                    .foregroundStyle(TicketgroundColor.ink)
-                Text(seatMap.event.venue)
-                    .font(.subheadline)
-                    .foregroundStyle(TicketgroundColor.inkMuted)
-                Text(seatMap.map.description)
-                    .font(.body)
-                    .foregroundStyle(TicketgroundColor.inkSecondary)
-            }
-
-            TicketgroundMediaImage(
-                resource: container.environment.apiClient.resolveResource(seatMap.map.image),
-                role: .seatMap,
-                accessibilityLabel: "\(seatMap.map.title) 좌석 배치도",
-                accessibilitySuffix: "live-seat-map",
-                contentMode: .fit
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: 260)
-            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                Text("좌석 구역 및 잔여 수량")
-                    .font(.headline.weight(.black))
-                    .accessibilityIdentifier("live-seat-map-zones")
-                ForEach(seatMap.zones, id: \.id) { zone in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(zone.name)
-                            .font(.subheadline.weight(.bold))
-                        Spacer()
-                        Text("\(zone.available)석 가능")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(zone.available > 0 ? TicketgroundColor.success : TicketgroundColor.inkMuted)
-                        Text(formatPrice(zone.price))
-                            .font(.caption)
-                            .foregroundStyle(TicketgroundColor.inkMuted)
-                    }
-                    .padding(TicketgroundSpacing.md)
-                    .background(TicketgroundColor.surfaceMuted)
-                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityIdentifier("live-seat-zone-\(zone.id)")
-                    .accessibilityLabel("\(zone.name), \(zone.available)석 가능, \(formatPrice(zone.price))")
-                }
-            }
-
-            LazyVStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                Text("좌석별 상태")
-                    .font(.headline.weight(.black))
-                ForEach(seatMap.seats, id: \.id) { seat in
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                            Text(seat.displayCode.isEmpty ? seat.label : seat.displayCode)
-                                .font(.subheadline.weight(.bold))
-                            Text(seat.zoneName)
-                                .font(.caption)
-                                .foregroundStyle(TicketgroundColor.inkMuted)
-                        }
-                        Spacer()
-                        Text(seat.available ? "선택 가능" : "\(seat.status) · 선택 불가")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(seat.available ? TicketgroundColor.success : TicketgroundColor.inkMuted)
-                    }
-                    .padding(.vertical, TicketgroundSpacing.xs)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityIdentifier("live-seat-\(seat.id)")
-                    .accessibilityLabel("\(seat.displayCode.isEmpty ? seat.label : seat.displayCode), \(seat.zoneName)")
-                    .accessibilityValue(seat.available ? "선택 가능" : "\(seat.status) · 선택 불가")
-                }
-            }
-        }
-    }
-
-    private func formatPrice(_ price: Int) -> String {
-        "\(price.formatted())원"
+        LiveSeatBookingView(seatMap: seatMap, performanceDateID: performanceDateID)
     }
 }
 

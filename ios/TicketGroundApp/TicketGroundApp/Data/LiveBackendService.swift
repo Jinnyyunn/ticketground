@@ -81,7 +81,7 @@ final class LiveBackendService {
         )
     }
 
-    func diagnoseSeatMap(eventID: String) async throws -> LiveSeatMap {
+    func diagnoseSeatMap(eventID: String, performanceDateID: String? = nil) async throws -> LiveSeatMap {
         let state = capabilities.state(for: .seatMap)
         clearSeatMapProof()
         guard !eventID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -92,7 +92,11 @@ final class LiveBackendService {
         }
         let seatMap: LiveSeatMap
         do {
-            seatMap = try await fetchSeatMap(eventID: eventID, bypassCapability: true)
+            seatMap = try await fetchSeatMap(
+                eventID: eventID,
+                performanceDateID: performanceDateID,
+                bypassCapability: true
+            )
         } catch {
             clearSeatMapProof()
             throw error
@@ -104,7 +108,10 @@ final class LiveBackendService {
             baseURL: capabilities.baseURL,
             states: states
         )
-        seatMapAdmission = LiveSeatMapAdmission(eventID: eventID)
+        seatMapAdmission = LiveSeatMapAdmission(
+            eventID: eventID,
+            performanceDateID: performanceDateID
+        )
         diagnosedSeatMap = seatMap
         return seatMap
     }
@@ -263,7 +270,11 @@ final class LiveBackendService {
             return diagnosedSeatMap
         }
         do {
-            return try await fetchSeatMap(eventID: eventID, bypassCapability: false)
+            return try await fetchSeatMap(
+                eventID: eventID,
+                performanceDateID: performanceDateID,
+                bypassCapability: false
+            )
         } catch {
             clearSeatMapProof()
             throw error
@@ -606,11 +617,19 @@ final class LiveBackendService {
         }
     }
 
-    private func fetchSeatMap(eventID: String, bypassCapability: Bool) async throws -> LiveSeatMap {
+    private func fetchSeatMap(
+        eventID: String,
+        performanceDateID: String?,
+        bypassCapability: Bool
+    ) async throws -> LiveSeatMap {
+        var query = [APIRequestQuery(name: "eventId", value: eventID)]
+        if let performanceDateID {
+            query.append(APIRequestQuery(name: "performanceDateId", value: performanceDateID))
+        }
         let seatMap = try await get(
             APIRequest(
                 path: "/api/seat-map",
-                query: [APIRequestQuery(name: "eventId", value: eventID)]
+                query: query
             ),
             endpoint: .seatMap,
             bypassCapability: bypassCapability,

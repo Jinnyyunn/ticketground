@@ -312,7 +312,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(goods.staticTexts["Neon Stage"].waitForExistence(timeout: 10))
     }
 
-    func testAdmittedLiveCatalogShowsReadOnlySeatMap() {
+    func testAdmittedLiveCatalogSelectsSeatOnGraphicalMap() {
         let app = liveApp(homeScenario: "catalog")
         app.launch()
         XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
@@ -320,16 +320,45 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
         app.buttons["live-seat-map-link"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
-        XCTAssertFalse(anyElement(app, identifier: "live-seat-performance-selector").exists)
-        let zone = anyElement(app, identifier: "live-seat-zone-R")
-        XCTAssertTrue(zone.waitForExistence(timeout: 10))
-        XCTAssertEqual(zone.label, "R석, 12석 가능, 88,000원")
-        let seat = anyElement(app, identifier: "live-seat-R-1")
-        XCTAssertTrue(seat.waitForExistence(timeout: 10))
-        XCTAssertEqual(seat.label, "R-1, R석")
-        XCTAssertEqual(seat.value as? String, "선택 가능")
-        XCTAssertFalse(app.buttons["live-seat-hold"].exists)
+        let marker = app.buttons["live-seat-marker-R-1"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 10))
+        XCTAssertEqual(marker.value as? String, "선택 가능")
+        XCTAssertTrue(app.buttons["live-seat-marker-R-4"].exists)
+        recordScreenshot(named: "graphical-seat-selection-before", app: app)
+
+        let submit = app.buttons["live-seat-booking-submit"]
+        XCTAssertTrue(submit.waitForExistence(timeout: 10))
+        XCTAssertFalse(submit.isEnabled)
+        marker.tap()
+        XCTAssertEqual(marker.value as? String, "선택됨")
+        XCTAssertTrue(submit.isEnabled)
+        app.buttons["live-seat-marker-R-4"].tap()
+        XCTAssertEqual(app.buttons["live-seat-marker-R-4"].value as? String, "선택됨")
+        XCTAssertEqual(marker.value as? String, "선택 가능")
+        recordScreenshot(named: "graphical-seat-selection-signed-out", app: app)
+        submit.tap()
+        XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
+    }
+
+    func testAuthenticatedSeatSelectionEntersCheckoutAfterQueueAdmission() {
+        let app = liveApp(homeScenario: "bookingAuthenticated")
+        app.launch()
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
+        app.buttons["live-seat-map-link"].tap()
+
+        let errorSurface = anyElement(app, identifier: "state-error")
+        if errorSurface.waitForExistence(timeout: 2) {
+            XCTFail("좌석도 로드 실패: \(errorSurface.label)")
+        }
+        let marker = app.buttons["live-seat-marker-R-1"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 10))
+        marker.tap()
+        recordScreenshot(named: "graphical-seat-selection-authenticated", app: app)
+        app.buttons["live-seat-booking-submit"].tap()
+
+        XCTAssertTrue(app.staticTexts["live-checkout"].waitForExistence(timeout: 10))
     }
 
     func testLiveDiscoveryCardLoadsApprovedPoster() {
@@ -371,9 +400,9 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
 
         app.buttons["live-seat-map-link"].tap()
-        XCTAssertTrue(anyElement(app, identifier: "media-fallback-seat-map-live-seat-map").waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["좌석 구역 및 잔여 수량"].waitForExistence(timeout: 10))
-        XCTAssertTrue(anyElement(app, identifier: "live-seat-zone-R").waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(app, identifier: "media-fallback-seat-map-live-seat-booking").waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["좌석 등급"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["live-seat-marker-R-1"].waitForExistence(timeout: 10))
     }
 
     func testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes() {
