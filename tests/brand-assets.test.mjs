@@ -37,14 +37,33 @@ test("homepage chrome and metadata expose the shared brand assets", async (t) =>
   const logoLinks = page.locator('a[aria-label="Ticketground"]');
   assert.equal(await logoLinks.count(), 2, "header and footer must share the same accessible logo link");
   const logoSources = await logoLinks.locator("img").evaluateAll((images) => images.map((image) => decodeURIComponent(image.getAttribute("src") || "")));
-  assert.equal(logoSources.length, 2);
-  assert.ok(logoSources.every((source) => source.includes("/images/brand/ticketground-logo.png")));
+  assert.equal(logoSources.length, 4, "each shared logo renders light and dark theme sources");
+  assert.equal(logoSources.filter((source) => source.includes("/images/brand/ticketground-logo.png")).length, 2);
+  assert.equal(logoSources.filter((source) => source.includes("/images/brand/ticketground-logo-dark.png")).length, 2);
+  assert.equal(await page.getByRole("img", { name: "Ticketground", exact: true }).count(), 2, "theme switching must keep one stable accessible brand name per logo");
 
   const iconHrefs = await page.locator('link[rel="icon"]').evaluateAll((links) => links.map((link) => link.getAttribute("href")));
   assert.ok(iconHrefs.some((href) => href?.includes("/seo/favicon-16x16.png")));
   assert.ok(iconHrefs.some((href) => href?.includes("/seo/favicon-32x32.png")));
   assert.ok(iconHrefs.some((href) => href?.includes("/seo/favicon-96x96.png")));
   assert.equal(await page.locator('link[rel="apple-touch-icon"]').getAttribute("href"), "/seo/tig-icon-180x180.png");
+});
+
+test("dark mode keeps the shared brand name and selects the bright wordmark", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  t.after(() => page.close());
+
+  await page.addInitScript(() => localStorage.setItem("ticketground:theme", "dark"));
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+
+  assert.equal(await page.getByRole("img", { name: "Ticketground", exact: true }).count(), 2);
+  const darkSources = await page.locator("img").evaluateAll((images) => images
+    .filter((image) => decodeURIComponent(image.getAttribute("src") || "").includes("ticketground-logo-dark"))
+    .map((image) => getComputedStyle(image).display));
+  assert.equal(darkSources.filter((display) => display !== "none").length, 2);
 });
 
 test("gate manifest points only at TIG favicon sizes", async (t) => {

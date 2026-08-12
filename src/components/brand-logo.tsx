@@ -8,9 +8,10 @@ type BrandLogoProps = {
 
 export function BrandLogo({ className, priority = false }: BrandLogoProps) {
   return (
-    <>
+    <span aria-label="Ticketground" className="inline-flex" role="img">
       <Image
-        alt="Ticketground"
+        alt=""
+        aria-hidden="true"
         className={cn("h-7 w-auto object-contain dark:hidden", className)}
         height={179}
         priority={priority}
@@ -28,6 +29,6 @@ export function BrandLogo({ className, priority = false }: BrandLogoProps) {
         src="/images/brand/ticketground-logo-dark.png"
         width={1015}
       />
-    </>
+    </span>
   );
 }
