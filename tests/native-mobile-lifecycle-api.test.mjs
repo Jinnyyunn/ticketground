@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { api, appAttestation, startServer } from "./backend-test-utils.mjs";
+import { api, startServer } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 
 async function request(server, pathName, {
@@ -281,40 +281,43 @@ test("native cancellation requests require an owned ticket, persist idempotently
 test("native device inventory redacts secrets and only allows the bearer to revoke a device", async (t) => {
   const { buyer, dbPath, seller, server } = await prepareTwoPrincipals(t, 0);
   const deviceId = "seller-iphone";
-  await request(server, "/api/devices/trust", {
-    authorization: seller.authorization,
-    method: "POST",
-    body: {
-      userId: "spoofed-user",
-      deviceId,
-      deviceName: "Seller iPhone",
-      platform: "ios",
-      biometricVerified: true,
-      appAttestation: appAttestation("TRUST_DEVICE", seller.user.id, deviceId)
-    }
+  await server.stop();
+  const db = JSON.parse(await readFile(dbPath, "utf8"));
+  db.trustedDevices.push({
+    id: "device_seller_inventory",
+    userId: seller.user.id,
+    deviceId,
+    tokenHash: "must-not-be-exposed",
+    deviceName: "Seller iPhone",
+    platform: "ios",
+    status: "TRUSTED",
+    createdAt: "2026-09-19T08:00:00.000Z",
+    lastVerifiedAt: "2026-09-19T08:00:00.000Z"
   });
+  await writeFile(dbPath, JSON.stringify(db, null, 2));
+  const restarted = await startServer(t, { dbPath });
 
-  const devices = await request(server, "/api/me/devices", { authorization: seller.authorization });
+  const devices = await request(restarted, "/api/me/devices", { authorization: seller.authorization });
   assert.equal(devices.data.length, 1);
   assert.equal(devices.data[0].deviceId, deviceId);
   assert.equal(devices.data[0].tokenHash, undefined);
   assert.equal(devices.data[0].deviceToken, undefined);
 
-  const hidden = await request(server, "/api/me/devices", { authorization: buyer.authorization });
+  const hidden = await request(restarted, "/api/me/devices", { authorization: buyer.authorization });
   assert.deepEqual(hidden.data, []);
-  const foreign = await request(server, `/api/me/devices/${devices.data[0].id}`, {
+  const foreign = await request(restarted, `/api/me/devices/${devices.data[0].id}`, {
     authorization: buyer.authorization,
     method: "DELETE",
     status: 404
   });
   assert.equal(foreign.error.code, "DEVICE_NOT_FOUND");
 
-  const revoked = await request(server, `/api/me/devices/${devices.data[0].id}`, {
+  const revoked = await request(restarted, `/api/me/devices/${devices.data[0].id}`, {
     authorization: seller.authorization,
     method: "DELETE"
   });
   assert.equal(revoked.data.status, "REVOKED");
-  await server.stop();
+  await restarted.stop();
   const persisted = JSON.parse(await readFile(dbPath, "utf8"));
   const audit = persisted.ledger.findLast((entry) => entry.action === "TRUSTED_DEVICE_REVOKED");
   assert.equal(audit.actorId, seller.user.id);
