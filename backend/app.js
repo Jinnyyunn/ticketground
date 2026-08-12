@@ -144,7 +144,6 @@ export async function createTicketgroundApp(options) {
   const engagement = createEngagementBackend({
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
-    hash: runtime.hash,
     httpError: runtime.httpError,
     id: runtime.id,
     idempotentMutation,
@@ -231,7 +230,6 @@ export async function createTicketgroundApp(options) {
     currentTimeMs: runtime.currentTimeMs,
     eventZone: catalog.eventZone,
     findUser: runtime.findUser,
-    hash: runtime.hash,
     httpError: runtime.httpError,
     id: runtime.id,
     idempotentMutation,

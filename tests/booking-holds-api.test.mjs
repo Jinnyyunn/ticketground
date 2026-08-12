@@ -562,3 +562,82 @@ test("principal booking mutation retries replay exact durable results and bound 
   assert.equal(bounded.apiMutationReceipts.length, 1000);
   assert.equal(bounded.apiMutationReceipts.some((receipt) => receipt.id === "prefill-0"), false);
 });
+
+test("hold and draft creation replay immutable first responses after lifecycle changes and restart", async (t) => {
+  configureGoogleEnv(t, true);
+  const tmpDataDir = await mkdtemp(path.join(tmpdir(), "ticketground-booking-create-replay-"));
+  const dbPath = path.join(tmpDataDir, "db.json");
+  t.after(() => rm(tmpDataDir, { recursive: true, force: true }));
+
+  const server = await startServer(t, { dbPath });
+  const user = await googleLogin(server);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 2);
+  const holdBody = { performanceDateId, ticketIds: [tickets[0].id] };
+  const firstHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-hold-create",
+    body: holdBody
+  });
+  await request(server, `/api/me/seat-holds/${firstHold.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "release-after-create"
+  });
+
+  const draftHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-hold",
+    body: { performanceDateId, ticketIds: [tickets[1].id] }
+  });
+  const draftBody = { holdId: draftHold.data.id };
+  const firstDraft = await request(server, "/api/me/reservation-drafts", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-create",
+    body: draftBody
+  });
+  await request(server, `/api/me/reservation-drafts/${firstDraft.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "cancel-after-create"
+  });
+
+  await server.stop();
+  const replayServer = await startServer(t, { dbPath });
+  const replayUser = await googleLogin(replayServer);
+  const holdReplay = await request(replayServer, "/api/me/seat-holds", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-hold-create",
+    body: holdBody
+  });
+  const draftReplay = await request(replayServer, "/api/me/reservation-drafts", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-create",
+    body: draftBody
+  });
+  assert.deepEqual(holdReplay.data, firstHold.data);
+  assert.equal(holdReplay.data.status, "ACTIVE");
+  assert.deepEqual(draftReplay.data, firstDraft.data);
+  assert.equal(draftReplay.data.status, "PENDING_PAYMENT");
+
+  const holdConflict = await request(replayServer, "/api/me/seat-holds", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[1].id] },
+    status: 409
+  });
+  assert.equal(holdConflict.error.code, "IDEMPOTENCY_CONFLICT");
+  const draftConflict = await request(replayServer, "/api/me/reservation-drafts", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-create",
+    body: { holdId: firstHold.data.id },
+    status: 409
+  });
+  assert.equal(draftConflict.error.code, "IDEMPOTENCY_CONFLICT");
+});

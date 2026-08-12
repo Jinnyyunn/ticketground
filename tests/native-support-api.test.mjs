@@ -173,6 +173,73 @@ test("native support idempotency survives runtime secret rotation", async (t) =>
   assert.equal(threads.data.length, 1);
 });
 
+test("support thread and message creation replay immutable first responses after later messages and restart", async (t) => {
+  configureGoogleEnv(t, true);
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-support-snapshot-"));
+  const dbPath = path.join(tempDir, "db.json");
+  t.after(() => rm(tempDir, { recursive: true, force: true }));
+
+  const server = await startServer(t, { dbPath });
+  const login = await nativeLogin(server);
+  const threadBody = { subject: "응답 스냅샷", message: "최초 문의" };
+  const firstThread = await request(server, "/api/me/support/threads", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-support-thread",
+    body: threadBody
+  });
+  const messageBody = { threadId: firstThread.data.id, message: "첫 추가 문의" };
+  const firstMessage = await request(server, "/api/me/support/messages", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-support-message",
+    body: messageBody
+  });
+  await request(server, "/api/me/support/messages", {
+    authorization: login.authorization,
+    method: "POST",
+    idempotencyKey: "later-support-message",
+    body: { threadId: firstThread.data.id, message: "나중 문의" }
+  });
+
+  await server.stop();
+  const replayServer = await startServer(t, { dbPath });
+  const replayLogin = await nativeLogin(replayServer);
+  const threadReplay = await request(replayServer, "/api/me/support/threads", {
+    authorization: replayLogin.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-support-thread",
+    body: threadBody
+  });
+  const messageReplay = await request(replayServer, "/api/me/support/messages", {
+    authorization: replayLogin.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-support-message",
+    body: messageBody
+  });
+  assert.deepEqual(threadReplay.data, firstThread.data);
+  assert.equal(threadReplay.data.messages.length, 1);
+  assert.deepEqual(messageReplay.data, firstMessage.data);
+  assert.equal(messageReplay.data.messages.length, 2);
+
+  const threadConflict = await request(replayServer, "/api/me/support/threads", {
+    authorization: replayLogin.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-support-thread",
+    body: { ...threadBody, message: "다른 최초 문의" },
+    status: 409
+  });
+  assert.equal(threadConflict.error.code, "IDEMPOTENCY_CONFLICT");
+  const messageConflict = await request(replayServer, "/api/me/support/messages", {
+    authorization: replayLogin.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-support-message",
+    body: { ...messageBody, message: "다른 추가 문의" },
+    status: 409
+  });
+  assert.equal(messageConflict.error.code, "IDEMPOTENCY_CONFLICT");
+});
+
 test("native support rejects oversized fields instead of truncating them", async (t) => {
   configureGoogleEnv(t, true);
   const server = await startServer(t);
