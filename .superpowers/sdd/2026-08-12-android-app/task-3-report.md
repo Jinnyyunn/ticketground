@@ -86,3 +86,9 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 - Backend confirmation and cancellation now return `TOSSPAYMENTS_NOT_CONFIGURED` when credentials are absent. Mock receipts require both `NODE_ENV=test` and `TIG_TOSSPAYMENTS_TEST_MODE=1`; production ignores the switch.
 - External gates remain: a numeric Play Integrity Cloud project number, Firebase `google-services.json`, Toss client/secret keys and merchant console configuration, and real-device/provider qualification. No credential or provider configuration is embedded in the repository.
 - Official Toss documentation recommends SDK v2 generally but states native mobile integrations must use v1; the current native Android artifact is therefore pinned to the latest published native SDK release rather than pretending a JavaScript-only v2 SDK is native.
+
+### Reservation and Firebase follow-up
+
+- Checkout preparation now consumes the authenticated `ReservationDraft` directly: its single reserved ticket ID and server-calculated `amount.total` become the Toss order context. The client no longer attempts to find the pre-payment `RESERVED` ticket in the owned-ticket inventory and never derives the charged amount from seat-map UI data.
+- The purchase contract carries `reservationDraftId`; the backend accepts only the matching principal-owned, unexpired, single-ticket pending draft and marks it confirmed after allocation. Widget cancellation or failure calls the idempotent reservation-draft DELETE endpoint immediately, returning the reserved seat to inventory.
+- Firebase Messaging `25.1.1` registration uses `register()` followed by the Firebase Installation ID from Installations `19.1.1`; the application manifest explicitly opts into installation-ID messaging. Builds without Firebase project configuration still fail closed.
