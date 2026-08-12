@@ -61,3 +61,44 @@ test("inquiry composer stays disabled until backend availability is confirmed", 
     await page.close();
   }
 });
+
+test("inquiry page exposes a KakaoTalk one-to-one consultation action", async (t) => {
+  const server = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 960 }, deviceScaleFactor: 1 });
+  try {
+    await page.goto(`${server.baseUrl}/inquiry`, { waitUntil: "networkidle" });
+    const button = page.getByRole("button", { name: "카카오톡 1:1 상담" });
+    await button.waitFor({ timeout: 8000 });
+    assert.ok(await button.isVisible(), "KakaoTalk consultation button should be visible");
+    assert.equal(await page.locator('script[src*="kakao_js_sdk"]').count(), 1, "Kakao JavaScript SDK should be loaded");
+  } finally {
+    await page.close();
+  }
+});
+
+test("KakaoTalk consultation opens the configured channel chat", async (t) => {
+  const server = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 960 }, deviceScaleFactor: 1 });
+  await page.route("https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js", async (route) => {
+    await route.fulfill({
+      contentType: "application/javascript",
+      body: `window.__kakaoChatCalls = []; window.Kakao = { initialized: false, init: function () { this.initialized = true; }, isInitialized: function () { return this.initialized; }, Channel: { chat: function (options) { window.__kakaoChatCalls.push(options); } } };`,
+    });
+  });
+
+  try {
+    await page.goto(`${server.baseUrl}/inquiry`, { waitUntil: "networkidle" });
+    const button = page.getByRole("button", { name: "카카오톡 1:1 상담" });
+    await button.waitFor({ timeout: 8000 });
+    await button.click();
+    assert.deepEqual(await page.evaluate(() => window.__kakaoChatCalls), [{ channelPublicId: "_xmTniX" }]);
+  } finally {
+    await page.close();
+  }
+});

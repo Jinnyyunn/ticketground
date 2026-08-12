@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Script from "next/script";
 import type { InquiryMessage, InquiryThread, Reservation, TicketShow } from "@/types";
 import { addSupportMessage, createSupportThread, getSupportThreads, TicketgroundApiError, type ApiSupportThread } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,25 @@ type DraftMessage = InquiryMessage & {
 type ChatThread = Omit<InquiryThread, "messages"> & {
   readonly messages: readonly DraftMessage[];
 };
+
+type KakaoChannelSdk = {
+  readonly chat: (options: { readonly channelPublicId: string }) => void;
+};
+
+type KakaoSdk = {
+  readonly Channel: KakaoChannelSdk;
+  readonly init: (appKey: string) => void;
+  readonly isInitialized: () => boolean;
+};
+
+declare global {
+  interface Window {
+    readonly Kakao?: KakaoSdk;
+  }
+}
+
+const KAKAO_JAVASCRIPT_KEY = process.env.NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY?.trim() ?? "";
+const KAKAO_CHANNEL_PUBLIC_ID = "_xmTniX";
 
 const statusMeta: Record<InquiryThread["status"], { readonly label: string; readonly className: string }> = {
   open: { label: "대기", className: "border-ticketground bg-card text-ticketground" },
@@ -73,10 +93,30 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
   const [backendStatus, setBackendStatus] = useState("문의 내역 동기화 중");
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
   const [sending, setSending] = useState(false);
+  const [kakaoReady, setKakaoReady] = useState(false);
+  const [kakaoStatus, setKakaoStatus] = useState("");
   const selectedThread = useMemo(() => threads.find((thread) => thread.id === selectedId) ?? threads[0], [selectedId, threads]);
   const reservation = reservations.find((item) => item.id === selectedThread?.reservationId);
   const show = shows.find((item) => item.slug === selectedThread?.showSlug);
   const canSend = backendAvailable === true && draft.trim().length > 0 && draft.length <= 1000;
+
+  function initializeKakao() {
+    if (!KAKAO_JAVASCRIPT_KEY || !window.Kakao) {
+      setKakaoStatus("카카오톡 상담 연결을 준비하지 못했습니다.");
+      return;
+    }
+    if (!window.Kakao.isInitialized()) window.Kakao.init(KAKAO_JAVASCRIPT_KEY);
+    setKakaoReady(true);
+    setKakaoStatus("");
+  }
+
+  function openKakaoChat() {
+    if (!kakaoReady || !window.Kakao) {
+      setKakaoStatus("카카오톡 상담 연결을 준비 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    window.Kakao.Channel.chat({ channelPublicId: KAKAO_CHANNEL_PUBLIC_ID });
+  }
 
   async function refreshBackendThreads() {
     try {
@@ -137,7 +177,9 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
   }
 
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[340px_minmax(0,1fr)]" data-testid="inquiry-surface">
+    <>
+      <Script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" strategy="afterInteractive" onLoad={initializeKakao} />
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[340px_minmax(0,1fr)]" data-testid="inquiry-surface">
       <aside className="min-w-0 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-black text-ink">문의 스레드</h2>
@@ -200,6 +242,24 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
         </div>
 
         <div className="border-t border-line p-5">
+          <div className="mb-5 flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between lg:pr-28">
+            <div>
+              <p className="text-sm font-black text-ink">카카오톡 1:1 상담</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-3">빠른 상담이 필요하면 Ticketground 카카오톡 채널로 문의해주세요.</p>
+            </div>
+            <button
+              type="button"
+              onClick={openKakaoChat}
+              disabled={!kakaoReady}
+              className="h-10 whitespace-nowrap rounded-lg bg-[#FEE500] px-4 text-sm font-black text-[#191919] transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-describedby="kakao-chat-status"
+            >
+              카카오톡 1:1 상담
+            </button>
+            <p id="kakao-chat-status" className="text-xs font-bold text-ink-3" aria-live="polite">
+              {kakaoStatus || (kakaoReady ? "상담 연결 준비 완료" : "카카오톡 상담 연결 준비 중")}
+            </p>
+          </div>
           <label className="grid gap-2 text-sm font-black text-ink">
             답변 작성
             <textarea
@@ -232,6 +292,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
           </div>
         </div>
       </section>
-    </div>
+      </div>
+    </>
   );
 }
