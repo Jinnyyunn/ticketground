@@ -155,7 +155,7 @@ export const footerColumnLinks = [
     id: "support",
     links: [
       { id: "home", href: "/help" },
-      { id: "inquiry", href: "/inquiry" },
+      { id: "inquiry", href: "https://pf.kakao.com/_xmTniX/chat" },
       { id: "notice", href: "/contents/notice" },
     ],
   },
