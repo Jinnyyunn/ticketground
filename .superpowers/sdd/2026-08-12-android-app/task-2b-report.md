@@ -9,17 +9,19 @@ DONE_WITH_CONCERNS
 - `b8c50c2ada45b9e27769c82b7b05811ec63e5678` — `feat(security): add Android integrity verification`
 - `81971cf1d26f7c285f99d7bac6a699378057c8fe` — `feat(android): add secure ticket lifecycle clients`
 - `af3374ba66e8d5a585bfa53f0a3006718e56a29d` — `test(admission): migrate App Attest challenge flow`
+- `b29f83ba2084da628e2fdbf7b8b70a049534c0d7` — `fix(security): complete attestation challenge migration`
 
 ## Delivered files
 
 - Android production: `LifecycleApi.kt`, `LifecycleModels.kt`, `LifecyclePolicy.kt`, `PlatformProviders.kt`, `TossCheckout.kt`, `TicketGroundApiClient.kt`, and `app/build.gradle.kts` under `android/TicketGroundApp/`.
 - Android JVM tests: `LifecycleApiWireTest.kt`, `LifecyclePolicyTest.kt`, `PlatformBoundaryTest.kt`, `TossCheckoutTest.kt`, `TossPaymentApiWireTest.kt`, and lifecycle fixtures in `ApiTestSupport.kt`.
 - Minimum authorized backend contract: `backend/app-attest.js`, `backend/api-router.js`, `backend/app.js`, `backend/mobile-lifecycle.js`, `tests/app-attest-boundary.test.mjs`, and `tests/native-mobile-lifecycle-api.test.mjs`.
-- Admission regression coverage: `tests/admission-flow.test.mjs` and its HTTPS App Attest verifier/challenge helpers in `tests/backend-test-utils.mjs`.
+- Repository-wide admission regression coverage: `tests/admission-flow.test.mjs`, `tests/admission-risk-gate-api.test.mjs`, `tests/booking-admin-flow.test.mjs`, `tests/gate-scanner-page.test.mjs`, `tests/gate-sessions.test.mjs`, and shared HTTPS App Attest verifier/challenge helpers in `tests/backend-test-utils.mjs`.
+- iOS compatibility cleanup: obsolete HMAC-only `LiveAuthenticatedAction` cases were removed, while the existing `LiveBackendService` challenge-first proof flow gained focused request-order and binding coverage.
 
 ## Scope authorization
 
-- The primary explicitly authorized the smallest backend expansion after the Android Play Integrity contract proved to be a blocking dependency. That authorization covered the platform discriminator, principal/purpose/device/ticket-bound single-use challenge, configured HTTPS Play Integrity verifier boundary, fail-closed behavior, and Apple App Attest compatibility. The backend changes listed above are that authorized minimum; protected login remained out of scope and unchanged.
+- The primary explicitly authorized the smallest backend expansion after the Android Play Integrity contract proved to be a blocking dependency. That authorization covered the platform discriminator, principal/purpose/device/ticket-bound single-use challenge, configured HTTPS Play Integrity verifier boundary, fail-closed behavior, and Apple App Attest compatibility. The primary later authorized the minimum iOS product/test cleanup needed to remove the two obsolete trust-device/admission-QR HMAC request cases. The backend and iOS changes listed above are those authorized minimums; protected Kakao/Naver/Google login behavior remained out of scope and unchanged.
 
 ## Security and contract decisions
 
@@ -53,11 +55,20 @@ export ANDROID_HOME="/Users/jinny/Library/Android/sdk"
 | Review RED — legacy admission callers omit server challenge | `NODE_ENV=production node --test --test-concurrency=1 tests/admission-flow.test.mjs` before test migration | exit 1; 0/5 passed, all five fail with `APP_ATTEST_CHALLENGE_INVALID` | `.omo/evidence/android-lifecycle-2026-08-12/admission-review-fix/red-admission-flow.log` |
 | Review GREEN — admission flows use bearer-bound server challenges and configured HTTPS verifier | same complete admission file after test/helper migration | exit 0; 5/5 passed | `.omo/evidence/android-lifecycle-2026-08-12/admission-review-fix/green-admission-flow.log` |
 | Final backend regression including admission | `NODE_ENV=production node --test --test-concurrency=1 tests/admission-flow.test.mjs tests/app-attest-boundary.test.mjs tests/native-mobile-lifecycle-api.test.mjs tests/tosspayments-payment.test.mjs tests/tosspayments-configured-amount.test.mjs tests/booking-holds-api.test.mjs tests/native-account-api.test.mjs tests/catalog-persistence.test.mjs` | exit 0; 39/39 passed | `.omo/evidence/android-lifecycle-2026-08-12/admission-review-fix/final-backend-with-admission.log` |
+| Repository audit RED — remaining sibling HMAC/no-challenge callers | complete admission-risk, booking-admin, gate-scanner, and gate-sessions files before migration | exit 1; 30/42 passed, 12 failed at the challenge boundary | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/red-affected.log` |
+| Repository audit GREEN — affected sibling callers use shared challenge/verifier helpers | same four complete files after migration | exit 0; 42/42 passed | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/green-affected.log` |
+| Final combined backend security and regression set | serial Node run over admission, risk, App Attest, booking admin/holds, catalog, gate scanner/sessions, native account/lifecycle, and Toss suites | exit 0; 81/81 passed | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/final-combined-backend.log` |
+| Full repository Node attempt | `NODE_ENV=production node --test --test-concurrency=1 tests/*.test.mjs` | completed; 403/420 passed, 17 unrelated pre-existing frontend/content expectation failures; every admission/challenge/gate test passed | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/full-backend-tests.log` |
+| Active legacy attestation audit | `rg` over backend, server, tests, QA scripts, and iOS product/test sources | zero active matches; only an archival QR plan and protected login-policy document retain historical prose | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/final-static-audit.log` |
+| iOS focused challenge-first request binding | focused `LiveBackendServiceTests` on iPhone 17 Pro simulator | exit 0; 1/1 passed; challenge precedes each proof and no legacy field/user body is serialized | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/ios-focused-simulator.log`, `.xcresult` |
+| iOS lifecycle UI regression — iPhone | `LiveTicketLifecycleUITests` on iPhone 17 Pro simulator | exit 0; 6/6 passed | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/ios-lifecycle-iphone.log`, `.xcresult` |
+| iOS lifecycle UI regression — iPad | `LiveTicketLifecycleUITests` via `test-without-building` on iPad Pro 13-inch (M5) simulator after the generic test build | exit 0; 6/6 passed | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/ios-lifecycle-ipad-retry.log`, `.xcresult` |
+| iOS app/unit/UI target compile | generic iOS Simulator `build-for-testing` with code signing disabled | exit 0; `TEST BUILD SUCCEEDED` | `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/ios-build-for-testing.log` |
 | Full Android JVM suite | from `android/TicketGroundApp`: `./gradlew testDevDebugUnitTest --rerun-tasks --no-daemon --console=plain` | exit 0; `BUILD SUCCESSFUL`; 40 tests, 0 failures/errors/skips | `.omo/evidence/android-lifecycle-2026-08-12/final-android-jvm-postreview.log` and generated XML under `android/TicketGroundApp/app/build/test-results/testDevDebugUnitTest/` |
 | Android lint and APK assembly | `./gradlew lintDevDebug assembleDevDebug --no-daemon --console=plain` | exit 0; `BUILD SUCCESSFUL`; APK SHA-256 `c2459aebc5e58a11eea0c2894052efe20555e244ecb1c2ef610270f3e2884064` | `.omo/evidence/android-lifecycle-2026-08-12/final-android-lint-assemble-postreview.log`, `.omo/evidence/android-lifecycle-2026-08-12/app-dev-debug-postreview.apk.sha256` |
-| Protected boundary, secret strings, file size, whitespace | changed-path protected-pattern scan, Android production source secret scan, Kotlin LOC, `git diff --check` | zero protected paths; zero forbidden client-secret fixtures in production; affected files under 250 lines; diff check exit 0 | `.omo/evidence/android-lifecycle-2026-08-12/final-static-checks.log` |
+| Protected boundary, secret strings, file size, whitespace | changed-path protected-pattern scan, Android production source secret scan, Kotlin LOC, `git diff --check` | original Task 2B scan had zero protected paths. Repository audit removed one obsolete non-login env pass-through from protected `server.js`; no login/session/OAuth behavior changed. Zero forbidden client-secret fixtures in production; diff check exit 0 | `.omo/evidence/android-lifecycle-2026-08-12/final-static-checks.log`, `.omo/evidence/android-lifecycle-2026-08-12/repository-audit-fix/final-static-audit.log` |
 
-No emulator or physical device was run.
+No Android emulator or physical device was run. iOS simulator tests were run on both iPhone and iPad; these are local qualification, not physical-device evidence.
 
 ## External gates
 
@@ -69,5 +80,6 @@ No emulator or physical device was run.
 
 ## Concerns
 
-- Resolved: all five admission scenarios now acquire bearer-principal-bound, server-issued iOS challenges and consume them through an explicitly configured test HTTPS verifier. The admission file contains no legacy HMAC proof caller, and no backend bypass was added.
+- Resolved: every active backend test, QA script, and iOS product caller now uses the server-issued challenge and typed proof boundary. The shared test helper configures an HTTPS verifier; no legacy HMAC secret/helper or backend bypass remains. The archival QR plan and protected login-policy document retain historical prose only.
+- The full repository Node attempt had 17 unrelated existing frontend/content expectation failures. The final 81-test backend security/regression set, including all admission, risk, gate, and challenge suites, passed. The QA `api-contract` scenario also remains blocked before admission by its existing `/session` 404 expectation; no claim is made that this unrelated QA scenario is green.
 - External provider and physical-device gates above remain unqualified by design. No production readiness claim is made for Play Integrity, FCM, Toss, or admission hardware.
