@@ -5,6 +5,7 @@ import com.google.android.gms.tasks.Task
 import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.StandardIntegrityManager
 import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.installations.FirebaseInstallations
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -33,7 +34,10 @@ class GooglePlayIntegrityTokenRequester(context: Context) : PlayIntegrityTokenRe
 }
 
 class GoogleFirebaseTokenSource : FirebaseTokenSource {
-  override suspend fun fetch(): String = FirebaseMessaging.getInstance().token.await()
+  override suspend fun fetch(): String {
+    FirebaseMessaging.getInstance().register().await()
+    return FirebaseInstallations.getInstance().id.await()
+  }
 }
 
 private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->

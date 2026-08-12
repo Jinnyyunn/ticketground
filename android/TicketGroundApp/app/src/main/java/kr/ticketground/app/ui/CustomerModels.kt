@@ -138,7 +138,12 @@ class TypedCustomerRepository(
     if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.ticketIds != listOf(seatId)) {
       throw IllegalStateException("결제 대상을 안전하게 준비하지 못했습니다.")
     }
-    val request = checkout.prepare(seatId, TossPaymentMethod.CREDIT_CARD, "android-payment-${UUID.randomUUID()}")
+    val request = checkout.prepare(
+      draft,
+      seatLabel,
+      TossPaymentMethod.CREDIT_CARD,
+      "android-payment-${UUID.randomUUID()}",
+    )
     return BookingProgress.Held(seatId, seatLabel, amount, request)
   }
 

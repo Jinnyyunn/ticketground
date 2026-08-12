@@ -10,6 +10,7 @@ data class TossConfig(val configured: Boolean, val clientKey: String)
 enum class TossPaymentMethod { CREDIT_CARD, SIMPLE_PAY, BANK_TRANSFER, MOBILE }
 
 data class TossCheckoutRequest(
+  val draftId: String,
   val ticketId: String,
   val orderName: String,
   val amount: Int,
@@ -39,6 +40,7 @@ interface TossCheckoutGateway {
   suspend fun config(): TossConfig
   suspend fun ownedTicket(ticketId: String): OwnedTicket
   suspend fun confirm(request: TossCheckoutRequest, paymentKey: String)
+  suspend fun cancelDraft(draftId: String, idempotencyKey: String)
 }
 
 data class CheckoutRetryState(val ticketId: String, val idempotencyKey: String, val confirmed: Boolean) {
@@ -98,24 +100,34 @@ class TossCheckoutCoordinator(
 ) {
   private var confirmedTicket: OwnedTicket? = null
 
-  suspend fun prepare(ticketId: String, method: TossPaymentMethod, idempotencyKey: String): TossCheckoutRequest {
+  suspend fun prepare(
+    draft: ReservationDraft,
+    orderName: String,
+    method: TossPaymentMethod,
+    idempotencyKey: String,
+  ): TossCheckoutRequest {
     require(idempotencyKey.isNotBlank())
     val config = gateway.config()
     if (!config.configured || config.clientKey.isBlank()) throw CheckoutError.ProviderUnavailable
-    val ticket = gateway.ownedTicket(ticketId)
-    if (ticket.status != "PENDING_PAYMENT" || ticket.available) throw CheckoutError.TicketUnavailable
+    val ticketId = draft.ticketIds.singleOrNull() ?: throw CheckoutError.TicketUnavailable
+    if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.amount.total <= 0) throw CheckoutError.TicketUnavailable
     val prior = retryStore.read()
     val stableKey = prior?.takeIf { it.ticketId == ticketId && !it.confirmed }?.idempotencyKey ?: idempotencyKey
     retryStore.write(CheckoutRetryState(ticketId, stableKey, false))
     return TossCheckoutRequest(
-      ticket.id, ticket.seatLabel, ticket.faceValue + SERVICE_FEE_KRW, method, config.clientKey, stableKey,
+      draft.id, ticketId, orderName, draft.amount.total, method, config.clientKey, stableKey,
     )
   }
 
   suspend fun complete(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome = when (result) {
-    TossWidgetResult.Cancelled -> CheckoutOutcome.Cancelled
-    is TossWidgetResult.Failed -> CheckoutOutcome.Failed(result.code)
+    TossWidgetResult.Cancelled -> cancel(request, CheckoutOutcome.Cancelled)
+    is TossWidgetResult.Failed -> cancel(request, CheckoutOutcome.Failed(result.code))
     is TossWidgetResult.Success -> confirm(request, result.paymentKey)
+  }
+
+  private suspend fun <T : CheckoutOutcome> cancel(request: TossCheckoutRequest, outcome: T): T {
+    gateway.cancelDraft(request.draftId, "${request.idempotencyKey}-release")
+    return outcome
   }
 
   private suspend fun confirm(request: TossCheckoutRequest, paymentKey: String): CheckoutOutcome {
@@ -128,8 +140,6 @@ class TossCheckoutCoordinator(
     retryStore.write(CheckoutRetryState(request.ticketId, request.idempotencyKey, true))
     return CheckoutOutcome.Confirmed(gateway.ownedTicket(request.ticketId).also { confirmedTicket = it })
   }
-
-  private companion object { const val SERVICE_FEE_KRW = 2_000 }
 }
 
 class TossPaymentApi internal constructor(
@@ -152,7 +162,7 @@ class TossPaymentApi internal constructor(
         method = "POST",
         path = "/api/payments/tosspayments/purchase",
         body = TicketGroundApiClient.JSON.encodeToString(
-          TossConfirmBody(principal.id, request.ticketId, request.method, paymentKey),
+          TossConfirmBody(principal.id, request.ticketId, request.draftId, request.method, paymentKey),
         ),
         idempotencyKey = request.idempotencyKey,
         authenticated = true,
@@ -160,12 +170,17 @@ class TossPaymentApi internal constructor(
       TossPurchaseResult.serializer(),
     )
   }
+
+  override suspend fun cancelDraft(draftId: String, idempotencyKey: String) {
+    account.cancelReservationDraft(draftId, idempotencyKey)
+  }
 }
 
 @Serializable
 private data class TossConfirmBody(
   val userId: String,
   val ticketId: String,
+  val reservationDraftId: String,
   val paymentMethod: TossPaymentMethod,
   val tossPaymentKey: String,
 )

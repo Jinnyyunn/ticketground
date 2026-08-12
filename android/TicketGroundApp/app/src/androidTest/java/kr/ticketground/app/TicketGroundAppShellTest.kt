@@ -255,7 +255,7 @@ class TicketGroundAppShellTest {
   @Test
   fun paymentHandoff_failsClosedOutsideProductionAppCompatHost() {
     val request = kr.ticketground.app.data.TossCheckoutRequest(
-      "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+      "draft-1", "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
       "test_ck_widget", "instrumentation-payment",
     )
     composeRule.setContent {
@@ -277,7 +277,7 @@ class TicketGroundAppShellTest {
   @Test
   fun koreanCopy_keepsPaymentPhraseAndTabletConcertWordTogether() {
     val request = kr.ticketground.app.data.TossCheckoutRequest(
-      "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+      "draft-1", "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
       "test_ck_widget", "instrumentation-payment",
     )
     composeRule.setContent {

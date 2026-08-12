@@ -735,7 +735,8 @@ async function handleApi(req, res, db, surface) {
 
     const purchasable = assertTicketPurchasable(db, body.ticketId, {
       allowOwnedSingleSeatHold: true,
-      userId: purchaseUserId
+      userId: purchaseUserId,
+      reservationDraftId: body.reservationDraftId
     });
     const receipt = await confirmTosspaymentsPayment(db, {
       ticketId: body.ticketId,
@@ -747,7 +748,8 @@ async function handleApi(req, res, db, surface) {
       // service fee (checkout-panel.tsx trustedTotalAmount) - the server
       // must expect that same total, not faceValue alone, or every real
       // (non-mock) purchase fails TOSSPAYMENTS_AMOUNT_MISMATCH.
-      expectedAmount: purchasable.ticket.faceValue + SERVICE_FEE_PER_SEAT
+      expectedAmount: purchasable.reservationDraft?.amount?.total
+        ?? purchasable.ticket.faceValue + SERVICE_FEE_PER_SEAT
     });
     let result;
     try {
@@ -757,7 +759,8 @@ async function handleApi(req, res, db, surface) {
         paymentMethod: body.paymentMethod,
         pgTransactionId: receipt.tossPaymentKey,
         idempotencyKey,
-        allowOwnedSingleSeatHold: true
+        allowOwnedSingleSeatHold: true,
+        reservationDraftId: body.reservationDraftId
       });
     } catch (error) {
       appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {

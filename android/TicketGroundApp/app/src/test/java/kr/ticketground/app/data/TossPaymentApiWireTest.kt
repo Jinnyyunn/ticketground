@@ -22,7 +22,7 @@ class TossPaymentApiWireTest : ApiTestSupport() {
     server.enqueue(success("{\"ticket\":{\"id\":\"ticket-1\",\"seatLabel\":\"A1\"}}"))
     val api = createHttpsApi().payments()
     val request = TossCheckoutRequest(
-      "ticket-1", "A1", 102_000, TossPaymentMethod.CREDIT_CARD, "test_ck", "stable-payment",
+      "draft-1", "ticket-1", "A1", 102_000, TossPaymentMethod.CREDIT_CARD, "test_ck", "stable-payment",
     )
 
     api.confirm(request, "one-time-payment-key")
@@ -33,7 +33,7 @@ class TossPaymentApiWireTest : ApiTestSupport() {
     assertEquals("Bearer secret-bearer", confirm.getHeader("Authorization"))
     assertEquals("stable-payment", confirm.getHeader("X-Idempotency-Key"))
     assertEquals(
-      "{\"userId\":\"account-1\",\"ticketId\":\"ticket-1\",\"paymentMethod\":\"CREDIT_CARD\",\"tossPaymentKey\":\"one-time-payment-key\"}",
+      "{\"userId\":\"account-1\",\"ticketId\":\"ticket-1\",\"reservationDraftId\":\"draft-1\",\"paymentMethod\":\"CREDIT_CARD\",\"tossPaymentKey\":\"one-time-payment-key\"}",
       confirm.body.readUtf8(),
     )
   }

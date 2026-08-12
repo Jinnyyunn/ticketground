@@ -103,6 +103,7 @@ dependencies {
   implementation(libs.coil.svg)
   implementation(libs.play.integrity)
   implementation(libs.firebase.messaging)
+  implementation(libs.firebase.installations)
   implementation(libs.toss.payments)
 
   debugImplementation(libs.androidx.compose.ui.tooling)

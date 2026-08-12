@@ -289,7 +289,7 @@ private class VisualFixtureRepository(private val homeMode: HomeMode = HomeMode.
       seatLabel,
       amount,
       kr.ticketground.app.data.TossCheckoutRequest(
-        seatId, seatLabel, amount + 2_000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+        "draft-capture", seatId, seatLabel, amount + 2_000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
         "test_ck_capture", "capture-idempotency",
       ),
     )

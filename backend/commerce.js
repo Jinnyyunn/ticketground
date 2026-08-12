@@ -33,9 +33,10 @@ export function createCommerceBackend({
     return { ticket, event, zone, performanceDate };
   }
 
-  function assertTicketPurchasable(db, ticketId, { allowOwnedSingleSeatHold = false, userId } = {}) {
+  function assertTicketPurchasable(db, ticketId, { allowOwnedSingleSeatHold = false, userId, reservationDraftId } = {}) {
     const context = ticketPurchaseContext(db, ticketId);
     let seatHold = null;
+    let reservationDraft = null;
     if (context.ticket.status === "HELD" && allowOwnedSingleSeatHold && userId) {
       seatHold = db.seatHolds.find((item) => (
         item.id === context.ticket.heldBy
@@ -46,13 +47,24 @@ export function createCommerceBackend({
         && Date.parse(item.expiresAt) > currentTimeMs()
       )) || null;
     }
-    if (context.ticket.status !== "ON_SALE" && !seatHold) {
+    if (context.ticket.status === "RESERVED" && reservationDraftId && userId) {
+      reservationDraft = db.reservationDrafts.find((item) => (
+        item.id === reservationDraftId
+        && item.userId === userId
+        && item.status === "PENDING_PAYMENT"
+        && item.ticketIds.length === 1
+        && item.ticketIds[0] === context.ticket.id
+        && context.ticket.reservationId === item.id
+        && Date.parse(item.expiresAt) > currentTimeMs()
+      )) || null;
+    }
+    if (context.ticket.status !== "ON_SALE" && !seatHold && !reservationDraft) {
       throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
     }
     if (!isEventBookable(context.event)) {
       throw httpError(409, "EVENT_NOT_ON_SALE", `${saleSummary(context.event).label} 티켓은 아직 예매할 수 없습니다.`);
     }
-    return { ...context, seatHold };
+    return { ...context, seatHold, reservationDraft };
   }
 
   // A lost response after a successful purchase can make a client retry
@@ -78,7 +90,7 @@ export function createCommerceBackend({
     return existingTransaction;
   }
 
-  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey, allowOwnedSingleSeatHold = false }) {
+  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey, allowOwnedSingleSeatHold = false, reservationDraftId }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const payment = resolvePaymentMethod(paymentMethod);
@@ -90,18 +102,25 @@ export function createCommerceBackend({
       return { user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate, payment, admissionCredential: credential };
     }
 
-    const { ticket, event, zone, performanceDate, seatHold } = assertTicketPurchasable(db, ticketId, {
+    const { ticket, event, zone, performanceDate, seatHold, reservationDraft } = assertTicketPurchasable(db, ticketId, {
       allowOwnedSingleSeatHold,
-      userId: user.id
+      userId: user.id,
+      reservationDraftId
     });
 
     ticket.ownerId = user.id;
     ticket.status = "OWNED";
     delete ticket.heldBy;
     delete ticket.holdExpiresAt;
+    delete ticket.reservationId;
+    delete ticket.reservationExpiresAt;
     if (seatHold) {
       seatHold.status = "CONVERTED";
       seatHold.updatedAt = now();
+    }
+    if (reservationDraft) {
+      reservationDraft.status = "CONFIRMED";
+      reservationDraft.updatedAt = now();
     }
     ticket.virtualQr = {
       issuedAt: now(),

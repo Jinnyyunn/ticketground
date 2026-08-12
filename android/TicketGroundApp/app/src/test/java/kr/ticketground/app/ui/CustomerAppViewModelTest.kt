@@ -187,7 +187,7 @@ private class FakeCustomerRepository(
       seatId,
       seatLabel,
       amount,
-      TossCheckoutRequest("ticket-1", seatLabel, amount + 2_000, TossPaymentMethod.CREDIT_CARD, "client-key", "payment-key"),
+      TossCheckoutRequest("draft-1", "ticket-1", seatLabel, amount + 2_000, TossPaymentMethod.CREDIT_CARD, "client-key", "payment-key"),
     )
   }
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit

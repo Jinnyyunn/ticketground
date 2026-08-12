@@ -173,7 +173,9 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
 
 test("a single-seat hold can be purchased only by its owner and is converted", async (t) => {
   configureGoogleEnv(t, true);
-  const server = await startServer(t);
+  const server = await startServer(t, {
+    env: { NODE_ENV: "test", TIG_TOSSPAYMENTS_TEST_MODE: "1" }
+  });
   const user = await googleLogin(server);
   const { performanceDateId, tickets } = await onSaleTickets(server, 1);
   const ticketId = tickets[0].id;
@@ -241,6 +243,49 @@ test("a single-seat hold can be purchased only by its owner and is converted", a
   assert.equal(purchasedTicket.status, "OWNED");
   assert.equal(purchasedTicket.heldBy, undefined);
   assert.equal(purchasedTicket.holdExpiresAt, undefined);
+});
+
+test("a reservation draft purchases its reserved ticket with the server total", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t, {
+    env: { NODE_ENV: "test", TIG_TOSSPAYMENTS_TEST_MODE: "1" }
+  });
+  const user = await googleLogin(server);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 1);
+  const ticketId = tickets[0].id;
+  const hold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-hold",
+    body: { performanceDateId, ticketIds: [ticketId] }
+  });
+  const draft = await request(server, "/api/me/reservation-drafts", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-create",
+    body: { holdId: hold.data.id }
+  });
+  await verifyIdentity(server.baseUrl, user.userId, "010-9000-0089");
+
+  const purchase = await request(server, "/api/payments/tosspayments/purchase", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-purchase",
+    body: {
+      userId: user.userId,
+      ticketId,
+      reservationDraftId: draft.data.id,
+      paymentMethod: "CREDIT_CARD",
+      tossPaymentKey: "android-draft-payment"
+    }
+  });
+
+  assert.equal(purchase.data.ticket.status, "OWNED");
+  const confirmed = await request(server, `/api/me/reservation-drafts/${draft.data.id}`, {
+    authorization: user.authorization
+  });
+  assert.equal(confirmed.data.status, "CONFIRMED");
+  assert.equal(draft.data.amount.total, tickets[0].faceValue + 2000);
 });
 
 test("seat hold requires an idempotency key and replays identical retries", async (t) => {
