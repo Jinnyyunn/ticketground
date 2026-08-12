@@ -29,6 +29,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
 import kr.ticketground.app.AppDestination
 import kr.ticketground.app.data.CatalogEvent
+import kr.ticketground.app.data.AdmissionQr
 import kr.ticketground.app.data.WatchlistItem
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
@@ -295,7 +297,16 @@ private fun EventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) {
 }
 
 @Composable
-fun EventDetailScreen(event: CatalogEvent, onSeatMap: (String?) -> Unit) {
+fun EventDetailScreen(
+  event: CatalogEvent,
+  onSeatMap: (String?) -> Unit,
+  onWatchlist: () -> Unit = {},
+  actionMessage: String? = null,
+) {
+  val performances = (event.schedules ?: event.dates).orEmpty().filter { !it.id.isNullOrBlank() }
+  var selectedPerformanceId by remember(event.id, performances) {
+    mutableStateOf(performances.singleOrNull()?.id)
+  }
   LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     item {
       Text(event.title, style = MaterialTheme.typography.headlineSmall)
@@ -309,8 +320,27 @@ fun EventDetailScreen(event: CatalogEvent, onSeatMap: (String?) -> Unit) {
         event.notices.orEmpty().forEach { Text("· $it") }
       }
     }
+    if (performances.isNotEmpty()) {
+      item { Text("공연 회차 선택", style = MaterialTheme.typography.titleMedium) }
+      items(performances, key = { requireNotNull(it.id) }) { performance ->
+        val id = requireNotNull(performance.id)
+        Row(
+          modifier = Modifier.fillMaxWidth().clickable { selectedPerformanceId = id },
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          RadioButton(selected = selectedPerformanceId == id, onClick = { selectedPerformanceId = id })
+          Text(performance.label ?: performance.startsAt ?: performance.date ?: "공연 회차")
+        }
+      }
+    }
     item {
-      Button(onClick = { onSeatMap(event.schedules?.firstOrNull()?.id ?: event.dates?.firstOrNull()?.id) }, modifier = Modifier.fillMaxWidth()) {
+      OutlinedButton(onClick = onWatchlist, modifier = Modifier.fillMaxWidth()) { Text("관심공연에 추가") }
+      actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+      Button(
+        onClick = { onSeatMap(selectedPerformanceId) },
+        enabled = selectedPerformanceId != null,
+        modifier = Modifier.fillMaxWidth(),
+      ) {
         Text("좌석도에서 예매하기")
       }
     }
@@ -374,6 +404,8 @@ fun LifecycleOverviewScreen(
   onDevice: () -> Unit = {},
   onPush: () -> Unit = {},
   onQr: () -> Unit = {},
+  onTicketSelected: (String) -> Unit = {},
+  admissionQr: AdmissionQr? = null,
 ) {
   AsyncSurface(state, onRetry) { account ->
     if (!account.signedIn) {
@@ -390,6 +422,22 @@ fun LifecycleOverviewScreen(
       ) {
         item { SectionTitle("마이페이지") }
         actionMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary) } }
+        if (account.tickets.isNotEmpty()) {
+          item { Text("보유 티켓 선택", style = MaterialTheme.typography.titleMedium) }
+          items(account.tickets, key = { it.id }) { ticket ->
+            OutlinedButton(
+              onClick = { onTicketSelected(ticket.id) },
+              modifier = Modifier.fillMaxWidth().testTag("owned-ticket-${ticket.id}"),
+              enabled = !pending,
+            ) {
+              RadioButton(
+                selected = ticket.id == account.selectedTicketId,
+                onClick = null,
+              )
+              Text("${ticket.title} · ${ticket.seatLabel}")
+            }
+          }
+        }
         item {
           SurfaceCard {
             Text(account.ticketTitle ?: "보유 티켓이 없습니다", style = MaterialTheme.typography.titleMedium)
@@ -442,7 +490,13 @@ fun LifecycleOverviewScreen(
         item {
           SurfaceCard {
             Text("입장 QR", style = MaterialTheme.typography.titleMedium)
-            Text("원본 자격 정보는 화면에 표시하거나 저장하지 않습니다.")
+            if (admissionQr != null && admissionQr.ticketId == account.ticketId) {
+              AdmissionQrCode(admissionQr)
+              Text("유효 기한 ${admissionQr.expiresAt}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+              Text("확인 코드 ${admissionQr.traceCode}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+              Text("QR 원본 자격 정보는 코드 외부에 표시하거나 저장하지 않습니다.")
+            }
             Button(
               onClick = onQr,
               enabled = account.ticketEligible && account.trustedDevice && !pending,

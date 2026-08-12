@@ -4,6 +4,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
+import kr.ticketground.app.BuildConfig
 
 class LifecycleApi internal constructor(private val client: TicketGroundApiClient) {
   suspend fun resalePools(): List<ResalePool> = read("/api/me/resale-pools", ListSerializer(ResalePool.serializer()))
@@ -69,12 +70,16 @@ class LifecycleApi internal constructor(private val client: TicketGroundApiClien
     )
   }
 
-  suspend fun trustDevice(deviceName: String, proof: IntegrityProof): DeviceTrustResult {
+  suspend fun trustDevice(
+    deviceName: String, biometricVerified: Boolean, proof: IntegrityProof,
+  ): DeviceTrustResult {
     val binding = proof.binding
-    require(binding.purpose == IntegrityPurpose.TRUST_DEVICE && proof.token.isNotBlank())
+    require(binding.purpose == IntegrityPurpose.TRUST_DEVICE && proof.token.isNotBlank() && biometricVerified)
     return request(
       "POST", "/api/devices/trust",
-      TrustBody("android", binding.deviceId, deviceName, true, binding.id, proof.token),
+      TrustBody(
+        "android", BuildConfig.APPLICATION_ID, binding.deviceId, deviceName, true, binding.id, proof.token,
+      ),
       DeviceTrustResult.serializer(),
     )
   }
@@ -93,7 +98,9 @@ class LifecycleApi internal constructor(private val client: TicketGroundApiClien
     )
     return request(
       "POST", "/api/tickets/qr",
-      AdmissionBody(ticketId, "APP", "android", deviceId, deviceToken, binding.id, proof.token),
+      AdmissionBody(
+        ticketId, "APP", "android", BuildConfig.APPLICATION_ID, deviceId, deviceToken, binding.id, proof.token,
+      ),
       AdmissionQr.serializer(),
     )
   }
@@ -148,12 +155,14 @@ class LifecycleApi internal constructor(private val client: TicketGroundApiClien
   val platform: String, val purpose: IntegrityPurpose, val deviceId: String, val ticketId: String?,
 )
 @Serializable private data class TrustBody(
-  val platform: String, val deviceId: String, val deviceName: String, val biometricVerified: Boolean,
+  val platform: String, val packageName: String, val deviceId: String, val deviceName: String,
+  val biometricVerified: Boolean,
   val challengeId: String, val integrityToken: String,
 )
 @Serializable private data class TicketBody(val ticketId: String)
 @Serializable private data class AdmissionBody(
-  val ticketId: String, val channel: String, val platform: String, val deviceId: String, val deviceToken: String,
+  val ticketId: String, val channel: String, val platform: String, val packageName: String,
+  val deviceId: String, val deviceToken: String,
   val challengeId: String, val integrityToken: String,
 )
 @Serializable private data object EmptyBody

@@ -18,6 +18,8 @@ playIntegrity = "1.6.0"
 firebaseMessaging = "25.1.1"
 firebaseInstallations = "19.1.1"
 tossPayments = "0.1.22"
+biometric = "1.1.0"
+zxing = "3.5.4"
 googleServices = "4.4.3"
 
 [libraries]
@@ -52,6 +54,8 @@ play-integrity = { module = "com.google.android.play:integrity", version.ref = "
 firebase-messaging = { module = "com.google.firebase:firebase-messaging", version.ref = "firebaseMessaging" }
 firebase-installations = { module = "com.google.firebase:firebase-installations", version.ref = "firebaseInstallations" }
 toss-payments = { module = "com.github.tosspayments:payment-sdk-android", version.ref = "tossPayments" }
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

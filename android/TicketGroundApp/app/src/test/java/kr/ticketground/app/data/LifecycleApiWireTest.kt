@@ -72,7 +72,23 @@ class LifecycleApiWireTest : ApiTestSupport() {
     assertEquals("/api/tickets/qr", qr.path)
     assertEquals(true, qrBody.contains("\"challengeId\":\"challenge-1\""))
     assertEquals(true, qrBody.contains("\"integrityToken\":\"raw-integrity-proof\""))
+    assertEquals(true, qrBody.contains("\"packageName\":\"kr.ticketground.app.dev\""))
     assertFalse(qrBody.contains("userId"))
+  }
+
+  @Test
+  fun `device trust refuses to claim biometric verification unless owner authentication succeeded`() = runTest {
+    server.start()
+    val api = TicketGroundApiClient.forTesting(server.url("/"), vault).lifecycle()
+    val binding = IntegrityChallengeBinding(
+      "challenge-1", "challenge", "2099-01-01T00:00:00Z", IntegrityPurpose.TRUST_DEVICE,
+      "account-1", "pixel-1",
+    )
+
+    assertFailsWith<IllegalArgumentException> {
+      api.trustDevice("Pixel", biometricVerified = false, proof = IntegrityProof(binding, "proof"))
+    }
+    assertEquals(0, server.requestCount)
   }
 
   @Test

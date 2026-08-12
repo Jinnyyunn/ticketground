@@ -13,6 +13,8 @@ class TossCheckoutTest {
 
     assertEquals(CheckoutError.ProviderUnavailable, assertFails { coordinator.prepare(draft(), "A1", TossPaymentMethod.CREDIT_CARD, "stable-1") })
     assertEquals(0, gateway.confirmCalls)
+    assertEquals(1, gateway.cancelCalls)
+    assertEquals("draft-1", gateway.lastCancelledDraftId)
   }
 
   @Test

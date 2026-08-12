@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import kr.ticketground.app.data.TicketGroundApiClient
 import kr.ticketground.app.data.GoogleFirebaseTokenSource
 import kr.ticketground.app.data.GooglePlayIntegrityTokenRequester
+import kr.ticketground.app.data.AndroidDeviceOwnerAuthenticator
 import kr.ticketground.app.data.PlatformProviderFactory
 import kr.ticketground.app.data.PersistentCheckoutRetryStore
 import kr.ticketground.app.data.SharedPreferencesCheckoutRetryPersistence
@@ -65,6 +66,7 @@ class MainActivity : AppCompatActivity() {
             PlatformProviderFactory.push(GoogleFirebaseTokenSource()),
             identity,
             KeystoreDeviceTokenStore(applicationContext),
+            AndroidDeviceOwnerAuthenticator(this@MainActivity),
           ),
         ) as T
       }

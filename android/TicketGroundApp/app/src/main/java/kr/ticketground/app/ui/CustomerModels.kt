@@ -26,8 +26,10 @@ import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossPaymentMethod
 import kr.ticketground.app.data.TossWidgetResult
 import kr.ticketground.app.data.DeviceTokenStore
+import kr.ticketground.app.data.DeviceOwnerAuthenticator
 import kr.ticketground.app.data.InMemoryDeviceTokenStore
 import kr.ticketground.app.data.WatchlistItem
+import kr.ticketground.app.data.AdmissionQr
 
 sealed interface AsyncContent<out T> {
   data object Loading : AsyncContent<Nothing>
@@ -43,18 +45,32 @@ data class HomeContent(
   val notices: List<SupportNotice>,
 )
 
+data class AccountTicketOverview(
+  val id: String,
+  val title: String,
+  val seatLabel: String,
+  val eligible: Boolean,
+  val minimumResalePrice: Int,
+  val maximumResalePrice: Int,
+  val qrState: String,
+)
+
 data class AccountOverview(
   val signedIn: Boolean,
-  val ticketId: String? = null,
-  val ticketTitle: String? = null,
-  val seatLabel: String? = null,
-  val ticketEligible: Boolean = false,
-  val minimumResalePrice: Int = 0,
-  val maximumResalePrice: Int = 0,
+  val tickets: List<AccountTicketOverview> = emptyList(),
+  val selectedTicketId: String? = tickets.firstOrNull()?.id,
   val trustedDevice: Boolean = false,
   val pushSuffix: String? = null,
-  val qrState: String = "입장 QR 준비 전",
-)
+) {
+  val selectedTicket: AccountTicketOverview? get() = tickets.firstOrNull { it.id == selectedTicketId }
+  val ticketId: String? get() = selectedTicket?.id
+  val ticketTitle: String? get() = selectedTicket?.title
+  val seatLabel: String? get() = selectedTicket?.seatLabel
+  val ticketEligible: Boolean get() = selectedTicket?.eligible == true
+  val minimumResalePrice: Int get() = selectedTicket?.minimumResalePrice ?: 0
+  val maximumResalePrice: Int get() = selectedTicket?.maximumResalePrice ?: 0
+  val qrState: String get() = selectedTicket?.qrState ?: "입장 QR 준비 전"
+}
 
 sealed interface BookingProgress {
   data class Waiting(val position: Int) : BookingProgress
@@ -71,11 +87,12 @@ interface CustomerRepository {
   suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress
   suspend fun requestCancellation(ticketId: String, reason: String)
   suspend fun listForResale(ticketId: String, price: Int)
+  suspend fun addToWatchlist(eventId: String)
   suspend fun completeCheckout(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome =
     throw ExternalProviderError.TossUnavailable
   suspend fun trustThisDevice(): Unit = throw ExternalProviderError.PlayIntegrityUnavailable
   suspend fun registerPush(): Unit = throw ExternalProviderError.PushUnavailable
-  suspend fun issueAdmissionQr(ticketId: String): Unit = throw ExternalProviderError.PlayIntegrityUnavailable
+  suspend fun issueAdmissionQr(ticketId: String): AdmissionQr = throw ExternalProviderError.PlayIntegrityUnavailable
 }
 
 class TypedCustomerRepository(
@@ -88,6 +105,7 @@ class TypedCustomerRepository(
   private val pushProvider: FirebasePushRegistrationProvider? = null,
   private val deviceIdentity: DeviceIdentity? = null,
   private val deviceTokenStore: DeviceTokenStore = InMemoryDeviceTokenStore(),
+  private val ownerAuthenticator: DeviceOwnerAuthenticator? = null,
 ) : CustomerRepository {
   private val checkout = TossCheckoutCoordinator(client.payments(), checkoutRetryStore)
   override suspend fun home(): HomeContent {
@@ -107,18 +125,21 @@ class TypedCustomerRepository(
     val tickets = accountApi.tickets()
     val devices = lifecycleApi.trustedDevices()
     val push = lifecycleApi.pushTokens()
-    val ticket = tickets.firstOrNull()
     return AccountOverview(
       signedIn = true,
-      ticketId = ticket?.id,
-      ticketTitle = ticket?.event?.title,
-      seatLabel = ticket?.seatLabel,
-      ticketEligible = ticket?.let(LifecyclePolicy::canIssueQr) == true,
-      minimumResalePrice = ticket?.minPrice ?: 0,
-      maximumResalePrice = ticket?.maxPrice ?: 0,
+      tickets = tickets.map { ticket ->
+        AccountTicketOverview(
+          id = ticket.id,
+          title = ticket.event?.title ?: "공연 정보 확인 중",
+          seatLabel = ticket.seatLabel,
+          eligible = LifecyclePolicy.canIssueQr(ticket),
+          minimumResalePrice = ticket.minPrice,
+          maximumResalePrice = ticket.maxPrice,
+          qrState = if (ticket.virtualQr != null) "가상 티켓 발급됨" else "입장 가능 시간 전",
+        )
+      },
       trustedDevice = devices.any { LifecyclePolicy.canRevoke(it.status) },
       pushSuffix = push.firstOrNull()?.suffix,
-      qrState = if (ticket?.virtualQr != null) "가상 티켓 발급됨" else "입장 가능 시간 전",
     )
   }
 
@@ -155,14 +176,20 @@ class TypedCustomerRepository(
     lifecycleApi.createResalePool(ticketId, price, null, "android-resale-${UUID.randomUUID()}")
   }
 
+  override suspend fun addToWatchlist(eventId: String) {
+    accountApi.upsertWatchlist(eventId, listOf("PUSH"), true, true, "android-watch-${UUID.randomUUID()}")
+  }
+
   override suspend fun completeCheckout(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome =
     checkout.complete(request, result)
 
   override suspend fun trustThisDevice() {
     val identity = deviceIdentity ?: throw ExternalProviderError.PlayIntegrityUnavailable
     val provider = integrityProvider ?: throw ExternalProviderError.PlayIntegrityUnavailable
+    val authenticated = ownerAuthenticator?.authenticate() == true
+    if (!authenticated) throw ExternalProviderError.DeviceAuthenticationRequired
     val binding = lifecycleApi.integrityChallenge(IntegrityPurpose.TRUST_DEVICE, identity.id)
-    deviceTokenStore.write(lifecycleApi.trustDevice(identity.name, provider.prove(binding)).deviceToken)
+    deviceTokenStore.write(lifecycleApi.trustDevice(identity.name, true, provider.prove(binding)).deviceToken)
   }
 
   override suspend fun registerPush() {
@@ -170,13 +197,13 @@ class TypedCustomerRepository(
     lifecycleApi.registerPushToken(provider.token(), "android-push-${UUID.randomUUID()}")
   }
 
-  override suspend fun issueAdmissionQr(ticketId: String) {
+  override suspend fun issueAdmissionQr(ticketId: String): AdmissionQr {
     val identity = deviceIdentity ?: throw ExternalProviderError.PlayIntegrityUnavailable
     val provider = integrityProvider ?: throw ExternalProviderError.PlayIntegrityUnavailable
     val token = deviceTokenStore.read()?.takeIf(String::isNotBlank) ?: throw ExternalProviderError.DeviceTrustRequired
     lifecycleApi.virtualTicketQr(ticketId)
     val binding = lifecycleApi.integrityChallenge(IntegrityPurpose.ISSUE_QR, identity.id, ticketId)
-    lifecycleApi.admissionQr(ticketId, identity.id, token, provider.prove(binding))
+    return lifecycleApi.admissionQr(ticketId, identity.id, token, provider.prove(binding))
   }
 }
 
@@ -188,6 +215,7 @@ fun safeUiMessage(error: Throwable): String = when (error) {
   ExternalProviderError.PushUnavailable -> "Firebase 알림 설정을 확인할 수 없어 등록하지 않았습니다."
   ExternalProviderError.TossUnavailable -> "Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다."
   ExternalProviderError.DeviceTrustRequired -> "입장 QR을 발급하려면 먼저 이 기기를 등록해 주세요."
+  ExternalProviderError.DeviceAuthenticationRequired -> "기기 등록을 위해 화면 잠금 또는 생체 인증을 완료해 주세요."
   CheckoutError.ProviderUnavailable -> "Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다."
   CheckoutError.TicketUnavailable -> "결제할 티켓 상태를 확인할 수 없습니다. 좌석을 다시 선택해 주세요."
   else -> "요청을 완료하지 못했습니다. 다시 시도해 주세요."

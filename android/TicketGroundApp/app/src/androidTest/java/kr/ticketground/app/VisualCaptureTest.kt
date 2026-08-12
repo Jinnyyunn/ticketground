@@ -2,6 +2,7 @@ package kr.ticketground.app
 
 import android.content.ContentValues
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.foundation.layout.Box
@@ -15,15 +16,19 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.CatalogSchedule
+import kr.ticketground.app.data.AdmissionQr
 import kr.ticketground.app.data.OpenCalendarEntry
 import kr.ticketground.app.data.Seat
 import kr.ticketground.app.data.SeatMap
@@ -36,6 +41,7 @@ import kr.ticketground.app.data.SupportNotice
 import kr.ticketground.app.data.WatchlistEvent
 import kr.ticketground.app.data.WatchlistItem
 import kr.ticketground.app.ui.AccountOverview
+import kr.ticketground.app.ui.AccountTicketOverview
 import kr.ticketground.app.ui.AsyncContent
 import kr.ticketground.app.ui.BookingProgress
 import kr.ticketground.app.ui.CustomerAppViewModel
@@ -109,7 +115,13 @@ class VisualCaptureTest {
     composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("lifecycle-overview-list").fetchSemanticsNodes().isNotEmpty() }
     composeRule.onNodeWithTag("lifecycle-overview-list")
       .performScrollToNode(hasText("입장 QR 발급"))
-    writeCapture("07-phone-lifecycle-blocked-qr.png")
+    composeRule.onNodeWithText("입장 QR 발급").performClick()
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithContentDescription("입장 QR 코드").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("lifecycle-overview-list")
+      .performScrollToNode(hasText("확인 코드 QA-4821"))
+    writeCapture("07-phone-lifecycle-qr.png")
   }
 
   @Test
@@ -171,9 +183,21 @@ class VisualCaptureTest {
 
   private fun writeCapture(name: String) {
     composeRule.waitForIdle()
-    AppDestination.entries.forEach { destination ->
-      composeRule.onNodeWithTag("navigation-icon-${destination.name.lowercase()}", useUnmergedTree = true)
-        .assertIsDisplayed()
+    composeRule.waitUntil(5_000) {
+      AppDestination.entries.all { destination ->
+        runCatching {
+          val icon = composeRule
+            .onNodeWithTag("navigation-icon-${destination.name.lowercase()}", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .captureToImage()
+            .asAndroidBitmap()
+          val pixels = IntArray(icon.width * icon.height)
+          icon.getPixels(pixels, 0, icon.width, 0, 0, icon.width, icon.height)
+          pixels.any { pixel ->
+            Color.alpha(pixel) > 0 && Color.red(pixel) < 128 && Color.green(pixel) < 128 && Color.blue(pixel) < 128
+          }
+        }.getOrDefault(false)
+      }
     }
     composeRule.mainClock.advanceTimeByFrame()
     composeRule.mainClock.advanceTimeByFrame()
@@ -222,7 +246,10 @@ private fun fixtureEvent() = CatalogEvent(
   ageLimit = "만 7세 이상",
   summary = "객석과 함께 즐기는 라이브 공연입니다.",
   notices = listOf("공연 시작 30분 전까지 입장해 주세요.", "좌석 변경은 지원하지 않습니다."),
-  schedules = listOf(CatalogSchedule(id = "performance-1", label = "9월 12일 19:00")),
+  schedules = listOf(
+    CatalogSchedule(id = "performance-1", label = "9월 12일 19:00"),
+    CatalogSchedule(id = "performance-2", label = "9월 13일 17:00"),
+  ),
   saleState = "ON_SALE",
   soldCount = 42,
 )
@@ -263,12 +290,16 @@ private fun fixtureWatchlistItem() = WatchlistItem(
 
 private fun fixtureAccount() = AccountOverview(
   signedIn = true,
-  ticketTitle = "서울 콘서트",
-  seatLabel = "A구역 1열 1번",
-  ticketEligible = false,
-  trustedDevice = false,
+  tickets = listOf(
+    AccountTicketOverview(
+      "ticket-1", "서울 콘서트", "A구역 1열 1번", true, 80_000, 120_000, "입장 가능",
+    ),
+    AccountTicketOverview(
+      "ticket-2", "부산 재즈 나이트", "B구역 3열 8번", false, 60_000, 90_000, "입장 가능 시간 전",
+    ),
+  ),
+  trustedDevice = true,
   pushSuffix = "4821",
-  qrState = "입장 가능 시간 전",
 )
 
 private enum class HomeMode { Ready, Loading, Empty, Error }
@@ -295,4 +326,20 @@ private class VisualFixtureRepository(private val homeMode: HomeMode = HomeMode.
     )
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
+  override suspend fun addToWatchlist(eventId: String) = Unit
+  override suspend fun issueAdmissionQr(ticketId: String) = AdmissionQr(
+    type = "admissionQr",
+    ticketId = ticketId,
+    ownerId = "owner-capture",
+    expiresAt = "2026-09-12 19:05",
+    nonce = "capture-nonce",
+    signature = "capture-signature",
+    issuedAt = "2026-09-12 18:55",
+    performanceStartsAt = "2026-09-12 19:00",
+    preparedAt = "2026-09-12 18:50",
+    activeAt = "2026-09-12 18:55",
+    ttlSeconds = 600,
+    traceCode = "QA-4821",
+    channel = "APP",
+  )
 }

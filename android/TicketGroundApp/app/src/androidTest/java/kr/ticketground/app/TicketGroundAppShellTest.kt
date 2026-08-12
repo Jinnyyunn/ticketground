@@ -31,6 +31,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import kr.ticketground.app.data.CatalogEvent
+import kr.ticketground.app.data.CatalogSchedule
+import kr.ticketground.app.data.AdmissionQr
 import kr.ticketground.app.data.Seat
 import kr.ticketground.app.data.SeatMap
 import kr.ticketground.app.data.SeatMapDetails
@@ -41,8 +43,10 @@ import kr.ticketground.app.data.OpenCalendarEntry
 import kr.ticketground.app.data.SupportFaq
 import kr.ticketground.app.data.SupportNotice
 import kr.ticketground.app.ui.AccountOverview
+import kr.ticketground.app.ui.AccountTicketOverview
 import kr.ticketground.app.ui.AsyncContent
 import kr.ticketground.app.ui.EventListScreen
+import kr.ticketground.app.ui.EventDetailScreen
 import kr.ticketground.app.ui.GraphicalSeatMapScreen
 import kr.ticketground.app.ui.LifecycleOverviewScreen
 import kr.ticketground.app.ui.TicketGroundNavigation
@@ -226,12 +230,13 @@ class TicketGroundAppShellTest {
           AsyncContent.Ready(
             AccountOverview(
               signedIn = true,
-              ticketTitle = "서울 콘서트",
-              seatLabel = "A구역 1열 1번",
-              ticketEligible = false,
+              tickets = listOf(
+                AccountTicketOverview(
+                  "ticket-1", "서울 콘서트", "A구역 1열 1번", false, 80_000, 120_000, "입장 가능 시간 전",
+                ),
+              ),
               trustedDevice = false,
               pushSuffix = "4821",
-              qrState = "입장 가능 시간 전",
             ),
           ),
           onRetry = {},
@@ -250,6 +255,63 @@ class TicketGroundAppShellTest {
     listOf("token", "proof", "signature", "nonce", "ticket-id").forEach {
       composeRule.onNodeWithText(it, substring = true, ignoreCase = true).assertDoesNotExist()
     }
+  }
+
+  @Test
+  fun eventDetail_requiresExplicitPerformanceSelectionBeforeOpeningSeatMap() {
+    var selected: String? = null
+    val event = event().copy(
+      schedules = listOf(
+        CatalogSchedule("performance-1", "8월 20일 19:00"),
+        CatalogSchedule("performance-2", "8월 21일 14:00"),
+      ),
+    )
+    composeRule.setContent {
+      TicketGroundTheme { EventDetailScreen(event, onSeatMap = { selected = it }, onWatchlist = {}) }
+    }
+
+    composeRule.onNodeWithText("8월 21일 14:00").performClick()
+    composeRule.onNodeWithText("좌석도에서 예매하기").performClick()
+
+    composeRule.runOnIdle { assertEquals("performance-2", selected) }
+  }
+
+  @Test
+  fun lifecycleShowsEveryOwnedTicketAndRendersIssuedAdmissionQr() {
+    val qr = AdmissionQr(
+      "ADMISSION", "ticket-2", "account-1", "2099-01-01T00:00:00Z", "nonce", "signature",
+      "2026-08-12T00:00:00Z", "2026-08-20T10:00:00Z", "2026-08-19T10:00:00Z",
+      "2026-08-20T07:00:00Z", 30, "TRACE", "APP",
+    )
+    composeRule.setContent {
+      TicketGroundTheme {
+        LifecycleOverviewScreen(
+          state = AsyncContent.Ready(
+            AccountOverview(
+              signedIn = true,
+              tickets = listOf(
+                AccountTicketOverview("ticket-1", "서울 콘서트", "A구역 1열 1번", true, 80_000, 120_000, "입장 가능"),
+                AccountTicketOverview("ticket-2", "부산 콘서트", "B구역 2열 2번", true, 70_000, 110_000, "입장 가능"),
+              ),
+              selectedTicketId = "ticket-2",
+              trustedDevice = true,
+            ),
+          ),
+          onRetry = {},
+          admissionQr = qr,
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag("lifecycle-overview-list")
+      .performScrollToNode(androidx.compose.ui.test.hasTestTag("owned-ticket-ticket-1"))
+    composeRule.onNodeWithTag("owned-ticket-ticket-1").assertIsDisplayed()
+    composeRule.onNodeWithTag("lifecycle-overview-list")
+      .performScrollToNode(androidx.compose.ui.test.hasTestTag("owned-ticket-ticket-2"))
+    composeRule.onNodeWithTag("owned-ticket-ticket-2").assertIsDisplayed()
+    composeRule.onNodeWithTag("lifecycle-overview-list")
+      .performScrollToNode(androidx.compose.ui.test.hasContentDescription("입장 QR 코드"))
+    composeRule.onNodeWithContentDescription("입장 QR 코드").assertIsDisplayed()
   }
 
   @Test
@@ -350,4 +412,5 @@ private class ComposeCustomerRepository : CustomerRepository {
   override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress = error("not used")
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
+  override suspend fun addToWatchlist(eventId: String) = Unit
 }

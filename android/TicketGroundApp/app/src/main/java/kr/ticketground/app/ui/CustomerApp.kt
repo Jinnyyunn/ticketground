@@ -1,9 +1,11 @@
 package kr.ticketground.app.ui
 
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -17,6 +19,7 @@ import kr.ticketground.app.data.WatchlistItem
 import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
+import kr.ticketground.app.data.AdmissionQr
 
 sealed interface CustomerRoute {
   data object Tab : CustomerRoute
@@ -47,6 +50,8 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   val bookingPending = mutableBookingPending.asStateFlow()
   private val mutableActionMessage = MutableStateFlow<String?>(null)
   val actionMessage = mutableActionMessage.asStateFlow()
+  private val mutableAdmissionQr = MutableStateFlow<AdmissionQr?>(null)
+  val admissionQr = mutableAdmissionQr.asStateFlow()
 
   init { loadHome() }
 
@@ -69,6 +74,16 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun openEvent(event: CatalogEvent) { mutableRoute.value = CustomerRoute.Event(event) }
+
+  fun addToWatchlist(event: CatalogEvent) = viewModelScope.launch {
+    if (mutableBookingPending.value) return@launch
+    mutableBookingPending.value = true
+    mutableActionMessage.value = null
+    runCatching { repository.addToWatchlist(event.id) }
+      .onSuccess { mutableActionMessage.value = "관심공연에 추가했습니다." }
+      .onFailure { mutableActionMessage.value = safeUiMessage(it) }
+    mutableBookingPending.value = false
+  }
 
   fun openSeatMap(event: CatalogEvent, performanceDateId: String?) {
     mutableSelectedSeatId.value = null
@@ -127,14 +142,27 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun loadAccount() = viewModelScope.launch {
+    val previouslySelectedTicketId = (mutableAccount.value as? AsyncContent.Ready)?.value?.selectedTicketId
     mutableAccount.value = AsyncContent.Loading
     mutableAccount.value = runCatching { repository.accountOverview() }.fold(
-      onSuccess = { AsyncContent.Ready(it) },
+      onSuccess = { overview ->
+        val selected = previouslySelectedTicketId?.takeIf { id -> overview.tickets.any { it.id == id } }
+          ?: overview.tickets.firstOrNull()?.id
+        AsyncContent.Ready(overview.copy(selectedTicketId = selected))
+      },
       onFailure = { error ->
         if (safeUiMessage(error).startsWith("로그인이 필요한")) AsyncContent.Ready(AccountOverview(signedIn = false))
         else AsyncContent.Error(safeUiMessage(error))
       },
     )
+  }
+
+  fun selectOwnedTicket(ticketId: String) {
+    val current = (mutableAccount.value as? AsyncContent.Ready)?.value ?: return
+    if (current.tickets.none { it.id == ticketId }) return
+    mutableAccount.value = AsyncContent.Ready(current.copy(selectedTicketId = ticketId))
+    mutableAdmissionQr.value = null
+    mutableActionMessage.value = null
   }
 
   fun requestCancellation(reason: String) = mutateAccount("취소 요청이 접수되어 검토 중입니다.") { account ->
@@ -161,7 +189,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   fun registerPush() = mutatePlatform("푸시 알림 등록이 완료되었습니다.") { repository.registerPush() }
 
   fun issueAdmissionQr() = mutateAccount("입장 QR이 안전하게 발급되었습니다.") { account ->
-    repository.issueAdmissionQr(requireNotNull(account.ticketId))
+    mutableAdmissionQr.value = repository.issueAdmissionQr(requireNotNull(account.ticketId))
   }
 
   private fun mutatePlatform(successMessage: String, operation: suspend () -> Unit) = viewModelScope.launch {
@@ -207,8 +235,9 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
   val heldSeatIds by viewModel.heldSeatIds.collectAsStateWithLifecycle()
   val pending by viewModel.bookingPending.collectAsStateWithLifecycle()
   val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
+  val admissionQr by viewModel.admissionQr.collectAsStateWithLifecycle()
 
-  BoxWithConstraints {
+  BoxWithConstraints(Modifier.fillMaxSize()) {
     TicketGroundNavigation(destination, maxWidth, viewModel::navigate) {
       when (val current = route) {
         CustomerRoute.Tab -> when (destination) {
@@ -229,9 +258,16 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
             onDevice = viewModel::trustThisDevice,
             onPush = viewModel::registerPush,
             onQr = viewModel::issueAdmissionQr,
+            onTicketSelected = viewModel::selectOwnedTicket,
+            admissionQr = admissionQr,
           )
         }
-        is CustomerRoute.Event -> EventDetailScreen(current.event) { viewModel.openSeatMap(current.event, it) }
+        is CustomerRoute.Event -> EventDetailScreen(
+          current.event,
+          onSeatMap = { viewModel.openSeatMap(current.event, it) },
+          onWatchlist = { viewModel.addToWatchlist(current.event) },
+          actionMessage = actionMessage,
+        )
         is CustomerRoute.SeatMapRoute -> {
           GraphicalSeatMapScreen(
             state = seatMap,

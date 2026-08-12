@@ -107,16 +107,22 @@ class TossCheckoutCoordinator(
     idempotencyKey: String,
   ): TossCheckoutRequest {
     require(idempotencyKey.isNotBlank())
-    val config = gateway.config()
-    if (!config.configured || config.clientKey.isBlank()) throw CheckoutError.ProviderUnavailable
-    val ticketId = draft.ticketIds.singleOrNull() ?: throw CheckoutError.TicketUnavailable
-    if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.amount.total <= 0) throw CheckoutError.TicketUnavailable
-    val prior = retryStore.read()
-    val stableKey = prior?.takeIf { it.ticketId == ticketId && !it.confirmed }?.idempotencyKey ?: idempotencyKey
-    retryStore.write(CheckoutRetryState(ticketId, stableKey, false))
-    return TossCheckoutRequest(
-      draft.id, ticketId, orderName, draft.amount.total, method, config.clientKey, stableKey,
-    )
+    try {
+      val config = gateway.config()
+      if (!config.configured || config.clientKey.isBlank()) throw CheckoutError.ProviderUnavailable
+      val ticketId = draft.ticketIds.singleOrNull() ?: throw CheckoutError.TicketUnavailable
+      if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.amount.total <= 0) throw CheckoutError.TicketUnavailable
+      val prior = retryStore.read()
+      val stableKey = prior?.takeIf { it.ticketId == ticketId && !it.confirmed }?.idempotencyKey ?: idempotencyKey
+      retryStore.write(CheckoutRetryState(ticketId, stableKey, false))
+      return TossCheckoutRequest(
+        draft.id, ticketId, orderName, draft.amount.total, method, config.clientKey, stableKey,
+      )
+    } catch (error: Throwable) {
+      runCatching { gateway.cancelDraft(draft.id, "$idempotencyKey-release-prepare") }
+        .exceptionOrNull()?.let(error::addSuppressed)
+      throw error
+    }
   }
 
   suspend fun complete(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome = when (result) {

@@ -8,6 +8,7 @@ sealed class ExternalProviderError(message: String) : Exception(message) {
   data object PushUnavailable : ExternalProviderError("FCM is not configured")
   data object TossUnavailable : ExternalProviderError("Toss Payments is not configured")
   data object DeviceTrustRequired : ExternalProviderError("Trusted device registration is required")
+  data object DeviceAuthenticationRequired : ExternalProviderError("Device owner authentication is required")
   data object InvalidChallenge : ExternalProviderError("Integrity challenge is invalid or expired")
 }
 
@@ -33,6 +34,8 @@ class PlayIntegrityProofProvider(
 }
 
 fun interface FirebaseTokenSource { suspend fun fetch(): String }
+
+fun interface DeviceOwnerAuthenticator { suspend fun authenticate(): Boolean }
 
 interface DeviceTokenStore {
   fun read(): String?

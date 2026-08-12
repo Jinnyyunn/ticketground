@@ -105,6 +105,8 @@ dependencies {
   implementation(libs.firebase.messaging)
   implementation(libs.firebase.installations)
   implementation(libs.toss.payments)
+  implementation(libs.androidx.biometric)
+  implementation(libs.zxing.core)
 
   debugImplementation(libs.androidx.compose.ui.tooling)
   debugImplementation(libs.androidx.compose.ui.test.manifest)

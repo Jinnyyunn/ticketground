@@ -22,6 +22,7 @@ import kr.ticketground.app.data.TossWidgetResult
 import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.CheckoutError
 import kr.ticketground.app.data.OwnedTicket
+import kr.ticketground.app.data.AdmissionQr
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -104,7 +105,7 @@ class CustomerAppViewModelTest {
   @Test
   fun `platform actions execute repositories and expose observable success`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository(
-      accountValue = AccountOverview(true, "ticket-1", ticketEligible = true, trustedDevice = true),
+      accountValue = accountOverview(),
     )
     val viewModel = CustomerAppViewModel(repository)
     viewModel.loadAccount()
@@ -122,7 +123,51 @@ class CustomerAppViewModelTest {
     viewModel.issueAdmissionQr()
     advanceUntilIdle()
     assertEquals("ticket-1", repository.qrTicketId)
+    assertEquals("nonce.signature", viewModel.admissionQr.value?.let { "${it.nonce}.${it.signature}" })
     assertEquals("입장 QR이 안전하게 발급되었습니다.", viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `selecting an owned ticket scopes cancellation resale and admission QR`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(accountValue = accountOverview(twoTickets = true))
+    val viewModel = CustomerAppViewModel(repository)
+    viewModel.loadAccount()
+    advanceUntilIdle()
+
+    viewModel.selectOwnedTicket("ticket-2")
+    viewModel.issueAdmissionQr()
+    advanceUntilIdle()
+
+    assertEquals("ticket-2", repository.qrTicketId)
+  }
+
+  @Test
+  fun `refreshing account preserves the selected owned ticket`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(accountValue = accountOverview(twoTickets = true))
+    val viewModel = CustomerAppViewModel(repository)
+    viewModel.loadAccount()
+    advanceUntilIdle()
+
+    viewModel.selectOwnedTicket("ticket-2")
+    viewModel.loadAccount()
+    advanceUntilIdle()
+
+    val account = (viewModel.account.value as AsyncContent.Ready).value
+    assertEquals("ticket-2", account.selectedTicketId)
+  }
+
+  @Test
+  fun `event detail watchlist action persists the selected event`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.addToWatchlist(event)
+    advanceUntilIdle()
+
+    assertEquals("event-1", repository.watchlistedEventId)
+    assertEquals("관심공연에 추가했습니다.", viewModel.actionMessage.value)
   }
 
   @Test
@@ -175,6 +220,7 @@ private class FakeCustomerRepository(
   var pushCalls = 0
   var qrTicketId: String? = null
   var completedPaymentKey: String? = null
+  var watchlistedEventId: String? = null
 
   override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = seatMapFixture()
@@ -192,9 +238,13 @@ private class FakeCustomerRepository(
   }
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
+  override suspend fun addToWatchlist(eventId: String) { watchlistedEventId = eventId }
   override suspend fun trustThisDevice() { trustCalls += 1 }
   override suspend fun registerPush() { pushCalls += 1 }
-  override suspend fun issueAdmissionQr(ticketId: String) { qrTicketId = ticketId }
+  override suspend fun issueAdmissionQr(ticketId: String): AdmissionQr {
+    qrTicketId = ticketId
+    return admissionQr(ticketId)
+  }
   override suspend fun completeCheckout(
     request: TossCheckoutRequest,
     result: TossWidgetResult,
@@ -209,6 +259,12 @@ private class FakeCustomerRepository(
   }
 
   private fun event() = CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)
+
+  private fun admissionQr(ticketId: String) = AdmissionQr(
+    "ADMISSION", ticketId, "account-1", "2099-01-01T00:00:00Z", "nonce", "signature",
+    "2026-08-12T00:00:00Z", "2026-08-20T10:00:00Z", "2026-08-19T10:00:00Z",
+    "2026-08-20T07:00:00Z", 30, "TRACE", "APP",
+  )
   private fun seatMapFixture() = SeatMap(
     event = SeatMapEvent("event-1", "서울 콘서트", "venue-1", "잠실주경기장"),
     map = SeatMapDetails(title = "잠실 좌석도", image = "", description = "무대 기준 좌석도"),
@@ -227,3 +283,16 @@ private class FakeCustomerRepository(
     ),
   )
 }
+
+private fun accountOverview(twoTickets: Boolean = false): AccountOverview = AccountOverview(
+  signedIn = true,
+  tickets = buildList {
+    add(
+    AccountTicketOverview("ticket-1", "서울 콘서트", "A구역 1열 1번", true, 80_000, 120_000, "입장 가능"),
+    )
+    if (twoTickets) add(
+      AccountTicketOverview("ticket-2", "부산 콘서트", "B구역 2열 2번", true, 70_000, 110_000, "입장 가능")
+    )
+  },
+  trustedDevice = true,
+)
