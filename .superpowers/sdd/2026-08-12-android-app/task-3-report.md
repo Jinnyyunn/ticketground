@@ -18,6 +18,8 @@
 - Kept Play Integrity, FCM, and admission QR fail closed when external provider/device qualification is unavailable.
 - Replaced tautological state-value tests with observable Compose and ViewModel scenarios using deterministic fixtures/fake repositories.
 - Added focused coverage for safe image origins, image fallback with still-selectable seats, backend marker geometry, HELD/SOLD/unavailable semantics, selection recomposition, and the production tablet route.
+- Hardened the dedicated Coil image loader by disabling both HTTP and HTTPS redirect following and disabling service-loaded fetchers; its only network fetcher uses the redirect-rejecting OkHttp client.
+- Preserved the complete expanded home information architecture: two-pane event discovery now retains the search action, open calendar, and public support navigation/content.
 
 ## Safety and scope
 
@@ -48,6 +50,16 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 | Compose source readiness | `./gradlew --no-daemon --no-parallel :app:compileDevDebugAndroidTestKotlin` | `BUILD SUCCESSFUL`; production tablet-path and graphical-map tests compile | `.omo/evidence/task-3-android-ui-p1-fixes/03-ui-test-source-compile.log` |
 | Fresh full serial gate | `./gradlew testDevDebugUnitTest compileDevDebugAndroidTestKotlin lintDevDebug assembleDevDebug assembleDevDebugAndroidTest assembleProdRelease --no-daemon --no-parallel --rerun-tasks` | `BUILD SUCCESSFUL in 1m 34s`; 135/135 tasks executed; 45 JVM tests, 0 failures/errors/skips; lint errors 0 | `.omo/evidence/task-3-android-ui-p1-fixes/05-fresh-full-gradle-rerun.log` |
 | Built APKs | same fresh full serial gate | debug `8b015987…e801e27`; UI-test `7adcbcad…105ebae`; R8 release `9842a7fb…83b557` | `.omo/evidence/task-3-android-ui-p1-fixes/06-verification-receipt.txt` |
+
+### Final fidelity correction verification
+
+| Scenario | Invocation | Binary observable | Evidence |
+|---|---|---|---|
+| TDD RED for redirect policy | `./gradlew --no-daemon --no-parallel :app:testDevDebugUnitTest` before implementation | Compile failed because the redirect-rejecting image client did not exist | `.omo/evidence/task-3-android-ui-final-fixes/01-red-redirect-test.log` |
+| HTTPS cross-origin redirect regression | MockWebServer JVM test through `seatMapImageHttpClient` | Initial HTTPS response remains `302`; redirect target receives 0 requests | `.omo/evidence/task-3-android-ui-final-fixes/06-https-redirect-green.log` |
+| Expanded home source coverage | `./gradlew --no-daemon --no-parallel :app:compileDevDebugAndroidTestKotlin` | Production app-path scenarios compile for two-pane, search navigation, calendar, and support navigation/content | `.omo/evidence/task-3-android-ui-final-fixes/04-focused-green.log` |
+| Fresh final serial gate | `./gradlew testDevDebugUnitTest compileDevDebugAndroidTestKotlin lintDevDebug assembleDevDebug assembleDevDebugAndroidTest assembleProdRelease --no-daemon --no-parallel --rerun-tasks` | `BUILD SUCCESSFUL in 1m 39s`; 135/135 tasks executed; 46 JVM tests, 0 failures/errors/skips; lint errors 0 | `.omo/evidence/task-3-android-ui-final-fixes/07-fresh-full-gradle-final.log` |
+| Final APKs | same fresh final gate | debug `9c42fa65…792be25`; UI-test `3aca70ee…08cc417`; R8 release `119c4d5b…1b5105` | `.omo/evidence/task-3-android-ui-final-fixes/08-verification-receipt.txt` |
 
 The Compose UI test APK/source is ready, but instrumentation scenarios were intentionally not executed because Task 4 owns serial emulator/device QA.
 
