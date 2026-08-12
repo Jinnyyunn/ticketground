@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -27,10 +28,13 @@ export function FloatingSide() {
         </button>
       )}
       <Link
-        href="/inquiry"
+        href="https://pf.kakao.com/_xmTniX/chat"
         aria-label="1:1 문의"
-        className="hidden rounded-lg border border-line bg-card px-3 py-3 text-sm font-black text-ink shadow-ticket-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid"
+        target="_blank"
+        rel="noreferrer"
+        className="hidden items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm font-black text-ink shadow-ticket-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 lg:flex"
       >
+        <Image alt="" className="size-6 rounded-md object-cover" height={24} src="/images/kakao-channel-logo.jpg" width={24} />
         1:1 문의
       </Link>
     </div>
