@@ -764,12 +764,6 @@ enum LiveLifecycleResalePoolStatus: String, Decodable, Equatable {
     case open = "OPEN"
     case matched = "MATCHED"
     case cancelled = "CANCELED"
-    case unknown
-
-    init(from decoder: Decoder) throws {
-        let rawValue = try decoder.singleValueContainer().decode(String.self)
-        self = Self(rawValue: rawValue) ?? .unknown
-    }
 }
 
 struct LiveLifecycleResalePool: Decodable, Equatable {
@@ -791,12 +785,6 @@ struct LiveLifecycleResalePool: Decodable, Equatable {
 
 enum LiveCancellationRequestStatus: String, Decodable, Equatable {
     case pendingReview = "PENDING_REVIEW"
-    case unknown
-
-    init(from decoder: Decoder) throws {
-        let rawValue = try decoder.singleValueContainer().decode(String.self)
-        self = Self(rawValue: rawValue) ?? .unknown
-    }
 }
 
 struct LiveCancellationRequest: Decodable, Equatable {
@@ -812,12 +800,6 @@ struct LiveCancellationRequest: Decodable, Equatable {
 enum LiveTrustedDeviceStatus: String, Decodable, Equatable {
     case trusted = "TRUSTED"
     case revoked = "REVOKED"
-    case unknown
-
-    init(from decoder: Decoder) throws {
-        let rawValue = try decoder.singleValueContainer().decode(String.self)
-        self = Self(rawValue: rawValue) ?? .unknown
-    }
 }
 
 struct LiveTrustedDevice: Decodable, Equatable {
@@ -891,9 +873,13 @@ enum LivePushPlatform: String, Codable, Equatable {
     case android
 }
 
+enum LivePushTokenStatus: String, Decodable, Equatable {
+    case active = "ACTIVE"
+}
+
 struct LivePushToken: Decodable, Equatable {
     let platform: LivePushPlatform
-    let status: String
+    let status: LivePushTokenStatus
     let suffix: String
     let createdAt: String
     let updatedAt: String
@@ -918,7 +904,7 @@ struct LivePushToken: Decodable, Equatable {
             )
         }
         platform = try container.decode(LivePushPlatform.self, forKey: .platform)
-        status = try container.decode(String.self, forKey: .status)
+        status = try container.decode(LivePushTokenStatus.self, forKey: .status)
         suffix = try container.decode(String.self, forKey: .suffix)
         createdAt = try container.decode(String.self, forKey: .createdAt)
         updatedAt = try container.decode(String.self, forKey: .updatedAt)

@@ -1876,6 +1876,18 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(LivePushToken.self, from: leakedPushToken))
     }
 
+    func testNativeLifecycleModelsRejectUnknownStatuses() throws {
+        let unknownResale = Data(#"{"id":"pool-1","eventId":"event-1","performanceDateId":"performance-1","zoneId":"zone-1","ticketId":"ticket-1","showSlug":"show-1","price":10000,"buyerFee":1000,"buyerTotal":11000,"sellerSettlement":9000,"buyerCount":0,"status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","matchedAt":null}"#.utf8)
+        let unknownCancellation = Data(#"{"id":"cancel-1","ticketId":"ticket-1","reason":"Changed plans","refundAcknowledged":true,"status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}"#.utf8)
+        let unknownDevice = Data(#"{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":null}"#.utf8)
+        let unknownPushToken = Data(#"{"platform":"ios","status":"FUTURE_STATUS","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}"#.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveLifecycleResalePool.self, from: unknownResale))
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveCancellationRequest.self, from: unknownCancellation))
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveTrustedDevice.self, from: unknownDevice))
+        XCTAssertThrowsError(try JSONDecoder().decode(LivePushToken.self, from: unknownPushToken))
+    }
+
     func testServiceRejectsUnknownIncompatibleAndBlockedCapabilitiesBeforeDispatch() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
