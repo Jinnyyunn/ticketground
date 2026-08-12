@@ -49,7 +49,8 @@ final class LiveBackendService {
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
             nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
+            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
         )
         guard capabilities.diagnostics.compatibility == .compatible else {
             return LiveAPIContractProbe(
@@ -73,7 +74,8 @@ final class LiveBackendService {
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
             nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
+            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -129,7 +131,8 @@ final class LiveBackendService {
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
             nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
+            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
         )
         return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
     }
@@ -147,7 +150,8 @@ final class LiveBackendService {
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
             nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
+            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
         )
         return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
     }
@@ -165,7 +169,8 @@ final class LiveBackendService {
             nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
             nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
             nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true
+            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
+            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
         )
         return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
     }
@@ -298,6 +303,227 @@ final class LiveBackendService {
             principalRequest(path: "/api/me/tickets", userID: userID),
             endpoint: .tickets,
             as: [LiveTicket].self
+        )
+    }
+
+    func getResalePools(userID: String) async throws -> [LiveLifecycleResalePool] {
+        try await get(
+            principalRequest(path: "/api/me/resale-pools", userID: userID),
+            endpoint: .resalePools,
+            as: [LiveLifecycleResalePool].self
+        )
+    }
+
+    func createResalePool(
+        userID: String,
+        ticketID: String,
+        price: Int,
+        showSlug: String?,
+        idempotencyKey: String
+    ) async throws -> LiveLifecycleResalePool {
+        let body = try JSONEncoder().encode(LiveResalePoolRequest(ticketId: ticketID, price: price, showSlug: showSlug))
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/resale-pools",
+                body: .json(body),
+                idempotencyKey: idempotencyKey,
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .resalePoolList,
+            as: LiveLifecycleResalePool.self
+        )
+    }
+
+    func joinResalePool(
+        userID: String,
+        poolID: String,
+        idempotencyKey: String
+    ) async throws -> LiveLifecycleResalePool {
+        try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/resale-pools/\(pathValue(poolID))/join",
+                body: .json(Data("{}".utf8)),
+                idempotencyKey: idempotencyKey,
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .resalePoolJoin,
+            as: LiveLifecycleResalePool.self
+        )
+    }
+
+    func cancelResalePool(userID: String, poolID: String) async throws -> LiveLifecycleResalePool {
+        try await get(
+            APIRequest(
+                method: .delete,
+                path: "/api/me/resale-pools/\(pathValue(poolID))",
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .resalePoolCancel,
+            as: LiveLifecycleResalePool.self
+        )
+    }
+
+    func getCancellationRequests(userID: String) async throws -> [LiveCancellationRequest] {
+        try await get(
+            principalRequest(path: "/api/me/cancellation-requests", userID: userID),
+            endpoint: .cancellationRequests,
+            as: [LiveCancellationRequest].self
+        )
+    }
+
+    func createCancellationRequest(
+        userID: String,
+        ticketID: String,
+        reason: String,
+        refundAcknowledged: Bool,
+        idempotencyKey: String
+    ) async throws -> LiveCancellationRequest {
+        let body = try JSONEncoder().encode(
+            LiveCancellationRequestBody(
+                ticketId: ticketID,
+                reason: reason,
+                refundAcknowledged: refundAcknowledged
+            )
+        )
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/cancellation-requests",
+                body: .json(body),
+                idempotencyKey: idempotencyKey,
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .cancellationRequestCreate,
+            as: LiveCancellationRequest.self
+        )
+    }
+
+    func getTrustedDevices(userID: String) async throws -> [LiveTrustedDevice] {
+        try await get(
+            principalRequest(path: "/api/me/devices", userID: userID),
+            endpoint: .trustedDevices,
+            as: [LiveTrustedDevice].self
+        )
+    }
+
+    func revokeTrustedDevice(userID: String, deviceID: String) async throws -> LiveTrustedDevice {
+        try await get(
+            APIRequest(
+                method: .delete,
+                path: "/api/me/devices/\(pathValue(deviceID))",
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .trustedDeviceRevoke,
+            as: LiveTrustedDevice.self
+        )
+    }
+
+    func getPushTokens(userID: String) async throws -> [LivePushToken] {
+        try await get(
+            principalRequest(path: "/api/me/push-tokens", userID: userID),
+            endpoint: .pushTokens,
+            as: [LivePushToken].self
+        )
+    }
+
+    func registerPushToken(
+        userID: String,
+        platform: LivePushPlatform,
+        token: String,
+        idempotencyKey: String
+    ) async throws -> LivePushToken {
+        let body = try JSONEncoder().encode(LivePushTokenRequest(platform: platform, token: token))
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/push-tokens",
+                body: .json(body),
+                idempotencyKey: idempotencyKey,
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .pushTokenRegister,
+            as: LivePushToken.self
+        )
+    }
+
+    func trustDevice(
+        userID: String,
+        deviceID: String,
+        deviceName: String,
+        platform: String,
+        attestation: String
+    ) async throws -> LiveDeviceTrustResult {
+        let body = try JSONEncoder().encode(
+            LiveDeviceTrustRequest(
+                deviceId: deviceID,
+                deviceName: deviceName,
+                platform: platform,
+                biometricVerified: true,
+                appAttestation: attestation
+            )
+        )
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/devices/trust",
+                body: .json(body),
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .deviceTrust,
+            as: LiveDeviceTrustResult.self
+        )
+    }
+
+    func getVirtualTicketQR(userID: String, ticketID: String) async throws -> LiveVirtualTicketQR {
+        let body = try JSONEncoder().encode(LiveTicketQRRequest(ticketId: ticketID))
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/tickets/virtual-qr",
+                body: .json(body),
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .virtualQR,
+            as: LiveVirtualTicketQR.self
+        )
+    }
+
+    func issueAdmissionQR(
+        userID: String,
+        ticketID: String,
+        deviceID: String,
+        deviceToken: String,
+        attestation: String
+    ) async throws -> LiveAdmissionQR {
+        let body = try JSONEncoder().encode(
+            LiveAdmissionQRRequest(
+                ticketId: ticketID,
+                channel: "APP",
+                deviceId: deviceID,
+                deviceToken: deviceToken,
+                appAttestation: attestation
+            )
+        )
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/tickets/qr",
+                body: .json(body),
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .ticketQR,
+            as: LiveAdmissionQR.self
         )
     }
 
@@ -723,4 +949,41 @@ private struct LiveWatchlistPreferences: Encodable {
 private struct LiveSeatHoldRequest: Encodable {
     let performanceDateId: String
     let ticketIds: [String]
+}
+
+private struct LiveResalePoolRequest: Encodable {
+    let ticketId: String
+    let price: Int
+    let showSlug: String?
+}
+
+private struct LiveCancellationRequestBody: Encodable {
+    let ticketId: String
+    let reason: String
+    let refundAcknowledged: Bool
+}
+
+private struct LivePushTokenRequest: Encodable {
+    let platform: LivePushPlatform
+    let token: String
+}
+
+private struct LiveDeviceTrustRequest: Encodable {
+    let deviceId: String
+    let deviceName: String
+    let platform: String
+    let biometricVerified: Bool
+    let appAttestation: String
+}
+
+private struct LiveTicketQRRequest: Encodable {
+    let ticketId: String
+}
+
+private struct LiveAdmissionQRRequest: Encodable {
+    let ticketId: String
+    let channel: String
+    let deviceId: String
+    let deviceToken: String
+    let appAttestation: String
 }
