@@ -189,7 +189,9 @@ test("a single-seat hold can be purchased only by its owner and is converted", a
     body: {
       userId: user.userId,
       ticketId,
-      paymentMethod: "CREDIT_CARD"
+      paymentMethod: "CREDIT_CARD",
+      pgTransactionId: "attacker-supplied-value",
+      allowOwnedSingleSeatHold: true
     }
   });
   assert.equal(legacyPurchase.error.code, "TICKET_NOT_AVAILABLE");

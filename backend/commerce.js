@@ -78,7 +78,7 @@ export function createCommerceBackend({
     return existingTransaction;
   }
 
-  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey }) {
+  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey, allowOwnedSingleSeatHold = false }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const payment = resolvePaymentMethod(paymentMethod);
@@ -91,7 +91,7 @@ export function createCommerceBackend({
     }
 
     const { ticket, event, zone, performanceDate, seatHold } = assertTicketPurchasable(db, ticketId, {
-      allowOwnedSingleSeatHold: Boolean(pgTransactionId),
+      allowOwnedSingleSeatHold,
       userId: user.id
     });
 
