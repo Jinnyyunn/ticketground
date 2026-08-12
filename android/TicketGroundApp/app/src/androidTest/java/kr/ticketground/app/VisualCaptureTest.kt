@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -249,7 +250,10 @@ private fun LabeledCapture(
     Modifier.size(width, height).background(MaterialTheme.colorScheme.background)
       .testTag("visual-capture-root"),
   ) {
-    Surface(color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+    Surface(
+      color = MaterialTheme.colorScheme.primaryContainer,
+      modifier = Modifier.fillMaxWidth().zIndex(1f),
+    ) {
       Text("Visual QA · $label", Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
     }
     Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) { content() }
