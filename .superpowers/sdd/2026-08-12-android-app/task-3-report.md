@@ -100,3 +100,8 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 ### Shared Toss approved-total accounting
 
 - The same accounting rule now covers every primary Toss purchase, including web/iOS active-hold and direct on-sale routes. The API router calculates the expected total from server inventory plus the canonical per-seat service fee (or the reservation draft total), verifies exactly that amount with Toss, and passes it to commerce as `approvedAmount`. Transactions, public payment DTOs, owned-ticket payment history, finance, audit, refund-needed compensation, and idempotent replay therefore use the actually approved total. Legacy non-PG `buyPrimary` callers omit `approvedAmount` and retain their existing face-value semantics.
+
+### Production-suite fixture isolation
+
+- Toss cancellation/webhook and checkout-widget tests now start their child backend with an explicit `NODE_ENV=test` plus `TIG_TOSSPAYMENTS_TEST_MODE=1`, so an outer production test runner cannot accidentally request a mock receipt from a production-mode server. The setting is confined to each spawned fixture process; the production guard remains unchanged.
+- The resale browser fixture now targets the current `/mypage/resale` production route and its current reservation-context copy. Under an outer `NODE_ENV=production`, the three focused files pass 13/13 serially; no application or provider behavior changed.
