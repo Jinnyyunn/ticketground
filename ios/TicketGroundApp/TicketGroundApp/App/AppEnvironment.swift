@@ -1290,6 +1290,8 @@ private final class UITestLiveHomeAPIClient: APIClient {
         case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCommittedResponseLost && request.method == .delete:
             watchlistPresent = false
             throw APIClientError.server(status: 503, code: "WATCHLIST_RESPONSE_LOST", message: "response lost after commit")
+        case ("/api/state", _) where scenario == .bookingAuthenticated:
+            return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[{\"id\":\"R-1\",\"eventId\":\"live-neon\",\"performanceDateId\":\"live-neon-first\",\"zoneId\":\"R\",\"seatLabel\":\"R-1\",\"status\":\"HELD\",\"available\":false,\"faceValue\":88000,\"minPrice\":88000,\"maxPrice\":88000,\"transferCount\":0,\"maxTransferCount\":3}],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":1},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):
@@ -1306,6 +1308,10 @@ private final class UITestLiveHomeAPIClient: APIClient {
             return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\(image)\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":4}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":35,\"y\":42,\"width\":4,\"height\":4,\"rotate\":0,\"shape\":\"circle\"}},{\"id\":\"R-2\",\"label\":\"R-2\",\"displayCode\":\"R-2\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":50,\"y\":55,\"width\":7,\"height\":4,\"rotate\":12,\"shape\":\"rectangle\"}},{\"id\":\"R-3\",\"label\":\"R-3\",\"displayCode\":\"R-3\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":65,\"y\":68,\"width\":6,\"height\":5,\"rotate\":0,\"shape\":\"rounded-rectangle\"}},{\"id\":\"R-4\",\"label\":\"R-4\",\"displayCode\":\"R-4\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":92,\"y\":82,\"width\":4,\"height\":4,\"rotate\":0,\"shape\":\"circle\"}}]}")
         case ("/api/me/queue-entries", _) where scenario == .bookingAuthenticated && request.method == .post:
             return json("{\"id\":\"queue-booking-ui\",\"performanceDateId\":\"live-neon-first\",\"status\":\"ADMITTED\",\"position\":0,\"admittedAt\":\"2026-08-12T09:00:00Z\",\"admissionExpiresAt\":\"2026-08-12T09:10:00Z\",\"enteredAt\":\"2026-08-12T09:00:00Z\"}")
+        case ("/api/me/seat-holds", _) where scenario == .bookingAuthenticated && request.method == .post:
+            return json("{\"id\":\"hold-booking-ui\",\"status\":\"ACTIVE\",\"performanceDateId\":\"live-neon-first\",\"ticketIds\":[\"R-1\"],\"expiresAt\":\"2026-08-12T09:05:00Z\",\"extensionsUsed\":0}")
+        case ("/api/payments/tosspayments/config", _) where scenario == .bookingAuthenticated && request.method == .get:
+            return json("{\"configured\":true,\"clientKey\":\"test_gck_ui_test_fake_key\"}")
         case ("/api/discovery/v1/regions", _):
             if scenario == .discoveryRouteNotFound {
                 throw APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "route not found")

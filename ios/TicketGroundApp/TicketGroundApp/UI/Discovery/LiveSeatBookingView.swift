@@ -246,7 +246,7 @@ struct LiveSeatBookingView: View {
             _ = try await service.diagnoseBookingHoldsContract()
             let entry = try await service.enterQueue(userID: userID, performanceDateID: performanceDateID)
             queueEntry = entry
-            openCheckoutIfAdmitted(entry, ticketID: ticketID)
+            try await holdSeatAndOpenCheckout(entry, ticketID: ticketID, userID: userID, service: service)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -264,14 +264,36 @@ struct LiveSeatBookingView: View {
             _ = try await service.diagnoseBookingHoldsContract()
             let refreshed = try await service.getQueueEntry(userID: userID, entryID: entry.id)
             queueEntry = refreshed
-            openCheckoutIfAdmitted(refreshed, ticketID: ticketID)
+            try await holdSeatAndOpenCheckout(refreshed, ticketID: ticketID, userID: userID, service: service)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func openCheckoutIfAdmitted(_ entry: LiveQueueEntry, ticketID: String) {
+    private func holdSeatAndOpenCheckout(
+        _ entry: LiveQueueEntry,
+        ticketID: String,
+        userID: String,
+        service: LiveBackendService
+    ) async throws {
         guard entry.status == .admitted else { return }
+        let hold = try await service.createSeatHold(
+            userID: userID,
+            performanceDateID: performanceDateID,
+            ticketIDs: [ticketID],
+            idempotencyKey: "ios-booking-\(entry.id)-\(ticketID)"
+        )
+        guard hold.status == .active, hold.ticketIds == [ticketID] else {
+            throw LiveSeatBookingError.invalidHold
+        }
         container.navigationPath.append(.checkout(ticketId: ticketID))
+    }
+}
+
+private enum LiveSeatBookingError: LocalizedError {
+    case invalidHold
+
+    var errorDescription: String? {
+        "선택한 좌석을 결제 시간 동안 확보하지 못했습니다. 다시 선택해 주세요."
     }
 }

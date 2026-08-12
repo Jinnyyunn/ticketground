@@ -638,7 +638,7 @@ async function handleApi(req, res, db, surface) {
       return { ...publicPurchaseResult(replayedResult), tosspayments: { tossPaymentKey: replay.pgTransactionId, replayed: true } };
     }
 
-    const purchasable = assertTicketPurchasable(db, body.ticketId);
+    const purchasable = assertTicketPurchasable(db, body.ticketId, purchaseUserId);
     const receipt = await confirmTosspaymentsPayment(db, {
       ticketId: body.ticketId,
       userId: purchaseUserId,

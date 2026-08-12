@@ -359,6 +359,11 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["live-seat-booking-submit"].tap()
 
         XCTAssertTrue(app.staticTexts["live-checkout"].waitForExistence(timeout: 10))
+        let checkoutAmount = anyElement(app, identifier: "live-checkout-amount")
+        XCTAssertTrue(checkoutAmount.waitForExistence(timeout: 10))
+        XCTAssertTrue(checkoutAmount.label.contains("R-1"))
+        XCTAssertTrue(checkoutAmount.label.contains("88"))
+        XCTAssertTrue(checkoutAmount.label.contains("원"))
     }
 
     func testLiveDiscoveryCardLoadsApprovedPoster() {

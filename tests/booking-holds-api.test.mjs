@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { api, startServer } from "./backend-test-utils.mjs";
+import { api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 import { configureSocialEnv, cookieHeaderFromSetCookie, PROVIDERS, redirected } from "./social-auth-test-helpers.mjs";
 
@@ -165,6 +165,64 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
     const ticket = afterCancel.data.tickets.find((item) => item.id === ticketId);
     assert.equal(ticket.status, "ON_SALE");
   }
+});
+
+test("a single-seat hold can be purchased only by its owner and is converted", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t);
+  const user = await googleLogin(server);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 1);
+  const ticketId = tickets[0].id;
+
+  const hold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "ios-single-seat-hold",
+    body: { performanceDateId, ticketIds: [ticketId] }
+  });
+  await verifyIdentity(server.baseUrl, user.userId, "010-9000-0088");
+
+  const strangerPurchase = await request(server, "/api/payments/tosspayments/purchase", {
+    method: "POST",
+    status: 409,
+    idempotencyKey: "stranger-held-seat-purchase",
+    body: {
+      userId: "user_fan_a",
+      ticketId,
+      paymentMethod: "CREDIT_CARD",
+      tossPaymentKey: "stranger-held-seat-payment"
+    }
+  });
+  assert.equal(strangerPurchase.error.code, "TICKET_NOT_AVAILABLE");
+
+  const purchase = await request(server, "/api/payments/tosspayments/purchase", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "ios-held-seat-purchase",
+    body: {
+      userId: user.userId,
+      ticketId,
+      paymentMethod: "CREDIT_CARD",
+      tossPaymentKey: "ios-held-seat-payment"
+    }
+  });
+  assert.equal(purchase.data.ticket.status, "OWNED");
+
+  const ownedTickets = await request(server, "/api/me/tickets", {
+    authorization: user.authorization
+  });
+  assert.ok(ownedTickets.data.some((ticket) => ticket.id === ticketId));
+
+  const convertedHold = await request(server, `/api/me/seat-holds/${hold.data.id}`, {
+    authorization: user.authorization
+  });
+  assert.equal(convertedHold.data.status, "CONVERTED");
+
+  const state = await api(server.baseUrl, "/api/state");
+  const purchasedTicket = state.data.tickets.find((item) => item.id === ticketId);
+  assert.equal(purchasedTicket.status, "OWNED");
+  assert.equal(purchasedTicket.heldBy, undefined);
+  assert.equal(purchasedTicket.holdExpiresAt, undefined);
 });
 
 test("seat hold requires an idempotency key and replays identical retries", async (t) => {
