@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import { countPlaces } from "@/lib/seat-designer/chart-ops";
 import { ko } from "@/lib/seat-designer/i18n";
 import { useSeatEditor } from "@/lib/seat-designer/use-editor";
@@ -80,8 +81,8 @@ export function SeatDesigner() {
     >
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-black/5 bg-[#111] px-3 text-[12px] text-white/80">
         <div className="flex items-center gap-3">
-          <Link href="/console" className="font-semibold text-white hover:text-white/90">
-            Ticketground<span className="ml-0.5 text-[#ff2d3f]">●</span>
+          <Link href="/console" aria-label="Ticketground 관리자 콘솔" className="rounded-sm bg-white px-1 hover:opacity-90">
+            <BrandLogo className="h-4" />
           </Link>
           <span className="text-white/40">/</span>
           <span>{ko.appTitle}</span>

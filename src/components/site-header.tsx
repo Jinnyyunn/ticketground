@@ -12,6 +12,7 @@ import { MobileNav } from "@/components/mobile-nav";
 import { SiteSearchBar } from "@/components/site-search-bar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { BrandLogo } from "@/components/brand-logo";
 import { dictionary as koDictionary } from "@/i18n/dictionaries/ko";
 import type { Dictionary } from "@/i18n/get-dictionary";
 import { defaultLocale, type Locale } from "@/i18n/config";
@@ -146,9 +147,8 @@ export function SiteHeader({
       </div>
 
       <div className="ticketground-container flex h-auto flex-wrap items-center gap-x-3 gap-y-3 py-3 md:h-[64px] md:flex-nowrap md:gap-8 md:py-0">
-        <Link href="/" className="flex shrink-0 items-center gap-1 whitespace-nowrap text-2xl font-black tracking-normal text-ink md:text-[25px]">
-          Ticketground
-          <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
+        <Link href="/" aria-label="Ticketground" className="flex shrink-0 items-center">
+          <BrandLogo priority />
         </Link>
         {showSearchBar && (
           <SiteSearchBar

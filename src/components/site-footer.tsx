@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { footerColumnLinks, footerLinks } from "@/data/content";
+import { BrandLogo } from "@/components/brand-logo";
 import { dictionary as koDictionary } from "@/i18n/dictionaries/ko";
 import type { Dictionary } from "@/i18n/get-dictionary";
 
@@ -16,9 +17,8 @@ export function SiteFooter({
     <footer className="mt-[70px] border-t border-line bg-background text-ink">
       <div className="ticketground-container grid gap-8 py-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,3fr)]">
         <div>
-          <Link href="/" className="inline-flex items-center gap-1 whitespace-nowrap text-2xl font-black text-ink">
-            Ticketground
-            <span className="mt-1 size-2 rounded-full bg-ticketground" aria-hidden />
+          <Link href="/" aria-label="Ticketground" className="inline-flex items-center">
+            <BrandLogo className="h-8" />
           </Link>
           <p className="mt-4 break-keep text-sm leading-loose text-ink-3">
             {dict.description}
