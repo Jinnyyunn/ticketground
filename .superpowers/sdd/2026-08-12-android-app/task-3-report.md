@@ -4,16 +4,20 @@
 
 - Replaced the Task 1 placeholder shell with a production Compose customer shell.
 - Added four primary destinations: 홈, 검색, 찜, 마이페이지.
-- Added a phone bottom navigation and an expanded-width navigation rail. Expanded event lists use a two-pane layout.
+- Added a phone bottom navigation and an expanded-width navigation rail. The real expanded home route now renders the event list and detail pane together.
 - Added backend-driven home discovery, ranking, open calendar, search, event detail, public support, watchlist, account/tickets, cancellation, official resale, trusted-device, push, and QR states.
 - Added deterministic loading, empty, error, retry, sign-in-required, mutation-pending, and safe action-message behavior.
-- Added a graphical seat map that places each seat from `Seat.mapPosition`, distinguishes available/selected/held/sold/unavailable states, and exposes Korean seat semantics with 48dp tap targets.
+- Added a graphical seat map that safely resolves `map.image` only on the configured HTTPS origin, renders raster/SVG assets asynchronously below the controls, and falls back to a usable stage layer when loading fails.
+- Seat centers and marker width/height now follow backend `Seat.mapPosition` geometry with the same 16dp/60dp marker bounds and 48dp clamped touch targets as the accepted iOS implementation.
+- Backend and newly acquired HELD seat IDs are carried through the repository/ViewModel path and remain visually and accessibly distinct from sold and generic unavailable seats.
+- Centralized typography, spacing, radius, layout, and every seat-state color in Android semantic tokens consumed by the changed customer surfaces.
 - Seat selection happens on the map. No separate `실제 구매 가능한 티켓 선택` list exists.
 - Added explicit zoom and pan controls around the seat map so navigation does not consume seat taps.
 - Wired queue and hold operations through Task 2 typed APIs. A successful active hold routes to the checkout handoff.
 - Kept Toss Payments fail closed: server configuration is checked, but the payment button remains unavailable until a real Android Toss SDK and merchant configuration are qualified. No production success is simulated.
 - Kept Play Integrity, FCM, and admission QR fail closed when external provider/device qualification is unavailable.
 - Replaced tautological state-value tests with observable Compose and ViewModel scenarios using deterministic fixtures/fake repositories.
+- Added focused coverage for safe image origins, image fallback with still-selectable seats, backend marker geometry, HELD/SOLD/unavailable semantics, selection recomposition, and the production tablet route.
 
 ## Safety and scope
 
@@ -34,6 +38,16 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 | Android lint | `./gradlew lintDevDebug --no-daemon` | `BUILD SUCCESSFUL` | `.omo/evidence/task-3-android-ui/lint-dev-debug.log` |
 | Debug APK assembly | `./gradlew assembleDevDebug --no-daemon` | `BUILD SUCCESSFUL`; `app-dev-debug.apk` produced | `.omo/evidence/task-3-android-ui/assemble-dev-debug.log` |
 | Release/R8 assembly | `./gradlew assembleProdRelease --no-daemon` | `BUILD SUCCESSFUL`; unsigned release APK produced | `.omo/evidence/task-3-android-ui/assemble-prod-release.log` |
+
+### Clone-fidelity P1 correction verification
+
+| Scenario | Invocation | Binary observable | Evidence |
+|---|---|---|---|
+| TDD RED for safe image/geometry/HELD propagation | `./gradlew --no-daemon --no-parallel :app:testDevDebugUnitTest` before correction | Compile failed on the deliberately missing presentation APIs and `heldSeatIds` | `.omo/evidence/task-3-android-ui-p1-fixes/01-red-unit-tests.log` |
+| Focused JVM GREEN | same JVM invocation after correction | `BUILD SUCCESSFUL`; URL origin, marker geometry, state semantics, and ViewModel held-ID scenarios passed | `.omo/evidence/task-3-android-ui-p1-fixes/02-green-unit-tests.log` |
+| Compose source readiness | `./gradlew --no-daemon --no-parallel :app:compileDevDebugAndroidTestKotlin` | `BUILD SUCCESSFUL`; production tablet-path and graphical-map tests compile | `.omo/evidence/task-3-android-ui-p1-fixes/03-ui-test-source-compile.log` |
+| Fresh full serial gate | `./gradlew testDevDebugUnitTest compileDevDebugAndroidTestKotlin lintDevDebug assembleDevDebug assembleDevDebugAndroidTest assembleProdRelease --no-daemon --no-parallel --rerun-tasks` | `BUILD SUCCESSFUL in 1m 34s`; 135/135 tasks executed; 45 JVM tests, 0 failures/errors/skips; lint errors 0 | `.omo/evidence/task-3-android-ui-p1-fixes/05-fresh-full-gradle-rerun.log` |
+| Built APKs | same fresh full serial gate | debug `8b015987…e801e27`; UI-test `7adcbcad…105ebae`; R8 release `9842a7fb…83b557` | `.omo/evidence/task-3-android-ui-p1-fixes/06-verification-receipt.txt` |
 
 The Compose UI test APK/source is ready, but instrumentation scenarios were intentionally not executed because Task 4 owns serial emulator/device QA.
 
