@@ -26,6 +26,7 @@ export function createApiRouter({
   cancelTosspaymentsPayment,
   confirmTosspaymentsPayment,
   createAdminAccount,
+  createPushCampaign,
   cancelResaleListing,
   cancelResalePoolForPrincipal,
   createCancellationRequestForPrincipal,
@@ -69,6 +70,7 @@ export function createApiRouter({
   listPushTokensForPrincipal,
   listResalePoolsForPrincipal,
   listSellerEvents,
+  mobileWorkspace,
   notifyWatchlist,
   nativeLogout,
   nativeSession,
@@ -90,6 +92,7 @@ export function createApiRouter({
   publicState,
   removeWatchlistForPrincipal,
   revokeDeviceForPrincipal,
+  revokeDevice,
   publicTicketsForUser,
   publicIdentityStatus,
   approveSellerApplication,
@@ -114,6 +117,8 @@ export function createApiRouter({
   tosspaymentsConfig,
   trustDevice,
   updateEventSale,
+  updateMaintenance,
+  updateReleasePolicy,
   updateEventVenue,
   updateAdminAccount,
   updateDemoProfile,
@@ -124,6 +129,7 @@ export function createApiRouter({
   updateTicketStatuses,
   updateUserStatus,
   updateUserStatuses,
+  reviewCancellation,
   upsertWatchlist,
   upsertWatchlistForPrincipal,
   upsertPushTokenForPrincipal,
@@ -540,7 +546,9 @@ async function handleApi(req, res, db, surface) {
     };
   }
   if (req.method === "GET" && adminWorkspaceMatch) {
-    return adminWorkspace(db, decodeURIComponent(adminWorkspaceMatch[1]), req.admin, {
+    const workspace = decodeURIComponent(adminWorkspaceMatch[1]);
+    if (workspace === "mobile") return mobileWorkspace(db, req.admin);
+    return adminWorkspace(db, workspace, req.admin, {
       action: url.searchParams.get("action") || undefined,
       actorId: url.searchParams.get("actorId") || undefined,
       category: url.searchParams.get("category") || undefined,
@@ -1003,6 +1011,21 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/admin/support/status") {
     requireBody(body, ["threadId", "status"]);
     return updateSupportStatus(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/mobile/release-policy") {
+    return updateReleasePolicy(db, body, req.admin);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/mobile/maintenance") {
+    return updateMaintenance(db, body, req.admin);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/mobile/push-campaigns") {
+    return createPushCampaign(db, body, req.admin);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/mobile/devices/revoke") {
+    return revokeDevice(db, body, req.admin);
+  }
+  if (req.method === "POST" && url.pathname === "/api/admin/mobile/cancellations/review") {
+    return reviewCancellation(db, body, req.admin);
   }
 
   throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");

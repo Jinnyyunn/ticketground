@@ -38,11 +38,15 @@ function normalizeDb(db) {
   db.seatHolds ||= [];
   db.reservationDrafts ||= [];
   db.gateSessions ||= [];
-  for (const key of ["cancellationRequests", "pushTokens", "mobileMutationReceipts", "apiMutationReceipts", "appAttestChallenges"]) {
+  for (const key of ["cancellationRequests", "pushTokens", "mobileMutationReceipts", "apiMutationReceipts", "appAttestChallenges", "mobileReleasePolicies", "mobilePushCampaigns"]) {
     if (!Array.isArray(db[key])) {
       db[key] = [];
       changed = true;
     }
+  }
+  if (!db.mobileMaintenance || typeof db.mobileMaintenance !== "object") {
+    db.mobileMaintenance = { enabled: false, title: "서비스 정상 운영 중", message: "", startsAt: null, endsAt: null, updatedAt: null, updatedBy: null };
+    changed = true;
   }
 
   if (!db.venues?.length) {
@@ -198,6 +202,9 @@ function seedDb() {
     mobileMutationReceipts: [],
     apiMutationReceipts: [],
     appAttestChallenges: [],
+    mobileReleasePolicies: [],
+    mobilePushCampaigns: [],
+    mobileMaintenance: { enabled: false, title: "서비스 정상 운영 중", message: "", startsAt: null, endsAt: null, updatedAt: null, updatedBy: null },
     ledger: []
   };
   for (const event of db.events) {
