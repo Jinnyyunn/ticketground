@@ -459,7 +459,7 @@ final class LiveBackendService {
         deviceID: String,
         deviceName: String,
         platform: String,
-        attestation: String
+        proof: LifecycleAttestationProof
     ) async throws -> LiveDeviceTrustResult {
         let body = try JSONEncoder().encode(
             LiveDeviceTrustRequest(
@@ -467,7 +467,9 @@ final class LiveBackendService {
                 deviceName: deviceName,
                 platform: platform,
                 biometricVerified: true,
-                appAttestation: attestation
+                challengeId: proof.challengeID,
+                keyId: proof.keyID,
+                attestationObject: proof.attestationObject
             )
         )
         return try await get(
@@ -480,6 +482,28 @@ final class LiveBackendService {
             ),
             endpoint: .deviceTrust,
             as: LiveDeviceTrustResult.self
+        )
+    }
+
+    func appAttestChallenge(
+        userID: String,
+        purpose: String,
+        deviceID: String,
+        ticketID: String? = nil
+    ) async throws -> LiveAppAttestChallenge {
+        let body = try JSONEncoder().encode(
+            LiveAppAttestChallengeRequest(purpose: purpose, deviceId: deviceID, ticketId: ticketID)
+        )
+        return try await get(
+            APIRequest(
+                method: .post,
+                path: "/api/me/device-attestation/challenges",
+                body: .json(body),
+                authentication: .required(userID: userID),
+                ownerBinding: .bearerPrincipal
+            ),
+            endpoint: .deviceTrust,
+            as: LiveAppAttestChallenge.self
         )
     }
 
@@ -503,7 +527,7 @@ final class LiveBackendService {
         ticketID: String,
         deviceID: String,
         deviceToken: String,
-        attestation: String
+        proof: LifecycleAssertionProof
     ) async throws -> LiveAdmissionQR {
         let body = try JSONEncoder().encode(
             LiveAdmissionQRRequest(
@@ -511,7 +535,9 @@ final class LiveBackendService {
                 channel: "APP",
                 deviceId: deviceID,
                 deviceToken: deviceToken,
-                appAttestation: attestation
+                challengeId: proof.challengeID,
+                keyId: proof.keyID,
+                assertion: proof.assertion
             )
         )
         return try await get(
@@ -973,7 +999,15 @@ private struct LiveDeviceTrustRequest: Encodable {
     let deviceName: String
     let platform: String
     let biometricVerified: Bool
-    let appAttestation: String
+    let challengeId: String
+    let keyId: String
+    let attestationObject: String
+}
+
+private struct LiveAppAttestChallengeRequest: Encodable {
+    let purpose: String
+    let deviceId: String
+    let ticketId: String?
 }
 
 private struct LiveTicketQRRequest: Encodable {
@@ -985,5 +1019,7 @@ private struct LiveAdmissionQRRequest: Encodable {
     let channel: String
     let deviceId: String
     let deviceToken: String
-    let appAttestation: String
+    let challengeId: String
+    let keyId: String
+    let assertion: String
 }

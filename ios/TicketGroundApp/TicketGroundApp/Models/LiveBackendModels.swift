@@ -868,6 +868,12 @@ struct LiveDeviceTrustResult: Decodable, Equatable {
     let deviceToken: String
 }
 
+struct LiveAppAttestChallenge: Decodable, Equatable {
+    let id: String
+    let challenge: String
+    let expiresAt: String
+}
+
 enum LivePushPlatform: String, Codable, Equatable {
     case ios
     case android

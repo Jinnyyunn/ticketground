@@ -55,6 +55,7 @@ export function createApiRouter({
   confirmPortOneDanalVerification,
   SERVICE_FEE_PER_SEAT,
   issueGateSession,
+  issueAppAttestChallenge,
   issueQr,
   issueNativeSession,
   issueSellerAccount,
@@ -130,6 +131,7 @@ export function createApiRouter({
   userWatchlistForPrincipal,
   venueMapForEvent,
   verifyAppAttestation,
+  verifyAppAttestProof,
   verifyLedger,
   verifyQr,
   virtualQr
@@ -427,6 +429,15 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "GET" && url.pathname === "/api/me/devices") {
     return listDevicesForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/device-attestation/challenges") {
+    requireBody(body, ["purpose", "deviceId"]);
+    return issueAppAttestChallenge(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      purpose: body.purpose,
+      deviceId: body.deviceId,
+      ticketId: body.ticketId
+    });
   }
   if (req.method === "DELETE" && principalDeviceMatch) {
     return revokeDeviceForPrincipal(
@@ -844,15 +855,27 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
     requireBody(body, ["deviceId", "biometricVerified"]);
     const trustUserId = resolvePurchaseUserId(db, req, body);
-    verifyAppAttestation(body, "TRUST_DEVICE", [trustUserId, body.deviceId]);
+    if (body.challengeId) {
+      await verifyAppAttestProof(db, { userId: trustUserId, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
+    } else if (process.env.TIG_ALLOW_LEGACY_APP_ATTESTATION === "1") {
+      verifyAppAttestation(body, "TRUST_DEVICE", [trustUserId, body.deviceId]);
+    } else {
+      throw httpError(403, "APP_ATTESTATION_REQUIRED", "Apple App Attest 증명이 필요합니다.");
+    }
     return trustDevice(db, { ...body, userId: trustUserId, attestationVerified: true });
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/qr") {
     requireBody(body, ["ticketId"]);
     const qrUserId = resolvePurchaseUserId(db, req, body);
     if (String(body.channel || "WEB").toUpperCase() === "APP") {
-      requireBody(body, ["deviceId", "appAttestation"]);
-      verifyAppAttestation(body, "ISSUE_QR", [qrUserId, body.deviceId, body.ticketId]);
+      requireBody(body, ["deviceId"]);
+      if (body.challengeId) {
+        await verifyAppAttestProof(db, { userId: qrUserId, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
+      } else if (process.env.TIG_ALLOW_LEGACY_APP_ATTESTATION === "1") {
+        verifyAppAttestation(body, "ISSUE_QR", [qrUserId, body.deviceId, body.ticketId]);
+      } else {
+        throw httpError(403, "APP_ATTESTATION_REQUIRED", "Apple App Attest 증명이 필요합니다.");
+      }
       return issueQr(db, { ...body, userId: qrUserId, attestationVerified: true });
     }
     return issueQr(db, { ...body, userId: qrUserId });

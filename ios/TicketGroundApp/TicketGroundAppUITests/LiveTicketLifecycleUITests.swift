@@ -49,6 +49,21 @@ final class LiveTicketLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["state-error-action"].isHittable)
     }
 
+    func testCancellationMutationReachesPendingReview() {
+        let app = lifecycleApp(scenario: "happy", route: "cancel")
+        app.launch()
+
+        let reason = app.textFields["lifecycle-cancel-reason"]
+        XCTAssertTrue(reason.waitForExistence(timeout: 20))
+        reason.tap()
+        reason.typeText("일정 변경")
+        app.switches["lifecycle-refund-acknowledgement"].tap()
+        let submit = app.buttons["lifecycle-submit-cancel"]
+        XCTAssertTrue(submit.isEnabled)
+        submit.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["lifecycle-cancellation-pending"].waitForExistence(timeout: 20))
+    }
+
     private func lifecycleApp(scenario: String, route: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [

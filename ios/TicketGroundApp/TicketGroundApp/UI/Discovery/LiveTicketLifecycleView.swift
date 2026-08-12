@@ -3,6 +3,9 @@ import SwiftUI
 import UIKit
 
 enum LiveLifecycleDisplay {
+    static func isActionEligible(_ ticket: LiveTicket) -> Bool {
+        ticket.status == "OWNED" && ticket.available == false
+    }
     static func acceptsResalePrice(_ price: Int, minimum: Int, maximum: Int) -> Bool {
         minimum <= maximum && (minimum...maximum).contains(price)
     }
@@ -48,6 +51,11 @@ struct LiveTicketLifecycleRouteView: View {
     @State private var admissionQR: LiveAdmissionQR?
     @State private var qrExpired = false
     @State private var localDeviceToken: String?
+    @State private var cancellationIdempotencyKey = UUID().uuidString
+    @State private var resaleIdempotencyKey = UUID().uuidString
+    @State private var pushIdempotencyKey = UUID().uuidString
+    @State private var poolMutationKeys: [String: String] = [:]
+    private let credentialProvider = LifecycleCredentialProvider.shared
 
     var body: some View {
         Group {
@@ -162,7 +170,8 @@ struct LiveTicketLifecycleRouteView: View {
                 ])
             }
 
-            HStack(spacing: TicketgroundSpacing.sm) {
+            if LiveLifecycleDisplay.isActionEligible(ticket) {
+                HStack(spacing: TicketgroundSpacing.sm) {
                 NavigationLink(value: AppRoute.cancel) {
                     Label("취소 요청", systemImage: "xmark.circle")
                         .frame(maxWidth: .infinity, minHeight: TicketgroundLayout.minimumTouchTarget)
@@ -175,9 +184,12 @@ struct LiveTicketLifecycleRouteView: View {
                 }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("lifecycle-open-resale")
+                }
+                deviceAndPushBody(ticket: ticket)
+            } else {
+                TicketgroundAlert(title: "현재 사용할 수 없는 티켓입니다", message: "최신 티켓 상태를 다시 확인한 뒤 취소, 재판매 또는 입장 QR을 이용해 주세요.")
+                    .accessibilityIdentifier("lifecycle-ticket-ineligible")
             }
-
-            deviceAndPushBody(ticket: ticket)
         } else {
             TicketgroundErrorSurface(
                 title: "예매 정보를 찾을 수 없습니다",
@@ -191,12 +203,12 @@ struct LiveTicketLifecycleRouteView: View {
 
     private var cancellationBody: some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-            if tickets.isEmpty {
+            if eligibleTickets.isEmpty {
                 TicketgroundEmptySurface(title: "취소할 티켓이 없습니다", message: "취소 가능한 보유 티켓이 없습니다.", actionTitle: "마이페이지", action: { container.navigationPath = [.mypage] })
             } else {
                 formSurface(title: "취소 요청") {
                     Picker("취소할 티켓", selection: $selectedTicketID) {
-                        ForEach(tickets, id: \.id) { ticket in
+                        ForEach(eligibleTickets, id: \.id) { ticket in
                             Text("\(ticket.event?.title ?? ticket.id) · \(ticket.seatLabel)").tag(ticket.id)
                         }
                     }
@@ -231,7 +243,7 @@ struct LiveTicketLifecycleRouteView: View {
             if let ticket = selectedTicket {
                 formSurface(title: "내 티켓 판매 등록") {
                     Picker("판매할 티켓", selection: $selectedTicketID) {
-                        ForEach(tickets, id: \.id) { item in
+                        ForEach(eligibleTickets, id: \.id) { item in
                             Text("\(item.event?.title ?? item.id) · \(item.seatLabel)").tag(item.id)
                         }
                     }
@@ -274,10 +286,6 @@ struct LiveTicketLifecycleRouteView: View {
                 if devices.isEmpty {
                     Text("등록된 신뢰 기기가 없습니다. App Attest와 생체 확인이 가능한 실제 기기에서 등록해 주세요.")
                         .foregroundStyle(TicketgroundColor.inkSecondary)
-                    Button("이 기기 등록") { Task { await registerDevice() } }
-                        .buttonStyle(.bordered)
-                        .frame(minHeight: TicketgroundLayout.minimumTouchTarget)
-                        .accessibilityIdentifier("lifecycle-register-device")
                 } else {
                     ForEach(devices, id: \.id) { device in
                         HStack {
@@ -296,6 +304,10 @@ struct LiveTicketLifecycleRouteView: View {
                         }
                     }
                 }
+                Button(devices.isEmpty ? "이 기기 등록" : "이 기기 다시 등록") { Task { await registerDevice() } }
+                    .buttonStyle(.bordered)
+                    .frame(minHeight: TicketgroundLayout.minimumTouchTarget)
+                    .accessibilityIdentifier("lifecycle-register-device")
             }
 
             formSurface(title: "푸시 등록") {
@@ -330,7 +342,7 @@ struct LiveTicketLifecycleRouteView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(TicketgroundColor.ink)
                     .frame(maxWidth: .infinity, minHeight: TicketgroundLayout.minimumTouchTarget)
-                    .disabled(isMutating || devices.first(where: { $0.status == .trusted }) == nil)
+                    .disabled(isMutating || trustedCurrentDevice == nil)
                     .accessibilityIdentifier("lifecycle-issue-qr")
             }
         }
@@ -413,7 +425,7 @@ struct LiveTicketLifecycleRouteView: View {
             case .resale:
                 pools = try await service.getResalePools(userID: session.userID)
             }
-            selectedTicketID = selectedTicketID.isEmpty ? tickets.first?.id ?? "" : selectedTicketID
+            selectedTicketID = selectedTicketID.isEmpty ? eligibleTickets.first?.id ?? "" : selectedTicketID
             localDeviceToken = RuntimeConfiguration.lifecycleDeviceCredential?.token
             phase = .ready
         } catch let error as APIClientError {
@@ -435,9 +447,10 @@ struct LiveTicketLifecycleRouteView: View {
                 userID: userID(), ticketID: selectedTicketID,
                 reason: cancellationReason.trimmingCharacters(in: .whitespacesAndNewlines),
                 refundAcknowledged: refundAcknowledged,
-                idempotencyKey: UUID().uuidString
+                idempotencyKey: cancellationIdempotencyKey
             )
             cancellations.insert(request, at: 0)
+            cancellationIdempotencyKey = UUID().uuidString
             actionMessage = "취소 요청이 접수되어 검토 중입니다."
         }
     }
@@ -449,8 +462,10 @@ struct LiveTicketLifecycleRouteView: View {
             return
         }
         await performMutation {
-            let pool = try await service().createResalePool(userID: userID(), ticketID: ticket.id, price: price, showSlug: nil, idempotencyKey: UUID().uuidString)
+            guard LiveLifecycleDisplay.isActionEligible(ticket) else { throw APIClientError.invalidResponse }
+            let pool = try await service().createResalePool(userID: userID(), ticketID: ticket.id, price: price, showSlug: nil, idempotencyKey: resaleIdempotencyKey)
             pools.insert(pool, at: 0)
+            resaleIdempotencyKey = UUID().uuidString
             actionMessage = "공식 재판매 등록이 완료되었습니다."
         }
     }
@@ -458,23 +473,33 @@ struct LiveTicketLifecycleRouteView: View {
     @MainActor
     private func mutatePool(_ pool: LiveLifecycleResalePool, owned: Bool) async {
         await performMutation {
+            let idempotencyKey = poolMutationKeys[pool.id] ?? UUID().uuidString
+            poolMutationKeys[pool.id] = idempotencyKey
             let updated = owned
                 ? try await service().cancelResalePool(userID: userID(), poolID: pool.id)
-                : try await service().joinResalePool(userID: userID(), poolID: pool.id, idempotencyKey: UUID().uuidString)
+                : try await service().joinResalePool(userID: userID(), poolID: pool.id, idempotencyKey: idempotencyKey)
             replacePool(updated)
+            poolMutationKeys[pool.id] = nil
             actionMessage = owned ? "재판매 등록을 취소했습니다." : "공식 재판매 풀에 참여했습니다."
         }
     }
 
     @MainActor
     private func registerDevice() async {
-        guard let credential = RuntimeConfiguration.lifecycleDeviceCredential else {
-            actionError = "App Attest 증명이 준비되지 않아 이 기기를 등록할 수 없습니다. 실제 기기에서 다시 시도해 주세요."
-            return
-        }
         await performMutation {
-            let result = try await service().trustDevice(userID: userID(), deviceID: credential.deviceID, deviceName: UIDevice.current.name, platform: "iOS", attestation: credential.attestation)
+            let userID = try userID()
+            let deviceID = RuntimeConfiguration.lifecycleDeviceCredential?.deviceID ?? UIDevice.current.identifierForVendor?.uuidString
+            guard let deviceID else { throw LifecycleSecurityError.appAttestUnavailable }
+            let proof: LifecycleAttestationProof
+            if let fixture = RuntimeConfiguration.lifecycleDeviceCredential {
+                proof = LifecycleAttestationProof(deviceID: fixture.deviceID, challengeID: "ui-challenge", keyID: "ui-key", attestationObject: fixture.attestation)
+            } else {
+                let challenge = try await service().appAttestChallenge(userID: userID, purpose: "TRUST_DEVICE", deviceID: deviceID)
+                proof = try await credentialProvider.registrationProof(challenge: challenge, deviceID: deviceID)
+            }
+            let result = try await service().trustDevice(userID: userID, deviceID: deviceID, deviceName: UIDevice.current.name, platform: "iOS", proof: proof)
             localDeviceToken = result.deviceToken
+            await credentialProvider.bindDeviceToken(result.deviceToken)
             reloadID += 1
             actionMessage = "이 기기를 신뢰 기기로 등록했습니다."
         }
@@ -486,6 +511,7 @@ struct LiveTicketLifecycleRouteView: View {
             let updated = try await service().revokeTrustedDevice(userID: userID(), deviceID: device.id)
             if let index = devices.firstIndex(where: { $0.id == updated.id }) { devices[index] = updated }
             localDeviceToken = nil
+            await credentialProvider.clear()
             admissionQR = nil
             actionMessage = "신뢰 기기를 해지했습니다."
         }
@@ -493,19 +519,38 @@ struct LiveTicketLifecycleRouteView: View {
 
     @MainActor
     private func requestPushRegistration() async {
-        actionError = "APNs 기기 토큰 수신 연결이 준비되지 않아 등록을 시작할 수 없습니다. 실제 기기 연동 후 다시 시도해 주세요."
+        await performMutation {
+            let tokenData = try await PushRegistrationCoordinator.shared.requestToken()
+            let token = tokenData.map { String(format: "%02x", $0) }.joined()
+            let registered = try await service().registerPushToken(userID: userID(), platform: .ios, token: token, idempotencyKey: pushIdempotencyKey)
+            pushTokens = [registered]
+            pushIdempotencyKey = UUID().uuidString
+            actionMessage = "알림 기기 등록을 완료했습니다."
+        }
     }
 
     @MainActor
     private func issueQR(ticket: LiveTicket) async {
-        guard let device = devices.first(where: { $0.status == .trusted }),
-              let credential = RuntimeConfiguration.lifecycleDeviceCredential,
-              let token = localDeviceToken else {
+        guard LiveLifecycleDisplay.isActionEligible(ticket),
+              let device = trustedCurrentDevice else {
             actionError = "이 기기의 신뢰 증명이 없어 QR을 발급할 수 없습니다. 기기를 다시 등록해 주세요."
             return
         }
         await performMutation {
-            let qr = try await service().issueAdmissionQR(userID: userID(), ticketID: ticket.id, deviceID: device.deviceID, deviceToken: token, attestation: credential.attestation)
+            let userID = try userID()
+            let proof: LifecycleAssertionProof
+            let token: String
+            if let fixture = RuntimeConfiguration.lifecycleDeviceCredential, let localDeviceToken {
+                proof = LifecycleAssertionProof(challengeID: "ui-challenge", keyID: "ui-key", assertion: fixture.attestation)
+                token = localDeviceToken
+            } else {
+                let challenge = try await service().appAttestChallenge(userID: userID, purpose: "ISSUE_QR", deviceID: device.deviceID, ticketID: ticket.id)
+                let secured = try await credentialProvider.qrProof(challenge: challenge)
+                guard secured.1 == device.deviceID else { throw LifecycleSecurityError.missingEphemeralCredential }
+                proof = secured.0
+                token = secured.2
+            }
+            let qr = try await service().issueAdmissionQR(userID: userID, ticketID: ticket.id, deviceID: device.deviceID, deviceToken: token, proof: proof)
             guard LiveLifecycleDisplay.isAdmissionQRValid(expiresAt: qr.expiresAt) else {
                 admissionQR = nil
                 qrExpired = true
@@ -530,7 +575,12 @@ struct LiveTicketLifecycleRouteView: View {
         }
     }
 
-    private var selectedTicket: LiveTicket? { tickets.first(where: { $0.id == selectedTicketID }) }
+    private var eligibleTickets: [LiveTicket] { tickets.filter(LiveLifecycleDisplay.isActionEligible) }
+    private var trustedCurrentDevice: LiveTrustedDevice? {
+        let currentID = RuntimeConfiguration.lifecycleDeviceCredential?.deviceID ?? UIDevice.current.identifierForVendor?.uuidString
+        return devices.first { $0.status == .trusted && $0.deviceID == currentID }
+    }
+    private var selectedTicket: LiveTicket? { eligibleTickets.first(where: { $0.id == selectedTicketID }) }
     private func validResalePrice(for ticket: LiveTicket) -> Bool {
         guard let price = Int(resalePrice) else { return false }
         return LiveLifecycleDisplay.acceptsResalePrice(price, minimum: ticket.minPrice, maximum: ticket.maxPrice)
@@ -580,85 +630,4 @@ private struct AdmissionQRCode: View {
               let cgImage = context.createCGImage(output, from: output.extent) else { return nil }
         return UIImage(cgImage: cgImage)
     }
-}
-
-struct LifecycleDeviceCredential {
-    let deviceID: String
-    let token: String
-    let attestation: String
-}
-
-extension RuntimeConfiguration {
-    static var lifecycleDeviceCredential: LifecycleDeviceCredential? {
-        guard let scenario = liveLifecycleTestConfiguration?.scenario,
-              scenario == .happy || scenario == .expiredQR else { return nil }
-        return LifecycleDeviceCredential(deviceID: "ui-device", token: "ui-device-secret", attestation: "ui-attestation")
-    }
-
-    static var liveLifecycleTestConfiguration: UITestLifecycleConfiguration? {
-        let arguments = ProcessInfo.processInfo.arguments
-        guard arguments.contains("-ui-testing"),
-              let scenarioIndex = arguments.firstIndex(of: "-live-lifecycle-scenario"), arguments.indices.contains(scenarioIndex + 1),
-              let routeIndex = arguments.firstIndex(of: "-live-lifecycle-route"), arguments.indices.contains(routeIndex + 1),
-              let scenario = UITestLifecycleScenario(rawValue: arguments[scenarioIndex + 1]) else { return nil }
-        let route: AppRoute
-        switch arguments[routeIndex + 1] {
-        case "cancel": route = .cancel
-        case "resale": route = .resale
-        default: route = .reservation(id: UITestLifecycleAPIClient.ticketID)
-        }
-        return UITestLifecycleConfiguration(scenario: scenario, route: route)
-    }
-}
-
-struct UITestLifecycleConfiguration {
-    let scenario: UITestLifecycleScenario
-    let route: AppRoute
-}
-
-enum UITestLifecycleScenario: String { case happy, signedOut = "signed-out", unavailable, expiredQR = "expired-qr", serverError = "server-error" }
-
-final class UITestLifecycleAPIClient: APIClient {
-    static let ticketID = "ui-lifecycle-ticket"
-    let mode: APIDataMode = .live
-    let baseURL = URL(string: "https://ui-lifecycle.ticketground.invalid/")
-    private let scenario: UITestLifecycleScenario
-
-    init(scenario: UITestLifecycleScenario) { self.scenario = scenario }
-
-    func data(for request: APIRequest) async throws -> Data {
-        if scenario == .serverError, request.path == "/api/me/tickets" { throw APIClientError.server(status: 503, code: "LIFECYCLE_UNAVAILABLE", message: "temporary failure") }
-        switch (request.method, request.path) {
-        case (.get, "/api/health"):
-            let capabilities = scenario == .unavailable ? "[]" : "[\"native-account-v1\",\"native-lifecycle-v1\"]"
-            return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":\(capabilities)}")
-        case (.get, "/api/state"):
-            return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":0,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":0}}")
-        case (.get, "/api/catalog"):
-            return json("{\"events\":[],\"venues\":[],\"total\":0}")
-        case (.get, "/api/discovery/v1/contract"):
-            return json("{\"version\":\"1\",\"endpoints\":[]}")
-        case (.get, "/api/me/tickets"):
-            return json("[{\"id\":\"\(Self.ticketID)\",\"eventId\":\"event-1\",\"performanceDateId\":\"performance-1\",\"zoneId\":\"vip\",\"seatLabel\":\"VIP A1\",\"status\":\"ISSUED\",\"available\":true,\"faceValue\":120000,\"minPrice\":90000,\"maxPrice\":120000,\"transferCount\":0,\"maxTransferCount\":0,\"event\":{\"id\":\"event-1\",\"title\":\"UI 테스트 콘서트\",\"venue\":\"테스트홀\",\"performance\":{\"id\":\"performance-1\",\"label\":\"8월 20일 19:00\",\"startsAt\":\"2026-08-20T19:00:00+09:00\"}},\"payment\":{\"amount\":120000,\"method\":\"카드\",\"status\":\"PAID\"}}]")
-        case (.get, "/api/me/resale-pools"):
-            return json("[{\"id\":\"pool-other\",\"eventId\":\"event-1\",\"performanceDateId\":\"performance-1\",\"zoneId\":\"vip\",\"ticketId\":\"other-ticket\",\"showSlug\":\"ui-show\",\"price\":100000,\"buyerFee\":5000,\"buyerTotal\":105000,\"sellerSettlement\":95000,\"buyerCount\":1,\"status\":\"OPEN\",\"createdAt\":\"2026-08-12T09:00:00Z\",\"matchedAt\":null}]")
-        case (.get, "/api/me/cancellation-requests"): return json("[]")
-        case (.get, "/api/me/devices"):
-            return json("[{\"id\":\"device-record\",\"deviceId\":\"ui-device\",\"deviceName\":\"UI iPhone\",\"platform\":\"iOS\",\"status\":\"TRUSTED\",\"createdAt\":\"2026-08-12T09:00:00Z\",\"lastVerifiedAt\":\"2026-08-12T09:00:00Z\",\"revokedAt\":null}]")
-        case (.get, "/api/me/push-tokens"):
-            return json("[{\"platform\":\"ios\",\"status\":\"ACTIVE\",\"suffix\":\"cdef\",\"createdAt\":\"2026-08-12T09:00:00Z\",\"updatedAt\":\"2026-08-12T09:00:00Z\"}]")
-        case (.post, "/api/tickets/qr"):
-            let expiry = scenario == .expiredQR ? "2000-01-01T00:00:00Z" : "2099-01-01T00:00:00Z"
-            return json("{\"type\":\"admission\",\"ticketId\":\"\(Self.ticketID)\",\"ownerId\":\"ui-user\",\"expiresAt\":\"\(expiry)\",\"nonce\":\"nonce\",\"signature\":\"signature\",\"issuedAt\":\"2026-08-12T09:00:00Z\",\"performanceStartsAt\":\"2026-08-20T10:00:00Z\",\"preparedAt\":\"2026-08-12T09:00:00Z\",\"activeAt\":\"2026-08-12T09:00:00Z\",\"ttlSeconds\":60,\"traceCode\":\"trace\",\"channel\":\"APP\",\"emergencyReason\":null}")
-        case (.post, "/api/me/cancellation-requests"):
-            return json("{\"id\":\"cancel-1\",\"ticketId\":\"\(Self.ticketID)\",\"reason\":\"일정 변경\",\"refundAcknowledged\":true,\"status\":\"PENDING_REVIEW\",\"createdAt\":\"2026-08-12T09:00:00Z\",\"updatedAt\":\"2026-08-12T09:00:00Z\"}")
-        case (.post, "/api/me/resale-pools"):
-            return json("{\"id\":\"pool-own\",\"eventId\":\"event-1\",\"performanceDateId\":\"performance-1\",\"zoneId\":\"vip\",\"ticketId\":\"\(Self.ticketID)\",\"showSlug\":null,\"price\":100000,\"buyerFee\":5000,\"buyerTotal\":105000,\"sellerSettlement\":95000,\"buyerCount\":0,\"status\":\"OPEN\",\"createdAt\":\"2026-08-12T09:00:00Z\",\"matchedAt\":null}")
-        case (.post, let path) where path.hasSuffix("/join"):
-            return json("{\"id\":\"pool-other\",\"eventId\":\"event-1\",\"performanceDateId\":\"performance-1\",\"zoneId\":\"vip\",\"ticketId\":\"other-ticket\",\"showSlug\":\"ui-show\",\"price\":100000,\"buyerFee\":5000,\"buyerTotal\":105000,\"sellerSettlement\":95000,\"buyerCount\":2,\"status\":\"OPEN\",\"createdAt\":\"2026-08-12T09:00:00Z\",\"matchedAt\":null}")
-        default: throw APIClientError.invalidResponse
-        }
-    }
-    func resolveResource(_ reference: String?) -> String? { reference }
-    private func json(_ value: String) -> Data { Data(value.utf8) }
 }

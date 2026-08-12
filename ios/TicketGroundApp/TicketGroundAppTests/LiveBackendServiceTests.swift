@@ -1793,9 +1793,11 @@ final class LiveBackendServiceTests: XCTestCase {
         let revoked = try await service.revokeTrustedDevice(userID: "user-1", deviceID: "device-1")
         let tokens = try await service.getPushTokens(userID: "user-1")
         let registeredToken = try await service.registerPushToken(userID: "user-1", platform: .ios, token: "apns-token-cdef", idempotencyKey: "push-key")
-        let trust = try await service.trustDevice(userID: "user-1", deviceID: "iphone-2", deviceName: "새 iPhone", platform: "iOS", attestation: "attestation")
+        let trustProof = LifecycleAttestationProof(deviceID: "iphone-2", challengeID: "challenge-trust", keyID: "key-1", attestationObject: "attestation")
+        let trust = try await service.trustDevice(userID: "user-1", deviceID: "iphone-2", deviceName: "새 iPhone", platform: "iOS", proof: trustProof)
         let virtualTicket = try await service.getVirtualTicketQR(userID: "user-1", ticketID: "ticket-1")
-        let admission = try await service.issueAdmissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "iphone-2", deviceToken: trust.deviceToken, attestation: "attestation")
+        let qrProof = LifecycleAssertionProof(challengeID: "challenge-qr", keyID: "key-1", assertion: "assertion")
+        let admission = try await service.issueAdmissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "iphone-2", deviceToken: trust.deviceToken, proof: qrProof)
 
         XCTAssertEqual(pools.first?.id, "pool-1")
         XCTAssertEqual(listed.status, .open)

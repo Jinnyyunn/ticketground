@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct TicketGroundApp: App {
+    @UIApplicationDelegateAdaptor(TicketGroundAppDelegate.self) private var appDelegate
     @State private var container = AppContainer.configured()
 
     var body: some Scene {
