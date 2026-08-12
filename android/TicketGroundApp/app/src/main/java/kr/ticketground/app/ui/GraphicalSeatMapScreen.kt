@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -44,6 +45,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.ImageLoader
+import coil3.serviceLoaderEnabled
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.svg.SvgDecoder
 import java.net.URI
 import kr.ticketground.app.BuildConfig
 import kr.ticketground.app.data.Seat
@@ -51,6 +56,8 @@ import kr.ticketground.app.data.SeatMap
 import kr.ticketground.app.data.SeatPosition
 import kotlin.math.max
 import kotlin.math.min
+import okhttp3.OkHttpClient
+import android.content.Context
 
 @Composable
 fun GraphicalSeatMapScreen(
@@ -154,6 +161,8 @@ fun GraphicalSeatMapScreen(
 
 @Composable
 private fun SeatMapImageLayer(seatMap: SeatMap) {
+  val context = LocalContext.current
+  val imageLoader = remember(context) { seatMapImageLoader(context) }
   val safeImageUrl = remember(seatMap.map.image) {
     safeSeatMapImageUrl(seatMap.map.image, BuildConfig.API_BASE_URL)
   }
@@ -161,6 +170,7 @@ private fun SeatMapImageLayer(seatMap: SeatMap) {
   if (safeImageUrl != null && !failed) {
     AsyncImage(
       model = safeImageUrl,
+      imageLoader = imageLoader,
       contentDescription = "${seatMap.map.title} 좌석 배치도",
       contentScale = ContentScale.Fit,
       onError = { failed = true },
@@ -181,6 +191,19 @@ private fun SeatMapImageLayer(seatMap: SeatMap) {
     }
   }
 }
+
+internal fun seatMapImageHttpClient(builder: OkHttpClient.Builder = OkHttpClient.Builder()): OkHttpClient = builder
+  .followRedirects(false)
+  .followSslRedirects(false)
+  .build()
+
+internal fun seatMapImageLoader(context: Context): ImageLoader = ImageLoader.Builder(context)
+  .serviceLoaderEnabled(false)
+  .components {
+    add(OkHttpNetworkFetcherFactory(callFactory = { seatMapImageHttpClient() }))
+    add(SvgDecoder.Factory())
+  }
+  .build()
 
 internal data class SeatMarkerGeometry(
   val centerX: Float,

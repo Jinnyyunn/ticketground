@@ -13,10 +13,12 @@ import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kr.ticketground.app.data.CatalogEvent
@@ -26,6 +28,9 @@ import kr.ticketground.app.data.SeatMapDetails
 import kr.ticketground.app.data.SeatMapEvent
 import kr.ticketground.app.data.SeatMapZone
 import kr.ticketground.app.data.SeatPosition
+import kr.ticketground.app.data.OpenCalendarEntry
+import kr.ticketground.app.data.SupportFaq
+import kr.ticketground.app.data.SupportNotice
 import kr.ticketground.app.ui.AccountOverview
 import kr.ticketground.app.ui.AsyncContent
 import kr.ticketground.app.ui.EventListScreen
@@ -73,6 +78,27 @@ class TicketGroundAppShellTest {
 
     composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
     composeRule.onNodeWithTag("event-list-two-pane").assertIsDisplayed()
+    composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").assertIsDisplayed().assertHasClickAction()
+    composeRule.onNodeWithText("오픈 캘린더").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("2026-08-14 20:00").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("공지·자주 묻는 질문").performScrollTo().assertIsDisplayed().performClick()
+    composeRule.onNodeWithText("배송 문의").assertIsDisplayed()
+  }
+
+  @Test
+  fun expandedCustomerHome_searchCtaNavigatesToSearch() {
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(840.dp)) { TicketGroundCustomerApp(viewModel) }
+      }
+    }
+
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithText("공연, 아티스트 또는 공연장 검색").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").performClick()
+    composeRule.onNodeWithText("공연 검색").assertIsDisplayed()
   }
 
   @Test
@@ -271,7 +297,13 @@ class TicketGroundAppShellTest {
 }
 
 private class ComposeCustomerRepository : CustomerRepository {
-  override suspend fun home() = HomeContent(listOf(CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)), emptyList(), emptyList(), emptyList())
+  private val event = CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)
+  override suspend fun home() = HomeContent(
+    events = listOf(event),
+    calendar = listOf(OpenCalendarEntry("2026-08-14 20:00", event = event)),
+    faq = listOf(SupportFaq("faq-1", "배송 문의", "모바일 티켓으로 제공됩니다.")),
+    notices = listOf(SupportNotice("notice-1", "예매 안내", "좌석도에서 선택해 주세요.")),
+  )
   override suspend fun seatMap(eventId: String, performanceDateId: String?) = error("not used")
   override suspend fun watchlist(): List<WatchlistItem> = emptyList()
   override suspend fun accountOverview() = AccountOverview(signedIn = false)

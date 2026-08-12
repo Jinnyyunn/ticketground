@@ -179,7 +179,7 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
       when (val current = route) {
         CustomerRoute.Tab -> when (destination) {
           AppDestination.Home -> if (maxWidth >= TicketGroundLayout.expandedBreakpoint) {
-            EventListScreen("티켓 랭킹", home.eventListState(), true, viewModel::loadHome, viewModel::openEvent)
+            ExpandedHomeScreen(home, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openSupport)
           } else {
             HomeScreen(home, false, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openSupport)
           }
@@ -225,11 +225,4 @@ private fun StateBanner(message: String) {
   androidx.compose.material3.Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer) {
     androidx.compose.material3.Text(message, modifier = androidx.compose.ui.Modifier.padding(TicketGroundSpacing.md))
   }
-}
-
-private fun AsyncContent<HomeContent>.eventListState(): AsyncContent<List<CatalogEvent>> = when (this) {
-  AsyncContent.Loading -> AsyncContent.Loading
-  is AsyncContent.Empty -> this
-  is AsyncContent.Error -> this
-  is AsyncContent.Ready -> AsyncContent.Ready(value.events)
 }

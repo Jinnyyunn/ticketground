@@ -166,6 +166,8 @@ fun EventListScreen(
   expanded: Boolean,
   onRetry: () -> Unit,
   onEvent: (CatalogEvent) -> Unit,
+  beforeList: @Composable () -> Unit = {},
+  afterList: @Composable () -> Unit = {},
 ) {
   AsyncSurface(state, onRetry) { events ->
     if (events.isEmpty()) {
@@ -173,8 +175,10 @@ fun EventListScreen(
     } else if (expanded) {
       Row(Modifier.fillMaxSize().testTag("event-list-two-pane")) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(TicketGroundSpacing.lg)) {
+          item { beforeList() }
           item { SectionTitle(title) }
           items(events, key = { it.id }) { EventCard(it, onEvent) }
+          item { afterList() }
         }
         Box(Modifier.width(TicketGroundLayout.detailPaneWidth).padding(TicketGroundSpacing.lg)) {
           SurfaceCard {
@@ -186,10 +190,58 @@ fun EventListScreen(
       }
     } else {
       LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+        item { beforeList() }
         item { SectionTitle(title) }
         items(events, key = { it.id }) { EventCard(it, onEvent) }
+        item { afterList() }
       }
     }
+  }
+}
+
+@Composable
+fun ExpandedHomeScreen(
+  state: AsyncContent<HomeContent>,
+  onRetry: () -> Unit,
+  onEvent: (CatalogEvent) -> Unit,
+  onSearch: () -> Unit,
+  onSupport: () -> Unit,
+) {
+  AsyncSurface(state, onRetry) { content ->
+    EventListScreen(
+      title = "티켓 랭킹",
+      state = AsyncContent.Ready(content.events),
+      expanded = true,
+      onRetry = onRetry,
+      onEvent = onEvent,
+      beforeList = {
+        Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+          Text("Ticketground", style = MaterialTheme.typography.headlineMedium)
+          Text("공연을 찾고 좌석도에서 바로 예매하세요", color = MaterialTheme.colorScheme.onSurfaceVariant)
+          OutlinedButton(onClick = onSearch, modifier = Modifier.fillMaxWidth()) {
+            Text("공연, 아티스트 또는 공연장 검색")
+          }
+        }
+      },
+      afterList = {
+        Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+          SectionTitle("오픈 캘린더")
+          if (content.calendar.isEmpty()) {
+            Text("예매 오픈 일정이 없습니다.")
+          } else {
+            content.calendar.forEach { entry ->
+              SurfaceCard {
+                Text(entry.event.title, style = MaterialTheme.typography.titleMedium)
+                Text(entry.opensAt, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+            }
+          }
+          OutlinedButton(onClick = onSupport, modifier = Modifier.fillMaxWidth()) {
+            Text("공지·자주 묻는 질문")
+          }
+        }
+      },
+    )
   }
 }
 
