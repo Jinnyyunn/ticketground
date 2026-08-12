@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,14 +45,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
 import kr.ticketground.app.AppDestination
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.WatchlistItem
+import kr.ticketground.app.data.TossCheckoutRequest
+import kr.ticketground.app.data.TossWidgetResult
+import androidx.appcompat.app.AppCompatActivity
+import android.content.Context
+import android.content.ContextWrapper
+import com.tosspayments.paymentsdk.PaymentWidget
+import com.tosspayments.paymentsdk.model.PaymentCallback
+import com.tosspayments.paymentsdk.model.TossPaymentResult
+import com.tosspayments.paymentsdk.view.PaymentMethod
 
 @Composable
 fun TicketGroundNavigation(
@@ -444,29 +457,66 @@ fun LifecycleOverviewScreen(
 
 @Composable
 fun CheckoutHandoffScreen(
-  configured: Boolean,
+  request: TossCheckoutRequest,
   pending: Boolean,
   seatLabel: String,
   amount: Int,
-  onOpenProvider: () -> Unit,
+  onResult: (TossWidgetResult) -> Unit,
 ) {
+  val activity = LocalContext.current.findAppCompatActivity()
+  val widget = remember(request.ticketId, request.clientKey) {
+    activity?.let { PaymentWidget(it, request.clientKey, "@@ANONYMOUS") }
+  }
   Column(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     SectionTitle("결제 확인")
     SurfaceCard {
       Text(seatLabel, style = MaterialTheme.typography.titleMedium)
       Text("결제 예정 금액 ${amount.krw()}원")
-      if (!configured) Text("Toss Payments 연결이 필요합니다", color = MaterialTheme.colorScheme.error)
       Text(
         "결제 승인 확인 후 결과를 반영합니다.",
         Modifier.testTag("toss-confirmation-policy"),
       )
+      if (widget != null) {
+        AndroidView(
+          factory = { context ->
+            PaymentMethod(context).also { widget.renderPaymentMethods(it, request.amount) }
+          },
+          modifier = Modifier.fillMaxWidth().height(360.dp).testTag("toss-payment-widget"),
+        )
+      } else {
+        Text("현재 화면에서는 결제창을 열 수 없습니다.", color = MaterialTheme.colorScheme.error)
+      }
       Button(
-        onClick = onOpenProvider,
-        enabled = configured && !pending,
+        onClick = {
+          widget?.requestPayment(
+            PaymentMethod.PaymentInfo(request.ticketId, request.orderName),
+            object : PaymentCallback {
+              override fun onPaymentSuccess(success: TossPaymentResult.Success) {
+                if (success.orderId == request.ticketId && success.amount.toInt() == request.amount) {
+                  onResult(TossWidgetResult.Success(success.paymentKey))
+                } else {
+                  onResult(TossWidgetResult.Failed("INVALID_PAYMENT_RESULT"))
+                }
+              }
+
+              override fun onPaymentFailed(fail: TossPaymentResult.Fail) {
+                if (fail.errorCode == "PAY_PROCESS_CANCELED") onResult(TossWidgetResult.Cancelled)
+                else onResult(TossWidgetResult.Failed(fail.errorCode))
+              }
+            },
+          )
+        },
+        enabled = widget != null && !pending,
         modifier = Modifier.fillMaxWidth(),
       ) { Text(if (pending) "결제 준비 중" else "결제창 열기") }
     }
   }
+}
+
+private tailrec fun Context.findAppCompatActivity(): AppCompatActivity? = when (this) {
+  is AppCompatActivity -> this
+  is ContextWrapper -> baseContext.findAppCompatActivity()
+  else -> null
 }
 
 @Composable

@@ -1,9 +1,20 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+val playIntegrityProjectNumber = providers.environmentVariable("TIG_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER")
+  .orElse(providers.gradleProperty("ticketground.playIntegrityCloudProjectNumber"))
+  .getOrElse("")
+require(playIntegrityProjectNumber.isBlank() || playIntegrityProjectNumber.all(Char::isDigit)) {
+  "Play Integrity Cloud project number must contain digits only"
+}
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.kotlin.serialization)
+}
+
+if (file("google-services.json").isFile) {
+  apply(plugin = "com.google.gms.google-services")
 }
 
 android {
@@ -17,8 +28,7 @@ android {
     versionCode = 1
     versionName = "0.1.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    buildConfigField("String", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "\"\"")
-    buildConfigField("boolean", "FCM_CONFIGURED", "false")
+    buildConfigField("String", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "\"$playIntegrityProjectNumber\"")
   }
 
   buildFeatures {
@@ -75,6 +85,7 @@ dependencies {
   androidTestImplementation(platform(libs.androidx.compose.bom))
 
   implementation(libs.androidx.activity.compose)
+  implementation(libs.androidx.appcompat)
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -90,6 +101,9 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.coil.network.okhttp)
   implementation(libs.coil.svg)
+  implementation(libs.play.integrity)
+  implementation(libs.firebase.messaging)
+  implementation(libs.toss.payments)
 
   debugImplementation(libs.androidx.compose.ui.tooling)
   debugImplementation(libs.androidx.compose.ui.test.manifest)

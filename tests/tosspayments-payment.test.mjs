@@ -1,6 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, startServer as startBackendServer, verifyIdentity } from "./backend-test-utils.mjs";
+
+function startServer(t, options = {}) {
+  return startBackendServer(t, {
+    ...options,
+    env: {
+      NODE_ENV: "test",
+      TIG_TOSSPAYMENTS_TEST_MODE: "1",
+      ...options.env
+    }
+  });
+}
 
 async function onSaleTicket(baseUrl, eventId = "event_kpop_001") {
   const state = await api(baseUrl, "/api/state");

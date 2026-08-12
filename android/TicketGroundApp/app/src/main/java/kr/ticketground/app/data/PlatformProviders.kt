@@ -6,6 +6,8 @@ import kr.ticketground.app.BuildConfig
 sealed class ExternalProviderError(message: String) : Exception(message) {
   data object PlayIntegrityUnavailable : ExternalProviderError("Play Integrity is not configured")
   data object PushUnavailable : ExternalProviderError("FCM is not configured")
+  data object TossUnavailable : ExternalProviderError("Toss Payments is not configured")
+  data object DeviceTrustRequired : ExternalProviderError("Trusted device registration is required")
   data object InvalidChallenge : ExternalProviderError("Integrity challenge is invalid or expired")
 }
 
@@ -32,13 +34,25 @@ class PlayIntegrityProofProvider(
 
 fun interface FirebaseTokenSource { suspend fun fetch(): String }
 
+interface DeviceTokenStore {
+  fun read(): String?
+  fun write(value: String)
+}
+
+class InMemoryDeviceTokenStore : DeviceTokenStore {
+  private var value: String? = null
+  override fun read(): String? = value
+  override fun write(value: String) { this.value = value }
+}
+
 class FirebasePushRegistrationProvider(
-  private val configured: Boolean,
+  private val configured: Boolean? = null,
   private val source: FirebaseTokenSource,
 ) {
   suspend fun token(): String {
-    if (!configured) throw ExternalProviderError.PushUnavailable
-    return source.fetch().takeIf(String::isNotBlank) ?: throw ExternalProviderError.PushUnavailable
+    if (configured == false) throw ExternalProviderError.PushUnavailable
+    return runCatching { source.fetch() }.getOrNull()?.takeIf(String::isNotBlank)
+      ?: throw ExternalProviderError.PushUnavailable
   }
 }
 
@@ -47,5 +61,5 @@ object PlatformProviderFactory {
     PlayIntegrityProofProvider(BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER.toLongOrNull(), requester)
 
   fun push(source: FirebaseTokenSource): FirebasePushRegistrationProvider =
-    FirebasePushRegistrationProvider(BuildConfig.FCM_CONFIGURED, source)
+    FirebasePushRegistrationProvider(source = source)
 }

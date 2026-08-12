@@ -253,30 +253,38 @@ class TicketGroundAppShellTest {
   }
 
   @Test
-  fun paymentHandoff_failsClosedUntilTossIsConfigured() {
+  fun paymentHandoff_failsClosedOutsideProductionAppCompatHost() {
+    val request = kr.ticketground.app.data.TossCheckoutRequest(
+      "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+      "test_ck_widget", "instrumentation-payment",
+    )
     composeRule.setContent {
       MaterialTheme {
         kr.ticketground.app.ui.CheckoutHandoffScreen(
-          configured = false,
+          request = request,
           pending = false,
           seatLabel = "A구역 1열 1번",
           amount = 122000,
-          onOpenProvider = {},
+          onResult = {},
         )
       }
     }
 
-    composeRule.onNodeWithText("Toss Payments 연결이 필요합니다").assertIsDisplayed()
+    composeRule.onNodeWithText("현재 화면에서는 결제창을 열 수 없습니다.").assertIsDisplayed()
     composeRule.onNodeWithText("결제창 열기").assertIsNotEnabled()
   }
 
   @Test
   fun koreanCopy_keepsPaymentPhraseAndTabletConcertWordTogether() {
+    val request = kr.ticketground.app.data.TossCheckoutRequest(
+      "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+      "test_ck_widget", "instrumentation-payment",
+    )
     composeRule.setContent {
       TicketGroundTheme {
         Column {
           Box(Modifier.width(390.dp).height(360.dp)) {
-            kr.ticketground.app.ui.CheckoutHandoffScreen(false, false, "A구역 1열 1번", 122000, {})
+            kr.ticketground.app.ui.CheckoutHandoffScreen(request, false, "A구역 1열 1번", 122000, {})
           }
           Box(Modifier.width(840.dp).height(360.dp)) {
             EventListScreen("티켓 랭킹", AsyncContent.Ready(listOf(event().copy(summary = "객석과 함께 즐기는 라이브 공연입니다."))), true, {}, {})

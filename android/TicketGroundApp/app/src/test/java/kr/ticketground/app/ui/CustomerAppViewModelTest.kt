@@ -16,6 +16,12 @@ import kr.ticketground.app.data.SeatMapEvent
 import kr.ticketground.app.data.SeatMapZone
 import kr.ticketground.app.data.SeatPosition
 import kr.ticketground.app.data.WatchlistItem
+import kr.ticketground.app.data.TossCheckoutRequest
+import kr.ticketground.app.data.TossPaymentMethod
+import kr.ticketground.app.data.TossWidgetResult
+import kr.ticketground.app.data.CheckoutOutcome
+import kr.ticketground.app.data.CheckoutError
+import kr.ticketground.app.data.OwnedTicket
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -53,7 +59,7 @@ class CustomerAppViewModelTest {
   }
 
   @Test
-  fun `seat selection books backend coordinate and opens fail-closed checkout handoff`() = runTest(dispatcher) {
+  fun `seat selection books backend coordinate and opens configured checkout request`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository()
     val viewModel = CustomerAppViewModel(repository)
     advanceUntilIdle()
@@ -68,7 +74,8 @@ class CustomerAppViewModelTest {
     assertEquals("seat-a1", repository.bookedSeatId)
     val checkout = viewModel.route.value as CustomerRoute.Checkout
     assertEquals("A구역 1열 1번", checkout.seatLabel)
-    assertEquals(false, checkout.configured)
+    assertEquals("ticket-1", checkout.request.ticketId)
+    assertEquals("client-key", checkout.request.clientKey)
   }
 
   @Test
@@ -93,25 +100,113 @@ class CustomerAppViewModelTest {
 
     assertEquals(setOf("seat-held"), viewModel.heldSeatIds.value)
   }
+
+  @Test
+  fun `platform actions execute repositories and expose observable success`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(
+      accountValue = AccountOverview(true, "ticket-1", ticketEligible = true, trustedDevice = true),
+    )
+    val viewModel = CustomerAppViewModel(repository)
+    viewModel.loadAccount()
+    advanceUntilIdle()
+
+    viewModel.trustThisDevice()
+    advanceUntilIdle()
+    assertEquals(1, repository.trustCalls)
+    assertEquals("이 기기가 신뢰 기기로 등록되었습니다.", viewModel.actionMessage.value)
+
+    viewModel.registerPush()
+    advanceUntilIdle()
+    assertEquals(1, repository.pushCalls)
+
+    viewModel.issueAdmissionQr()
+    advanceUntilIdle()
+    assertEquals("ticket-1", repository.qrTicketId)
+    assertEquals("입장 QR이 안전하게 발급되었습니다.", viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `Toss result is confirmed by repository before checkout reports success`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    val request = (viewModel.route.value as CustomerRoute.Checkout).request
+
+    viewModel.completeCheckout(request, TossWidgetResult.Success("provider-payment-key"))
+    advanceUntilIdle()
+
+    assertEquals("provider-payment-key", repository.completedPaymentKey)
+    assertEquals("결제가 승인되어 예매가 완료되었습니다.", viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `missing Toss configuration remains on seat map with a fail closed message`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = CheckoutError.ProviderUnavailable)
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+
+    assertTrue(viewModel.route.value is CustomerRoute.SeatMapRoute)
+    assertEquals("Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다.", viewModel.actionMessage.value)
+  }
 }
 
 private class FakeCustomerRepository(
   var homeError: Throwable? = null,
   private val accountError: Throwable? = null,
+  private val accountValue: AccountOverview = AccountOverview(true),
+  private val bookError: Throwable? = null,
 ) : CustomerRepository {
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
   var bookedSeatId: String? = null
+  var trustCalls = 0
+  var pushCalls = 0
+  var qrTicketId: String? = null
+  var completedPaymentKey: String? = null
 
   override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = seatMapFixture()
   override suspend fun watchlist(): List<WatchlistItem> = emptyList()
-  override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: AccountOverview(true)
+  override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: accountValue
   override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress {
+    bookError?.let { throw it }
     bookedSeatId = seatId
-    return BookingProgress.Held(seatId, seatLabel, amount, tossConfigured = false)
+    return BookingProgress.Held(
+      seatId,
+      seatLabel,
+      amount,
+      TossCheckoutRequest("ticket-1", seatLabel, amount + 2_000, TossPaymentMethod.CREDIT_CARD, "client-key", "payment-key"),
+    )
   }
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
+  override suspend fun trustThisDevice() { trustCalls += 1 }
+  override suspend fun registerPush() { pushCalls += 1 }
+  override suspend fun issueAdmissionQr(ticketId: String) { qrTicketId = ticketId }
+  override suspend fun completeCheckout(
+    request: TossCheckoutRequest,
+    result: TossWidgetResult,
+  ): CheckoutOutcome {
+    completedPaymentKey = (result as TossWidgetResult.Success).paymentKey
+    return CheckoutOutcome.Confirmed(
+      OwnedTicket(
+        "ticket-1", "event-1", "performance-1", "zone-a", "A구역 1열 1번", "OWNED", false,
+        120000, 120000, 120000, 0, 1,
+      ),
+    )
+  }
 
   private fun event() = CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)
   private fun seatMapFixture() = SeatMap(

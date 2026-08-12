@@ -284,7 +284,15 @@ private class VisualFixtureRepository(private val homeMode: HomeMode = HomeMode.
   override suspend fun watchlist() = listOf(fixtureWatchlistItem())
   override suspend fun accountOverview() = fixtureAccount()
   override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress =
-    BookingProgress.Held(seatId, seatLabel, amount, tossConfigured = false)
+    BookingProgress.Held(
+      seatId,
+      seatLabel,
+      amount,
+      kr.ticketground.app.data.TossCheckoutRequest(
+        seatId, seatLabel, amount + 2_000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+        "test_ck_capture", "capture-idempotency",
+      ),
+    )
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
 }

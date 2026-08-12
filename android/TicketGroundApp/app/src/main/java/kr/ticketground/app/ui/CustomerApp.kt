@@ -14,12 +14,15 @@ import kr.ticketground.app.AppDestination
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.SeatMap
 import kr.ticketground.app.data.WatchlistItem
+import kr.ticketground.app.data.CheckoutOutcome
+import kr.ticketground.app.data.TossCheckoutRequest
+import kr.ticketground.app.data.TossWidgetResult
 
 sealed interface CustomerRoute {
   data object Tab : CustomerRoute
   data class Event(val event: CatalogEvent) : CustomerRoute
   data class SeatMapRoute(val event: CatalogEvent, val performanceDateId: String?) : CustomerRoute
-  data class Checkout(val seatLabel: String, val amount: Int, val configured: Boolean) : CustomerRoute
+  data class Checkout(val seatLabel: String, val amount: Int, val request: TossCheckoutRequest) : CustomerRoute
   data object Support : CustomerRoute
 }
 
@@ -107,7 +110,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
           is BookingProgress.Waiting -> mutableActionMessage.value = "현재 대기 순서 ${progress.position}번입니다. 잠시 후 다시 시도해 주세요."
           is BookingProgress.Held -> {
             mutableHeldSeatIds.value = mutableHeldSeatIds.value + progress.seatId
-            mutableRoute.value = CustomerRoute.Checkout(progress.seatLabel, progress.amount + 2_000, progress.tossConfigured)
+            mutableRoute.value = CustomerRoute.Checkout(progress.seatLabel, progress.checkout.amount, progress.checkout)
           }
         }
       }
@@ -153,12 +156,43 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     mutableBookingPending.value = false
   }
 
-  fun platformUnavailable(label: String) {
-    mutableActionMessage.value = "$label 외부 제공자 설정과 실제 기기 검증이 확인될 때까지 요청을 시작하지 않습니다."
+  fun trustThisDevice() = mutatePlatform("이 기기가 신뢰 기기로 등록되었습니다.") { repository.trustThisDevice() }
+
+  fun registerPush() = mutatePlatform("푸시 알림 등록이 완료되었습니다.") { repository.registerPush() }
+
+  fun issueAdmissionQr() = mutateAccount("입장 QR이 안전하게 발급되었습니다.") { account ->
+    repository.issueAdmissionQr(requireNotNull(account.ticketId))
+  }
+
+  private fun mutatePlatform(successMessage: String, operation: suspend () -> Unit) = viewModelScope.launch {
+    if (mutableBookingPending.value) return@launch
+    mutableBookingPending.value = true
+    mutableActionMessage.value = null
+    runCatching { operation() }
+      .onSuccess {
+        mutableActionMessage.value = successMessage
+        loadAccount()
+      }
+      .onFailure { mutableActionMessage.value = safeUiMessage(it) }
+    mutableBookingPending.value = false
+  }
+
+  fun completeCheckout(request: TossCheckoutRequest, result: TossWidgetResult) = viewModelScope.launch {
+    mutableBookingPending.value = true
+    mutableActionMessage.value = null
+    runCatching { repository.completeCheckout(request, result) }
+      .onSuccess { outcome ->
+        mutableActionMessage.value = when (outcome) {
+          is CheckoutOutcome.Confirmed -> "결제가 승인되어 예매가 완료되었습니다."
+          is CheckoutOutcome.Failed -> "결제를 완료하지 못했습니다. (${outcome.code})"
+          CheckoutOutcome.Cancelled -> "결제가 취소되었습니다."
+        }
+      }
+      .onFailure { mutableActionMessage.value = safeUiMessage(it) }
+    mutableBookingPending.value = false
   }
 
   fun openSupport() { mutableRoute.value = CustomerRoute.Support }
-  fun paymentUnavailable() { mutableActionMessage.value = "Toss Payments SDK와 가맹점 설정이 확인될 때까지 결제를 시작하지 않습니다." }
 }
 
 @Composable
@@ -192,9 +226,9 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
             actionMessage = actionMessage,
             onCancellation = viewModel::requestCancellation,
             onResale = viewModel::listForResale,
-            onDevice = { viewModel.platformUnavailable("Play Integrity") },
-            onPush = { viewModel.platformUnavailable("FCM") },
-            onQr = { viewModel.platformUnavailable("입장 QR") },
+            onDevice = viewModel::trustThisDevice,
+            onPush = viewModel::registerPush,
+            onQr = viewModel::issueAdmissionQr,
           )
         }
         is CustomerRoute.Event -> EventDetailScreen(current.event) { viewModel.openSeatMap(current.event, it) }
@@ -211,7 +245,9 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
           actionMessage?.let { StateBanner(it) }
         }
         is CustomerRoute.Checkout -> {
-          CheckoutHandoffScreen(current.configured, pending, current.seatLabel, current.amount, viewModel::paymentUnavailable)
+          CheckoutHandoffScreen(current.request, pending, current.seatLabel, current.amount) { result ->
+            viewModel.completeCheckout(current.request, result)
+          }
           actionMessage?.let { StateBanner(it) }
         }
         CustomerRoute.Support -> AsyncSurface(home, viewModel::loadHome) { SupportScreen(it) }

@@ -1,6 +1,3 @@
-// TossPayments (토스페이먼츠) payment confirmation - mock mode by default, real REST
-// verification once TIG_TOSSPAYMENTS_CLIENT_KEY/TIG_TOSSPAYMENTS_SECRET_KEY are set.
-//
 // "paymentKey" below always means the payment METHOD selector (CREDIT_CARD/SIMPLE_PAY/...).
 // The actual TossPayments transaction identifier (also confusingly called
 // "paymentKey" in their API) is named tossPaymentKey here to keep the two
@@ -19,6 +16,7 @@ export function createTosspaymentsBackend({ hash, httpError, now }) {
   const clientKey = process.env.TIG_TOSSPAYMENTS_CLIENT_KEY || "";
   const secretKey = process.env.TIG_TOSSPAYMENTS_SECRET_KEY || "";
   const webhookSecret = process.env.TIG_TOSSPAYMENTS_WEBHOOK_SECRET || "";
+  const testMockEnabled = process.env.NODE_ENV === "test" && process.env.TIG_TOSSPAYMENTS_TEST_MODE === "1";
   const mockConfirmDelayMs = Math.max(0, Number.parseInt(process.env.TIG_TOSSPAYMENTS_MOCK_CONFIRM_DELAY_MS || "0", 10) || 0);
 
   function isTosspaymentsConfigured() {
@@ -73,6 +71,9 @@ export function createTosspaymentsBackend({ hash, httpError, now }) {
       }
       return { tossPaymentKey: verified.paymentKey, method: verified.method, approvedAt: verified.approvedAt, amount: verifiedAmount, mock: false };
     }
+    if (!testMockEnabled) {
+      throw httpError(503, "TOSSPAYMENTS_NOT_CONFIGURED", "토스페이먼츠 결제 설정을 확인할 수 없습니다.");
+    }
     await new Promise((resolve) => setTimeout(resolve, mockConfirmDelayMs));
     const receipt = mockTosspaymentsReceipt({ ticketId, userId, paymentKey, orderId });
     return { tossPaymentKey: receipt.tossPaymentKey, method: receipt.method, mock: true };
@@ -83,10 +84,9 @@ export function createTosspaymentsBackend({ hash, httpError, now }) {
       throw httpError(400, "TOSSPAYMENTS_CANCEL_REASON_REQUIRED", "취소 사유가 필요합니다.");
     }
     if (!isTosspaymentsConfigured()) {
-      // No real transaction exists to cancel without live credentials - this
-      // mock branch exists purely so the admin flow (and its tests) can be
-      // exercised end-to-end without a live TossPayments account, matching
-      // confirmTosspaymentsPayment's own mock fallback.
+      if (!testMockEnabled) {
+        throw httpError(503, "TOSSPAYMENTS_NOT_CONFIGURED", "토스페이먼츠 결제 설정을 확인할 수 없습니다.");
+      }
       return {
         paymentKey: tossPaymentKey,
         status: "CANCELED",

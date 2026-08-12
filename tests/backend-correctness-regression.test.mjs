@@ -131,6 +131,92 @@ test("TossPayments configured mode requires a tossPaymentKey instead of falling 
   );
 });
 
+test("TossPayments confirmation fails closed when provider credentials are absent", async (t) => {
+  const previousClientKey = process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  const previousSecretKey = process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  t.after(() => {
+    if (previousClientKey === undefined) delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+    else process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = previousClientKey;
+    if (previousSecretKey === undefined) delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+    else process.env.TIG_TOSSPAYMENTS_SECRET_KEY = previousSecretKey;
+  });
+  const tosspayments = createTosspaymentsBackend({
+    hash: (input) => `hash-${input}`,
+    httpError,
+    now: () => "2026-07-20T00:00:00.000Z"
+  });
+
+  await assert.rejects(
+    () => tosspayments.confirmTosspaymentsPayment({}, {
+      ticketId: "ticket_1",
+      userId: "user_fan_a",
+      paymentKey: "CREDIT_CARD",
+      tossPaymentKey: "unverified-client-value",
+      orderId: "ticket_1",
+      expectedAmount: 154000
+    }),
+    (error) => error.status === 503 && error.code === "TOSSPAYMENTS_NOT_CONFIGURED"
+  );
+});
+
+test("TossPayments cancellation fails closed when provider credentials are absent", async (t) => {
+  const previousClientKey = process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  const previousSecretKey = process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  t.after(() => {
+    if (previousClientKey === undefined) delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+    else process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = previousClientKey;
+    if (previousSecretKey === undefined) delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+    else process.env.TIG_TOSSPAYMENTS_SECRET_KEY = previousSecretKey;
+  });
+  const tosspayments = createTosspaymentsBackend({
+    hash: (input) => `hash-${input}`,
+    httpError,
+    now: () => "2026-07-20T00:00:00.000Z"
+  });
+
+  await assert.rejects(
+    () => tosspayments.cancelTosspaymentsPayment({
+      tossPaymentKey: "unverified-client-value",
+      cancelReason: "customer request"
+    }),
+    (error) => error.status === 503 && error.code === "TOSSPAYMENTS_NOT_CONFIGURED"
+  );
+});
+
+test("TossPayments production ignores the test mock switch", async (t) => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousTestMode = process.env.TIG_TOSSPAYMENTS_TEST_MODE;
+  const previousClientKey = process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  const previousSecretKey = process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  process.env.NODE_ENV = "production";
+  process.env.TIG_TOSSPAYMENTS_TEST_MODE = "1";
+  delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+  delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+  t.after(() => {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+    if (previousTestMode === undefined) delete process.env.TIG_TOSSPAYMENTS_TEST_MODE;
+    else process.env.TIG_TOSSPAYMENTS_TEST_MODE = previousTestMode;
+    if (previousClientKey === undefined) delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
+    else process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = previousClientKey;
+    if (previousSecretKey === undefined) delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
+    else process.env.TIG_TOSSPAYMENTS_SECRET_KEY = previousSecretKey;
+  });
+  const tosspayments = createTosspaymentsBackend({ hash: String, httpError, now: Date.now });
+
+  await assert.rejects(
+    () => tosspayments.confirmTosspaymentsPayment({}, {
+      ticketId: "ticket_1", userId: "user_fan_a", paymentKey: "CREDIT_CARD",
+      tossPaymentKey: "unverified-client-value", orderId: "ticket_1", expectedAmount: 154000
+    }),
+    (error) => error.status === 503 && error.code === "TOSSPAYMENTS_NOT_CONFIGURED"
+  );
+});
+
 test("admin account update rejects weak replacement passwords without partial account mutation", () => {
   const { updateAdminAccount } = adminBackend();
   const account = {

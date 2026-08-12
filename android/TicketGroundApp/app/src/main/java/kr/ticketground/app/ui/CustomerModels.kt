@@ -13,6 +13,20 @@ import kr.ticketground.app.data.SeatMap
 import kr.ticketground.app.data.SupportFaq
 import kr.ticketground.app.data.SupportNotice
 import kr.ticketground.app.data.TicketGroundApiClient
+import kr.ticketground.app.data.CheckoutOutcome
+import kr.ticketground.app.data.CheckoutError
+import kr.ticketground.app.data.CheckoutRetryStore
+import kr.ticketground.app.data.ExternalProviderError
+import kr.ticketground.app.data.FirebasePushRegistrationProvider
+import kr.ticketground.app.data.InMemoryCheckoutRetryStore
+import kr.ticketground.app.data.IntegrityPurpose
+import kr.ticketground.app.data.PlayIntegrityProofProvider
+import kr.ticketground.app.data.TossCheckoutCoordinator
+import kr.ticketground.app.data.TossCheckoutRequest
+import kr.ticketground.app.data.TossPaymentMethod
+import kr.ticketground.app.data.TossWidgetResult
+import kr.ticketground.app.data.DeviceTokenStore
+import kr.ticketground.app.data.InMemoryDeviceTokenStore
 import kr.ticketground.app.data.WatchlistItem
 
 sealed interface AsyncContent<out T> {
@@ -44,8 +58,10 @@ data class AccountOverview(
 
 sealed interface BookingProgress {
   data class Waiting(val position: Int) : BookingProgress
-  data class Held(val seatId: String, val seatLabel: String, val amount: Int, val tossConfigured: Boolean) : BookingProgress
+  data class Held(val seatId: String, val seatLabel: String, val amount: Int, val checkout: TossCheckoutRequest) : BookingProgress
 }
+
+data class DeviceIdentity(val id: String, val name: String)
 
 interface CustomerRepository {
   suspend fun home(): HomeContent
@@ -55,6 +71,11 @@ interface CustomerRepository {
   suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress
   suspend fun requestCancellation(ticketId: String, reason: String)
   suspend fun listForResale(ticketId: String, price: Int)
+  suspend fun completeCheckout(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome =
+    throw ExternalProviderError.TossUnavailable
+  suspend fun trustThisDevice(): Unit = throw ExternalProviderError.PlayIntegrityUnavailable
+  suspend fun registerPush(): Unit = throw ExternalProviderError.PushUnavailable
+  suspend fun issueAdmissionQr(ticketId: String): Unit = throw ExternalProviderError.PlayIntegrityUnavailable
 }
 
 class TypedCustomerRepository(
@@ -62,7 +83,13 @@ class TypedCustomerRepository(
   private val accountApi: AccountApi,
   private val lifecycleApi: LifecycleApi,
   private val client: TicketGroundApiClient,
+  private val checkoutRetryStore: CheckoutRetryStore = InMemoryCheckoutRetryStore(),
+  private val integrityProvider: PlayIntegrityProofProvider? = null,
+  private val pushProvider: FirebasePushRegistrationProvider? = null,
+  private val deviceIdentity: DeviceIdentity? = null,
+  private val deviceTokenStore: DeviceTokenStore = InMemoryDeviceTokenStore(),
 ) : CustomerRepository {
+  private val checkout = TossCheckoutCoordinator(client.payments(), checkoutRetryStore)
   override suspend fun home(): HomeContent {
     val catalog = publicApi.catalog()
     val calendar = publicApi.openCalendar()
@@ -107,8 +134,12 @@ class TypedCustomerRepository(
     if (hold.status != LifecycleStatus.ACTIVE || hold.ticketIds != listOf(seatId)) {
       throw IllegalStateException("좌석을 안전하게 확보하지 못했습니다.")
     }
-    client.payments().config()
-    return BookingProgress.Held(seatId, seatLabel, amount, tossConfigured = false)
+    val draft = accountApi.createReservationDraft(hold.id, "android-draft-${UUID.randomUUID()}")
+    if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.ticketIds != listOf(seatId)) {
+      throw IllegalStateException("결제 대상을 안전하게 준비하지 못했습니다.")
+    }
+    val request = checkout.prepare(seatId, TossPaymentMethod.CREDIT_CARD, "android-payment-${UUID.randomUUID()}")
+    return BookingProgress.Held(seatId, seatLabel, amount, request)
   }
 
   override suspend fun requestCancellation(ticketId: String, reason: String) {
@@ -118,11 +149,41 @@ class TypedCustomerRepository(
   override suspend fun listForResale(ticketId: String, price: Int) {
     lifecycleApi.createResalePool(ticketId, price, null, "android-resale-${UUID.randomUUID()}")
   }
+
+  override suspend fun completeCheckout(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome =
+    checkout.complete(request, result)
+
+  override suspend fun trustThisDevice() {
+    val identity = deviceIdentity ?: throw ExternalProviderError.PlayIntegrityUnavailable
+    val provider = integrityProvider ?: throw ExternalProviderError.PlayIntegrityUnavailable
+    val binding = lifecycleApi.integrityChallenge(IntegrityPurpose.TRUST_DEVICE, identity.id)
+    deviceTokenStore.write(lifecycleApi.trustDevice(identity.name, provider.prove(binding)).deviceToken)
+  }
+
+  override suspend fun registerPush() {
+    val provider = pushProvider ?: throw ExternalProviderError.PushUnavailable
+    lifecycleApi.registerPushToken(provider.token(), "android-push-${UUID.randomUUID()}")
+  }
+
+  override suspend fun issueAdmissionQr(ticketId: String) {
+    val identity = deviceIdentity ?: throw ExternalProviderError.PlayIntegrityUnavailable
+    val provider = integrityProvider ?: throw ExternalProviderError.PlayIntegrityUnavailable
+    val token = deviceTokenStore.read()?.takeIf(String::isNotBlank) ?: throw ExternalProviderError.DeviceTrustRequired
+    lifecycleApi.virtualTicketQr(ticketId)
+    val binding = lifecycleApi.integrityChallenge(IntegrityPurpose.ISSUE_QR, identity.id, ticketId)
+    lifecycleApi.admissionQr(ticketId, identity.id, token, provider.prove(binding))
+  }
 }
 
 fun safeUiMessage(error: Throwable): String = when (error) {
   is ApiError.MissingCredential, is ApiError.Unauthorized -> "로그인이 필요한 기능입니다. 웹 또는 iOS에서 로그인한 계정의 연결을 확인해 주세요."
   is ApiError.Transport, is ApiError.Retryable -> "네트워크 연결을 확인한 뒤 다시 시도해 주세요."
   is ApiError.IncompatibleContract -> "현재 앱과 서버 버전이 맞지 않습니다. 잠시 후 다시 시도해 주세요."
+  ExternalProviderError.PlayIntegrityUnavailable -> "이 기기에서는 Play Integrity 확인을 완료할 수 없습니다. 설정을 확인해 주세요."
+  ExternalProviderError.PushUnavailable -> "Firebase 알림 설정을 확인할 수 없어 등록하지 않았습니다."
+  ExternalProviderError.TossUnavailable -> "Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다."
+  ExternalProviderError.DeviceTrustRequired -> "입장 QR을 발급하려면 먼저 이 기기를 등록해 주세요."
+  CheckoutError.ProviderUnavailable -> "Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다."
+  CheckoutError.TicketUnavailable -> "결제할 티켓 상태를 확인할 수 없습니다. 좌석을 다시 선택해 주세요."
   else -> "요청을 완료하지 못했습니다. 다시 시도해 주세요."
 }
