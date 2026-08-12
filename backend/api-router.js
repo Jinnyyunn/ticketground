@@ -130,7 +130,6 @@ export function createApiRouter({
   userWatchlist,
   userWatchlistForPrincipal,
   venueMapForEvent,
-  verifyAppAttestation,
   verifyAppAttestProof,
   verifyLedger,
   verifyQr,
@@ -855,13 +854,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
     requireBody(body, ["deviceId", "biometricVerified"]);
     const trustUserId = resolvePurchaseUserId(db, req, body);
-    if (body.challengeId) {
-      await verifyAppAttestProof(db, { userId: trustUserId, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
-    } else if (process.env.TIG_ALLOW_LEGACY_APP_ATTESTATION === "1") {
-      verifyAppAttestation(body, "TRUST_DEVICE", [trustUserId, body.deviceId]);
-    } else {
-      throw httpError(403, "APP_ATTESTATION_REQUIRED", "Apple App Attest 증명이 필요합니다.");
-    }
+    await verifyAppAttestProof(db, { userId: trustUserId, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
     return trustDevice(db, { ...body, userId: trustUserId, attestationVerified: true });
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/qr") {
@@ -869,13 +862,7 @@ async function handleApi(req, res, db, surface) {
     const qrUserId = resolvePurchaseUserId(db, req, body);
     if (String(body.channel || "WEB").toUpperCase() === "APP") {
       requireBody(body, ["deviceId"]);
-      if (body.challengeId) {
-        await verifyAppAttestProof(db, { userId: qrUserId, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
-      } else if (process.env.TIG_ALLOW_LEGACY_APP_ATTESTATION === "1") {
-        verifyAppAttestation(body, "ISSUE_QR", [qrUserId, body.deviceId, body.ticketId]);
-      } else {
-        throw httpError(403, "APP_ATTESTATION_REQUIRED", "Apple App Attest 증명이 필요합니다.");
-      }
+      await verifyAppAttestProof(db, { userId: qrUserId, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
       return issueQr(db, { ...body, userId: qrUserId, attestationVerified: true });
     }
     return issueQr(db, { ...body, userId: qrUserId });

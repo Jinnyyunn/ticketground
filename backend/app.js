@@ -266,7 +266,6 @@ export async function createTicketgroundApp(options) {
     trustDevice: admission.trustDevice,
     issueAppAttestChallenge: appAttest.issueChallenge,
     verifyAppAttestProof: appAttest.verifyProof,
-    verifyAppAttestation: runtime.verifyAppAttestation,
     verifyLedger: persistence.verifyLedger,
     verifyQr: admission.verifyQr,
     virtualQr: admission.virtualQr,
