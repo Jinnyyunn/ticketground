@@ -95,4 +95,8 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 
 ### Draft payment accounting follow-up
 
-- A reservation-draft purchase now persists the same server-authoritative `amount.total` that Toss confirms. The public purchase payment, owned-ticket payment, admin finance transaction, and `PRIMARY_PURCHASE` ledger `price`/`amount` all report that total, while the ticket retains its separate face value. Idempotent replay returns the original transaction amount. Purchases without a bound draft continue to account at face value.
+- A reservation-draft purchase now persists the same server-authoritative `amount.total` that Toss confirms. The public purchase payment, owned-ticket payment, admin finance transaction, and `PRIMARY_PURCHASE` ledger `price`/`amount` all report that total, while the ticket retains its separate face value. Idempotent replay returns the original transaction amount. Legacy non-PG purchases without an approved-total input continue to account at face value.
+
+### Shared Toss approved-total accounting
+
+- The same accounting rule now covers every primary Toss purchase, including web/iOS active-hold and direct on-sale routes. The API router calculates the expected total from server inventory plus the canonical per-seat service fee (or the reservation draft total), verifies exactly that amount with Toss, and passes it to commerce as `approvedAmount`. Transactions, public payment DTOs, owned-ticket payment history, finance, audit, refund-needed compensation, and idempotent replay therefore use the actually approved total. Legacy non-PG `buyPrimary` callers omit `approvedAmount` and retain their existing face-value semantics.
