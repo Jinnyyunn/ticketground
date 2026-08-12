@@ -44,6 +44,15 @@ class CustomerAppViewModelTest {
   }
 
   @Test
+  fun `unexpected error exposes concise natural Korean copy`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository(homeError = IllegalStateException("boom")))
+
+    advanceUntilIdle()
+
+    assertEquals("요청을 완료하지 못했습니다. 다시 시도해 주세요.", (viewModel.home.value as AsyncContent.Error).message)
+  }
+
+  @Test
   fun `seat selection books backend coordinate and opens fail-closed checkout handoff`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository()
     val viewModel = CustomerAppViewModel(repository)

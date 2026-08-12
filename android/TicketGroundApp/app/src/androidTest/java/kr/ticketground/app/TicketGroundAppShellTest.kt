@@ -211,8 +211,9 @@ class TicketGroundAppShellTest {
     composeRule.onNodeWithContentDescription("콘텐츠를 불러오는 중").assertIsDisplayed()
     composeRule.runOnIdle { state = AsyncContent.Empty("검색 결과가 없습니다", "다른 검색어를 입력해 주세요.") }
     composeRule.onNodeWithText("검색 결과가 없습니다").assertIsDisplayed()
-    composeRule.runOnIdle { state = AsyncContent.Error("네트워크 연결을 확인해 주세요") }
-    composeRule.onNodeWithText("네트워크 연결을 확인해 주세요").assertIsDisplayed()
+    composeRule.runOnIdle { state = AsyncContent.Error("요청을 완료하지 못했습니다. 다시 시도해 주세요.") }
+    composeRule.onNodeWithText("요청을 완료하지 못했습니다. 다시 시도해 주세요.").assertIsDisplayed()
+    assertTextRangeOnOneLine("state-card-message", "다시 시도해 주세요.")
     composeRule.onNodeWithText("다시 시도").performClick()
     composeRule.runOnIdle { assertEquals(true, retried) }
   }
@@ -278,14 +279,15 @@ class TicketGroundAppShellTest {
             kr.ticketground.app.ui.CheckoutHandoffScreen(false, false, "A구역 1열 1번", 122000, {})
           }
           Box(Modifier.width(840.dp).height(360.dp)) {
-            EventListScreen("티켓 랭킹", AsyncContent.Ready(listOf(event().copy(summary = "무대와 객석이 하나 되는 라이브 콘서트입니다."))), true, {}, {})
+            EventListScreen("티켓 랭킹", AsyncContent.Ready(listOf(event().copy(summary = "객석과 함께 즐기는 라이브 공연입니다."))), true, {}, {})
           }
         }
       }
     }
     composeRule.onNodeWithText("결제 승인 확인 후 결과를 반영합니다.", useUnmergedTree = true).assertIsDisplayed()
     assertTextRangeOnOneLine("toss-confirmation-policy", "승인 확인")
-    composeRule.onNodeWithText("무대와 객석이 하나 되는 라이브 콘서트입니다.").assertIsDisplayed()
+    composeRule.onNodeWithText("객석과 함께 즐기는 라이브 공연입니다.").assertIsDisplayed()
+    assertTextRangeOnOneLine("expanded-event-summary", "라이브 공연입니다.")
   }
 
   private fun assertTextRangeOnOneLine(tag: String, phrase: String) {

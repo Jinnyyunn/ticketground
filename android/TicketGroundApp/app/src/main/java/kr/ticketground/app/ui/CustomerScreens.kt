@@ -45,10 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.text
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -70,7 +67,13 @@ fun TicketGroundNavigation(
           NavigationRailItem(
             selected = destination == selected,
             onClick = { onNavigate(destination) },
-            icon = { Icon(destination.navigationIcon(), contentDescription = null) },
+            icon = {
+              Icon(
+                destination.navigationIcon(),
+                contentDescription = null,
+                modifier = Modifier.testTag("navigation-icon-${destination.name.lowercase()}"),
+              )
+            },
             label = { Text(destination.label) },
           )
         }
@@ -85,7 +88,13 @@ fun TicketGroundNavigation(
             NavigationBarItem(
               selected = destination == selected,
               onClick = { onNavigate(destination) },
-              icon = { Icon(destination.navigationIcon(), contentDescription = null) },
+              icon = {
+                Icon(
+                  destination.navigationIcon(),
+                  contentDescription = null,
+                  modifier = Modifier.testTag("navigation-icon-${destination.name.lowercase()}"),
+                )
+              },
               label = { Text(destination.label) },
             )
           }
@@ -116,7 +125,7 @@ private fun StateCard(title: String, message: String, onRetry: (() -> Unit)?) {
   Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
     SurfaceCard {
       Text(title, style = MaterialTheme.typography.titleMedium)
-      Text(message, style = MaterialTheme.typography.bodyMedium)
+      Text(message, Modifier.testTag("state-card-message"), style = MaterialTheme.typography.bodyMedium)
       if (onRetry != null) Button(onClick = onRetry) { Text("다시 시도") }
     }
   }
@@ -194,8 +203,9 @@ fun EventListScreen(
           SurfaceCard {
             Text(events.first().title, style = MaterialTheme.typography.titleLarge)
             Text(events.first().venue)
-            KeepLastWordTogether(
-              events.first().summary ?: "공연 상세에서 일정과 좌석 현황을 확인하세요.",
+            Text(
+              events.first().summary ?: "공연 일정과 좌석 현황을 확인하세요.",
+              Modifier.testTag("expanded-event-summary"),
             )
           }
         }
@@ -471,22 +481,4 @@ private fun AppDestination.navigationIcon(): ImageVector = when (this) {
   AppDestination.Search -> Icons.Default.Search
   AppDestination.Watchlist -> Icons.Default.Favorite
   AppDestination.MyPage -> Icons.Default.Person
-}
-
-@Composable
-private fun KeepLastWordTogether(value: String) {
-  val breakAt = value.lastIndexOf(' ')
-  if (breakAt <= 0) {
-    Text(value, Modifier.testTag("expanded-event-summary"))
-    return
-  }
-  Column(
-    Modifier.clearAndSetSemantics { text = AnnotatedString(value) },
-  ) {
-    Text(value.substring(0, breakAt), Modifier.clearAndSetSemantics {})
-    Text(
-      value.substring(breakAt + 1),
-      Modifier.clearAndSetSemantics {}.testTag("expanded-event-summary"),
-    )
-  }
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -170,6 +171,13 @@ class VisualCaptureTest {
 
   private fun writeCapture(name: String) {
     composeRule.waitForIdle()
+    AppDestination.entries.forEach { destination ->
+      composeRule.onNodeWithTag("navigation-icon-${destination.name.lowercase()}", useUnmergedTree = true)
+        .assertIsDisplayed()
+    }
+    composeRule.mainClock.advanceTimeByFrame()
+    composeRule.mainClock.advanceTimeByFrame()
+    composeRule.waitForIdle()
     val captureNode = composeRule.onNodeWithTag(CaptureRoot)
     val bitmap = captureNode.captureToImage().asAndroidBitmap()
     val resolver = InstrumentationRegistry.getInstrumentation().targetContext.contentResolver
@@ -212,7 +220,7 @@ private fun fixtureEvent() = CatalogEvent(
   period = "2026-09-12 ~ 2026-09-13",
   runtime = "120분",
   ageLimit = "만 7세 이상",
-  summary = "무대와 객석이 하나 되는 라이브 콘서트입니다.",
+  summary = "객석과 함께 즐기는 라이브 공연입니다.",
   notices = listOf("공연 시작 30분 전까지 입장해 주세요.", "좌석 변경은 지원하지 않습니다."),
   schedules = listOf(CatalogSchedule(id = "performance-1", label = "9월 12일 19:00")),
   saleState = "ON_SALE",

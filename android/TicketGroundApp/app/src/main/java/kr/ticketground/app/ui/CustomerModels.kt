@@ -124,5 +124,5 @@ fun safeUiMessage(error: Throwable): String = when (error) {
   is ApiError.MissingCredential, is ApiError.Unauthorized -> "로그인이 필요한 기능입니다. 웹 또는 iOS에서 로그인한 계정의 연결을 확인해 주세요."
   is ApiError.Transport, is ApiError.Retryable -> "네트워크 연결을 확인한 뒤 다시 시도해 주세요."
   is ApiError.IncompatibleContract -> "현재 앱과 서버 버전이 맞지 않습니다. 잠시 후 다시 시도해 주세요."
-  else -> "요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요."
+  else -> "요청을 완료하지 못했습니다. 다시 시도해 주세요."
 }
