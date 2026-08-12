@@ -67,6 +67,13 @@ test("mobile operations workspace manages release, messaging, devices, cancellat
     recommendedVersion: "9.0.0",
     storeUrl: "https://apps.apple.com/kr/app/ticketground/id1234567890"
   }, 409);
+  await adminApi(server, "/api/admin/mobile/release-policy", {
+    idempotencyKey: "release-policy-phishing-url",
+    platform: "android",
+    minimumVersion: "1.0.0",
+    recommendedVersion: "1.0.0",
+    storeUrl: "https://example.com/fake-store"
+  }, 422);
 
   const maintenance = await adminApi(server, "/api/admin/mobile/maintenance", {
     idempotencyKey: "maintenance-1",

@@ -128,7 +128,10 @@ export function createMobileAdminBackend({ appendLedger, clone, httpError, id, i
     }
     let storeUrl;
     try { storeUrl = new URL(input.storeUrl); } catch { throw httpError(422, "INVALID_STORE_URL", "스토어 URL을 확인해 주세요."); }
-    if (storeUrl.protocol !== "https:") throw httpError(422, "INVALID_STORE_URL", "스토어 URL은 HTTPS여야 합니다.");
+    const expectedHost = platform === "ios" ? "apps.apple.com" : "play.google.com";
+    if (storeUrl.protocol !== "https:" || storeUrl.hostname !== expectedHost || storeUrl.username || storeUrl.password) {
+      throw httpError(422, "INVALID_STORE_URL", `${platform.toUpperCase()} 공식 스토어 HTTPS URL을 입력해 주세요.`);
+    }
     return mutate(db, actor, "release-policy", body.idempotencyKey, input, () => {
       const timestamp = now();
       const policy = { ...input, updatedAt: timestamp, updatedBy: actor.id };
