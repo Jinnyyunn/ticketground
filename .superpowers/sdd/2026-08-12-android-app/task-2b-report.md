@@ -8,12 +8,18 @@ DONE_WITH_CONCERNS
 
 - `b8c50c2ada45b9e27769c82b7b05811ec63e5678` — `feat(security): add Android integrity verification`
 - `81971cf1d26f7c285f99d7bac6a699378057c8fe` — `feat(android): add secure ticket lifecycle clients`
+- `af3374ba66e8d5a585bfa53f0a3006718e56a29d` — `test(admission): migrate App Attest challenge flow`
 
 ## Delivered files
 
 - Android production: `LifecycleApi.kt`, `LifecycleModels.kt`, `LifecyclePolicy.kt`, `PlatformProviders.kt`, `TossCheckout.kt`, `TicketGroundApiClient.kt`, and `app/build.gradle.kts` under `android/TicketGroundApp/`.
 - Android JVM tests: `LifecycleApiWireTest.kt`, `LifecyclePolicyTest.kt`, `PlatformBoundaryTest.kt`, `TossCheckoutTest.kt`, `TossPaymentApiWireTest.kt`, and lifecycle fixtures in `ApiTestSupport.kt`.
 - Minimum authorized backend contract: `backend/app-attest.js`, `backend/api-router.js`, `backend/app.js`, `backend/mobile-lifecycle.js`, `tests/app-attest-boundary.test.mjs`, and `tests/native-mobile-lifecycle-api.test.mjs`.
+- Admission regression coverage: `tests/admission-flow.test.mjs` and its HTTPS App Attest verifier/challenge helpers in `tests/backend-test-utils.mjs`.
+
+## Scope authorization
+
+- The primary explicitly authorized the smallest backend expansion after the Android Play Integrity contract proved to be a blocking dependency. That authorization covered the platform discriminator, principal/purpose/device/ticket-bound single-use challenge, configured HTTPS Play Integrity verifier boundary, fail-closed behavior, and Apple App Attest compatibility. The backend changes listed above are that authorized minimum; protected login remained out of scope and unchanged.
 
 ## Security and contract decisions
 
@@ -44,6 +50,9 @@ export ANDROID_HOME="/Users/jinny/Library/Android/sdk"
 | TDD GREEN — Android focused boundaries | same focused Gradle selection after implementation | exit 0; `BUILD SUCCESSFUL`, 26 tasks executed | `.omo/evidence/android-lifecycle-2026-08-12/green-android-lifecycle.log` |
 | TDD RED/GREEN — non-secret checkout retry continuity | focused `TossCheckoutTest` before/after persistent retry store | RED compile exit 1; GREEN exit 0 with `BUILD SUCCESSFUL` | `.omo/evidence/android-lifecycle-2026-08-12/red-checkout-retry-persistence.log`, `.omo/evidence/android-lifecycle-2026-08-12/green-checkout-retry-persistence.log` |
 | Current backend lifecycle, payment, booking, account, persistence, and Apple/Android verifier contract | `NODE_ENV=production node --test --test-concurrency=1 tests/app-attest-boundary.test.mjs tests/native-mobile-lifecycle-api.test.mjs tests/tosspayments-payment.test.mjs tests/tosspayments-configured-amount.test.mjs tests/booking-holds-api.test.mjs tests/native-account-api.test.mjs tests/catalog-persistence.test.mjs` | exit 0; 34/34 passed | `.omo/evidence/android-lifecycle-2026-08-12/final-backend-tests-current.log` |
+| Review RED — legacy admission callers omit server challenge | `NODE_ENV=production node --test --test-concurrency=1 tests/admission-flow.test.mjs` before test migration | exit 1; 0/5 passed, all five fail with `APP_ATTEST_CHALLENGE_INVALID` | `.omo/evidence/android-lifecycle-2026-08-12/admission-review-fix/red-admission-flow.log` |
+| Review GREEN — admission flows use bearer-bound server challenges and configured HTTPS verifier | same complete admission file after test/helper migration | exit 0; 5/5 passed | `.omo/evidence/android-lifecycle-2026-08-12/admission-review-fix/green-admission-flow.log` |
+| Final backend regression including admission | `NODE_ENV=production node --test --test-concurrency=1 tests/admission-flow.test.mjs tests/app-attest-boundary.test.mjs tests/native-mobile-lifecycle-api.test.mjs tests/tosspayments-payment.test.mjs tests/tosspayments-configured-amount.test.mjs tests/booking-holds-api.test.mjs tests/native-account-api.test.mjs tests/catalog-persistence.test.mjs` | exit 0; 39/39 passed | `.omo/evidence/android-lifecycle-2026-08-12/admission-review-fix/final-backend-with-admission.log` |
 | Full Android JVM suite | from `android/TicketGroundApp`: `./gradlew testDevDebugUnitTest --rerun-tasks --no-daemon --console=plain` | exit 0; `BUILD SUCCESSFUL`; 40 tests, 0 failures/errors/skips | `.omo/evidence/android-lifecycle-2026-08-12/final-android-jvm-postreview.log` and generated XML under `android/TicketGroundApp/app/build/test-results/testDevDebugUnitTest/` |
 | Android lint and APK assembly | `./gradlew lintDevDebug assembleDevDebug --no-daemon --console=plain` | exit 0; `BUILD SUCCESSFUL`; APK SHA-256 `c2459aebc5e58a11eea0c2894052efe20555e244ecb1c2ef610270f3e2884064` | `.omo/evidence/android-lifecycle-2026-08-12/final-android-lint-assemble-postreview.log`, `.omo/evidence/android-lifecycle-2026-08-12/app-dev-debug-postreview.apk.sha256` |
 | Protected boundary, secret strings, file size, whitespace | changed-path protected-pattern scan, Android production source secret scan, Kotlin LOC, `git diff --check` | zero protected paths; zero forbidden client-secret fixtures in production; affected files under 250 lines; diff check exit 0 | `.omo/evidence/android-lifecycle-2026-08-12/final-static-checks.log` |
@@ -60,5 +69,5 @@ No emulator or physical device was run.
 
 ## Concerns
 
-- `tests/admission-flow.test.mjs` still contains five pre-existing legacy HMAC `appAttestation` scenarios that omit the current server-issued challenge. Running that file with the current App Attest verifier contract fails `APP_ATTEST_CHALLENGE_INVALID`; evidence is `.omo/evidence/android-lifecycle-2026-08-12/final-backend-tests.log`. This task did not restore a legacy bypass. The current Apple challenge/verifier tests and all current Android/backend contract tests pass.
+- Resolved: all five admission scenarios now acquire bearer-principal-bound, server-issued iOS challenges and consume them through an explicitly configured test HTTPS verifier. The admission file contains no legacy HMAC proof caller, and no backend bypass was added.
 - External provider and physical-device gates above remain unqualified by design. No production readiness claim is made for Play Integrity, FCM, Toss, or admission hardware.
