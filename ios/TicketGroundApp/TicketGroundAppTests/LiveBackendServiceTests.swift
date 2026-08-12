@@ -657,7 +657,7 @@ final class LiveBackendServiceTests: XCTestCase {
     }
 
     func testSeatMapAdmissionMatchesOnlyEventIDOnlyRoute() {
-        let admission = LiveSeatMapAdmission(eventID: "event-1")
+        let admission = LiveSeatMapAdmission(eventID: "event-1", performanceDateID: nil)
 
         XCTAssertTrue(admission.matches(eventID: "event-1", performanceDateID: nil))
         XCTAssertFalse(admission.matches(eventID: "event-2", performanceDateID: nil))

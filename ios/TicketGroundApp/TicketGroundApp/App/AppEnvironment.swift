@@ -88,10 +88,10 @@ extension AppRoute {
             return AppRouteClassification(connectivity: .publicRead, reason: "버전 1 공개 탐색 계약")
         case .login, .signup, .mypage, .watchlist, .help, .inquiry:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
-        case .checkout:
+        case .queue, .booking, .checkout, .reservation:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 사용자 세션, 토스페이먼츠 결제 승인")
-        case .queue, .booking, .reservation, .cancel, .resale, .transfer:
-            return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "좌석/티켓 선택 화면이 아직 없어 거래를 시작할 진입점이 없음")
+        case .cancel, .resale, .transfer:
+            return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "고객 거래 계약이 아직 연결되지 않음")
         }
     }
 }
@@ -1046,8 +1046,8 @@ final class AppContainer {
 
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
         let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry || scenario == .watchlistCommittedResponseLost || scenario == .watchlistCTALost || scenario == .watchlistProbeUnauthorized || scenario == .routeLoading {
-            let suffix = scenario == .supportAuthenticated ? "support" : scenario == .routeLoading ? "route-loading" : "watchlist"
+        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry || scenario == .watchlistCommittedResponseLost || scenario == .watchlistCTALost || scenario == .watchlistProbeUnauthorized || scenario == .routeLoading || scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry {
+            let suffix = scenario == .supportAuthenticated ? "support" : scenario == .routeLoading ? "route-loading" : scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry ? "booking" : "watchlist"
             sessionStore.saveNativeCredential("ui-test-\(suffix)-credential", serverUserID: "ui-test-\(suffix)-user")
         }
         return AppContainer(environment: AppEnvironment(
@@ -1166,6 +1166,8 @@ private enum UITestLiveHomeScenario: String {
     case watchlistCommittedResponseLost
     case watchlistProbeUnauthorized
     case watchlistRetry
+    case bookingAuthenticated
+    case bookingExpiredRetry
     case routeLoading
     case empty
     case offline
@@ -1181,7 +1183,7 @@ private enum UITestLiveHomeScenario: String {
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
     var baseURL: URL? {
-        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistProbeUnauthorized || scenario == .watchlistRetry || scenario == .routeLoading
+        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistProbeUnauthorized || scenario == .watchlistRetry || scenario == .routeLoading || scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry
             ? "https://ui-test.ticketground.invalid/"
             : "http://ui-test.ticketground.invalid/")
     }
@@ -1194,6 +1196,8 @@ private final class UITestLiveHomeAPIClient: APIClient {
     private var watchlistPresent = false
     private var watchlistNotificationEnabled = true
     private var watchlistCalendarEnabled = false
+    private var bookingHeldTicketID: String?
+    private var bookingHoldRequestCount = 0
 
     init(scenario: UITestLiveHomeScenario) {
         self.scenario = scenario
@@ -1227,6 +1231,9 @@ private final class UITestLiveHomeAPIClient: APIClient {
             }
             if scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistRetry {
                 return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-watchlist-v1\"]}")
+            }
+            if scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry {
+                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-booking-holds-v1\"]}")
             }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
         case ("/api/support/public", _) where scenario == .support || scenario == .supportAuthenticated:
@@ -1286,6 +1293,9 @@ private final class UITestLiveHomeAPIClient: APIClient {
         case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCommittedResponseLost && request.method == .delete:
             watchlistPresent = false
             throw APIClientError.server(status: 503, code: "WATCHLIST_RESPONSE_LOST", message: "response lost after commit")
+        case ("/api/state", _) where scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry:
+            let ticketID = bookingHeldTicketID ?? "R-1"
+            return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[{\"id\":\"\(ticketID)\",\"eventId\":\"live-neon\",\"performanceDateId\":\"live-neon-first\",\"zoneId\":\"R\",\"seatLabel\":\"\(ticketID)\",\"status\":\"HELD\",\"available\":false,\"faceValue\":88000,\"minPrice\":88000,\"maxPrice\":88000,\"transferCount\":0,\"maxTransferCount\":3}],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":1},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):
@@ -1295,10 +1305,30 @@ private final class UITestLiveHomeAPIClient: APIClient {
         case ("/api/discovery/v1/contract", _):
             return json("{\"version\":\"1\",\"endpoints\":[\"regions\",\"artists\",\"open-calendar\"]}")
         case ("/api/seat-map", let query) where query == [
-            APIRequestQuery(name: "eventId", value: "live-neon")
+            APIRequestQuery(name: "eventId", value: "live-neon"),
+            APIRequestQuery(name: "performanceDateId", value: "live-neon-first")
         ]:
             let image = scenario == .catalogMediaFallback ? "https://127.0.0.1:1/seat-map.svg" : ""
-            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\(image)\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
+            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\(image)\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":4}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":35,\"y\":42,\"width\":4,\"height\":4,\"rotate\":0,\"shape\":\"circle\"}},{\"id\":\"R-2\",\"label\":\"R-2\",\"displayCode\":\"R-2\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":50,\"y\":55,\"width\":7,\"height\":4,\"rotate\":12,\"shape\":\"rectangle\"}},{\"id\":\"R-3\",\"label\":\"R-3\",\"displayCode\":\"R-3\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":65,\"y\":68,\"width\":6,\"height\":5,\"rotate\":0,\"shape\":\"rounded-rectangle\"}},{\"id\":\"R-4\",\"label\":\"R-4\",\"displayCode\":\"R-4\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":92,\"y\":82,\"width\":4,\"height\":4,\"rotate\":0,\"shape\":\"circle\"}}]}")
+        case ("/api/me/queue-entries", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .post:
+            return json("{\"id\":\"queue-booking-ui\",\"performanceDateId\":\"live-neon-first\",\"status\":\"ADMITTED\",\"position\":0,\"admittedAt\":\"2026-08-12T09:00:00Z\",\"admissionExpiresAt\":\"2026-08-12T09:10:00Z\",\"enteredAt\":\"2026-08-12T09:00:00Z\"}")
+        case ("/api/me/seat-holds", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .post:
+            let ticketIDs = jsonBody(request)["ticketIds"] as? [String] ?? []
+            guard let ticketID = ticketIDs.first else { throw APIClientError.invalidResponse }
+            bookingHoldRequestCount += 1
+            if scenario == .bookingExpiredRetry && bookingHoldRequestCount == 1 {
+                return json("{\"id\":\"hold-booking-expired\",\"status\":\"EXPIRED\",\"performanceDateId\":\"live-neon-first\",\"ticketIds\":[\"\(ticketID)\"],\"expiresAt\":\"2026-08-12T08:59:00Z\",\"extensionsUsed\":0}")
+            }
+            if let bookingHeldTicketID, bookingHeldTicketID != ticketID {
+                throw APIClientError.server(status: 409, code: "SEAT_ALREADY_HELD", message: "previous hold was not released")
+            }
+            bookingHeldTicketID = ticketID
+            return json("{\"id\":\"hold-booking-ui\",\"status\":\"ACTIVE\",\"performanceDateId\":\"live-neon-first\",\"ticketIds\":[\"\(ticketID)\"],\"expiresAt\":\"2026-08-12T09:05:00Z\",\"extensionsUsed\":0}")
+        case ("/api/me/seat-holds/hold-booking-ui", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .delete:
+            bookingHeldTicketID = nil
+            return json("{\"id\":\"hold-booking-ui\",\"status\":\"RELEASED\",\"performanceDateId\":\"live-neon-first\",\"ticketIds\":[\"R-1\"],\"expiresAt\":\"2026-08-12T09:05:00Z\",\"extensionsUsed\":0}")
+        case ("/api/payments/tosspayments/config", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .get:
+            return json("{\"configured\":true,\"clientKey\":\"test_gck_ui_test_fake_key\"}")
         case ("/api/discovery/v1/regions", _):
             if scenario == .discoveryRouteNotFound {
                 throw APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "route not found")

@@ -611,8 +611,9 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
     requireBody(body, ["userId", "ticketId"]);
     return publicPurchaseResult(buyPrimary(db, {
-      ...body,
       userId: resolvePurchaseUserId(db, req, body),
+      ticketId: body.ticketId,
+      paymentMethod: body.paymentMethod,
       idempotencyKey: parseIdempotencyKey(req)
     }));
   }
@@ -638,7 +639,10 @@ async function handleApi(req, res, db, surface) {
       return { ...publicPurchaseResult(replayedResult), tosspayments: { tossPaymentKey: replay.pgTransactionId, replayed: true } };
     }
 
-    const purchasable = assertTicketPurchasable(db, body.ticketId);
+    const purchasable = assertTicketPurchasable(db, body.ticketId, {
+      allowOwnedSingleSeatHold: true,
+      userId: purchaseUserId
+    });
     const receipt = await confirmTosspaymentsPayment(db, {
       ticketId: body.ticketId,
       userId: purchaseUserId,
@@ -658,7 +662,8 @@ async function handleApi(req, res, db, surface) {
         ticketId: body.ticketId,
         paymentMethod: body.paymentMethod,
         pgTransactionId: receipt.tossPaymentKey,
-        idempotencyKey
+        idempotencyKey,
+        allowOwnedSingleSeatHold: true
       });
     } catch (error) {
       appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {

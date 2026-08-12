@@ -225,9 +225,10 @@ struct LiveAPIContractProbe: Equatable {
 
 struct LiveSeatMapAdmission: Equatable {
     let eventID: String
+    let performanceDateID: String?
 
     func matches(eventID: String, performanceDateID: String?) -> Bool {
-        self.eventID == eventID && performanceDateID == nil
+        self.eventID == eventID && self.performanceDateID == performanceDateID
     }
 }
 
