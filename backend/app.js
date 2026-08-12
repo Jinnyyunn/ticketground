@@ -15,6 +15,7 @@ import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
 import { createNativeSessionBackend } from "./native-session.js";
 import { createMobileLifecycleBackend } from "./mobile-lifecycle.js";
+import { createMobileAdminBackend } from "./mobile-admin.js";
 import { createPersistence } from "./persistence.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
@@ -148,6 +149,14 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     sortJson: runtime.sortJson
   });
+  const mobileAdmin = createMobileAdminBackend({
+    appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    idempotentMutation,
+    now: runtime.now
+  });
   const engagement = createEngagementBackend({
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
@@ -253,6 +262,7 @@ export async function createTicketgroundApp(options) {
     ...groupBooking,
     ...identity,
     ...mobileLifecycle,
+    ...mobileAdmin,
     ...nativeSession,
     ...sellerApplications,
     ...sellerAccounts,

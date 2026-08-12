@@ -61,6 +61,7 @@ function AdminConsolePageInner({ workspace }: { readonly workspace: WorkspaceKey
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [workspaceError, setWorkspaceError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [inventoryFilters, setInventoryFilters] = useState<InventoryFilters>({});
@@ -74,6 +75,7 @@ function AdminConsolePageInner({ workspace }: { readonly workspace: WorkspaceKey
   const closeMenu = (): void => setMenuOpen(false);
 
   const refreshWorkspace = useCallback(async (activeSession: AdminSession): Promise<void> => {
+    setWorkspaceError("");
     if (!hasPermission(activeSession, workspaceDefinitions[workspace].permission)) {
       setData(null);
       return;
@@ -117,11 +119,24 @@ function AdminConsolePageInner({ workspace }: { readonly workspace: WorkspaceKey
       params.set("limit", "50");
     }
     const query = params.toString() ? `?${params.toString()}` : "";
-    setData(await apiRequest<WorkspaceData>(`/api/admin/workspaces/${workspace}${query}`));
+    try {
+      setData(await apiRequest<WorkspaceData>(`/api/admin/workspaces/${workspace}${query}`));
+    } catch (error) {
+      setData(null);
+      const message = error instanceof Error ? error.message : "작업공간 데이터를 불러오지 못했습니다.";
+      setWorkspaceError(message);
+      throw error;
+    }
   }, [accountFilters, auditFilters, financeFilters, groupBookingFilters, inventoryFilters, selectedEventId, sellerApplicationFilters, sourceApplicationId, workspace]);
 
   useEffect(() => {
-    apiRequest<AdminSession>("/api/admin/session").then(async (activeSession) => { setSession(activeSession); await refreshWorkspace(activeSession); }).catch(() => setSession(null)).finally(() => setLoading(false));
+    apiRequest<AdminSession>("/api/admin/session")
+      .then(async (activeSession) => {
+        setSession(activeSession);
+        await refreshWorkspace(activeSession).catch(() => undefined);
+      })
+      .catch(() => setSession(null))
+      .finally(() => setLoading(false));
   }, [refreshWorkspace]);
 
   useEffect(() => {
@@ -199,5 +214,5 @@ function AdminConsolePageInner({ workspace }: { readonly workspace: WorkspaceKey
   if (loading) return <main className="grid min-h-screen place-items-center bg-surface px-5 text-sm font-black text-ink">운영 콘솔을 확인하는 중입니다.</main>;
   if (!session) return <AdminLogin error={loginError} onSubmit={handleLogin} />;
 
-  return <main className="min-h-screen bg-surface text-ink"><header className="sticky top-0 z-30 border-b border-line bg-background"><div className="flex min-h-14 items-center justify-between gap-3 px-4"><div className="flex min-w-0 items-center gap-2"><button aria-controls="console-menu" aria-expanded={menuOpen} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-background md:hidden" onClick={() => setMenuOpen(true)} type="button"><Menu aria-hidden="true" size={18} /><span className="sr-only">메뉴 열기</span></button><div className="flex min-w-0 items-center gap-2"><BrandLogo className="h-6 max-w-[150px]" /><span className="text-xs font-black text-ink-3">Admin</span><h1 className="truncate text-lg font-black">{definition.heading}</h1></div></div><div className="flex items-center gap-3"><p className="hidden text-xs font-bold text-ink-3 sm:block">{session.admin.username} · {session.admin.roles.map((role) => role.name).join(", ")}</p><button className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-background px-3 text-sm font-black" onClick={handleLogout} type="button"><LogOut size={16} />로그아웃</button></div></div></header>{menuOpen ? <div className="fixed inset-0 z-40 bg-scrim/40 md:hidden" onClick={closeMenu}><aside aria-label="모바일 운영 메뉴" className="h-full w-72 border-r border-line bg-background p-4" id="console-menu" onClick={(event) => event.stopPropagation()}><div className="mb-5 flex items-center justify-between"><strong className="text-base font-black">작업공간</strong><button className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line" onClick={closeMenu} type="button"><X aria-hidden="true" size={18} /><span className="sr-only">메뉴 닫기</span></button></div><WorkspaceNavigation close={closeMenu} session={session} workspace={workspace} /></aside></div> : null}<div className="mx-auto grid max-w-[1440px] md:grid-cols-[224px_minmax(0,1fr)]"><aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] border-r border-line bg-background p-4 md:block"><p className="mb-3 px-3 text-xs font-black text-ink-3">작업공간</p><WorkspaceNavigation close={closeMenu} session={session} workspace={workspace} /></aside><section className="min-w-0 p-4 sm:p-5"><div className="mb-4"><p className="text-sm font-bold text-ink-3">{definition.description}</p></div>{!canAccess ? <WorkspacePanel><div className="flex gap-3"><ShieldCheck className="shrink-0 text-warn" size={20} /><div><h2 className="text-lg font-black">접근 권한이 없습니다.</h2><p className="mt-1 text-sm font-bold text-ink-3">이 작업공간에는 {definition.permission} 권한이 필요합니다. 데이터는 요청하지 않았습니다.</p></div></div></WorkspacePanel> : <WorkspaceContent data={data} feedback={feedback} mutate={mutate} onAccountFilterChange={updateAccountFilters} onAuditFilterChange={updateAuditFilters} onFinanceFilterChange={updateFinanceFilters} onGroupBookingFilterChange={updateGroupBookingFilters} onInventoryFilterChange={updateInventoryFilters} onLocalError={setLocalError} onSelectEvent={setSelectedEventId} onSellerApplicationFilterChange={updateSellerApplicationFilters} session={session} workspace={workspace} />}</section></div></main>;
+  return <main className="min-h-screen bg-surface text-ink"><header className="sticky top-0 z-30 border-b border-line bg-background"><div className="flex min-h-14 items-center justify-between gap-3 px-4"><div className="flex min-w-0 items-center gap-2"><button aria-controls="console-menu" aria-expanded={menuOpen} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-background md:hidden" onClick={() => setMenuOpen(true)} type="button"><Menu aria-hidden="true" size={18} /><span className="sr-only">메뉴 열기</span></button><div className="flex min-w-0 items-center gap-2"><BrandLogo className="h-6 max-w-[150px]" /><span className="text-xs font-black text-ink-3">Admin</span><h1 className="hidden truncate text-lg font-black sm:block">{definition.heading}</h1></div></div><div className="flex items-center gap-3"><p className="hidden text-xs font-bold text-ink-3 sm:block">{session.admin.username} · {session.admin.roles.map((role) => role.name).join(", ")}</p><button className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-background px-3 text-sm font-black" onClick={handleLogout} type="button"><LogOut size={16} />로그아웃</button></div></div></header>{menuOpen ? <div className="fixed inset-0 z-40 bg-scrim/40 md:hidden" onClick={closeMenu}><aside aria-label="모바일 운영 메뉴" className="h-full w-72 border-r border-line bg-background p-4" id="console-menu" onClick={(event) => event.stopPropagation()}><div className="mb-5 flex items-center justify-between"><strong className="text-base font-black">작업공간</strong><button className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line" onClick={closeMenu} type="button"><X aria-hidden="true" size={18} /><span className="sr-only">메뉴 닫기</span></button></div><WorkspaceNavigation close={closeMenu} session={session} workspace={workspace} /></aside></div> : null}<div className="mx-auto grid max-w-[1440px] md:grid-cols-[224px_minmax(0,1fr)]"><aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] border-r border-line bg-background p-4 md:block"><p className="mb-3 px-3 text-xs font-black text-ink-3">작업공간</p><WorkspaceNavigation close={closeMenu} session={session} workspace={workspace} /></aside><section className="min-w-0 p-4 sm:p-5"><div className="mb-4"><p className="text-sm font-bold text-ink-3">{definition.description}</p></div>{!canAccess ? <WorkspacePanel><div className="flex gap-3"><ShieldCheck className="shrink-0 text-warn" size={20} /><div><h2 className="text-lg font-black">접근 권한이 없습니다.</h2><p className="mt-1 text-sm font-bold text-ink-3">이 작업공간에는 {definition.permission} 권한이 필요합니다. 데이터는 요청하지 않았습니다.</p></div></div></WorkspacePanel> : workspaceError ? <WorkspacePanel><div role="alert"><h2 className="text-lg font-black">{workspace === "mobile" ? "앱 운영 정보를 불러오지 못했습니다." : "작업공간 정보를 불러오지 못했습니다."}</h2><p className="mt-1 text-sm font-bold text-ink-3">{workspaceError}</p><button className="mt-4 h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink" onClick={() => void refreshWorkspace(session).catch(() => undefined)} type="button">다시 시도</button></div></WorkspacePanel> : <WorkspaceContent data={data} feedback={feedback} mutate={mutate} onAccountFilterChange={updateAccountFilters} onAuditFilterChange={updateAuditFilters} onFinanceFilterChange={updateFinanceFilters} onGroupBookingFilterChange={updateGroupBookingFilters} onInventoryFilterChange={updateInventoryFilters} onLocalError={setLocalError} onSelectEvent={setSelectedEventId} onSellerApplicationFilterChange={updateSellerApplicationFilters} session={session} workspace={workspace} />}</section></div></main>;
 }

@@ -48,6 +48,7 @@ import {
 } from "./console-types";
 import { operatorLabel } from "./console-types";
 import type { WorkspaceKey } from "./console-workspaces";
+import { MobileAdminWorkspace } from "./mobile-admin-workspace";
 
 type WorkspaceProps = {
   readonly workspace: WorkspaceKey;
@@ -81,6 +82,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
   if (workspace === "finance" && "transactions" in data) return <FinanceWorkspace data={data} onFinanceFilterChange={onFinanceFilterChange} />;
   if (workspace === "resale" && "resalePools" in data) return <ResaleWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
   if (workspace === "admission" && "admissionCredentials" in data) return <AdmissionWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
+  if (workspace === "mobile" && "releasePolicies" in data) return <MobileAdminWorkspace data={data} feedback={feedback} mutate={mutate} session={session} />;
   if (workspace === "audit" && "ledger" in data) return <AuditWorkspace data={data} onAuditFilterChange={onAuditFilterChange} />;
   if (workspace === "acl" && "adminAccounts" in data) return <AclWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} session={session} />;
   if (workspace === "group-booking" && hasGroupBookingRequests(data)) return <GroupBookingWorkspace data={data} feedback={feedback} mutate={mutate} onGroupBookingFilterChange={onGroupBookingFilterChange} onLocalError={onLocalError} />;

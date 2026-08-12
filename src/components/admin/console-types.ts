@@ -8,6 +8,7 @@ import {
   QrCode,
   ReceiptText,
   ShieldCheck,
+  Smartphone,
   Ticket,
   UserCog,
 } from "lucide-react";
@@ -320,7 +321,16 @@ export type SellerEvent = {
   readonly updatedAt: string | null;
 };
 export type SellerEventsWorkspace = { readonly events: readonly SellerEvent[] };
-export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace | SellerApplicationsWorkspace | SellerEventsWorkspace;
+export type MobileReleasePolicy = { readonly platform: "ios" | "android"; readonly minimumVersion: string; readonly recommendedVersion: string; readonly storeUrl: string; readonly updatedAt: string | null };
+export type MobileMaintenance = { readonly enabled: boolean; readonly title: string; readonly message: string; readonly startsAt: string | null; readonly endsAt: string | null; readonly updatedAt: string | null };
+export type MobilePushCampaign = { readonly id: string; readonly title: string; readonly message: string; readonly audience: string; readonly scheduledAt: string; readonly status: string; readonly createdAt: string };
+export type MobileTrustedDevice = { readonly id: string; readonly userName: string; readonly deviceName: string; readonly platform: string; readonly status: string; readonly lastVerifiedAt: string; readonly revokedAt: string | null; readonly revokeReason: string | null };
+export type MobileQrAudit = { readonly id: string; readonly ticketId: string; readonly channel: string; readonly traceCode: string | null; readonly issuedAt: string; readonly expiresAt: string; readonly status: string };
+export type MobileCancellation = { readonly id: string; readonly ticketId: string; readonly userName: string; readonly eventTitle: string; readonly seatLabel: string; readonly reason: string; readonly status: string; readonly refundStatus: string; readonly reviewNote: string | null; readonly createdAt: string; readonly updatedAt: string };
+export type MobilePayment = { readonly id: string; readonly ticketId: string; readonly method: string; readonly status: string; readonly amount: number; readonly createdAt: string };
+export type MobileAudit = { readonly index: number; readonly actorId: string; readonly action: string; readonly at: string };
+export type MobileWorkspace = { readonly releasePolicies: readonly MobileReleasePolicy[]; readonly maintenance: MobileMaintenance; readonly pushCampaigns: readonly MobilePushCampaign[]; readonly trustedDevices: readonly MobileTrustedDevice[]; readonly qrAudit: readonly MobileQrAudit[]; readonly cancellationRequests: readonly MobileCancellation[]; readonly payments: readonly MobilePayment[]; readonly audit: readonly MobileAudit[] };
+export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | MobileWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace | SellerApplicationsWorkspace | SellerEventsWorkspace;
 export type Feedback = { readonly tone: "error" | "success"; readonly message: string } | null;
 export type Mutation = (path: string, body: Record<string, unknown>, success: string) => Promise<boolean>;
 
@@ -341,6 +351,7 @@ export const workspaceDefinitions = {
   finance: { label: "정산", heading: "정산", description: "결제 거래, 수수료, 판매자 정산 합계를 조회합니다.", permission: "finance.read", Icon: ReceiptText },
   resale: { label: "재판매/양도", heading: "재판매/양도", description: "재판매 풀을 강제 취소하고 운영 알림을 확인합니다.", permission: "finance.read", Icon: Banknote },
   admission: { label: "입장/QR", heading: "입장/QR", description: "입장 자격과 현장 리스크 상태를 확인합니다.", permission: "admission.manage", Icon: QrCode },
+  mobile: { label: "앱 운영", heading: "앱 운영", description: "iOS·Android 버전, 점검, 푸시, 신뢰 기기와 취소·환불 상태를 관리합니다.", permission: "mobile.read", Icon: Smartphone },
   audit: { label: "감사 원장", heading: "감사 원장", description: "최근 감사 원장과 체인 검증 상태를 확인합니다.", permission: "security.manage", Icon: BadgeCheck },
   acl: { label: "관리자/ACL", heading: "관리자/ACL", description: "관리자 계정, 역할, 접근 허용 IP를 관리합니다.", permission: "acl.read", Icon: ShieldCheck },
   "group-booking": { label: "단체/기관 예매", heading: "단체/기관 예매", description: "학교·기업·기관의 단체 예매 신청을 검토하고 승인합니다.", permission: "groupBooking.manage", Icon: Building2 },
@@ -411,6 +422,11 @@ const operatorLabels: Record<string, string> = {
   PRESALE: "프리세일 참여",
   DRAFT: "반려됨(수정 대기)",
   PENDING_ADMIN_REVIEW: "검토 대기",
+  PENDING_OPERATOR_ACTION: "운영자 처리 대기",
+  NOT_REVIEWED: "검토 전",
+  NOT_REQUIRED: "처리 불필요",
+  REVOKED: "해제됨",
+  SCHEDULED: "예약됨",
   PUBLISHED: "게시됨"
 };
 
