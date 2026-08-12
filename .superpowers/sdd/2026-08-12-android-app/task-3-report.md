@@ -60,6 +60,7 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 | Expanded home source coverage | `./gradlew --no-daemon --no-parallel :app:compileDevDebugAndroidTestKotlin` | Production app-path scenarios compile for two-pane, search navigation, calendar, and support navigation/content | `.omo/evidence/task-3-android-ui-final-fixes/04-focused-green.log` |
 | Fresh final serial gate | `./gradlew testDevDebugUnitTest compileDevDebugAndroidTestKotlin lintDevDebug assembleDevDebug assembleDevDebugAndroidTest assembleProdRelease --no-daemon --no-parallel --rerun-tasks` | `BUILD SUCCESSFUL in 1m 39s`; 135/135 tasks executed; 46 JVM tests, 0 failures/errors/skips; lint errors 0 | `.omo/evidence/task-3-android-ui-final-fixes/07-fresh-full-gradle-final.log` |
 | Final APKs | same fresh final gate | debug `9c42fa65…792be25`; UI-test `3aca70ee…08cc417`; R8 release `119c4d5b…1b5105` | `.omo/evidence/task-3-android-ui-final-fixes/08-verification-receipt.txt` |
+| Production tablet test correction | `./gradlew compileDevDebugAndroidTestKotlin lintDevDebug --no-daemon --no-parallel --rerun-tasks` | `BUILD SUCCESSFUL in 41s`; 38/38 tasks executed; tablet test renders `TicketGroundCustomerApp` with deterministic repository data and asserts reachable two-pane/search/calendar/support nodes | `.omo/evidence/task-3-android-ui-final-fixes/11-final-test-source-lint-green.log` |
 
 The Compose UI test APK/source is ready, but instrumentation scenarios were intentionally not executed because Task 4 owns serial emulator/device QA.
 
