@@ -99,6 +99,16 @@ async function prepareTwoPrincipals(t, ticketCount = 2) {
   };
 }
 
+test("health advertises the native lifecycle contract required by native clients", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t);
+
+  const health = await request(server, "/api/health");
+
+  assert.equal(health.data.status, "UP");
+  assert.equal(health.data.capabilities.includes("native-lifecycle-v1"), true);
+});
+
 test("native resale pools bind seller and buyer to bearer while replaying mutations without identity leakage", async (t) => {
   const { buyer, seller, server, tickets } = await prepareTwoPrincipals(t, 2);
   const listingBody = { ticketId: tickets[0].id, price: tickets[0].faceValue, showSlug: "native-show" };

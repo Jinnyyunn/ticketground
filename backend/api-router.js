@@ -270,7 +270,7 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1", "native-booking-holds-v1"] };
+    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1", "native-booking-holds-v1", "native-lifecycle-v1"] };
   }
   if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
