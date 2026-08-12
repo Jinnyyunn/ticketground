@@ -38,7 +38,7 @@ function normalizeDb(db) {
   db.seatHolds ||= [];
   db.reservationDrafts ||= [];
   db.gateSessions ||= [];
-  for (const key of ["cancellationRequests", "pushTokens", "mobileMutationReceipts", "appAttestChallenges"]) {
+  for (const key of ["cancellationRequests", "pushTokens", "mobileMutationReceipts", "apiMutationReceipts", "appAttestChallenges"]) {
     if (!Array.isArray(db[key])) {
       db[key] = [];
       changed = true;
@@ -196,6 +196,7 @@ function seedDb() {
     cancellationRequests: [],
     pushTokens: [],
     mobileMutationReceipts: [],
+    apiMutationReceipts: [],
     appAttestChallenges: [],
     ledger: []
   };

@@ -18,57 +18,6 @@ data class ApiHealth(
 )
 
 @Serializable
-data class BackendState(
-  val events: List<StateEvent>,
-  val venues: List<Venue>,
-  val users: List<UserSummary>,
-  val tickets: List<OwnedTicket>? = null,
-  val resalePools: List<ResalePoolSummary>,
-  val backendSummary: BackendSummary,
-  val ledger: LedgerSummary,
-)
-
-@Serializable
-data class StateEvent(
-  val id: String,
-  val title: String,
-  val venue: String? = null,
-  val venueId: String,
-  val category: String,
-  val saleState: String,
-  val sale: SaleSummary,
-)
-
-@Serializable
-data class SaleSummary(
-  val state: String,
-  val label: String,
-  val note: String? = null,
-  val discountRate: Int? = null,
-  val displayPrice: Int? = null,
-  val basePrice: Int? = null,
-  val bookable: Boolean,
-)
-
-@Serializable
-data class Venue(
-  val id: String,
-  val name: String,
-  val address: String,
-  val mapType: String? = null,
-  val imageUrl: String? = null,
-)
-
-@Serializable
-data class UserSummary(val id: String, val name: String)
-
-@Serializable
-data class BackendSummary(val events: Int, val tickets: Int)
-
-@Serializable
-data class LedgerSummary(val verified: Boolean, val totalEntries: Int)
-
-@Serializable
 data class Catalog(
   val events: List<CatalogEvent>,
   val venues: List<CatalogVenue>? = null,
@@ -285,25 +234,6 @@ data class TicketPerformance(val id: String, val label: String? = null, val star
 
 @Serializable
 data class TicketPayment(val amount: Int, val method: String, val status: String)
-
-@Serializable
-data class ResalePoolSummary(
-  val id: String,
-  val eventId: String,
-  val performanceDateId: String,
-  val zoneId: String,
-  val ticketId: String,
-  val sellerId: String,
-  val showSlug: String? = null,
-  val price: Int,
-  val buyerFee: Int? = null,
-  val buyerTotal: Int? = null,
-  val sellerSettlement: Int? = null,
-  val buyerCount: Int,
-  val status: String,
-  val createdAt: String,
-  val matchedAt: String? = null,
-)
 
 @Serializable
 data class WatchlistItem(

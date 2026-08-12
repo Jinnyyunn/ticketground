@@ -17,11 +17,12 @@ async function nativeLogin(server) {
   };
 }
 
-async function request(server, pathName, { authorization, body, method = "GET", status = 200 } = {}) {
+async function request(server, pathName, { authorization, body, idempotencyKey, method = "GET", status = 200 } = {}) {
   const response = await fetch(`${server.baseUrl}${pathName}`, {
     method,
     headers: {
       ...(authorization ? { Authorization: authorization } : {}),
+      ...(idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : {}),
       ...(body ? { "Content-Type": "application/json" } : {})
     },
     body: body ? JSON.stringify(body) : undefined
@@ -67,6 +68,7 @@ test("native profile update allows only the principal nickname and redacts it fr
   const updated = await request(server, "/api/me/profile", {
     authorization: login.authorization,
     method: "PATCH",
+    idempotencyKey: "profile-update-stable",
     body: {
       name: "보안닉네임",
       userId: "user_fan_a",
@@ -79,6 +81,23 @@ test("native profile update allows only the principal nickname and redacts it fr
   assert.equal(updated.data.status, "ACTIVE");
   assert.equal(updated.data.trustScore, 90);
   assert.equal(updated.data.profileConfirmed, true);
+
+  const replayed = await request(server, "/api/me/profile", {
+    authorization: login.authorization,
+    method: "PATCH",
+    idempotencyKey: "profile-update-stable",
+    body: { name: "보안닉네임" }
+  });
+  assert.deepEqual(replayed.data, updated.data);
+
+  const conflict = await request(server, "/api/me/profile", {
+    authorization: login.authorization,
+    method: "PATCH",
+    idempotencyKey: "profile-update-stable",
+    body: { name: "다른닉네임" },
+    status: 409
+  });
+  assert.equal(conflict.error.code, "IDEMPOTENCY_CONFLICT");
 
   const profile = await request(server, "/api/me/profile?userId=user_fan_a", {
     authorization: login.authorization

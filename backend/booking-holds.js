@@ -8,6 +8,7 @@ export function createBookingHoldsBackend({
   hash,
   httpError,
   id,
+  idempotentMutation,
   isEventBookable,
   now
 }) {
@@ -80,31 +81,38 @@ export function createBookingHoldsBackend({
     };
   }
 
-  function enterQueue(db, { userId, performanceDateId }) {
-    const user = findUser(db, userId);
-    if (!performanceDateId) throw httpError(400, "MISSING_FIELD", "performanceDateId 값이 필요합니다.");
+  function enterQueue(db, { userId, performanceDateId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "queue-enter",
+      userId,
+      key: idempotencyKey,
+      payload: { performanceDateId }
+    }, () => {
+      const user = findUser(db, userId);
+      if (!performanceDateId) throw httpError(400, "MISSING_FIELD", "performanceDateId 값이 필요합니다.");
 
-    const reusable = db.queueEntries.find((entry) =>
-      entry.userId === user.id
-      && entry.performanceDateId === performanceDateId
-      && ["WAITING", "ADMITTED"].includes(entry.status)
-    );
-    if (!reusable) {
-      db.queueEntries.push({
-        id: id("queue"),
-        userId: user.id,
-        performanceDateId,
-        status: "WAITING",
-        admittedAt: null,
-        admissionExpiresAt: null,
-        enteredAt: now()
-      });
-    }
-    const entries = reconcileQueue(db, performanceDateId);
-    const entry = reusable
-      ? entries.find((item) => item.id === reusable.id)
-      : entries[entries.length - 1];
-    return publicQueueEntry(entries, entry);
+      const reusable = db.queueEntries.find((entry) =>
+        entry.userId === user.id
+        && entry.performanceDateId === performanceDateId
+        && ["WAITING", "ADMITTED"].includes(entry.status)
+      );
+      if (!reusable) {
+        db.queueEntries.push({
+          id: id("queue"),
+          userId: user.id,
+          performanceDateId,
+          status: "WAITING",
+          admittedAt: null,
+          admissionExpiresAt: null,
+          enteredAt: now()
+        });
+      }
+      const entries = reconcileQueue(db, performanceDateId);
+      const entry = reusable
+        ? entries.find((item) => item.id === reusable.id)
+        : entries[entries.length - 1];
+      return publicQueueEntry(entries, entry);
+    });
   }
 
   function requireOwnQueueEntry(db, userId, entryId) {
@@ -120,11 +128,18 @@ export function createBookingHoldsBackend({
     return publicQueueEntry(entries, entries.find((item) => item.id === entryId));
   }
 
-  function leaveQueue(db, { userId, entryId }) {
-    const entry = requireOwnQueueEntry(db, userId, entryId);
-    if (["WAITING", "ADMITTED"].includes(entry.status)) entry.status = "LEFT";
-    reconcileQueue(db, entry.performanceDateId);
-    return { id: entry.id, status: entry.status };
+  function leaveQueue(db, { userId, entryId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "queue-leave",
+      userId,
+      key: idempotencyKey,
+      payload: { entryId }
+    }, () => {
+      const entry = requireOwnQueueEntry(db, userId, entryId);
+      if (["WAITING", "ADMITTED"].includes(entry.status)) entry.status = "LEFT";
+      reconcileQueue(db, entry.performanceDateId);
+      return { id: entry.id, status: entry.status };
+    });
   }
 
   // ----------------------------------------------------------- seat holds --
@@ -243,30 +258,44 @@ export function createBookingHoldsBackend({
     return publicSeatHold(requireOwnHold(db, userId, holdId));
   }
 
-  function extendSeatHold(db, { userId, holdId }) {
-    const hold = requireOwnHold(db, userId, holdId);
-    if (hold.status !== "ACTIVE") throw httpError(409, "HOLD_NOT_ACTIVE", "만료되었거나 종료된 홀드는 연장할 수 없습니다.");
-    if (hold.extensionsUsed >= HOLD_MAX_EXTENSIONS) {
-      throw httpError(409, "HOLD_EXTENSION_LIMIT", "좌석 홀드 연장 횟수를 초과했습니다.");
-    }
-    hold.expiresAt = futureIso(HOLD_EXTENSION_MS);
-    hold.extensionsUsed += 1;
-    hold.updatedAt = now();
-    for (const ticketId of hold.ticketIds) {
-      const ticket = db.tickets.find((item) => item.id === ticketId);
-      if (ticket) ticket.holdExpiresAt = hold.expiresAt;
-    }
-    return publicSeatHold(hold);
+  function extendSeatHold(db, { userId, holdId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "seat-hold-extend",
+      userId,
+      key: idempotencyKey,
+      payload: { holdId }
+    }, () => {
+      const hold = requireOwnHold(db, userId, holdId);
+      if (hold.status !== "ACTIVE") throw httpError(409, "HOLD_NOT_ACTIVE", "만료되었거나 종료된 홀드는 연장할 수 없습니다.");
+      if (hold.extensionsUsed >= HOLD_MAX_EXTENSIONS) {
+        throw httpError(409, "HOLD_EXTENSION_LIMIT", "좌석 홀드 연장 횟수를 초과했습니다.");
+      }
+      hold.expiresAt = futureIso(HOLD_EXTENSION_MS);
+      hold.extensionsUsed += 1;
+      hold.updatedAt = now();
+      for (const ticketId of hold.ticketIds) {
+        const ticket = db.tickets.find((item) => item.id === ticketId);
+        if (ticket) ticket.holdExpiresAt = hold.expiresAt;
+      }
+      return publicSeatHold(hold);
+    });
   }
 
-  function releaseSeatHold(db, { userId, holdId }) {
-    const hold = requireOwnHold(db, userId, holdId);
-    if (hold.status === "ACTIVE") {
-      hold.status = "RELEASED";
-      hold.updatedAt = now();
-      releaseHeldTickets(db, hold);
-    }
-    return publicSeatHold(hold);
+  function releaseSeatHold(db, { userId, holdId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "seat-hold-release",
+      userId,
+      key: idempotencyKey,
+      payload: { holdId }
+    }, () => {
+      const hold = requireOwnHold(db, userId, holdId);
+      if (hold.status === "ACTIVE") {
+        hold.status = "RELEASED";
+        hold.updatedAt = now();
+        releaseHeldTickets(db, hold);
+      }
+      return publicSeatHold(hold);
+    });
   }
 
   // ----------------------------------------------------- reservation draft --
@@ -368,14 +397,21 @@ export function createBookingHoldsBackend({
     return publicReservationDraft(requireOwnDraft(db, userId, draftId));
   }
 
-  function cancelReservationDraft(db, { userId, draftId }) {
-    const draft = requireOwnDraft(db, userId, draftId);
-    if (draft.status === "PENDING_PAYMENT") {
-      draft.status = "CANCELLED";
-      draft.updatedAt = now();
-      releaseDraftTickets(db, draft);
-    }
-    return publicReservationDraft(draft);
+  function cancelReservationDraft(db, { userId, draftId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "reservation-draft-cancel",
+      userId,
+      key: idempotencyKey,
+      payload: { draftId }
+    }, () => {
+      const draft = requireOwnDraft(db, userId, draftId);
+      if (draft.status === "PENDING_PAYMENT") {
+        draft.status = "CANCELLED";
+        draft.updatedAt = now();
+        releaseDraftTickets(db, draft);
+      }
+      return publicReservationDraft(draft);
+    });
   }
 
   return {

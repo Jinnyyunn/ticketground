@@ -184,8 +184,6 @@ class TicketGroundApiClient private constructor(
 }
 
 class PublicApi internal constructor(private val client: TicketGroundApiClient) {
-  suspend fun state(): BackendState = contracted("/api/state", BackendState.serializer())
-
   suspend fun catalog(limit: Int = 50): Catalog {
     require(limit in 1..100)
     client.requireContract()

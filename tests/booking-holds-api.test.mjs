@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -92,7 +92,8 @@ test("queue entry admits immediately under capacity and can be left", async (t) 
 
   const left = await request(server, `/api/me/queue-entries/${entered.data.id}`, {
     authorization: user.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "queue-leave-happy"
   });
   assert.equal(left.data.status, "LEFT");
 });
@@ -121,7 +122,8 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
 
   const extended = await request(server, `/api/me/seat-holds/${hold.data.id}/extend`, {
     authorization: user.authorization,
-    method: "PATCH"
+    method: "PATCH",
+    idempotencyKey: "hold-extend-happy"
   });
   assert.equal(extended.data.extensionsUsed, 1);
   assert.ok(Date.parse(extended.data.expiresAt) >= Date.parse(hold.data.expiresAt), "extension must not shorten the hold's expiry");
@@ -129,6 +131,7 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
   const overExtended = await request(server, `/api/me/seat-holds/${hold.data.id}/extend`, {
     authorization: user.authorization,
     method: "PATCH",
+    idempotencyKey: "hold-extend-over-limit",
     status: 409
   });
   assert.equal(overExtended.error.code, "HOLD_EXTENSION_LIMIT");
@@ -156,7 +159,8 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
 
   const cancelled = await request(server, `/api/me/reservation-drafts/${draft.data.id}`, {
     authorization: user.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "draft-cancel-happy"
   });
   assert.equal(cancelled.data.status, "CANCELLED");
 
@@ -370,6 +374,7 @@ test("only the owning user can inspect or mutate a seat hold or reservation draf
   const strangerExtend = await request(server, `/api/me/seat-holds/${hold.data.id}/extend`, {
     authorization: stranger.authorization,
     method: "PATCH",
+    idempotencyKey: "stranger-extend",
     status: 403
   });
   assert.equal(strangerExtend.error.code, "NOT_OWNER");
@@ -377,6 +382,7 @@ test("only the owning user can inspect or mutate a seat hold or reservation draf
   const strangerRelease = await request(server, `/api/me/seat-holds/${hold.data.id}`, {
     authorization: stranger.authorization,
     method: "DELETE",
+    idempotencyKey: "stranger-release",
     status: 403
   });
   assert.equal(strangerRelease.error.code, "NOT_OWNER");
@@ -418,4 +424,141 @@ test("expired holds and reservation drafts release seats back to ON_SALE", async
   const stateAfterExpiry = await api(laterServer.baseUrl, "/api/state");
   const ticket = stateAfterExpiry.data.tickets.find((item) => item.id === tickets[0].id);
   assert.equal(ticket.status, "ON_SALE");
+});
+
+test("principal booking mutation retries replay exact durable results and bound receipts", async (t) => {
+  configureGoogleEnv(t, true);
+  const tmpDataDir = await mkdtemp(path.join(tmpdir(), "ticketground-booking-replay-"));
+  const dbPath = path.join(tmpDataDir, "db.json");
+  t.after(() => rm(tmpDataDir, { recursive: true, force: true }));
+
+  const server = await startServer(t, { dbPath });
+  const user = await googleLogin(server);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 3);
+
+  const queue = await request(server, "/api/me/queue-entries", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "queue-enter-stable",
+    body: { performanceDateId }
+  });
+  const left = await request(server, `/api/me/queue-entries/${queue.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "queue-leave-stable"
+  });
+
+  const extendHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "extend-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[0].id] }
+  });
+  const extended = await request(server, `/api/me/seat-holds/${extendHold.data.id}/extend`, {
+    authorization: user.authorization,
+    method: "PATCH",
+    idempotencyKey: "hold-extend-stable"
+  });
+
+  const releaseHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "release-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[1].id] }
+  });
+  const released = await request(server, `/api/me/seat-holds/${releaseHold.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "hold-release-stable"
+  });
+
+  const draftHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "draft-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[2].id] }
+  });
+  const draft = await request(server, "/api/me/reservation-drafts", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "draft-create-stable",
+    body: { holdId: draftHold.data.id }
+  });
+  const cancelled = await request(server, `/api/me/reservation-drafts/${draft.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "draft-cancel-stable"
+  });
+
+  await server.stop();
+  const replayServer = await startServer(t, { dbPath });
+  const replayUser = await googleLogin(replayServer);
+
+  const queueReplay = await request(replayServer, "/api/me/queue-entries", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "queue-enter-stable",
+    body: { performanceDateId }
+  });
+  const leftReplay = await request(replayServer, `/api/me/queue-entries/${queue.data.id}`, {
+    authorization: replayUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "queue-leave-stable"
+  });
+  const extendedReplay = await request(replayServer, `/api/me/seat-holds/${extendHold.data.id}/extend`, {
+    authorization: replayUser.authorization,
+    method: "PATCH",
+    idempotencyKey: "hold-extend-stable"
+  });
+  const releasedReplay = await request(replayServer, `/api/me/seat-holds/${releaseHold.data.id}`, {
+    authorization: replayUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "hold-release-stable"
+  });
+  const cancelledReplay = await request(replayServer, `/api/me/reservation-drafts/${draft.data.id}`, {
+    authorization: replayUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "draft-cancel-stable"
+  });
+
+  assert.deepEqual(queueReplay.data, queue.data);
+  assert.deepEqual(leftReplay.data, left.data);
+  assert.deepEqual(extendedReplay.data, extended.data);
+  assert.deepEqual(releasedReplay.data, released.data);
+  assert.deepEqual(cancelledReplay.data, cancelled.data);
+
+  const conflicting = await request(replayServer, `/api/me/seat-holds/${releaseHold.data.id}/extend`, {
+    authorization: replayUser.authorization,
+    method: "PATCH",
+    idempotencyKey: "hold-extend-stable",
+    status: 409
+  });
+  assert.equal(conflicting.error.code, "IDEMPOTENCY_CONFLICT");
+
+  await replayServer.stop();
+  const persisted = JSON.parse(await readFile(dbPath, "utf8"));
+  persisted.apiMutationReceipts = [
+    ...Array.from({ length: 1000 }, (_, index) => ({
+      id: `prefill-${index}`,
+      kind: "prefill",
+      userId: "prefill",
+      keyDigest: `prefill-key-${index}`,
+      requestDigest: `prefill-request-${index}`,
+      response: { index },
+      createdAt: "2026-01-01T00:00:00.000Z"
+    })),
+    ...persisted.apiMutationReceipts
+  ];
+  await writeFile(dbPath, JSON.stringify(persisted));
+
+  const boundedServer = await startServer(t, { dbPath });
+  const boundedUser = await googleLogin(boundedServer);
+  await request(boundedServer, `/api/me/queue-entries/${queue.data.id}`, {
+    authorization: boundedUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "queue-leave-bounded-new"
+  });
+  const bounded = JSON.parse(await readFile(dbPath, "utf8"));
+  assert.equal(bounded.apiMutationReceipts.length, 1000);
+  assert.equal(bounded.apiMutationReceipts.some((receipt) => receipt.id === "prefill-0"), false);
 });

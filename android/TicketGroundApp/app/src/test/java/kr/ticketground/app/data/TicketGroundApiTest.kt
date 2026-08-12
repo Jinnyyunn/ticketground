@@ -44,11 +44,21 @@ class TicketGroundApiTest {
   }
 
   @Test
-  fun `authenticated requests fail closed without a bearer and leak no user id`() = runTest {
+  fun `http origin rejects a stored bearer without a network request`() = runTest {
+    vault.store(BearerSession("secret-bearer"))
     server.start()
     val client = TicketGroundApiClient.forTesting(server.url("/"), vault)
 
     assertFailsWith<ApiError.InsecureOrigin> { client.account().session() }
+    assertEquals(0, server.requestCount)
+  }
+
+  @Test
+  fun `https origin without a bearer fails missing credential before network`() = runTest {
+    val api = createHttpsApi(storeCredential = false)
+
+    assertFailsWith<ApiError.MissingCredential> { api.account().session() }
+
     assertEquals(0, server.requestCount)
   }
 
@@ -177,6 +187,99 @@ class TicketGroundApiTest {
   }
 
   @Test
+  fun `support mutations use principal paths and deployed bodies`() = runTest {
+    server.enqueue(success(healthWithCapabilities()))
+    server.enqueue(success(supportThreadJson()))
+    server.enqueue(success(supportThreadJson()))
+    val api = createHttpsApi()
+
+    api.account().createSupportThread("문의", "도와주세요", "support-create-key")
+    api.account().addSupportMessage("thread-1", "추가 내용", "support-message-key")
+
+    server.takeRequest()
+    val create = server.takeRequest()
+    val reply = server.takeRequest()
+    assertEquals("/api/me/support/threads", create.path)
+    assertEquals("{\"subject\":\"문의\",\"message\":\"도와주세요\"}", create.body.readUtf8())
+    assertEquals("support-create-key", create.getHeader("X-Idempotency-Key"))
+    assertEquals("/api/me/support/messages", reply.path)
+    assertEquals("{\"threadId\":\"thread-1\",\"message\":\"추가 내용\"}", reply.body.readUtf8())
+    assertEquals("support-message-key", reply.getHeader("X-Idempotency-Key"))
+  }
+
+  @Test
+  fun `watchlist mutations encode event in path and preferences in body`() = runTest {
+    server.enqueue(success(healthWithCapabilities()))
+    server.enqueue(success(watchlistJson()))
+    server.enqueue(success("""{"deleted":true,"eventId":"event/한"}"""))
+    val api = createHttpsApi()
+
+    api.account().upsertWatchlist(
+      eventId = "event/한",
+      channels = listOf("APP_PUSH"),
+      calendarEnabled = true,
+      notificationEnabled = false,
+      idempotencyKey = "watch-upsert-key",
+    )
+    api.account().deleteWatchlist("event/한", "watch-delete-key")
+
+    server.takeRequest()
+    val upsert = server.takeRequest()
+    val delete = server.takeRequest()
+    assertEquals("/api/me/watchlist/event%2F%ED%95%9C", upsert.path)
+    assertEquals(
+      "{\"channels\":[\"APP_PUSH\"],\"calendarEnabled\":true,\"notificationEnabled\":false}",
+      upsert.body.readUtf8(),
+    )
+    assertEquals("watch-upsert-key", upsert.getHeader("X-Idempotency-Key"))
+    assertEquals("DELETE", delete.method)
+    assertEquals("/api/me/watchlist/event%2F%ED%95%9C", delete.path)
+    assertEquals("watch-delete-key", delete.getHeader("X-Idempotency-Key"))
+  }
+
+  @Test
+  fun `queue mutations use principal resource paths and stable keys`() = runTest {
+    server.enqueue(success(healthWithCapabilities()))
+    server.enqueue(success(queueJson()))
+    server.enqueue(success("""{"id":"queue-1","status":"LEFT"}"""))
+    val api = createHttpsApi()
+
+    api.account().enterQueue("performance-1", "queue-enter-key")
+    api.account().leaveQueue("queue-1", "queue-leave-key")
+
+    server.takeRequest()
+    val enter = server.takeRequest()
+    val leave = server.takeRequest()
+    assertEquals("/api/me/queue-entries", enter.path)
+    assertEquals("{\"performanceDateId\":\"performance-1\"}", enter.body.readUtf8())
+    assertEquals("queue-enter-key", enter.getHeader("X-Idempotency-Key"))
+    assertEquals("DELETE", leave.method)
+    assertEquals("/api/me/queue-entries/queue-1", leave.path)
+    assertEquals("queue-leave-key", leave.getHeader("X-Idempotency-Key"))
+  }
+
+  @Test
+  fun `reservation draft mutations use hold body and draft resource path`() = runTest {
+    server.enqueue(success(healthWithCapabilities()))
+    server.enqueue(success(draftJson()))
+    server.enqueue(success(draftJson(status = "CANCELLED")))
+    val api = createHttpsApi()
+
+    api.account().createReservationDraft("hold-1", "draft-create-key")
+    api.account().cancelReservationDraft("draft-1", "draft-cancel-key")
+
+    server.takeRequest()
+    val create = server.takeRequest()
+    val cancel = server.takeRequest()
+    assertEquals("/api/me/reservation-drafts", create.path)
+    assertEquals("{\"holdId\":\"hold-1\"}", create.body.readUtf8())
+    assertEquals("draft-create-key", create.getHeader("X-Idempotency-Key"))
+    assertEquals("DELETE", cancel.method)
+    assertEquals("/api/me/reservation-drafts/draft-1", cancel.path)
+    assertEquals("draft-cancel-key", cancel.getHeader("X-Idempotency-Key"))
+  }
+
+  @Test
   fun `catalog rejects a server issued cursor loop`() = runTest {
     server.enqueue(success(healthWithCapabilities()))
     server.enqueue(success(catalogPage("cursor-a")))
@@ -266,6 +369,34 @@ class TicketGroundApiTest {
 
   private fun sessionJson(name: String): String =
     """{"id":"account-1","name":"$name","status":"ACTIVE","trustScore":90,"profileConfirmed":true}"""
+
+  private fun supportThreadJson(): String =
+    """{"id":"thread-1","subject":"문의","status":"OPEN","category":"GENERAL","createdAt":"2026-08-12T00:00:00.000Z","updatedAt":"2026-08-12T00:00:00.000Z","messages":[{"id":"message-1","role":"CUSTOMER","body":"도와주세요","at":"2026-08-12T00:00:00.000Z"}]}"""
+
+  private fun watchlistJson(): String =
+    """{"id":"watch-1","eventId":"event/한","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":false,"notificationJobs":[]}"""
+
+  private fun queueJson(): String =
+    """{"id":"queue-1","performanceDateId":"performance-1","status":"ADMITTED","position":0,"admittedAt":"2026-08-12T00:00:00.000Z","admissionExpiresAt":"2026-08-12T00:10:00.000Z","enteredAt":"2026-08-12T00:00:00.000Z"}"""
+
+  private fun draftJson(status: String = "PENDING_PAYMENT"): String =
+    """{"id":"draft-1","status":"$status","performanceDateId":"performance-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":100000,"serviceFee":2000,"total":102000},"expiresAt":"2026-08-12T00:10:00.000Z"}"""
+
+  private suspend fun createHttpsApi(storeCredential: Boolean = true): TicketGroundApiClient {
+    val certificate = HeldCertificate.Builder().addSubjectAlternativeName("localhost").build()
+    val serverCertificates = HandshakeCertificates.Builder().heldCertificate(certificate).build()
+    val clientCertificates = HandshakeCertificates.Builder().addTrustedCertificate(certificate.certificate).build()
+    server.useHttps(serverCertificates.sslSocketFactory(), false)
+    if (storeCredential) vault.store(BearerSession("secret-bearer"))
+    return TicketGroundApiClient.forTesting(
+      server.url("/"),
+      vault,
+      OkHttpClient.Builder().sslSocketFactory(
+        clientCertificates.sslSocketFactory(),
+        clientCertificates.trustManager,
+      ).build(),
+    )
+  }
 
   private suspend inline fun <reified T : Throwable> assertFailsWith(
     noinline block: suspend () -> Unit,

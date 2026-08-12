@@ -311,21 +311,24 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       decodeEventId(principalWatchlistMatch[1]),
-      body
+      body,
+      parseIdempotencyKey(req)
     );
   }
   if (req.method === "DELETE" && principalWatchlistMatch) {
     return removeWatchlistForPrincipal(
       db,
       authenticateNativeSession(db, req).user.id,
-      decodeEventId(principalWatchlistMatch[1])
+      decodeEventId(principalWatchlistMatch[1]),
+      parseIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && url.pathname === "/api/me/queue-entries") {
     requireBody(body, ["performanceDateId"]);
     return enterQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      performanceDateId: body.performanceDateId
+      performanceDateId: body.performanceDateId,
+      idempotencyKey: parseIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && queueEntryMatch) {
@@ -337,7 +340,8 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "DELETE" && queueEntryMatch) {
     return leaveQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      entryId: queueEntryMatch[1]
+      entryId: queueEntryMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/seat-holds") {
@@ -358,13 +362,15 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "PATCH" && seatHoldExtendMatch) {
     return extendSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      holdId: seatHoldExtendMatch[1]
+      holdId: seatHoldExtendMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "DELETE" && seatHoldMatch) {
     return releaseSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      holdId: seatHoldMatch[1]
+      holdId: seatHoldMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/reservation-drafts") {
@@ -384,7 +390,8 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "DELETE" && reservationDraftMatch) {
     return cancelReservationDraft(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      draftId: reservationDraftMatch[1]
+      draftId: reservationDraftMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && url.pathname === "/api/me/resale-pools") {
@@ -461,7 +468,8 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["name"]);
     return updateDemoProfile(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      name: body.name
+      name: body.name,
+      idempotencyKey: parseIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && url.pathname === "/api/me/support/threads") {

@@ -4,6 +4,7 @@ export function createEngagementBackend({
   hash,
   httpError,
   id,
+  idempotentMutation,
   now,
   offsetIso,
   primaryDate,
@@ -140,44 +141,58 @@ export function createEngagementBackend({
     return { watchlist: watch, event, notificationJobs: jobs };
   }
 
-  function upsertWatchlistForPrincipal(db, userId, eventId, preferences) {
-    if (preferences === null || typeof preferences !== "object" || Array.isArray(preferences)) {
-      throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
-    }
-    for (const field of ["calendarEnabled", "notificationEnabled"]) {
-      if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
+  function upsertWatchlistForPrincipal(db, userId, eventId, preferences, idempotencyKey) {
+    return idempotentMutation(db, {
+      kind: "watchlist-upsert",
+      userId,
+      key: idempotencyKey,
+      payload: { eventId, preferences }
+    }, () => {
+      if (preferences === null || typeof preferences !== "object" || Array.isArray(preferences)) {
         throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
       }
-    }
-    let normalizedPreferences = preferences;
-    if (Object.hasOwn(preferences, "channels")) {
-      const supportedChannels = new Set(["APP_PUSH", "EMAIL", "KAKAO", "SMS"]);
-      const channels = preferences.channels;
-      if (!Array.isArray(channels) || channels.length === 0 || channels.some((channel) => (
-        typeof channel !== "string" || !supportedChannels.has(channel.toUpperCase())
-      ))) {
-        throw httpError(400, "INVALID_WATCHLIST_CHANNELS", "관심공연 알림 채널을 확인해주세요.");
+      for (const field of ["calendarEnabled", "notificationEnabled"]) {
+        if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
+          throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+        }
       }
-      normalizedPreferences = {
-        ...preferences,
-        channels: [...new Set(channels.map((channel) => channel.toUpperCase()))]
-      };
-    }
-    const result = upsertWatchlist(db, { ...normalizedPreferences, userId, eventId });
-    return publicWatchlistItem(db, result.watchlist);
+      let normalizedPreferences = preferences;
+      if (Object.hasOwn(preferences, "channels")) {
+        const supportedChannels = new Set(["APP_PUSH", "EMAIL", "KAKAO", "SMS"]);
+        const channels = preferences.channels;
+        if (!Array.isArray(channels) || channels.length === 0 || channels.some((channel) => (
+          typeof channel !== "string" || !supportedChannels.has(channel.toUpperCase())
+        ))) {
+          throw httpError(400, "INVALID_WATCHLIST_CHANNELS", "관심공연 알림 채널을 확인해주세요.");
+        }
+        normalizedPreferences = {
+          ...preferences,
+          channels: [...new Set(channels.map((channel) => channel.toUpperCase()))]
+        };
+      }
+      const result = upsertWatchlist(db, { ...normalizedPreferences, userId, eventId });
+      return publicWatchlistItem(db, result.watchlist);
+    });
   }
 
-  function removeWatchlistForPrincipal(db, userId, eventId) {
-    findUser(db, userId);
-    const index = db.watchlist.findIndex((item) => item.userId === userId && item.eventId === eventId);
-    if (index < 0) return { deleted: true, eventId };
-    const [watch] = db.watchlist.splice(index, 1);
-    cancelWatchlistNotifications(db, watch);
-    appendLedger(db, userId, "WATCHLIST_REMOVED", {
-      watchlistId: watch.id,
-      eventId
+  function removeWatchlistForPrincipal(db, userId, eventId, idempotencyKey) {
+    return idempotentMutation(db, {
+      kind: "watchlist-delete",
+      userId,
+      key: idempotencyKey,
+      payload: { eventId }
+    }, () => {
+      findUser(db, userId);
+      const index = db.watchlist.findIndex((item) => item.userId === userId && item.eventId === eventId);
+      if (index < 0) return { deleted: true, eventId };
+      const [watch] = db.watchlist.splice(index, 1);
+      cancelWatchlistNotifications(db, watch);
+      appendLedger(db, userId, "WATCHLIST_REMOVED", {
+        watchlistId: watch.id,
+        eventId
+      });
+      return { deleted: true, eventId };
     });
-    return { deleted: true, eventId };
   }
 
   function notifyWatchlist(db, { watchlistId, userId, eventId, type = "STATUS_CHANGE", dispatchNow = false }) {
