@@ -2,6 +2,7 @@ package kr.ticketground.app
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.Seat
@@ -67,7 +69,9 @@ class TicketGroundAppShellTest {
     val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
     composeRule.setContent {
       TicketGroundTheme {
-        Box(Modifier.width(840.dp)) { TicketGroundCustomerApp(viewModel) }
+        Box(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(840.dp)) {
+          TicketGroundCustomerApp(viewModel)
+        }
       }
     }
 
@@ -88,7 +92,9 @@ class TicketGroundAppShellTest {
     val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
     composeRule.setContent {
       TicketGroundTheme {
-        Box(Modifier.width(840.dp)) { TicketGroundCustomerApp(viewModel) }
+        Box(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(840.dp)) {
+          TicketGroundCustomerApp(viewModel)
+        }
       }
     }
 
@@ -142,7 +148,8 @@ class TicketGroundAppShellTest {
 
     composeRule.onNodeWithTag("seat-map-image-fallback").assertIsDisplayed()
     composeRule.onNodeWithTag("seat-seat-a1").assertIsDisplayed().assertHasClickAction()
-    composeRule.onNodeWithTag("seat-marker-seat-a1").assertWidthIsEqualTo(16.dp).assertHeightIsEqualTo(16.dp)
+    composeRule.onNodeWithTag("seat-marker-seat-a1", useUnmergedTree = true)
+      .assertWidthIsEqualTo(16.dp).assertHeightIsEqualTo(16.dp)
   }
 
   @Test

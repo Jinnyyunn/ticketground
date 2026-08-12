@@ -62,7 +62,13 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 | Final APKs | same fresh final gate | debug `9c42fa65…792be25`; UI-test `3aca70ee…08cc417`; R8 release `119c4d5b…1b5105` | `.omo/evidence/task-3-android-ui-final-fixes/08-verification-receipt.txt` |
 | Production tablet test correction | `./gradlew compileDevDebugAndroidTestKotlin lintDevDebug --no-daemon --no-parallel --rerun-tasks` | `BUILD SUCCESSFUL in 41s`; 38/38 tasks executed; tablet test renders `TicketGroundCustomerApp` with deterministic repository data and asserts reachable two-pane/search/calendar/support nodes | `.omo/evidence/task-3-android-ui-final-fixes/11-final-test-source-lint-green.log` |
 
-The Compose UI test APK/source is ready, but instrumentation scenarios were intentionally not executed because Task 4 owns serial emulator/device QA.
+### Task 4 emulator correction
+
+| Scenario | Invocation | Binary observable | Evidence |
+|---|---|---|---|
+| Tablet production path RED | `connectedDevDebugAndroidTest` for `tabletProductionHome_exposesRailTwoPaneSearchCalendarAndSupport` on `ticketground_phone_api36` | Timed out because the phone root coerced the preferred `width(840.dp)` below the 600dp breakpoint | `.omo/evidence/task-4-android-emulator/tablet-debug/01-red-repro.log` |
+| Tablet production path GREEN | Same focused instrumentation after using a start-aligned unbounded 840dp test viewport | 1/1 test passed; production `TicketGroundCustomerApp` exposed rail, two-pane, search, calendar, and support content | `.omo/evidence/task-4-android-emulator/tablet-debug/03-green-single-start-aligned-viewport.log` |
+| Customer shell class regression | `connectedDevDebugAndroidTest` for `TicketGroundAppShellTest` on `ticketground_phone_api36` | `BUILD SUCCESSFUL in 37s`; 10/10 tests passed | `.omo/evidence/task-4-android-emulator/tablet-debug/06-green-full-shell-class.log` |
 
 ## External qualification still required
 
