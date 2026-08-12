@@ -76,5 +76,13 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 
 - Google Play signing and Play Integrity cloud-project/device proof
 - FCM project configuration and real push delivery
-- Toss Payments Android SDK and merchant credentials
+- Toss Payments merchant credentials and provider-console configuration
 - Physical-device QR issuance and admission verification
+
+## Final production wiring review (2026-08-13)
+
+- Booking now converts the active seat hold into a pending reservation draft, prepares a server-backed checkout request, renders TossPayments Android SDK `0.1.22`, validates the returned order and amount, and sends the provider payment key through `TossCheckoutCoordinator` to the authenticated server confirmation endpoint. Missing merchant configuration stays on the seat map with an explicit fail-closed message.
+- My Page device trust, notification registration, and admission QR buttons now call the typed lifecycle APIs. Play Integrity `1.6.0` standard requests bind the server challenge, FCM uses the current registration-token API, and device trust tokens persist encrypted with Android Keystore so admission QR remains usable after process restart.
+- Backend confirmation and cancellation now return `TOSSPAYMENTS_NOT_CONFIGURED` when credentials are absent. Mock receipts require both `NODE_ENV=test` and `TIG_TOSSPAYMENTS_TEST_MODE=1`; production ignores the switch.
+- External gates remain: a numeric Play Integrity Cloud project number, Firebase `google-services.json`, Toss client/secret keys and merchant console configuration, and real-device/provider qualification. No credential or provider configuration is embedded in the repository.
+- Official Toss documentation recommends SDK v2 generally but states native mobile integrations must use v1; the current native Android artifact is therefore pinned to the latest published native SDK release rather than pretending a JavaScript-only v2 SDK is native.
