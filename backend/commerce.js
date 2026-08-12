@@ -92,19 +92,23 @@ export function createCommerceBackend({
 
   function buyPrimary(db, {
     userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey,
-    allowOwnedSingleSeatHold = false, reservationDraftId, approvedAmount
+    allowOwnedSingleSeatHold = false, reservationDraftId, approvedAmount,
+    idempotencyPaymentMethod = paymentMethod
   }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const payment = resolvePaymentMethod(paymentMethod);
 
-    const existingTransaction = findIdempotentPurchase(db, user.id, idempotencyKey, { ticketId, paymentMethod });
+    const existingTransaction = findIdempotentPurchase(
+      db, user.id, idempotencyKey, { ticketId, paymentMethod: idempotencyPaymentMethod }
+    );
     if (existingTransaction) {
       const context = ticketPurchaseContext(db, existingTransaction.ticketId);
       const credential = db.admissionCredentials.find((item) => item.ticketId === existingTransaction.ticketId);
+      const replayPayment = resolvePaymentMethod(existingTransaction.method);
       return {
         user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate,
-        payment: { ...payment, amount: existingTransaction.amount }, admissionCredential: credential
+        payment: { ...replayPayment, amount: existingTransaction.amount }, admissionCredential: credential
       };
     }
 
@@ -145,7 +149,9 @@ export function createCommerceBackend({
       method: payment.key,
       status: payment.status,
       pgTransactionId: pgTransactionId || `${payment.key}-${hash(`${ticket.id}:${user.id}:${now()}`).slice(0, 12)}`,
-      ...(idempotencyKey ? { idempotency: purchaseIdempotency(user.id, idempotencyKey, { ticketId, paymentMethod }) } : {}),
+      ...(idempotencyKey ? {
+        idempotency: purchaseIdempotency(user.id, idempotencyKey, { ticketId, paymentMethod: idempotencyPaymentMethod })
+      } : {}),
       createdAt: now()
     });
     appendLedger(db, user.id, "PRIMARY_PURCHASE", {

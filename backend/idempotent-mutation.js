@@ -1,15 +1,20 @@
-const DEFAULT_MAX_RECEIPTS = 1000;
+const DEFAULT_RECEIPT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function createIdempotentMutationRunner({
   hash,
   httpError,
   id,
-  maxReceipts = DEFAULT_MAX_RECEIPTS,
+  receiptRetentionMs = DEFAULT_RECEIPT_RETENTION_MS,
   now,
   sortJson
 }) {
   return function idempotentMutation(db, { kind, userId, key, payload }, mutate) {
     if (!key) return mutate();
+    const cutoff = Date.parse(now()) - receiptRetentionMs;
+    db.apiMutationReceipts = db.apiMutationReceipts.filter((receipt) => {
+      const createdAt = Date.parse(receipt.createdAt);
+      return !Number.isFinite(createdAt) || createdAt >= cutoff;
+    });
     const keyDigest = hash(`api-mutation:${kind}:${userId}:${key}`);
     const requestDigest = hash(`api-mutation:${kind}:payload:${JSON.stringify(sortJson(payload))}`);
     const existing = db.apiMutationReceipts.find((receipt) => receipt.keyDigest === keyDigest);
@@ -30,9 +35,6 @@ export function createIdempotentMutationRunner({
       response,
       createdAt: now()
     });
-    if (db.apiMutationReceipts.length > maxReceipts) {
-      db.apiMutationReceipts.splice(0, db.apiMutationReceipts.length - maxReceipts);
-    }
     return structuredClone(response);
   };
 }

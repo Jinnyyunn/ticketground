@@ -282,7 +282,12 @@ async function handleApi(req, res, db, surface) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       throw httpError(400, "INVALID_LIMIT", "limit은 1 이상 100 이하의 정수여야 합니다.");
     }
-    return publicCatalog(db, { limit });
+    const rawCursor = url.searchParams.get("cursor");
+    const offset = rawCursor === null ? 0 : Number(rawCursor);
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw httpError(400, "INVALID_CURSOR", "cursor 값을 확인해 주세요.");
+    }
+    return publicCatalog(db, { limit, offset });
   }
   if (req.method === "GET" && url.pathname === "/api/discovery/v1/regions") return publicRegions(db);
   if (req.method === "GET" && url.pathname === "/api/discovery/v1/contract") {
@@ -757,12 +762,13 @@ async function handleApi(req, res, db, surface) {
       result = buyPrimary(db, {
         userId: purchaseUserId,
         ticketId: body.ticketId,
-        paymentMethod: body.paymentMethod,
+        paymentMethod: receipt.paymentMethod,
         pgTransactionId: receipt.tossPaymentKey,
         idempotencyKey,
         allowOwnedSingleSeatHold: true,
         reservationDraftId: body.reservationDraftId,
-        approvedAmount
+        approvedAmount,
+        idempotencyPaymentMethod: body.paymentMethod
       });
     } catch (error) {
       appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {

@@ -123,6 +123,11 @@ export async function createTicketgroundApp(options) {
     id: runtime.id,
     now: runtime.now,
     randomHex: runtime.randomHex,
+    androidPackageNames: options.runtime.playIntegrityAndroidPackageNames || (
+      process.env.NODE_ENV === "production"
+        ? ["kr.ticketground.app"]
+        : ["kr.ticketground.app", "kr.ticketground.app.dev"]
+    ),
     playIntegrityVerifierURL: options.runtime.playIntegrityVerifierURL || process.env.TIG_PLAY_INTEGRITY_VERIFIER_URL,
     playIntegrityVerifierToken: options.runtime.playIntegrityVerifierToken || process.env.TIG_PLAY_INTEGRITY_VERIFIER_TOKEN,
     verifierURL: options.runtime.appAttestVerifierURL,

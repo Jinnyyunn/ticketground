@@ -2,19 +2,22 @@ const PURPOSES = new Set(["TRUST_DEVICE", "ISSUE_QR"]);
 const PLATFORMS = new Set(["ios", "android"]);
 const CHALLENGE_TTL_MS = 2 * 60 * 1000;
 const IOS_APP_ID = "kr.ticketground.app";
-const ANDROID_PACKAGE_NAME = "kr.ticketground.app";
+const DEFAULT_ANDROID_PACKAGE_NAMES = ["kr.ticketground.app"];
 
 export function createAppAttestBackend({
   currentTimeMs,
   httpError,
   id,
   now,
+  androidPackageNames = DEFAULT_ANDROID_PACKAGE_NAMES,
   playIntegrityVerifierToken,
   playIntegrityVerifierURL,
   randomHex,
   verifierToken,
   verifierURL
 }) {
+  const allowedAndroidPackageNames = [...new Set(androidPackageNames.map((value) => String(value).trim()).filter(Boolean))];
+  if (!allowedAndroidPackageNames.length) allowedAndroidPackageNames.push(...DEFAULT_ANDROID_PACKAGE_NAMES);
   function normalizePlatform(platform) {
     const normalized = String(platform || "ios").toLowerCase();
     if (!PLATFORMS.has(normalized)) {
@@ -102,6 +105,11 @@ export function createAppAttestBackend({
   }
 
   async function verifyPlayIntegrity(challenge, body) {
+    const requestedPackageName = allowedAndroidPackageNames.length === 1
+      ? allowedAndroidPackageNames[0]
+      : (body.packageName && allowedAndroidPackageNames.includes(String(body.packageName))
+        ? String(body.packageName)
+        : allowedAndroidPackageNames[0]);
     let resolvedVerifierURL;
     try {
       resolvedVerifierURL = new URL(playIntegrityVerifierURL);
@@ -119,7 +127,7 @@ export function createAppAttestBackend({
         signal: AbortSignal.timeout(5000),
         headers: { Authorization: `Bearer ${playIntegrityVerifierToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          packageName: ANDROID_PACKAGE_NAME,
+          packageName: requestedPackageName,
           challenge: challenge.challenge,
           purpose: challenge.purpose,
           deviceId: challenge.deviceId,
@@ -133,7 +141,8 @@ export function createAppAttestBackend({
     if (!response.ok) throw httpError(403, "PLAY_INTEGRITY_REQUIRED", "Google Play Integrity 증명을 확인할 수 없습니다.");
     const result = await response.json().catch(() => null);
     const verified = result?.verified === true
-      && result.packageName === ANDROID_PACKAGE_NAME
+      && allowedAndroidPackageNames.includes(result.packageName)
+      && result.packageName === requestedPackageName
       && result.challenge === challenge.challenge
       && result.purpose === challenge.purpose
       && result.deviceId === challenge.deviceId

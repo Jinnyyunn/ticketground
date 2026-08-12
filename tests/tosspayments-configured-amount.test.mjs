@@ -101,13 +101,13 @@ function withConfiguredTossEnv(t) {
   });
 }
 
-function withMockedTossConfirmFetch(t, { totalAmount }) {
+function withMockedTossConfirmFetch(t, { totalAmount, method = "카드" }) {
   const previousFetch = globalThis.fetch;
   t.after(() => { globalThis.fetch = previousFetch; });
   globalThis.fetch = async (url) => {
     const value = String(url);
     if (value === "https://api.tosspayments.com/v1/payments/confirm") {
-      return Response.json({ status: "DONE", paymentKey: "toss_live_confirmed", approvedAt: "2026-07-22T12:00:00+09:00", totalAmount });
+      return Response.json({ status: "DONE", paymentKey: "toss_live_confirmed", approvedAt: "2026-07-22T12:00:00+09:00", totalAmount, method });
     }
     throw new Error(`unexpected TossPayments URL: ${value}`);
   };
@@ -133,6 +133,24 @@ test("configured tosspayments purchase succeeds when the confirmed amount includ
   assert.equal(purchase.data.ticket.status, "OWNED");
   assert.equal(purchase.data.payment.amount, ticket.faceValue + 2000);
   assert.equal(purchase.data.tosspayments.mock, false);
+});
+
+test("configured tosspayments purchase records the provider-confirmed method instead of the widget default", async (t) => {
+  withConfiguredTossEnv(t);
+  const app = await ticketgroundApp(t);
+  await verifyIdentity(app, "user_fan_a", "010-9000-0001");
+  const ticket = await onSaleTicket(app);
+  withMockedTossConfirmFetch(t, { totalAmount: ticket.faceValue + 2000, method: "간편결제" });
+
+  const purchase = await requestApp(app, {
+    method: "POST",
+    url: "/api/payments/tosspayments/purchase",
+    headers: { "X-Idempotency-Key": "toss-provider-method" },
+    body: { userId: "user_fan_a", ticketId: ticket.id, paymentMethod: "CREDIT_CARD", tossPaymentKey: "toss_live_confirmed" }
+  });
+
+  assert.equal(purchase.data.payment.method, "SIMPLE_PAY");
+  assert.equal(app.db.paymentTransactions.find((item) => item.ticketId === ticket.id)?.method, "SIMPLE_PAY");
 });
 
 test("configured tosspayments purchase rejects a confirmed amount that is missing the service fee", async (t) => {

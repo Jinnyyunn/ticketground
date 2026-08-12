@@ -130,7 +130,7 @@ function soldCountByEventId(db) {
   return counts;
 }
 
-function publicCatalog(db, { limit } = {}) {
+function publicCatalog(db, { limit, offset = 0 } = {}) {
   const soldCounts = soldCountByEventId(db);
   // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
   // catalog schema and never carry a prices[] array - they power internal
@@ -140,7 +140,7 @@ function publicCatalog(db, { limit } = {}) {
   const visibleEvents = db.events.filter((event) => (
     Array.isArray(event.prices) && event.prices.length > 0 && (event.publishStatus ?? "PUBLISHED") === "PUBLISHED"
   ));
-  const selectedEvents = limit === undefined ? visibleEvents : visibleEvents.slice(0, limit);
+  const selectedEvents = limit === undefined ? visibleEvents : visibleEvents.slice(offset, offset + limit);
   return {
     events: selectedEvents.map((event) => ({
       id: event.id,
@@ -177,7 +177,13 @@ function publicCatalog(db, { limit } = {}) {
       address,
       mapType: map?.type,
       imageUrl: map?.imageUrl || ""
-    }))
+    })),
+    ...(limit === undefined ? {} : {
+      total: visibleEvents.length,
+      nextCursor: offset + selectedEvents.length < visibleEvents.length
+        ? String(offset + selectedEvents.length)
+        : null,
+    }),
   };
 }
 

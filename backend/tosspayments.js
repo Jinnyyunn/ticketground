@@ -11,6 +11,15 @@ const tosspaymentsMethodByPaymentKey = {
   BANK_DEPOSIT: "가상계좌",
   MOBILE: "휴대폰결제"
 };
+const paymentKeyByTosspaymentsMethod = new Map(
+  Object.entries(tosspaymentsMethodByPaymentKey).map(([key, label]) => [label, key])
+);
+
+function confirmedPaymentMethod(method, fallback) {
+  const normalized = String(method || "").trim();
+  return paymentKeyByTosspaymentsMethod.get(normalized)
+    || (Object.hasOwn(tosspaymentsMethodByPaymentKey, normalized) ? normalized : fallback);
+}
 
 export function createTosspaymentsBackend({ hash, httpError, now }) {
   const clientKey = process.env.TIG_TOSSPAYMENTS_CLIENT_KEY || "";
@@ -69,14 +78,26 @@ export function createTosspaymentsBackend({ hash, httpError, now }) {
           actualAmount: Number.isFinite(verifiedAmount) ? verifiedAmount : null
         });
       }
-      return { tossPaymentKey: verified.paymentKey, method: verified.method, approvedAt: verified.approvedAt, amount: verifiedAmount, mock: false };
+      return {
+        tossPaymentKey: verified.paymentKey,
+        method: verified.method,
+        paymentMethod: confirmedPaymentMethod(verified.method, paymentKey),
+        approvedAt: verified.approvedAt,
+        amount: verifiedAmount,
+        mock: false
+      };
     }
     if (!testMockEnabled) {
       throw httpError(503, "TOSSPAYMENTS_NOT_CONFIGURED", "토스페이먼츠 결제 설정을 확인할 수 없습니다.");
     }
     await new Promise((resolve) => setTimeout(resolve, mockConfirmDelayMs));
     const receipt = mockTosspaymentsReceipt({ ticketId, userId, paymentKey, orderId });
-    return { tossPaymentKey: receipt.tossPaymentKey, method: receipt.method, mock: true };
+    return {
+      tossPaymentKey: receipt.tossPaymentKey,
+      method: receipt.method,
+      paymentMethod: confirmedPaymentMethod(receipt.method, paymentKey),
+      mock: true
+    };
   }
 
   async function cancelTosspaymentsPayment({ tossPaymentKey, cancelReason, cancelAmount, refundReceiveAccount, taxFreeAmount }) {
