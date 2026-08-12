@@ -40,16 +40,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import kr.ticketground.app.AppDestination
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.WatchlistItem
 
-private val ScreenPadding = 16.dp
-private val CardRadius = 12.dp
 @Composable
 fun TicketGroundNavigation(
   selected: AppDestination,
@@ -57,7 +53,7 @@ fun TicketGroundNavigation(
   onNavigate: (AppDestination) -> Unit,
   content: @Composable () -> Unit,
 ) {
-  if (width >= 600.dp) {
+  if (width >= TicketGroundLayout.expandedBreakpoint) {
     Row(Modifier.fillMaxSize()) {
       NavigationRail(Modifier.testTag("navigation-rail")) {
         AppDestination.entries.forEach { destination ->
@@ -107,9 +103,9 @@ fun <T> AsyncSurface(
 
 @Composable
 private fun StateCard(title: String, message: String, onRetry: (() -> Unit)?) {
-  Box(Modifier.fillMaxSize().padding(ScreenPadding), contentAlignment = Alignment.Center) {
+  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
     SurfaceCard {
-      Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+      Text(title, style = MaterialTheme.typography.titleMedium)
       Text(message, style = MaterialTheme.typography.bodyMedium)
       if (onRetry != null) Button(onClick = onRetry) { Text("다시 시도") }
     }
@@ -120,9 +116,9 @@ private fun StateCard(title: String, message: String, onRetry: (() -> Unit)?) {
 private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
   Card(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(CardRadius),
+    shape = RoundedCornerShape(TicketGroundRadius.medium),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    content = { Column(Modifier.padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(8.dp), content = content) },
+    content = { Column(Modifier.padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm), content = content) },
   )
 }
 
@@ -138,11 +134,11 @@ fun HomeScreen(
   AsyncSurface(state, onRetry) { content ->
     LazyColumn(
       modifier = Modifier.fillMaxSize(),
-      contentPadding = PaddingValues(ScreenPadding),
-      verticalArrangement = Arrangement.spacedBy(16.dp),
+      contentPadding = PaddingValues(TicketGroundSpacing.lg),
+      verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.lg),
     ) {
       item {
-        Text("Ticketground", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+        Text("Ticketground", style = MaterialTheme.typography.headlineMedium)
         Text("공연을 찾고 좌석도에서 바로 예매하세요", color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(onClick = onSearch, modifier = Modifier.fillMaxWidth()) { Text("공연, 아티스트 또는 공연장 검색") }
       }
@@ -152,7 +148,7 @@ fun HomeScreen(
       if (content.calendar.isEmpty()) item { Text("예매 오픈 일정이 없습니다.") }
       items(content.calendar, key = { it.opensAt + it.event.id }) { entry ->
         SurfaceCard {
-          Text(entry.event.title, fontWeight = FontWeight.Bold)
+          Text(entry.event.title, style = MaterialTheme.typography.titleMedium)
           Text(entry.opensAt, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
       }
@@ -176,20 +172,20 @@ fun EventListScreen(
       StateCard("공연이 없습니다", "다른 검색어나 일정을 확인해 주세요.", null)
     } else if (expanded) {
       Row(Modifier.fillMaxSize().testTag("event-list-two-pane")) {
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(ScreenPadding)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(TicketGroundSpacing.lg)) {
           item { SectionTitle(title) }
           items(events, key = { it.id }) { EventCard(it, onEvent) }
         }
-        Box(Modifier.width(320.dp).padding(ScreenPadding)) {
+        Box(Modifier.width(TicketGroundLayout.detailPaneWidth).padding(TicketGroundSpacing.lg)) {
           SurfaceCard {
-            Text(events.first().title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+            Text(events.first().title, style = MaterialTheme.typography.titleLarge)
             Text(events.first().venue)
             Text(events.first().summary ?: "공연 상세에서 일정과 좌석 현황을 확인하세요.")
           }
         }
       }
     } else {
-      LazyColumn(contentPadding = PaddingValues(ScreenPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
         item { SectionTitle(title) }
         items(events, key = { it.id }) { EventCard(it, onEvent) }
       }
@@ -200,11 +196,11 @@ fun EventListScreen(
 @Composable
 private fun EventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) {
   Card(
-    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onEvent(event) },
-    shape = RoundedCornerShape(CardRadius),
+    modifier = Modifier.fillMaxWidth().padding(vertical = TicketGroundSpacing.xs).clickable { onEvent(event) },
+    shape = RoundedCornerShape(TicketGroundRadius.medium),
   ) {
-    Column(Modifier.padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-      Text(event.title, fontWeight = FontWeight.Bold)
+    Column(Modifier.padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
+      Text(event.title, style = MaterialTheme.typography.titleMedium)
       Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant)
       Text(event.sale?.label ?: event.saleState ?: "판매 일정 확인", color = MaterialTheme.colorScheme.primary)
     }
@@ -213,15 +209,15 @@ private fun EventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) {
 
 @Composable
 fun EventDetailScreen(event: CatalogEvent, onSeatMap: (String?) -> Unit) {
-  LazyColumn(contentPadding = PaddingValues(ScreenPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     item {
-      Text(event.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+      Text(event.title, style = MaterialTheme.typography.headlineSmall)
       Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant)
       Text(event.period ?: event.date ?: "공연 일정을 확인해 주세요.")
     }
     item {
       SurfaceCard {
-        Text("공연 안내", fontWeight = FontWeight.Bold)
+        Text("공연 안내", style = MaterialTheme.typography.titleMedium)
         Text(event.summary ?: "공연 상세 정보는 서버에서 제공되는 내용만 표시합니다.")
         event.notices.orEmpty().forEach { Text("· $it") }
       }
@@ -240,8 +236,8 @@ fun SearchScreen(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit) {
   val filtered = events.filter { event ->
     query.isBlank() || listOf(event.title, event.venue, event.category.orEmpty()).any { it.contains(query, ignoreCase = true) }
   }
-  Column(Modifier.fillMaxSize().padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    Text("공연 검색", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+  Column(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
+    Text("공연 검색", style = MaterialTheme.typography.headlineSmall)
     OutlinedTextField(
       value = query,
       onValueChange = { query = it },
@@ -250,7 +246,7 @@ fun SearchScreen(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit) {
       singleLine = true,
     )
     if (filtered.isEmpty()) Text("검색 결과가 없습니다. 다른 검색어를 입력해 주세요.")
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(filtered, key = { it.id }) { EventCard(it, onEvent) } }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) { items(filtered, key = { it.id }) { EventCard(it, onEvent) } }
   }
 }
 
@@ -258,11 +254,11 @@ fun SearchScreen(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit) {
 fun WatchlistScreen(state: AsyncContent<List<WatchlistItem>>, onRetry: () -> Unit) {
   AsyncSurface(state, onRetry) { entries ->
     if (entries.isEmpty()) StateCard("관심공연이 없습니다", "공연 상세에서 찜하기를 눌러보세요.", null)
-    else LazyColumn(contentPadding = PaddingValues(ScreenPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    else LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
       item { SectionTitle("관심공연·알림") }
       items(entries, key = { it.id }) { entry ->
         SurfaceCard {
-          Text(entry.event?.title ?: "공연 정보 확인 중", fontWeight = FontWeight.Bold)
+          Text(entry.event?.title ?: "공연 정보 확인 중", style = MaterialTheme.typography.titleMedium)
           Text(if (entry.notificationEnabled) "예매 알림 사용 중" else "알림 꺼짐")
         }
       }
@@ -272,11 +268,11 @@ fun WatchlistScreen(state: AsyncContent<List<WatchlistItem>>, onRetry: () -> Uni
 
 @Composable
 fun SupportScreen(content: HomeContent?) {
-  LazyColumn(contentPadding = PaddingValues(ScreenPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     item { SectionTitle("고객센터") }
     if (content == null || content.faq.isEmpty()) item { Text("도움말을 불러오지 못했습니다. 다시 시도해 주세요.") }
-    items(content?.notices.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.title, fontWeight = FontWeight.Bold); Text(it.body) } }
-    items(content?.faq.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.question, fontWeight = FontWeight.Bold); Text(it.answer) } }
+    items(content?.notices.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.title, style = MaterialTheme.typography.titleMedium); Text(it.body) } }
+    items(content?.faq.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.question, style = MaterialTheme.typography.titleMedium); Text(it.answer) } }
   }
 }
 
@@ -300,19 +296,19 @@ fun LifecycleOverviewScreen(
       var refundAcknowledged by remember { mutableStateOf(false) }
       var resalePrice by remember { mutableStateOf("") }
       val parsedPrice = resalePrice.toIntOrNull()
-      LazyColumn(contentPadding = PaddingValues(ScreenPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
         item { SectionTitle("마이페이지") }
         actionMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary) } }
         item {
           SurfaceCard {
-            Text(account.ticketTitle ?: "보유 티켓이 없습니다", fontWeight = FontWeight.Bold)
+            Text(account.ticketTitle ?: "보유 티켓이 없습니다", style = MaterialTheme.typography.titleMedium)
             account.seatLabel?.let { Text(it) }
             Text(account.qrState, color = MaterialTheme.colorScheme.onSurfaceVariant)
           }
         }
         item {
           SurfaceCard {
-            Text("티켓 관리", fontWeight = FontWeight.Bold)
+            Text("티켓 관리", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
               value = cancellationReason,
               onValueChange = { cancellationReason = it },
@@ -345,7 +341,7 @@ fun LifecycleOverviewScreen(
         }
         item {
           SurfaceCard {
-            Text("신뢰 기기·알림", fontWeight = FontWeight.Bold)
+            Text("신뢰 기기·알림", style = MaterialTheme.typography.titleMedium)
             Text(if (account.trustedDevice) "신뢰 기기 등록됨" else "신뢰 기기가 필요합니다")
             Text(account.pushSuffix?.let { "푸시 등록됨 · 끝자리 $it" } ?: "푸시 알림 미등록")
             OutlinedButton(onClick = onDevice, enabled = !pending, modifier = Modifier.fillMaxWidth()) { Text("이 기기 등록") }
@@ -354,7 +350,7 @@ fun LifecycleOverviewScreen(
         }
         item {
           SurfaceCard {
-            Text("입장 QR", fontWeight = FontWeight.Bold)
+            Text("입장 QR", style = MaterialTheme.typography.titleMedium)
             Text("원본 자격 정보는 화면에 표시하거나 저장하지 않습니다.")
             Button(
               onClick = onQr,
@@ -376,10 +372,10 @@ fun CheckoutHandoffScreen(
   amount: Int,
   onOpenProvider: () -> Unit,
 ) {
-  Column(Modifier.fillMaxSize().padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  Column(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     SectionTitle("결제 확인")
     SurfaceCard {
-      Text(seatLabel, fontWeight = FontWeight.Bold)
+      Text(seatLabel, style = MaterialTheme.typography.titleMedium)
       Text("결제 예정 금액 ${amount.krw()}원")
       if (!configured) Text("Toss Payments 연결이 필요합니다", color = MaterialTheme.colorScheme.error)
       Text("결제 승인 결과는 Toss Payments와 서버 확인이 모두 끝난 뒤에만 반영됩니다.")
@@ -394,7 +390,7 @@ fun CheckoutHandoffScreen(
 
 @Composable
 private fun SectionTitle(title: String) {
-  Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+  Text(title, style = MaterialTheme.typography.titleLarge)
 }
 
 internal fun Int.krw(): String = String.format("%,d", this)

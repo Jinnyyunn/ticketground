@@ -44,7 +44,7 @@ data class AccountOverview(
 
 sealed interface BookingProgress {
   data class Waiting(val position: Int) : BookingProgress
-  data class Held(val seatLabel: String, val amount: Int, val tossConfigured: Boolean) : BookingProgress
+  data class Held(val seatId: String, val seatLabel: String, val amount: Int, val tossConfigured: Boolean) : BookingProgress
 }
 
 interface CustomerRepository {
@@ -108,7 +108,7 @@ class TypedCustomerRepository(
       throw IllegalStateException("좌석을 안전하게 확보하지 못했습니다.")
     }
     client.payments().config()
-    return BookingProgress.Held(seatLabel, amount, tossConfigured = false)
+    return BookingProgress.Held(seatId, seatLabel, amount, tossConfigured = false)
   }
 
   override suspend fun requestCancellation(ticketId: String, reason: String) {

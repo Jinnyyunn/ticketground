@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -39,6 +38,8 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   val account = mutableAccount.asStateFlow()
   private val mutableSelectedSeatId = MutableStateFlow<String?>(null)
   val selectedSeatId = mutableSelectedSeatId.asStateFlow()
+  private val mutableHeldSeatIds = MutableStateFlow<Set<String>>(emptySet())
+  val heldSeatIds = mutableHeldSeatIds.asStateFlow()
   private val mutableBookingPending = MutableStateFlow(false)
   val bookingPending = mutableBookingPending.asStateFlow()
   private val mutableActionMessage = MutableStateFlow<String?>(null)
@@ -68,14 +69,17 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
 
   fun openSeatMap(event: CatalogEvent, performanceDateId: String?) {
     mutableSelectedSeatId.value = null
+    mutableHeldSeatIds.value = emptySet()
     mutableRoute.value = CustomerRoute.SeatMapRoute(event, performanceDateId)
     loadSeatMap(event.id, performanceDateId)
   }
 
   fun loadSeatMap(eventId: String, performanceDateId: String?) = viewModelScope.launch {
     mutableSeatMap.value = AsyncContent.Loading
+    mutableHeldSeatIds.value = emptySet()
     mutableSeatMap.value = runCatching { repository.seatMap(eventId, performanceDateId) }.fold(
       onSuccess = { map ->
+        mutableHeldSeatIds.value = map.seats.filter { it.status.equals("HELD", ignoreCase = true) }.mapTo(linkedSetOf()) { it.id }
         if (map.seats.none { it.mapPosition != null }) AsyncContent.Empty("좌석도가 비어 있습니다", "다른 회차를 확인해 주세요.")
         else AsyncContent.Ready(map)
       },
@@ -101,7 +105,10 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
       .onSuccess { progress ->
         when (progress) {
           is BookingProgress.Waiting -> mutableActionMessage.value = "현재 대기 순서 ${progress.position}번입니다. 잠시 후 다시 시도해 주세요."
-          is BookingProgress.Held -> mutableRoute.value = CustomerRoute.Checkout(progress.seatLabel, progress.amount + 2_000, progress.tossConfigured)
+          is BookingProgress.Held -> {
+            mutableHeldSeatIds.value = mutableHeldSeatIds.value + progress.seatId
+            mutableRoute.value = CustomerRoute.Checkout(progress.seatLabel, progress.amount + 2_000, progress.tossConfigured)
+          }
         }
       }
       .onFailure { mutableActionMessage.value = safeUiMessage(it) }
@@ -163,6 +170,7 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
   val watchlist by viewModel.watchlist.collectAsStateWithLifecycle()
   val account by viewModel.account.collectAsStateWithLifecycle()
   val selectedSeatId by viewModel.selectedSeatId.collectAsStateWithLifecycle()
+  val heldSeatIds by viewModel.heldSeatIds.collectAsStateWithLifecycle()
   val pending by viewModel.bookingPending.collectAsStateWithLifecycle()
   val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
 
@@ -170,7 +178,11 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
     TicketGroundNavigation(destination, maxWidth, viewModel::navigate) {
       when (val current = route) {
         CustomerRoute.Tab -> when (destination) {
-          AppDestination.Home -> HomeScreen(home, maxWidth >= 600.dp, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openSupport)
+          AppDestination.Home -> if (maxWidth >= TicketGroundLayout.expandedBreakpoint) {
+            EventListScreen("티켓 랭킹", home.eventListState(), true, viewModel::loadHome, viewModel::openEvent)
+          } else {
+            HomeScreen(home, false, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openSupport)
+          }
           AppDestination.Search -> AsyncSurface(home, viewModel::loadHome) { SearchScreen(it.events, viewModel::openEvent) }
           AppDestination.Watchlist -> WatchlistScreen(watchlist, viewModel::loadWatchlist)
           AppDestination.MyPage -> LifecycleOverviewScreen(
@@ -190,7 +202,7 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
           GraphicalSeatMapScreen(
             state = seatMap,
             selectedSeatId = selectedSeatId,
-            heldSeatId = null,
+            heldSeatIds = heldSeatIds,
             pending = pending,
             onRetry = { viewModel.loadSeatMap(current.event.id, current.performanceDateId) },
             onSeatSelected = viewModel::selectSeat,
@@ -211,6 +223,13 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
 @Composable
 private fun StateBanner(message: String) {
   androidx.compose.material3.Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer) {
-    androidx.compose.material3.Text(message, modifier = androidx.compose.ui.Modifier.padding(12.dp))
+    androidx.compose.material3.Text(message, modifier = androidx.compose.ui.Modifier.padding(TicketGroundSpacing.md))
   }
+}
+
+private fun AsyncContent<HomeContent>.eventListState(): AsyncContent<List<CatalogEvent>> = when (this) {
+  AsyncContent.Loading -> AsyncContent.Loading
+  is AsyncContent.Empty -> this
+  is AsyncContent.Error -> this
+  is AsyncContent.Ready -> AsyncContent.Ready(value.events)
 }

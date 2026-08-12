@@ -73,6 +73,17 @@ class CustomerAppViewModelTest {
     val state = viewModel.account.value as AsyncContent.Ready
     assertTrue(!state.value.signedIn)
   }
+
+  @Test
+  fun `seat map load exposes backend held ids for map semantics`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    advanceUntilIdle()
+
+    viewModel.loadSeatMap("event-1", "performance-1")
+    advanceUntilIdle()
+
+    assertEquals(setOf("seat-held"), viewModel.heldSeatIds.value)
+  }
 }
 
 private class FakeCustomerRepository(
@@ -88,7 +99,7 @@ private class FakeCustomerRepository(
   override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: AccountOverview(true)
   override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress {
     bookedSeatId = seatId
-    return BookingProgress.Held(seatLabel, amount, tossConfigured = false)
+    return BookingProgress.Held(seatId, seatLabel, amount, tossConfigured = false)
   }
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
@@ -103,6 +114,11 @@ private class FakeCustomerRepository(
         id = "seat-a1", label = "1열 1번", displayCode = "A구역 1열 1번", zoneId = "zone-a",
         zoneName = "A구역", price = 120000, status = "AVAILABLE", available = true,
         mapPosition = SeatPosition(30.0, 45.0, 4.0, 4.0, 0.0, "circle"),
+      ),
+      Seat(
+        id = "seat-held", label = "1열 2번", displayCode = "A구역 1열 2번", zoneId = "zone-a",
+        zoneName = "A구역", price = 120000, status = "HELD", available = false,
+        mapPosition = SeatPosition(36.0, 45.0, 4.0, 4.0, 0.0, "circle"),
       ),
     ),
   )
