@@ -9,7 +9,6 @@ import {
   hasGroupBookingRequests,
   hasSellerApplications,
   hasSellerEvents,
-  hasSupportThreads,
   hasTickets,
   hasUsers,
   money,
@@ -25,8 +24,6 @@ import {
   groupBookingStatuses,
   saleStates,
   sellerApplicationStatuses,
-  supportCategories,
-  supportStatuses,
   userStatuses,
   type AccountsWorkspace,
   type AclWorkspaceData,
@@ -47,7 +44,6 @@ import {
   type SellerAccount,
   type SellerApplicationsWorkspace,
   type SellerEventsWorkspace,
-  type SupportWorkspace,
   type WorkspaceData,
 } from "./console-types";
 import { operatorLabel } from "./console-types";
@@ -65,7 +61,6 @@ type WorkspaceProps = {
   readonly onInventoryFilterChange: (filters: { readonly eventId?: string; readonly performanceDateId?: string; readonly zoneId?: string; readonly page?: number }) => void;
   readonly onSelectEvent: (eventId: string) => void;
   readonly onSellerApplicationFilterChange: (filters: { readonly status?: string; readonly page?: number }) => void;
-  readonly onSupportFilterChange: (filters: { readonly category?: string; readonly status?: string }) => void;
   readonly onGroupBookingFilterChange: (filters: { readonly status?: string; readonly page?: number }) => void;
   readonly onLocalError: (message: string) => void;
 };
@@ -76,14 +71,13 @@ function focusInput(form: HTMLFormElement, name: string): void {
 }
 
 export function WorkspaceContent(props: WorkspaceProps) {
-  const { workspace, data, feedback, mutate, session, onAccountFilterChange, onAuditFilterChange, onFinanceFilterChange, onGroupBookingFilterChange, onInventoryFilterChange, onLocalError, onSelectEvent, onSellerApplicationFilterChange, onSupportFilterChange } = props;
+  const { workspace, data, feedback, mutate, session, onAccountFilterChange, onAuditFilterChange, onFinanceFilterChange, onGroupBookingFilterChange, onInventoryFilterChange, onLocalError, onSelectEvent, onSellerApplicationFilterChange } = props;
   if (!data) return <WorkspacePanel><p aria-live="polite" className="text-sm font-bold text-ticketground">작업공간 데이터를 불러오지 못했습니다.</p></WorkspacePanel>;
   if (workspace === "overview" && "stats" in data) return <OverviewWorkspace data={data} />;
   if (workspace === "catalog" && hasEvents(data)) return <CatalogWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
   if (workspace === "sales" && hasEvents(data)) return <SalesWorkspace data={data} feedback={feedback} key={data.events[0]?.id} mutate={mutate} onLocalError={onLocalError} onSelectEvent={onSelectEvent} />;
   if (workspace === "inventory" && hasTickets(data)) return <InventoryWorkspace data={data} feedback={feedback} mutate={mutate} onInventoryFilterChange={onInventoryFilterChange} />;
   if (workspace === "accounts" && hasUsers(data)) return <AccountsWorkspace data={data} feedback={feedback} mutate={mutate} onAccountFilterChange={onAccountFilterChange} />;
-  if (workspace === "support" && hasSupportThreads(data)) return <SupportWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} onSupportFilterChange={onSupportFilterChange} />;
   if (workspace === "finance" && "transactions" in data) return <FinanceWorkspace data={data} onFinanceFilterChange={onFinanceFilterChange} />;
   if (workspace === "resale" && "resalePools" in data) return <ResaleWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
   if (workspace === "admission" && "admissionCredentials" in data) return <AdmissionWorkspace data={data} feedback={feedback} mutate={mutate} onLocalError={onLocalError} />;
@@ -96,7 +90,7 @@ export function WorkspaceContent(props: WorkspaceProps) {
 }
 
 function OverviewWorkspace({ data }: { readonly data: OverviewWorkspace }) {
-  return <WorkspacePanel><div className="grid divide-y divide-line overflow-hidden sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"><Stat label="전체 티켓" value={money(data.stats.totalTickets)} /><Stat label="판매 가능" value={money(data.stats.onSaleTickets)} /><Stat label="열린 문의" tone={data.stats.supportOpen ? "warn" : "default"} value={money(data.stats.supportOpen)} /><Stat label="감사 원장" tone={data.stats.ledgerVerified ? "ok" : "warn"} value={data.stats.ledgerVerified ? "정상" : "불일치"} /><Stat label="오늘 결제" value={`${money(data.stats.todayPaymentCount)}건`} /><Stat label="오늘 결제액" value={`${money(data.stats.todayPaymentAmount)}원`} /><Stat label="누적 수수료" value={`${money(data.stats.totalPaymentFees)}원`} /><Stat label="판매자 정산" value={`${money(data.stats.totalSettlements)}원`} /></div></WorkspacePanel>;
+  return <WorkspacePanel><div className="grid divide-y divide-line overflow-hidden sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"><Stat label="전체 티켓" value={money(data.stats.totalTickets)} /><Stat label="판매 가능" value={money(data.stats.onSaleTickets)} /><Stat label="감사 원장" tone={data.stats.ledgerVerified ? "ok" : "warn"} value={data.stats.ledgerVerified ? "정상" : "불일치"} /><Stat label="오늘 결제" value={`${money(data.stats.todayPaymentCount)}건`} /><Stat label="오늘 결제액" value={`${money(data.stats.todayPaymentAmount)}원`} /><Stat label="누적 수수료" value={`${money(data.stats.totalPaymentFees)}원`} /><Stat label="판매자 정산" value={`${money(data.stats.totalSettlements)}원`} /></div></WorkspacePanel>;
 }
 
 type MutableWorkspaceProps = { readonly feedback: Feedback; readonly mutate: Mutation; readonly onLocalError?: (message: string) => void };
@@ -647,84 +641,6 @@ function AccountsWorkspace({
         <Field label="일괄 사유" name="bulkReason" defaultValue="운영 콘솔 일괄 변경" />
         <button className="h-10 self-end rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink disabled:bg-surface disabled:text-ink-3" disabled={!selectedBulkIds.length} type="submit">선택 계정 일괄 변경</button>
       </form>
-      <div className="mt-4"><Notice feedback={feedback} /></div>
-    </WorkspacePanel>
-  );
-}
-
-function SupportWorkspace({
-  data,
-  feedback,
-  mutate,
-  onLocalError,
-  onSupportFilterChange,
-}: { readonly data: SupportWorkspace; readonly onSupportFilterChange: (filters: { readonly category?: string; readonly status?: string }) => void } & MutableWorkspaceProps) {
-  const [selectedThreadId, setSelectedThreadId] = useState(data.supportThreads[0]?.id ?? "");
-  const thread = data.supportThreads.find((item) => item.id === selectedThreadId) || data.supportThreads[0];
-  const submit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    if (!thread) return;
-    const form = event.currentTarget;
-    const message = valueFromForm(form, "message");
-    if (!message) {
-      onLocalError?.("답변을 입력해주세요.");
-      focusInput(form, "message");
-      return;
-    }
-    if (!window.confirm(`${thread.subject || thread.id} 문의에 답변을 등록하시겠습니까?`)) return;
-    void (async () => {
-      const replied = await mutate("/api/admin/support/messages", { threadId: thread.id, message }, "");
-      if (replied) await mutate("/api/admin/support/status", { threadId: thread.id, status: valueFromForm(form, "status") }, "문의 답변과 상태가 갱신되었습니다.");
-    })();
-  };
-  return (
-    <WorkspacePanel>
-      <div className="flex flex-col gap-3 border-b border-line pb-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-base font-black">문의함</h2>
-          <p className="mt-1 text-sm font-bold text-ink-3">{data.supportThreads.length.toLocaleString("ko-KR")}건 표시</p>
-        </div>
-        <form className="grid gap-2 sm:grid-cols-[160px_160px_auto]" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; onSupportFilterChange({ category: valueFromForm(form, "category") || undefined, status: valueFromForm(form, "status") || undefined }); }}>
-          <SelectField label="상태" name="status" defaultValue={data.filters.status ?? ""} options={[{ label: "전체 상태", value: "" }, ...supportStatuses.map((value) => ({ label: operatorLabel(value), value }))]} />
-          <SelectField label="분류" name="category" defaultValue={data.filters.category ?? ""} options={[{ label: "전체 분류", value: "" }, ...supportCategories.map((value) => ({ label: operatorLabel(value), value }))]} />
-          <button className="h-10 self-end rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink" type="submit">필터 적용</button>
-        </form>
-      </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(240px,360px)_minmax(0,1fr)]">
-        <div className="grid content-start gap-2">
-          {data.supportThreads.map((item) => (
-            <button className={`rounded-lg border p-3 text-left ${thread?.id === item.id ? "border-ink bg-surface" : "border-line bg-background"}`} key={item.id} onClick={() => setSelectedThreadId(item.id)} type="button">
-              <span className="block text-sm font-black text-ink">{item.subject || item.id}</span>
-              <span className="mt-1 block text-xs font-bold text-ink-3">{operatorLabel(item.status)} · {operatorLabel(item.category)} · 메시지 {item.messageCount}</span>
-              <span className="mt-2 line-clamp-2 block text-xs font-bold text-ink-3">{item.lastMessagePreview || "메시지 없음"}</span>
-            </button>
-          ))}
-          {data.supportThreads.length ? null : <p className="rounded-lg border border-line p-3 text-sm font-bold text-ink-3">조건에 맞는 문의가 없습니다.</p>}
-        </div>
-        <div className="min-w-0 rounded-lg border border-line p-4">
-          {thread ? (
-            <>
-              <div className="border-b border-line pb-3">
-                <h3 className="text-base font-black text-ink">{thread.subject || thread.id}</h3>
-                <p className="mt-1 text-sm font-bold text-ink-3">{operatorLabel(thread.status)} · {operatorLabel(thread.category)} · {thread.relatedTicketId || "연결 티켓 없음"} · {thread.relatedBookingId || "연결 예매 없음"}</p>
-              </div>
-              <div className="mt-4 grid gap-3">
-                {thread.messages.map((message) => (
-                  <article className={`rounded-lg border p-3 ${message.role === "ADMIN" ? "border-ink bg-surface" : "border-line bg-background"}`} key={message.id}>
-                    <p className="text-xs font-black text-ink-3">{message.role === "ADMIN" ? "운영자" : "고객"} · {message.at?.slice(0, 16).replace("T", " ") ?? message.actorId}</p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm font-bold text-ink">{message.body}</p>
-                  </article>
-                ))}
-              </div>
-              <form className="mt-4 grid gap-3 border-t border-line pt-4 md:grid-cols-2" key={thread.id} noValidate onSubmit={submit}>
-                <TextareaField label="답변" name="message" defaultValue="운영자 확인 후 처리했습니다." rows={3} />
-                <SelectField label="처리 상태" name="status" defaultValue="ANSWERED" options={supportStatuses.map((value) => ({ label: operatorLabel(value), value }))} />
-                <button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">문의 답변 등록</button>
-              </form>
-            </>
-          ) : <p className="text-sm font-bold text-ink-3">처리할 문의가 없습니다.</p>}
-        </div>
-      </div>
       <div className="mt-4"><Notice feedback={feedback} /></div>
     </WorkspacePanel>
   );

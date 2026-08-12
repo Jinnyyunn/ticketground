@@ -8,7 +8,6 @@ import type {
   InventoryWorkspace,
   SellerApplicationsWorkspace,
   SellerEventsWorkspace,
-  SupportWorkspace,
   WorkspaceData,
 } from "./console-types";
 
@@ -35,10 +34,6 @@ export function hasTickets(data: WorkspaceData | null): data is InventoryWorkspa
 
 export function hasUsers(data: WorkspaceData | null): data is AccountsWorkspace {
   return Boolean(data && "users" in data);
-}
-
-export function hasSupportThreads(data: WorkspaceData | null): data is SupportWorkspace {
-  return Boolean(data && "supportThreads" in data);
 }
 
 export function hasGroupBookingRequests(data: WorkspaceData | null): data is GroupBookingWorkspace {
