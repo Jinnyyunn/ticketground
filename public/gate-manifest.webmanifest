@@ -9,8 +9,13 @@
   "theme_color": "#0a0a0a",
   "icons": [
     {
-      "src": "/seo/favicon-96x96.png",
-      "sizes": "96x96",
+      "src": "/seo/tig-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/seo/tig-icon-512x512.png",
+      "sizes": "512x512",
       "type": "image/png"
     }
   ]
