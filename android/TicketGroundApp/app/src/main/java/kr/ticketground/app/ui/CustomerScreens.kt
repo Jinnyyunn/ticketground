@@ -348,7 +348,11 @@ fun LifecycleOverviewScreen(
       var refundAcknowledged by remember { mutableStateOf(false) }
       var resalePrice by remember { mutableStateOf("") }
       val parsedPrice = resalePrice.toIntOrNull()
-      LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
+      LazyColumn(
+        modifier = Modifier.testTag("lifecycle-overview-list"),
+        contentPadding = PaddingValues(TicketGroundSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md),
+      ) {
         item { SectionTitle("마이페이지") }
         actionMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary) } }
         item {

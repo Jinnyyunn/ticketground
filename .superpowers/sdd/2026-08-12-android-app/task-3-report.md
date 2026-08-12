@@ -69,6 +69,7 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 | Tablet production path RED | `connectedDevDebugAndroidTest` for `tabletProductionHome_exposesRailTwoPaneSearchCalendarAndSupport` on `ticketground_phone_api36` | Timed out because the phone root coerced the preferred `width(840.dp)` below the 600dp breakpoint | `.omo/evidence/task-4-android-emulator/tablet-debug/01-red-repro.log` |
 | Tablet production path GREEN | Same focused instrumentation after using a start-aligned unbounded 840dp test viewport | 1/1 test passed; production `TicketGroundCustomerApp` exposed rail, two-pane, search, calendar, and support content | `.omo/evidence/task-4-android-emulator/tablet-debug/03-green-single-start-aligned-viewport.log` |
 | Customer shell class regression | `connectedDevDebugAndroidTest` for `TicketGroundAppShellTest` on `ticketground_phone_api36` | `BUILD SUCCESSFUL in 37s`; 10/10 tests passed | `.omo/evidence/task-4-android-emulator/tablet-debug/06-green-full-shell-class.log` |
+| Tablet lifecycle scrolling regression | Focused lifecycle test, then `TicketGroundAppShellTest` on `ticketground_tablet_api36` | The test scrolls the production lifecycle list to the push suffix and disabled QR action; focused 1/1 and full class 10/10 passed | `.omo/evidence/task-4-android-emulator/tablet-lifecycle-fix/02-focused-green.log`, `.omo/evidence/task-4-android-emulator/tablet-lifecycle-fix/03-full-class-green.log` |
 
 ## External qualification still required
 

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -233,11 +235,15 @@ class TicketGroundAppShellTest {
 
     composeRule.onNodeWithText("취소 요청").assertIsNotEnabled()
     composeRule.onNodeWithText("공식 재판매 등록").assertIsNotEnabled()
+    composeRule.onNodeWithTag("lifecycle-overview-list")
+      .performScrollToNode(hasText("끝자리 4821", substring = true))
+    composeRule.onNodeWithText("끝자리 4821", substring = true).assertIsDisplayed()
+    composeRule.onNodeWithTag("lifecycle-overview-list")
+      .performScrollToNode(hasText("입장 QR 발급"))
     composeRule.onNodeWithText("입장 QR 발급").assertIsNotEnabled()
     listOf("token", "proof", "signature", "nonce", "ticket-id").forEach {
       composeRule.onNodeWithText(it, substring = true, ignoreCase = true).assertDoesNotExist()
     }
-    composeRule.onNodeWithText("끝자리 4821", substring = true).assertIsDisplayed()
   }
 
   @Test
