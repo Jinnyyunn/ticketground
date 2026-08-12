@@ -37,7 +37,7 @@ abstract class ApiTestSupport {
     .setBody("""{"ok":false,"error":{"code":"$code","message":"failed"}}""")
 
   protected fun healthWithCapabilities(): String =
-    """{"status":"UP","version":"78b3c7c","capabilities":["native-account-v1","native-support-v1","native-watchlist-v1","native-booking-holds-v1"]}"""
+    """{"status":"UP","version":"78b3c7c","capabilities":["native-account-v1","native-support-v1","native-watchlist-v1","native-booking-holds-v1","native-lifecycle-v1"]}"""
 
   protected fun catalogPage(cursor: String): String =
     """{"events":[],"venues":[],"nextCursor":"$cursor","total":0}"""
@@ -59,6 +59,24 @@ abstract class ApiTestSupport {
 
   protected fun draftJson(status: String = "PENDING_PAYMENT"): String =
     """{"id":"draft-1","status":"$status","performanceDateId":"performance-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":100000,"serviceFee":2000,"total":102000},"expiresAt":"2026-08-12T00:10:00.000Z"}"""
+
+  protected fun resalePoolJson(status: String = "OPEN"): String =
+    """{"id":"pool-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-1","ticketId":"ticket-1","showSlug":"show","price":100000,"buyerFee":8000,"buyerTotal":108000,"sellerSettlement":92000,"buyerCount":0,"status":"$status","createdAt":"2026-08-12T00:00:00Z","matchedAt":null}"""
+
+  protected fun cancellationJson(): String =
+    """{"id":"cancel-1","ticketId":"ticket-1","reason":"일정 변경","refundAcknowledged":true,"status":"PENDING_REVIEW","createdAt":"2026-08-12T00:00:00Z","updatedAt":"2026-08-12T00:00:00Z"}"""
+
+  protected fun challengeJson(): String =
+    """{"id":"challenge-1","platform":"android","challenge":"bm9uY2U=","expiresAt":"2099-01-01T00:00:00Z"}"""
+
+  protected fun pushTokenJson(): String =
+    """{"platform":"android","status":"ACTIVE","suffix":"9876","createdAt":"2026-08-12T00:00:00Z","updatedAt":"2026-08-12T00:00:00Z"}"""
+
+  protected fun virtualQrJson(): String =
+    """{"type":"VIRTUAL","ticketId":"ticket-1","issuedAt":"2026-08-12T00:00:00Z","eventTitle":"공연","seatLabel":"A1","performanceStartsAt":"2026-08-13T12:00:00Z","qrPreparedAt":"2026-08-12T00:00:00Z","realQrAvailableAt":"2026-08-13T09:00:00Z","admissionCredentialStatus":"READY","admissionChannel":"APP"}"""
+
+  protected fun admissionQrJson(): String =
+    """{"type":"ADMISSION","ticketId":"ticket-1","ownerId":"account-1","expiresAt":"2026-08-12T00:00:20Z","nonce":"nonce","signature":"signature","issuedAt":"2026-08-12T00:00:00Z","performanceStartsAt":"2026-08-13T12:00:00Z","preparedAt":"2026-08-12T00:00:00Z","activeAt":"2026-08-13T09:00:00Z","ttlSeconds":20,"traceCode":"TRACE","channel":"APP","emergencyReason":null}"""
 
   protected suspend fun createHttpsApi(storeCredential: Boolean = true): TicketGroundApiClient {
     val certificate = HeldCertificate.Builder().addSubjectAlternativeName("localhost").build()

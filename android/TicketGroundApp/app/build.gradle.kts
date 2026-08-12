@@ -17,6 +17,8 @@ android {
     versionCode = 1
     versionName = "0.1.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    buildConfigField("String", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "\"\"")
+    buildConfigField("boolean", "FCM_CONFIGURED", "false")
   }
 
   buildFeatures {

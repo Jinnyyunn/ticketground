@@ -51,11 +51,17 @@ class TicketGroundApiClient private constructor(
     .build()
   private val publicApi = PublicApi(this)
   private val accountApi = AccountApi(this)
+  private val lifecycleApi = LifecycleApi(this)
+  private val paymentsApi = TossPaymentApi(this, accountApi)
   private var compatibleHealth: ApiHealth? = null
 
   fun public(): PublicApi = publicApi
 
   fun account(): AccountApi = accountApi
+
+  fun lifecycle(): LifecycleApi = lifecycleApi
+
+  fun payments(): TossPaymentApi = paymentsApi
 
   suspend fun health(): ApiHealth = execute(ApiRequest(path = "/api/health"), ApiHealth.serializer())
 
