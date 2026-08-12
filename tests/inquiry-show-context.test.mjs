@@ -102,3 +102,29 @@ test("KakaoTalk consultation opens the configured channel chat", async (t) => {
     await page.close();
   }
 });
+
+test("KakaoTalk consultation falls back to the channel chat URL when SDK is unavailable", async (t) => {
+  const server = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 960 }, deviceScaleFactor: 1 });
+  await page.route("https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js", async (route) => {
+    await route.abort();
+  });
+  const popupPromise = page.waitForEvent("popup");
+
+  try {
+    await page.goto(`${server.baseUrl}/inquiry`, { waitUntil: "networkidle" });
+    const button = page.getByRole("button", { name: "카카오톡 1:1 상담" });
+    await button.waitFor({ timeout: 8000 });
+    assert.equal(await button.isDisabled(), false);
+    await button.click();
+    const popup = await popupPromise;
+    await popup.waitForURL("https://pf.kakao.com/_xmTniX/chat", { timeout: 8000 });
+    assert.equal(popup.url(), "https://pf.kakao.com/_xmTniX/chat");
+    await popup.close();
+  } finally {
+    await page.close();
+  }
+});

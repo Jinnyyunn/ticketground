@@ -38,6 +38,7 @@ declare global {
 
 const KAKAO_JAVASCRIPT_KEY = process.env.NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY?.trim() ?? "";
 const KAKAO_CHANNEL_PUBLIC_ID = "_xmTniX";
+const KAKAO_CHAT_URL = "https://pf.kakao.com/_xmTniX/chat";
 
 const statusMeta: Record<InquiryThread["status"], { readonly label: string; readonly className: string }> = {
   open: { label: "대기", className: "border-ticketground bg-card text-ticketground" },
@@ -112,7 +113,7 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
 
   function openKakaoChat() {
     if (!kakaoReady || !window.Kakao) {
-      setKakaoStatus("카카오톡 상담 연결을 준비 중입니다. 잠시 후 다시 시도해주세요.");
+      window.open(KAKAO_CHAT_URL, "_blank", "noopener,noreferrer");
       return;
     }
     window.Kakao.Channel.chat({ channelPublicId: KAKAO_CHANNEL_PUBLIC_ID });
@@ -250,7 +251,6 @@ export function InquiryThreadSurface({ threads: initialThreads, reservations, sh
             <button
               type="button"
               onClick={openKakaoChat}
-              disabled={!kakaoReady}
               className="h-10 whitespace-nowrap rounded-lg bg-[#FEE500] px-4 text-sm font-black text-[#191919] transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               aria-describedby="kakao-chat-status"
             >
