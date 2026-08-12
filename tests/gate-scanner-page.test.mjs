@@ -1,24 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { adminApi, api, appAttestation, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
+import {
+  adminApi,
+  api,
+  buyFirstNativeTicket,
+  issueIosAdmissionQr,
+  nativeGoogleLogin,
+  startAttestedServer,
+  trustIosDevice
+} from "./backend-test-utils.mjs";
 
 async function issueAdmissionQrPayload(server) {
   const { baseUrl } = server;
-  const { ticket } = await buyFirstTicket(baseUrl);
-  const device = await api(baseUrl, "/api/devices/trust", {
-    userId: "user_fan_a",
+  const login = await nativeGoogleLogin(baseUrl);
+  const { ticket } = await buyFirstNativeTicket(baseUrl, login);
+  const device = await trustIosDevice(baseUrl, login, {
     deviceId: "gate-page-test-iphone",
-    biometricVerified: true,
-    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "gate-page-test-iphone")
+    deviceName: "Gate Page Test iPhone"
   });
-  const qr = await api(baseUrl, "/api/tickets/qr", {
-    userId: "user_fan_a",
+  const qr = await issueIosAdmissionQr(baseUrl, login, {
     ticketId: ticket.id,
-    channel: "APP",
     deviceId: "gate-page-test-iphone",
-    deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "gate-page-test-iphone", ticket.id)
+    deviceToken: device.data.deviceToken
   });
   return JSON.stringify({
     ticketId: qr.data.ticketId,
@@ -30,7 +34,7 @@ async function issueAdmissionQrPayload(server) {
 }
 
 test("gate page: registering a token switches to the scanner, and manual QR entry admits a real ticket", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const issued = await adminApi(server, "/api/admin/gate-sessions", { gateLabel: "정문 A" });
   const qrPayload = await issueAdmissionQrPayload(server);
 
@@ -70,7 +74,7 @@ test("gate page: registering a token switches to the scanner, and manual QR entr
 });
 
 test("gate page: an invalid gate token is rejected with the server's error, not a silent failure", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const qrPayload = await issueAdmissionQrPayload(server);
 
   const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -91,7 +95,7 @@ test("gate page: an invalid gate token is rejected with the server's error, not 
 });
 
 test("gate page: a scan made while offline is queued, then confirmed automatically once back online", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const issued = await adminApi(server, "/api/admin/gate-sessions", { gateLabel: "정문 B" });
   const qrPayload = await issueAdmissionQrPayload(server);
 

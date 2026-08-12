@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
 import { configureSocialEnv, cookieHeaderFromSetCookie, PROVIDERS, redirected } from "./social-auth-test-helpers.mjs";
 
@@ -92,7 +92,8 @@ test("queue entry admits immediately under capacity and can be left", async (t) 
 
   const left = await request(server, `/api/me/queue-entries/${entered.data.id}`, {
     authorization: user.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "queue-leave-happy"
   });
   assert.equal(left.data.status, "LEFT");
 });
@@ -121,7 +122,8 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
 
   const extended = await request(server, `/api/me/seat-holds/${hold.data.id}/extend`, {
     authorization: user.authorization,
-    method: "PATCH"
+    method: "PATCH",
+    idempotencyKey: "hold-extend-happy"
   });
   assert.equal(extended.data.extensionsUsed, 1);
   assert.ok(Date.parse(extended.data.expiresAt) >= Date.parse(hold.data.expiresAt), "extension must not shorten the hold's expiry");
@@ -129,6 +131,7 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
   const overExtended = await request(server, `/api/me/seat-holds/${hold.data.id}/extend`, {
     authorization: user.authorization,
     method: "PATCH",
+    idempotencyKey: "hold-extend-over-limit",
     status: 409
   });
   assert.equal(overExtended.error.code, "HOLD_EXTENSION_LIMIT");
@@ -156,7 +159,8 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
 
   const cancelled = await request(server, `/api/me/reservation-drafts/${draft.data.id}`, {
     authorization: user.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "draft-cancel-happy"
   });
   assert.equal(cancelled.data.status, "CANCELLED");
 
@@ -169,7 +173,9 @@ test("seat hold create/extend/convert/cancel happy path", async (t) => {
 
 test("a single-seat hold can be purchased only by its owner and is converted", async (t) => {
   configureGoogleEnv(t, true);
-  const server = await startServer(t);
+  const server = await startServer(t, {
+    env: { NODE_ENV: "test", TIG_TOSSPAYMENTS_TEST_MODE: "1" }
+  });
   const user = await googleLogin(server);
   const { performanceDateId, tickets } = await onSaleTickets(server, 1);
   const ticketId = tickets[0].id;
@@ -221,6 +227,7 @@ test("a single-seat hold can be purchased only by its owner and is converted", a
     }
   });
   assert.equal(purchase.data.ticket.status, "OWNED");
+  assert.equal(purchase.data.payment.amount, tickets[0].faceValue + 2000);
 
   const ownedTickets = await request(server, "/api/me/tickets", {
     authorization: user.authorization
@@ -237,6 +244,73 @@ test("a single-seat hold can be purchased only by its owner and is converted", a
   assert.equal(purchasedTicket.status, "OWNED");
   assert.equal(purchasedTicket.heldBy, undefined);
   assert.equal(purchasedTicket.holdExpiresAt, undefined);
+});
+
+test("a reservation draft purchases its reserved ticket with the server total", async (t) => {
+  configureGoogleEnv(t, true);
+  const server = await startServer(t, {
+    env: { NODE_ENV: "test", TIG_TOSSPAYMENTS_TEST_MODE: "1" }
+  });
+  const user = await googleLogin(server);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 1);
+  const ticketId = tickets[0].id;
+  const hold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-hold",
+    body: { performanceDateId, ticketIds: [ticketId] }
+  });
+  const draft = await request(server, "/api/me/reservation-drafts", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-create",
+    body: { holdId: hold.data.id }
+  });
+  await verifyIdentity(server.baseUrl, user.userId, "010-9000-0089");
+
+  const purchase = await request(server, "/api/payments/tosspayments/purchase", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-purchase",
+    body: {
+      userId: user.userId,
+      ticketId,
+      reservationDraftId: draft.data.id,
+      paymentMethod: "CREDIT_CARD",
+      tossPaymentKey: "android-draft-payment"
+    }
+  });
+
+  assert.equal(purchase.data.ticket.status, "OWNED");
+  assert.equal(purchase.data.payment.amount, draft.data.amount.total);
+  assert.equal(purchase.data.ticket.faceValue, tickets[0].faceValue);
+  const replay = await request(server, "/api/payments/tosspayments/purchase", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "android-draft-purchase",
+    body: {
+      userId: user.userId,
+      ticketId,
+      reservationDraftId: draft.data.id,
+      paymentMethod: "CREDIT_CARD",
+      tossPaymentKey: "ignored-on-replay"
+    }
+  });
+  assert.equal(replay.data.payment.amount, draft.data.amount.total);
+  assert.equal(replay.data.tosspayments.replayed, true);
+  const confirmed = await request(server, `/api/me/reservation-drafts/${draft.data.id}`, {
+    authorization: user.authorization
+  });
+  assert.equal(confirmed.data.status, "CONFIRMED");
+  assert.equal(draft.data.amount.total, tickets[0].faceValue + 2000);
+  const owned = await request(server, "/api/me/tickets", { authorization: user.authorization });
+  assert.equal(owned.data.find((ticket) => ticket.id === ticketId).payment.amount, draft.data.amount.total);
+  const finance = await adminApi(server, `/api/admin/workspaces/finance?eventId=${tickets[0].eventId}&limit=100`);
+  assert.equal(finance.data.transactions.find((item) => item.ticketId === ticketId).amount, draft.data.amount.total);
+  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=PRIMARY_PURCHASE");
+  const ledger = audit.data.ledger.find((item) => item.payload.ticketId === ticketId);
+  assert.equal(ledger.payload.price, draft.data.amount.total);
+  assert.equal(ledger.payload.amount, draft.data.amount.total);
 });
 
 test("seat hold requires an idempotency key and replays identical retries", async (t) => {
@@ -370,6 +444,7 @@ test("only the owning user can inspect or mutate a seat hold or reservation draf
   const strangerExtend = await request(server, `/api/me/seat-holds/${hold.data.id}/extend`, {
     authorization: stranger.authorization,
     method: "PATCH",
+    idempotencyKey: "stranger-extend",
     status: 403
   });
   assert.equal(strangerExtend.error.code, "NOT_OWNER");
@@ -377,6 +452,7 @@ test("only the owning user can inspect or mutate a seat hold or reservation draf
   const strangerRelease = await request(server, `/api/me/seat-holds/${hold.data.id}`, {
     authorization: stranger.authorization,
     method: "DELETE",
+    idempotencyKey: "stranger-release",
     status: 403
   });
   assert.equal(strangerRelease.error.code, "NOT_OWNER");
@@ -418,4 +494,220 @@ test("expired holds and reservation drafts release seats back to ON_SALE", async
   const stateAfterExpiry = await api(laterServer.baseUrl, "/api/state");
   const ticket = stateAfterExpiry.data.tickets.find((item) => item.id === tickets[0].id);
   assert.equal(ticket.status, "ON_SALE");
+});
+
+test("principal booking mutation retries replay exact durable results and bound receipts", async (t) => {
+  configureGoogleEnv(t, true);
+  const tmpDataDir = await mkdtemp(path.join(tmpdir(), "ticketground-booking-replay-"));
+  const dbPath = path.join(tmpDataDir, "db.json");
+  t.after(() => rm(tmpDataDir, { recursive: true, force: true }));
+
+  const server = await startServer(t, { dbPath });
+  const user = await googleLogin(server);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 3);
+
+  const queue = await request(server, "/api/me/queue-entries", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "queue-enter-stable",
+    body: { performanceDateId }
+  });
+  const left = await request(server, `/api/me/queue-entries/${queue.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "queue-leave-stable"
+  });
+
+  const extendHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "extend-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[0].id] }
+  });
+  const extended = await request(server, `/api/me/seat-holds/${extendHold.data.id}/extend`, {
+    authorization: user.authorization,
+    method: "PATCH",
+    idempotencyKey: "hold-extend-stable"
+  });
+
+  const releaseHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "release-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[1].id] }
+  });
+  const released = await request(server, `/api/me/seat-holds/${releaseHold.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "hold-release-stable"
+  });
+
+  const draftHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "draft-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[2].id] }
+  });
+  const draft = await request(server, "/api/me/reservation-drafts", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "draft-create-stable",
+    body: { holdId: draftHold.data.id }
+  });
+  const cancelled = await request(server, `/api/me/reservation-drafts/${draft.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "draft-cancel-stable"
+  });
+
+  await server.stop();
+  const replayServer = await startServer(t, { dbPath });
+  const replayUser = await googleLogin(replayServer);
+
+  const queueReplay = await request(replayServer, "/api/me/queue-entries", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "queue-enter-stable",
+    body: { performanceDateId }
+  });
+  const leftReplay = await request(replayServer, `/api/me/queue-entries/${queue.data.id}`, {
+    authorization: replayUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "queue-leave-stable"
+  });
+  const extendedReplay = await request(replayServer, `/api/me/seat-holds/${extendHold.data.id}/extend`, {
+    authorization: replayUser.authorization,
+    method: "PATCH",
+    idempotencyKey: "hold-extend-stable"
+  });
+  const releasedReplay = await request(replayServer, `/api/me/seat-holds/${releaseHold.data.id}`, {
+    authorization: replayUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "hold-release-stable"
+  });
+  const cancelledReplay = await request(replayServer, `/api/me/reservation-drafts/${draft.data.id}`, {
+    authorization: replayUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "draft-cancel-stable"
+  });
+
+  assert.deepEqual(queueReplay.data, queue.data);
+  assert.deepEqual(leftReplay.data, left.data);
+  assert.deepEqual(extendedReplay.data, extended.data);
+  assert.deepEqual(releasedReplay.data, released.data);
+  assert.deepEqual(cancelledReplay.data, cancelled.data);
+
+  const conflicting = await request(replayServer, `/api/me/seat-holds/${releaseHold.data.id}/extend`, {
+    authorization: replayUser.authorization,
+    method: "PATCH",
+    idempotencyKey: "hold-extend-stable",
+    status: 409
+  });
+  assert.equal(conflicting.error.code, "IDEMPOTENCY_CONFLICT");
+
+  await replayServer.stop();
+  const persisted = JSON.parse(await readFile(dbPath, "utf8"));
+  persisted.apiMutationReceipts = [
+    ...Array.from({ length: 1000 }, (_, index) => ({
+      id: `prefill-${index}`,
+      kind: "prefill",
+      userId: "prefill",
+      keyDigest: `prefill-key-${index}`,
+      requestDigest: `prefill-request-${index}`,
+      response: { index },
+      createdAt: "2026-09-18T00:00:00.000Z"
+    })),
+    ...persisted.apiMutationReceipts
+  ];
+  await writeFile(dbPath, JSON.stringify(persisted));
+
+  const boundedServer = await startServer(t, { dbPath });
+  const boundedUser = await googleLogin(boundedServer);
+  await request(boundedServer, `/api/me/queue-entries/${queue.data.id}`, {
+    authorization: boundedUser.authorization,
+    method: "DELETE",
+    idempotencyKey: "queue-leave-bounded-new"
+  });
+  const bounded = JSON.parse(await readFile(dbPath, "utf8"));
+  assert.ok(bounded.apiMutationReceipts.length > 1000);
+  assert.equal(bounded.apiMutationReceipts.some((receipt) => receipt.id === "prefill-0"), true);
+});
+
+test("hold and draft creation replay immutable first responses after lifecycle changes and restart", async (t) => {
+  configureGoogleEnv(t, true);
+  const tmpDataDir = await mkdtemp(path.join(tmpdir(), "ticketground-booking-create-replay-"));
+  const dbPath = path.join(tmpDataDir, "db.json");
+  t.after(() => rm(tmpDataDir, { recursive: true, force: true }));
+
+  const server = await startServer(t, { dbPath });
+  const user = await googleLogin(server);
+  const { performanceDateId, tickets } = await onSaleTickets(server, 2);
+  const holdBody = { performanceDateId, ticketIds: [tickets[0].id] };
+  const firstHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-hold-create",
+    body: holdBody
+  });
+  await request(server, `/api/me/seat-holds/${firstHold.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "release-after-create"
+  });
+
+  const draftHold = await request(server, "/api/me/seat-holds", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-hold",
+    body: { performanceDateId, ticketIds: [tickets[1].id] }
+  });
+  const draftBody = { holdId: draftHold.data.id };
+  const firstDraft = await request(server, "/api/me/reservation-drafts", {
+    authorization: user.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-create",
+    body: draftBody
+  });
+  await request(server, `/api/me/reservation-drafts/${firstDraft.data.id}`, {
+    authorization: user.authorization,
+    method: "DELETE",
+    idempotencyKey: "cancel-after-create"
+  });
+
+  await server.stop();
+  const replayServer = await startServer(t, { dbPath });
+  const replayUser = await googleLogin(replayServer);
+  const holdReplay = await request(replayServer, "/api/me/seat-holds", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-hold-create",
+    body: holdBody
+  });
+  const draftReplay = await request(replayServer, "/api/me/reservation-drafts", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-create",
+    body: draftBody
+  });
+  assert.deepEqual(holdReplay.data, firstHold.data);
+  assert.equal(holdReplay.data.status, "ACTIVE");
+  assert.deepEqual(draftReplay.data, firstDraft.data);
+  assert.equal(draftReplay.data.status, "PENDING_PAYMENT");
+
+  const holdConflict = await request(replayServer, "/api/me/seat-holds", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-hold-create",
+    body: { performanceDateId, ticketIds: [tickets[1].id] },
+    status: 409
+  });
+  assert.equal(holdConflict.error.code, "IDEMPOTENCY_CONFLICT");
+  const draftConflict = await request(replayServer, "/api/me/reservation-drafts", {
+    authorization: replayUser.authorization,
+    method: "POST",
+    idempotencyKey: "immutable-draft-create",
+    body: { holdId: firstHold.data.id },
+    status: 409
+  });
+  assert.equal(draftConflict.error.code, "IDEMPOTENCY_CONFLICT");
 });

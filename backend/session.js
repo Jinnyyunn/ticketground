@@ -6,7 +6,7 @@ const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth
 const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
 
-export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, issueNativeSession, now, stableId }) {
+export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, idempotentMutation, issueNativeSession, now, stableId }) {
   function publicSessionUserWithCredential(db, user) {
     const session = issueNativeSession(db, user.id);
     return { ...publicSessionUser(user), credential: session.credential, credentialExpiresAt: session.expiresAt };
@@ -120,22 +120,29 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     return { user: publicSessionUser(user), session };
   }
 
-  function updateDemoProfile(db, { userId, name }) {
-    const user = findUser(db, userId);
+  function updateDemoProfile(db, { userId, name, idempotencyKey }) {
     const nextName = String(name || "").trim();
-    if (!nextName || nextName.length > 12) {
-      throw httpError(422, "INVALID_PROFILE_NAME", "닉네임은 1자 이상 12자 이하로 입력해주세요.");
-    }
-    const previousName = user.name;
-    user.name = nextName;
-    user.profileConfirmedAt = now();
-    appendLedger(db, user.id, "DEMO_PROFILE_UPDATED", {
-      previousNameDigest: hmac(`profile_name:${previousName}`),
-      nextNameDigest: hmac(`profile_name:${nextName}`),
-      updatedAt: now(),
-      policy: "demo-session-profile-edit"
+    return idempotentMutation(db, {
+      kind: "profile-update",
+      userId,
+      key: idempotencyKey,
+      payload: { name: nextName }
+    }, () => {
+      const user = findUser(db, userId);
+      if (!nextName || nextName.length > 12) {
+        throw httpError(422, "INVALID_PROFILE_NAME", "닉네임은 1자 이상 12자 이하로 입력해주세요.");
+      }
+      const previousName = user.name;
+      user.name = nextName;
+      user.profileConfirmedAt = now();
+      appendLedger(db, user.id, "DEMO_PROFILE_UPDATED", {
+        previousNameDigest: hmac(`profile_name:${previousName}`),
+        nextNameDigest: hmac(`profile_name:${nextName}`),
+        updatedAt: now(),
+        policy: "demo-session-profile-edit"
+      });
+      return publicSessionUser(user);
     });
-    return publicSessionUser(user);
   }
 
   return {

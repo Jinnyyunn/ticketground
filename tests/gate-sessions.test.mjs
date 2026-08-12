@@ -1,29 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, appAttestation, buyFirstTicket, issueGateToken, startServer } from "./backend-test-utils.mjs";
+import {
+  adminApi,
+  api,
+  buyFirstNativeTicket,
+  issueGateToken,
+  issueIosAdmissionQr,
+  nativeGoogleLogin,
+  startAttestedServer,
+  startServer,
+  trustIosDevice
+} from "./backend-test-utils.mjs";
 
 async function issueAdmissionQr(server) {
   const { baseUrl } = server;
-  const { ticket } = await buyFirstTicket(baseUrl);
-  const device = await api(baseUrl, "/api/devices/trust", {
-    userId: "user_fan_a",
+  const login = await nativeGoogleLogin(baseUrl);
+  const { ticket } = await buyFirstNativeTicket(baseUrl, login);
+  const device = await trustIosDevice(baseUrl, login, {
     deviceId: "iphone-gate-test",
-    biometricVerified: true,
-    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "iphone-gate-test")
+    deviceName: "Gate Test iPhone"
   });
-  const qr = await api(baseUrl, "/api/tickets/qr", {
-    userId: "user_fan_a",
+  const qr = await issueIosAdmissionQr(baseUrl, login, {
     ticketId: ticket.id,
-    channel: "APP",
     deviceId: "iphone-gate-test",
-    deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "iphone-gate-test", ticket.id)
+    deviceToken: device.data.deviceToken
   });
   return { baseUrl, ticket, qr };
 }
 
 test("gate verification without a gate token is rejected before touching the ticket", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl, qr } = await issueAdmissionQr(server);
 
   const rejected = await api(baseUrl, "/api/gate/verify", qr.data, 401);
@@ -35,7 +41,7 @@ test("gate verification without a gate token is rejected before touching the tic
 });
 
 test("gate verification rejects an unknown or revoked gate token", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl, qr } = await issueAdmissionQr(server);
 
   const unknown = await api(baseUrl, "/api/gate/verify", qr.data, 401, { "x-gate-token": "not-a-real-token" });
@@ -48,7 +54,7 @@ test("gate verification rejects an unknown or revoked gate token", async (t) => 
 });
 
 test("a valid gate token admits the ticket once and records which gate consumed it", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl, qr } = await issueAdmissionQr(server);
   const gateToken = await issueGateToken(server, "GATE-A");
 
@@ -62,7 +68,7 @@ test("a valid gate token admits the ticket once and records which gate consumed 
 });
 
 test("two gates racing the same QR: exactly one is admitted, the other is told who won", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl, qr } = await issueAdmissionQr(server);
   const gateATokenPromise = issueGateToken(server, "GATE-A");
   const gateBTokenPromise = issueGateToken(server, "GATE-B");
@@ -83,7 +89,7 @@ test("two gates racing the same QR: exactly one is admitted, the other is told w
 });
 
 test("a gate token scoped to one event cannot admit a ticket from a different event", async (t) => {
-  const server = await startServer(t);
+  const server = await startAttestedServer(t);
   const { baseUrl, qr, ticket } = await issueAdmissionQr(server);
 
   const wrongEventToken = await adminApi(server, "/api/admin/gate-sessions", {

@@ -6,15 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { createTicketgroundApp } from "../backend/app.js";
-
-const APP_ATTESTATION_SECRET = "risk-gate-app-secret";
-
-function appAttestation(purpose, ...parts) {
-  return crypto
-    .createHmac("sha256", APP_ATTESTATION_SECRET)
-    .update(["app", purpose, ...parts.map((part) => String(part || ""))].join(":"))
-    .digest("hex");
-}
+import { startAppAttestVerifier } from "./backend-test-utils.mjs";
 
 // NODE_ENV=production (as used by `npm test`) blocks PortOne Danal's mock
 // verification unless this is explicitly set - same production safeguard
@@ -38,11 +30,19 @@ function withPortOneTestMode(t) {
 async function ticketgroundApp(t) {
   const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-risk-gate-"));
   t.after(() => rm(tempDir, { recursive: true, force: true }));
+  const verifier = await startAppAttestVerifier(t);
+  const previousTlsSetting = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = verifier.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  t.after(() => {
+    if (previousTlsSetting === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTlsSetting;
+  });
   return await createTicketgroundApp({
     dbPath: path.join(tempDir, "db.json"),
     mediaDir: { directory: path.join(tempDir, "uploads"), urlPrefix: "/manual-uploads" },
     runtime: {
-      appAttestationSecret: APP_ATTESTATION_SECRET,
+      appAttestVerifierToken: verifier.env.TIG_APP_ATTEST_VERIFIER_TOKEN,
+      appAttestVerifierURL: verifier.env.TIG_APP_ATTEST_VERIFIER_URL,
       nowOverride: "2026-09-19T18:30:00+09:00",
       secret: "risk-gate-runtime-secret"
     },
@@ -58,22 +58,22 @@ async function ticketgroundApp(t) {
   });
 }
 
-function requestStream(method, url, body) {
+function requestStream(method, url, body, authorization) {
   const request = Readable.from(body ? [Buffer.from(JSON.stringify(body))] : []);
   request.method = method;
   request.url = url;
-  request.headers = { host: "risk-gate.test" };
+  request.headers = { host: "risk-gate.test", ...(authorization ? { authorization } : {}) };
   request.socket = { remoteAddress: "127.0.0.1" };
   return request;
 }
 
-async function requestApp(app, { body, expectedStatus = 200, method, url }) {
+async function requestApp(app, { authorization, body, expectedStatus = 200, method, url }) {
   const response = { status: 0, body: "" };
   const res = {
     writeHead(status) { response.status = status; },
     end(chunk = "") { response.body += chunk.toString(); }
   };
-  await app.handleRequest(requestStream(method, url, body), res, app.db, "public");
+  await app.handleRequest(requestStream(method, url, body, authorization), res, app.db, "public");
   const json = JSON.parse(response.body);
   assert.equal(response.status, expectedStatus, `${url} status ${response.status}: ${response.body}`);
   return json;
@@ -100,13 +100,58 @@ async function buyFirstTicket(app, userId = "user_fan_a", eventId = "event_kpop_
   return purchase.data.ticket;
 }
 
+function nativeAuthorization(app, userId) {
+  const credential = `risk-gate-native-${userId}`;
+  const credentialHash = crypto.createHash("sha256").update(credential).digest("hex");
+  if (!app.db.nativeSessions.some((session) => session.credentialHash === credentialHash)) {
+    app.db.nativeSessions.push({
+      id: `native_session_risk_gate_${userId}`,
+      userId,
+      credentialHash,
+      issuedAt: "2026-09-19T08:00:00.000Z",
+      expiresAt: "2026-10-19T08:00:00.000Z",
+      revokedAt: null
+    });
+  }
+  return `Bearer ${credential}`;
+}
+
+async function issueIosProof(app, authorization, { purpose, deviceId, ticketId, kind }) {
+  const challenge = await requestApp(app, {
+    authorization,
+    method: "POST",
+    url: "/api/me/device-attestation/challenges",
+    body: { platform: "ios", purpose, deviceId, ...(ticketId ? { ticketId } : {}) }
+  });
+  return {
+    platform: "ios",
+    challengeId: challenge.data.id,
+    keyId: "test-app-attest-key",
+    [kind === "attestation" ? "attestationObject" : "assertion"]: "test-app-attest-proof"
+  };
+}
+
 async function trustAndIssueQr(app, { userId, ticketId, deviceId, otpVerified, delayAcknowledged, expectedStatus }) {
+  const authorization = nativeAuthorization(app, userId);
+  const trustProof = await issueIosProof(app, authorization, {
+    purpose: "TRUST_DEVICE",
+    deviceId,
+    kind: "attestation"
+  });
   const device = await requestApp(app, {
+    authorization,
     method: "POST",
     url: "/api/devices/trust",
-    body: { userId, deviceId, biometricVerified: true, appAttestation: appAttestation("TRUST_DEVICE", userId, deviceId) }
+    body: { userId, deviceId, biometricVerified: true, ...trustProof }
+  });
+  const qrProof = await issueIosProof(app, authorization, {
+    purpose: "ISSUE_QR",
+    deviceId,
+    ticketId,
+    kind: "assertion"
   });
   return requestApp(app, {
+    authorization,
     method: "POST",
     url: "/api/tickets/qr",
     expectedStatus,
@@ -116,7 +161,7 @@ async function trustAndIssueQr(app, { userId, ticketId, deviceId, otpVerified, d
       channel: "APP",
       deviceId,
       deviceToken: device.data.deviceToken,
-      appAttestation: appAttestation("ISSUE_QR", userId, deviceId, ticketId),
+      ...qrProof,
       otpVerified,
       delayAcknowledged
     }

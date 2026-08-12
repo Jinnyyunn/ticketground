@@ -282,7 +282,12 @@ async function handleApi(req, res, db, surface) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       throw httpError(400, "INVALID_LIMIT", "limit은 1 이상 100 이하의 정수여야 합니다.");
     }
-    return publicCatalog(db, { limit });
+    const rawCursor = url.searchParams.get("cursor");
+    const offset = rawCursor === null ? 0 : Number(rawCursor);
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw httpError(400, "INVALID_CURSOR", "cursor 값을 확인해 주세요.");
+    }
+    return publicCatalog(db, { limit, offset });
   }
   if (req.method === "GET" && url.pathname === "/api/discovery/v1/regions") return publicRegions(db);
   if (req.method === "GET" && url.pathname === "/api/discovery/v1/contract") {
@@ -311,21 +316,24 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       decodeEventId(principalWatchlistMatch[1]),
-      body
+      body,
+      parseIdempotencyKey(req)
     );
   }
   if (req.method === "DELETE" && principalWatchlistMatch) {
     return removeWatchlistForPrincipal(
       db,
       authenticateNativeSession(db, req).user.id,
-      decodeEventId(principalWatchlistMatch[1])
+      decodeEventId(principalWatchlistMatch[1]),
+      parseIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && url.pathname === "/api/me/queue-entries") {
     requireBody(body, ["performanceDateId"]);
     return enterQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      performanceDateId: body.performanceDateId
+      performanceDateId: body.performanceDateId,
+      idempotencyKey: parseIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && queueEntryMatch) {
@@ -337,7 +345,8 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "DELETE" && queueEntryMatch) {
     return leaveQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      entryId: queueEntryMatch[1]
+      entryId: queueEntryMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/seat-holds") {
@@ -358,13 +367,15 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "PATCH" && seatHoldExtendMatch) {
     return extendSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      holdId: seatHoldExtendMatch[1]
+      holdId: seatHoldExtendMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "DELETE" && seatHoldMatch) {
     return releaseSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      holdId: seatHoldMatch[1]
+      holdId: seatHoldMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/reservation-drafts") {
@@ -384,7 +395,8 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "DELETE" && reservationDraftMatch) {
     return cancelReservationDraft(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      draftId: reservationDraftMatch[1]
+      draftId: reservationDraftMatch[1],
+      idempotencyKey: requireIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && url.pathname === "/api/me/resale-pools") {
@@ -411,7 +423,8 @@ async function handleApi(req, res, db, surface) {
     return cancelResalePoolForPrincipal(
       db,
       authenticateNativeSession(db, req).user.id,
-      principalResalePoolMatch[1]
+      principalResalePoolMatch[1],
+      parseIdempotencyKey(req)
     );
   }
   if (req.method === "GET" && url.pathname === "/api/me/cancellation-requests") {
@@ -433,6 +446,7 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["purpose", "deviceId"]);
     return issueAppAttestChallenge(db, {
       userId: authenticateNativeSession(db, req).user.id,
+      platform: body.platform,
       purpose: body.purpose,
       deviceId: body.deviceId,
       ticketId: body.ticketId
@@ -461,7 +475,8 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["name"]);
     return updateDemoProfile(db, {
       userId: authenticateNativeSession(db, req).user.id,
-      name: body.name
+      name: body.name,
+      idempotencyKey: parseIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && url.pathname === "/api/me/support/threads") {
@@ -725,8 +740,11 @@ async function handleApi(req, res, db, surface) {
 
     const purchasable = assertTicketPurchasable(db, body.ticketId, {
       allowOwnedSingleSeatHold: true,
-      userId: purchaseUserId
+      userId: purchaseUserId,
+      reservationDraftId: body.reservationDraftId
     });
+    const approvedAmount = purchasable.reservationDraft?.amount?.total
+      ?? purchasable.ticket.faceValue + SERVICE_FEE_PER_SEAT;
     const receipt = await confirmTosspaymentsPayment(db, {
       ticketId: body.ticketId,
       userId: purchaseUserId,
@@ -737,23 +755,26 @@ async function handleApi(req, res, db, surface) {
       // service fee (checkout-panel.tsx trustedTotalAmount) - the server
       // must expect that same total, not faceValue alone, or every real
       // (non-mock) purchase fails TOSSPAYMENTS_AMOUNT_MISMATCH.
-      expectedAmount: purchasable.ticket.faceValue + SERVICE_FEE_PER_SEAT
+      expectedAmount: approvedAmount
     });
     let result;
     try {
       result = buyPrimary(db, {
         userId: purchaseUserId,
         ticketId: body.ticketId,
-        paymentMethod: body.paymentMethod,
+        paymentMethod: receipt.paymentMethod,
         pgTransactionId: receipt.tossPaymentKey,
         idempotencyKey,
-        allowOwnedSingleSeatHold: true
+        allowOwnedSingleSeatHold: true,
+        reservationDraftId: body.reservationDraftId,
+        approvedAmount,
+        idempotencyPaymentMethod: body.paymentMethod
       });
     } catch (error) {
       appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {
         ticketId: body.ticketId,
         tossPaymentKey: receipt.tossPaymentKey,
-        amount: purchasable.ticket.faceValue,
+        amount: approvedAmount,
         reason: error.code || "ALLOCATION_FAILED"
       });
       throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {
@@ -854,7 +875,7 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
     requireBody(body, ["deviceId", "biometricVerified"]);
     const trustUserId = resolvePurchaseUserId(db, req, body);
-    await verifyAppAttestProof(db, { userId: trustUserId, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
+    await verifyAppAttestProof(db, { userId: trustUserId, platform: body.platform, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
     return trustDevice(db, { ...body, userId: trustUserId, attestationVerified: true });
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/qr") {
@@ -862,7 +883,7 @@ async function handleApi(req, res, db, surface) {
     const qrUserId = resolvePurchaseUserId(db, req, body);
     if (String(body.channel || "WEB").toUpperCase() === "APP") {
       requireBody(body, ["deviceId"]);
-      await verifyAppAttestProof(db, { userId: qrUserId, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
+      await verifyAppAttestProof(db, { userId: qrUserId, platform: body.platform, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
       return issueQr(db, { ...body, userId: qrUserId, attestationVerified: true });
     }
     return issueQr(db, { ...body, userId: qrUserId });

@@ -20,6 +20,7 @@ async function nativeLogin(server) {
 async function request(server, pathName, {
   authorization,
   body,
+  idempotencyKey,
   method = "GET",
   status = 200
 } = {}) {
@@ -28,6 +29,7 @@ async function request(server, pathName, {
     method,
     headers: {
       ...(authorization ? { Authorization: authorization } : {}),
+      ...(idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : {}),
       ...(hasBody ? { "Content-Type": "application/json" } : {})
     },
     body: hasBody ? JSON.stringify(body) : undefined
@@ -87,6 +89,7 @@ test("native watchlist binds reads and preferences to the bearer principal", asy
   const created = await request(server, `/api/me/watchlist/${eventID}`, {
     authorization: login.authorization,
     method: "PUT",
+    idempotencyKey: "watchlist-create-stable",
     body: {
       userId: "user_fan_a",
       channels: ["APP_PUSH"],
@@ -98,6 +101,15 @@ test("native watchlist binds reads and preferences to the bearer principal", asy
   assert.equal(created.data.userId, undefined);
   assert.equal(created.data.notificationEnabled, true);
   assert.ok(created.data.notificationJobs.every((job) => job.status === "SCHEDULED"));
+
+  const conflict = await request(server, `/api/me/watchlist/${eventID}`, {
+    authorization: login.authorization,
+    method: "PUT",
+    idempotencyKey: "watchlist-create-stable",
+    body: { channels: ["APP_PUSH"], calendarEnabled: false, notificationEnabled: false },
+    status: 409
+  });
+  assert.equal(conflict.error.code, "IDEMPOTENCY_CONFLICT");
 
   const own = await request(server, "/api/me/watchlist?userId=user_fan_a", {
     authorization: login.authorization
@@ -138,6 +150,7 @@ test("native watchlist persists across restart and delete cancels scheduled jobs
   await request(firstServer, `/api/me/watchlist/${eventID}`, {
     authorization: login.authorization,
     method: "PUT",
+    idempotencyKey: "watchlist-persist-create",
     body: { channels: ["APP_PUSH"], notificationEnabled: true, calendarEnabled: false }
   });
   await firstServer.stop();
@@ -150,13 +163,15 @@ test("native watchlist persists across restart and delete cancels scheduled jobs
 
   const removed = await request(secondServer, `/api/me/watchlist/${eventID}`, {
     authorization: login.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "watchlist-persist-delete"
   });
   assert.deepEqual(removed.data, { deleted: true, eventId: eventID });
 
   const retried = await request(secondServer, `/api/me/watchlist/${eventID}`, {
     authorization: login.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "watchlist-persist-delete"
   });
   assert.deepEqual(retried.data, { deleted: true, eventId: eventID });
 
@@ -182,7 +197,8 @@ test("native watchlist cannot delete another user's event", async (t) => {
 
   const absentForPrincipal = await request(server, `/api/me/watchlist/${eventID}`, {
     authorization: login.authorization,
-    method: "DELETE"
+    method: "DELETE",
+    idempotencyKey: "watchlist-absent-delete"
   });
   assert.deepEqual(absentForPrincipal.data, { deleted: true, eventId: eventID });
 

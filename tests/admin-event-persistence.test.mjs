@@ -35,7 +35,6 @@ async function ticketgroundApp(tempDir) {
     dbPath: path.join(tempDir, "db.json"),
     mediaDir: { directory: path.join(tempDir, "uploads"), urlPrefix: "/manual-uploads" },
     runtime: {
-      appAttestationSecret: "admin-event-persistence-app-secret",
       nowOverride: "2026-05-01T12:00:00+09:00",
       secret: "admin-event-persistence-runtime-secret"
     },

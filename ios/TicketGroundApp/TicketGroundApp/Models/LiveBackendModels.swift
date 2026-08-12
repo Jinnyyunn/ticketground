@@ -1170,9 +1170,7 @@ enum LiveAuthenticatedAction: Equatable {
     case ticketPurchase(userID: String, ticketID: String, idempotencyKey: String)
     case identityStart(userID: String, phone: String, idempotencyKey: String)
     case identityConfirm(userID: String, phone: String, verificationID: String, idempotencyKey: String)
-    case trustDevice(userID: String, deviceID: String, attestation: String, idempotencyKey: String)
     case pushToken(userID: String, token: String, idempotencyKey: String)
-    case admissionQR(userID: String, ticketID: String, deviceID: String, attestation: String, idempotencyKey: String)
     case virtualQR(userID: String, ticketID: String, idempotencyKey: String)
 
     var endpoint: LiveAPIEndpoint {
@@ -1183,9 +1181,7 @@ enum LiveAuthenticatedAction: Equatable {
         case .ticketPurchase: return .ticketPurchase
         case .identityStart: return .identityStart
         case .identityConfirm: return .identityConfirm
-        case .trustDevice: return .deviceTrust
         case .pushToken: return .pushToken
-        case .admissionQR: return .ticketQR
         case .virtualQR: return .virtualQR
         }
     }
@@ -1231,17 +1227,9 @@ enum LiveAuthenticatedAction: Equatable {
             owner = (userID, "userId")
             body = ["userId": userID, "phone": phone, "identityVerificationId": verificationID]
             idempotencyKey = key
-        case let .trustDevice(userID, deviceID, attestation, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "deviceId": deviceID, "biometricVerified": true, "appAttestation": attestation]
-            idempotencyKey = key
         case let .pushToken(userID, token, key):
             owner = (userID, "userId")
             body = ["userId": userID, "platform": "ios", "token": token]
-            idempotencyKey = key
-        case let .admissionQR(userID, ticketID, deviceID, attestation, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "ticketId": ticketID, "channel": "APP", "deviceId": deviceID, "appAttestation": attestation]
             idempotencyKey = key
         case let .virtualQR(userID, ticketID, key):
             owner = (userID, "userId")

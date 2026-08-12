@@ -1,9 +1,9 @@
 export function createEngagementBackend({
   appendLedger,
   findUser,
-  hash,
   httpError,
   id,
+  idempotentMutation,
   now,
   offsetIso,
   primaryDate,
@@ -140,44 +140,58 @@ export function createEngagementBackend({
     return { watchlist: watch, event, notificationJobs: jobs };
   }
 
-  function upsertWatchlistForPrincipal(db, userId, eventId, preferences) {
-    if (preferences === null || typeof preferences !== "object" || Array.isArray(preferences)) {
-      throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
-    }
-    for (const field of ["calendarEnabled", "notificationEnabled"]) {
-      if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
+  function upsertWatchlistForPrincipal(db, userId, eventId, preferences, idempotencyKey) {
+    return idempotentMutation(db, {
+      kind: "watchlist-upsert",
+      userId,
+      key: idempotencyKey,
+      payload: { eventId, preferences }
+    }, () => {
+      if (preferences === null || typeof preferences !== "object" || Array.isArray(preferences)) {
         throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
       }
-    }
-    let normalizedPreferences = preferences;
-    if (Object.hasOwn(preferences, "channels")) {
-      const supportedChannels = new Set(["APP_PUSH", "EMAIL", "KAKAO", "SMS"]);
-      const channels = preferences.channels;
-      if (!Array.isArray(channels) || channels.length === 0 || channels.some((channel) => (
-        typeof channel !== "string" || !supportedChannels.has(channel.toUpperCase())
-      ))) {
-        throw httpError(400, "INVALID_WATCHLIST_CHANNELS", "관심공연 알림 채널을 확인해주세요.");
+      for (const field of ["calendarEnabled", "notificationEnabled"]) {
+        if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
+          throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+        }
       }
-      normalizedPreferences = {
-        ...preferences,
-        channels: [...new Set(channels.map((channel) => channel.toUpperCase()))]
-      };
-    }
-    const result = upsertWatchlist(db, { ...normalizedPreferences, userId, eventId });
-    return publicWatchlistItem(db, result.watchlist);
+      let normalizedPreferences = preferences;
+      if (Object.hasOwn(preferences, "channels")) {
+        const supportedChannels = new Set(["APP_PUSH", "EMAIL", "KAKAO", "SMS"]);
+        const channels = preferences.channels;
+        if (!Array.isArray(channels) || channels.length === 0 || channels.some((channel) => (
+          typeof channel !== "string" || !supportedChannels.has(channel.toUpperCase())
+        ))) {
+          throw httpError(400, "INVALID_WATCHLIST_CHANNELS", "관심공연 알림 채널을 확인해주세요.");
+        }
+        normalizedPreferences = {
+          ...preferences,
+          channels: [...new Set(channels.map((channel) => channel.toUpperCase()))]
+        };
+      }
+      const result = upsertWatchlist(db, { ...normalizedPreferences, userId, eventId });
+      return publicWatchlistItem(db, result.watchlist);
+    });
   }
 
-  function removeWatchlistForPrincipal(db, userId, eventId) {
-    findUser(db, userId);
-    const index = db.watchlist.findIndex((item) => item.userId === userId && item.eventId === eventId);
-    if (index < 0) return { deleted: true, eventId };
-    const [watch] = db.watchlist.splice(index, 1);
-    cancelWatchlistNotifications(db, watch);
-    appendLedger(db, userId, "WATCHLIST_REMOVED", {
-      watchlistId: watch.id,
-      eventId
+  function removeWatchlistForPrincipal(db, userId, eventId, idempotencyKey) {
+    return idempotentMutation(db, {
+      kind: "watchlist-delete",
+      userId,
+      key: idempotencyKey,
+      payload: { eventId }
+    }, () => {
+      findUser(db, userId);
+      const index = db.watchlist.findIndex((item) => item.userId === userId && item.eventId === eventId);
+      if (index < 0) return { deleted: true, eventId };
+      const [watch] = db.watchlist.splice(index, 1);
+      cancelWatchlistNotifications(db, watch);
+      appendLedger(db, userId, "WATCHLIST_REMOVED", {
+        watchlistId: watch.id,
+        eventId
+      });
+      return { deleted: true, eventId };
     });
-    return { deleted: true, eventId };
   }
 
   function notifyWatchlist(db, { watchlistId, userId, eventId, type = "STATUS_CHANGE", dispatchNow = false }) {
@@ -250,14 +264,7 @@ export function createEngagementBackend({
     };
   }
 
-  function supportIdempotency(kind, userId, key, payload) {
-    return {
-      keyDigest: hash(`support:${kind}:${userId}:${key}`),
-      requestDigest: hash(`support:${kind}:payload:${JSON.stringify(payload)}`)
-    };
-  }
-
-  function createSupportThread(db, { userId, subject, message, category, idempotencyKey }) {
+  function createSupportThread(db, { userId, subject, message, category }) {
     const user = findUser(db, userId);
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "문의 내용을 입력해주세요.");
@@ -266,18 +273,6 @@ export function createEngagementBackend({
     const normalizedCategory = allowedCategories.includes(String(category || "").toUpperCase()) ? String(category).toUpperCase() : "GENERAL";
     const cleanSubject = String(subject || "1:1 실시간 문의").trim() || "1:1 실시간 문의";
     if (cleanSubject.length > 80) throw httpError(422, "SUPPORT_SUBJECT_TOO_LONG", "문의 제목은 80자 이하로 입력해주세요.");
-    const idempotency = idempotencyKey
-      ? supportIdempotency("thread", user.id, idempotencyKey, { subject: cleanSubject, message: cleanMessage, category: normalizedCategory })
-      : null;
-    if (idempotency) {
-      const existing = db.supportThreads.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
-      if (existing) {
-        if (existing.idempotency.requestDigest !== idempotency.requestDigest) {
-          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 문의 내용이 전달되었습니다.");
-        }
-        return existing;
-      }
-    }
     const thread = {
       id: id("support"),
       userId: user.id,
@@ -287,7 +282,6 @@ export function createEngagementBackend({
       category: normalizedCategory,
       createdAt: now(),
       updatedAt: now(),
-      ...(idempotency ? { idempotency } : {}),
       messages: [
         {
           id: id("msg"),
@@ -317,7 +311,7 @@ export function createEngagementBackend({
     return thread;
   }
 
-  function addSupportMessage(db, { threadId, actorId, role, message, idempotencyKey }) {
+  function addSupportMessage(db, { threadId, actorId, role, message }) {
     const thread = db.supportThreads.find((item) => item.id === threadId);
     if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
     const cleanMessage = String(message || "").trim();
@@ -328,25 +322,12 @@ export function createEngagementBackend({
       throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
     }
     if (normalizedRole === "CUSTOMER") findUser(db, actorId);
-    const idempotency = idempotencyKey
-      ? supportIdempotency("message", actorId, idempotencyKey, { threadId, message: cleanMessage })
-      : null;
-    if (idempotency) {
-      const existing = thread.messages.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
-      if (existing) {
-        if (existing.idempotency.requestDigest !== idempotency.requestDigest) {
-          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 메시지가 전달되었습니다.");
-        }
-        return thread;
-      }
-    }
     const entry = {
       id: id("msg"),
       actorId: normalizedRole === "ADMIN" ? "ADMIN" : actorId,
       role: normalizedRole,
       body: cleanMessage,
-      at: now(),
-      ...(idempotency ? { idempotency } : {})
+      at: now()
     };
     thread.messages.push(entry);
     thread.status = normalizedRole === "ADMIN" ? "ANSWERED" : "OPEN";
@@ -387,20 +368,29 @@ export function createEngagementBackend({
   }
 
   function createSupportThreadForPrincipal(db, userId, body, idempotencyKey) {
-    return publicSupportThread(createSupportThread(db, { ...body, userId, idempotencyKey }));
+    return idempotentMutation(db, {
+      kind: "support-thread-create",
+      userId,
+      key: idempotencyKey,
+      payload: { subject: body.subject, message: body.message, category: body.category }
+    }, () => publicSupportThread(createSupportThread(db, { ...body, userId })));
   }
 
   function addSupportMessageForPrincipal(db, userId, body, idempotencyKey) {
     const thread = db.supportThreads.find((item) => item.id === body.threadId);
     if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
     if (thread.userId !== userId) throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
-    return publicSupportThread(addSupportMessage(db, {
+    return idempotentMutation(db, {
+      kind: "support-message-create",
+      userId,
+      key: idempotencyKey,
+      payload: { threadId: body.threadId, message: body.message }
+    }, () => publicSupportThread(addSupportMessage(db, {
       threadId: body.threadId,
       actorId: userId,
       role: "CUSTOMER",
-      message: body.message,
-      idempotencyKey
-    }));
+      message: body.message
+    })));
   }
 
   return {

@@ -8,8 +8,7 @@ const PAYMENT_METHODS = {
   MOBILE: { label: "휴대폰 결제", status: "PAID" }
 };
 
-export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
-  const attestationSecret = appAttestationSecret || crypto.randomBytes(32).toString("hex");
+export function createRuntime({ nowOverride, secret }) {
 
   function currentTimeMs() {
     if (!nowOverride) return Date.now();
@@ -56,23 +55,6 @@ export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
     return crypto.createHmac("sha256", secret).update(input).digest("hex");
   }
 
-  function appAttestationSignature(purpose, ...parts) {
-    return crypto
-      .createHmac("sha256", attestationSecret)
-      .update(["app", purpose, ...parts].join(":"))
-      .digest("hex");
-  }
-
-  function verifyAppAttestation(body, purpose, parts) {
-    const expected = appAttestationSignature(purpose, ...parts.map((part) => String(part || "")));
-    const provided = String(body.appAttestation || "");
-    const expectedBuffer = Buffer.from(expected, "hex");
-    const providedBuffer = Buffer.from(provided, "hex");
-    if (providedBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
-      throw httpError(403, "APP_ATTESTATION_REQUIRED", "전용앱 인증 서명이 필요합니다.");
-    }
-  }
-
   function id(prefix) {
     return `${prefix}_${crypto.randomBytes(5).toString("hex")}`;
   }
@@ -117,7 +99,6 @@ export function createRuntime({ appAttestationSecret, nowOverride, secret }) {
     randomHex,
     resolvePaymentMethod,
     stableId,
-    sortJson,
-    verifyAppAttestation
+    sortJson
   };
 }

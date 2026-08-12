@@ -5,9 +5,9 @@ export function createBookingHoldsBackend({
   currentTimeMs,
   eventZone,
   findUser,
-  hash,
   httpError,
   id,
+  idempotentMutation,
   isEventBookable,
   now
 }) {
@@ -26,13 +26,6 @@ export function createBookingHoldsBackend({
 
   function isPast(iso) {
     return Boolean(iso) && Date.parse(iso) <= currentTimeMs();
-  }
-
-  function bookingIdempotency(kind, userId, key, payload) {
-    return {
-      keyDigest: hash(`booking:${kind}:${userId}:${key}`),
-      requestDigest: hash(`booking:${kind}:payload:${JSON.stringify(payload)}`)
-    };
   }
 
   // ---------------------------------------------------------------- queue --
@@ -80,31 +73,38 @@ export function createBookingHoldsBackend({
     };
   }
 
-  function enterQueue(db, { userId, performanceDateId }) {
-    const user = findUser(db, userId);
-    if (!performanceDateId) throw httpError(400, "MISSING_FIELD", "performanceDateId 값이 필요합니다.");
+  function enterQueue(db, { userId, performanceDateId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "queue-enter",
+      userId,
+      key: idempotencyKey,
+      payload: { performanceDateId }
+    }, () => {
+      const user = findUser(db, userId);
+      if (!performanceDateId) throw httpError(400, "MISSING_FIELD", "performanceDateId 값이 필요합니다.");
 
-    const reusable = db.queueEntries.find((entry) =>
-      entry.userId === user.id
-      && entry.performanceDateId === performanceDateId
-      && ["WAITING", "ADMITTED"].includes(entry.status)
-    );
-    if (!reusable) {
-      db.queueEntries.push({
-        id: id("queue"),
-        userId: user.id,
-        performanceDateId,
-        status: "WAITING",
-        admittedAt: null,
-        admissionExpiresAt: null,
-        enteredAt: now()
-      });
-    }
-    const entries = reconcileQueue(db, performanceDateId);
-    const entry = reusable
-      ? entries.find((item) => item.id === reusable.id)
-      : entries[entries.length - 1];
-    return publicQueueEntry(entries, entry);
+      const reusable = db.queueEntries.find((entry) =>
+        entry.userId === user.id
+        && entry.performanceDateId === performanceDateId
+        && ["WAITING", "ADMITTED"].includes(entry.status)
+      );
+      if (!reusable) {
+        db.queueEntries.push({
+          id: id("queue"),
+          userId: user.id,
+          performanceDateId,
+          status: "WAITING",
+          admittedAt: null,
+          admissionExpiresAt: null,
+          enteredAt: now()
+        });
+      }
+      const entries = reconcileQueue(db, performanceDateId);
+      const entry = reusable
+        ? entries.find((item) => item.id === reusable.id)
+        : entries[entries.length - 1];
+      return publicQueueEntry(entries, entry);
+    });
   }
 
   function requireOwnQueueEntry(db, userId, entryId) {
@@ -120,11 +120,18 @@ export function createBookingHoldsBackend({
     return publicQueueEntry(entries, entries.find((item) => item.id === entryId));
   }
 
-  function leaveQueue(db, { userId, entryId }) {
-    const entry = requireOwnQueueEntry(db, userId, entryId);
-    if (["WAITING", "ADMITTED"].includes(entry.status)) entry.status = "LEFT";
-    reconcileQueue(db, entry.performanceDateId);
-    return { id: entry.id, status: entry.status };
+  function leaveQueue(db, { userId, entryId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "queue-leave",
+      userId,
+      key: idempotencyKey,
+      payload: { entryId }
+    }, () => {
+      const entry = requireOwnQueueEntry(db, userId, entryId);
+      if (["WAITING", "ADMITTED"].includes(entry.status)) entry.status = "LEFT";
+      reconcileQueue(db, entry.performanceDateId);
+      return { id: entry.id, status: entry.status };
+    });
   }
 
   // ----------------------------------------------------------- seat holds --
@@ -174,62 +181,52 @@ export function createBookingHoldsBackend({
       throw httpError(422, "DUPLICATE_SEAT", "같은 좌석을 중복해서 선택할 수 없습니다.");
     }
 
-    const idempotency = idempotencyKey
-      ? bookingIdempotency("hold", user.id, idempotencyKey, {
-          performanceDateId,
-          ticketIds: [...uniqueTicketIds].sort()
-        })
-      : null;
-    if (idempotency) {
-      const existing = db.seatHolds.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
-      if (existing) {
-        if (existing.idempotency.requestDigest !== idempotency.requestDigest) {
-          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 좌석 홀드 요청이 전달되었습니다.");
-        }
-        return publicSeatHold(reconcileHold(db, existing));
-      }
-    }
-
-    const tickets = uniqueTicketIds.map((ticketId) => {
-      const ticket = db.tickets.find((item) => item.id === ticketId);
-      if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.", { ticketId });
-      if (ticket.performanceDateId !== performanceDateId) {
-        throw httpError(422, "SEAT_PERFORMANCE_MISMATCH", "선택한 회차와 좌석이 일치하지 않습니다.", { ticketId });
-      }
-      return ticket;
-    });
-
-    for (const activeHold of db.seatHolds.filter((item) => item.status === "ACTIVE")) reconcileHold(db, activeHold);
-
-    for (const ticket of tickets) {
-      if (ticket.status !== "ON_SALE") {
-        throw httpError(409, "SEAT_ALREADY_HELD", "이미 다른 사용자가 선택 중이거나 판매된 좌석입니다.", { ticketId: ticket.id });
-      }
-    }
-    const { event } = eventZone(db, tickets[0].eventId, tickets[0].zoneId);
-    if (!isEventBookable(event)) {
-      throw httpError(409, "EVENT_NOT_ON_SALE", "예매 가능한 공연이 아닙니다.");
-    }
-
-    const hold = {
-      id: id("hold"),
+    return idempotentMutation(db, {
+      kind: "seat-hold-create",
       userId: user.id,
-      performanceDateId,
-      ticketIds: tickets.map((ticket) => ticket.id),
-      status: "ACTIVE",
-      expiresAt: futureIso(HOLD_TTL_MS),
-      extensionsUsed: 0,
-      ...(idempotency ? { idempotency } : {}),
-      createdAt: now(),
-      updatedAt: now()
-    };
-    for (const ticket of tickets) {
-      ticket.status = "HELD";
-      ticket.heldBy = hold.id;
-      ticket.holdExpiresAt = hold.expiresAt;
-    }
-    db.seatHolds.push(hold);
-    return publicSeatHold(hold);
+      key: idempotencyKey,
+      payload: { performanceDateId, ticketIds: [...uniqueTicketIds].sort() }
+    }, () => {
+      const tickets = uniqueTicketIds.map((ticketId) => {
+        const ticket = db.tickets.find((item) => item.id === ticketId);
+        if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.", { ticketId });
+        if (ticket.performanceDateId !== performanceDateId) {
+          throw httpError(422, "SEAT_PERFORMANCE_MISMATCH", "선택한 회차와 좌석이 일치하지 않습니다.", { ticketId });
+        }
+        return ticket;
+      });
+
+      for (const activeHold of db.seatHolds.filter((item) => item.status === "ACTIVE")) reconcileHold(db, activeHold);
+
+      for (const ticket of tickets) {
+        if (ticket.status !== "ON_SALE") {
+          throw httpError(409, "SEAT_ALREADY_HELD", "이미 다른 사용자가 선택 중이거나 판매된 좌석입니다.", { ticketId: ticket.id });
+        }
+      }
+      const { event } = eventZone(db, tickets[0].eventId, tickets[0].zoneId);
+      if (!isEventBookable(event)) {
+        throw httpError(409, "EVENT_NOT_ON_SALE", "예매 가능한 공연이 아닙니다.");
+      }
+
+      const hold = {
+        id: id("hold"),
+        userId: user.id,
+        performanceDateId,
+        ticketIds: tickets.map((ticket) => ticket.id),
+        status: "ACTIVE",
+        expiresAt: futureIso(HOLD_TTL_MS),
+        extensionsUsed: 0,
+        createdAt: now(),
+        updatedAt: now()
+      };
+      for (const ticket of tickets) {
+        ticket.status = "HELD";
+        ticket.heldBy = hold.id;
+        ticket.holdExpiresAt = hold.expiresAt;
+      }
+      db.seatHolds.push(hold);
+      return publicSeatHold(hold);
+    });
   }
 
   function requireOwnHold(db, userId, holdId) {
@@ -243,30 +240,44 @@ export function createBookingHoldsBackend({
     return publicSeatHold(requireOwnHold(db, userId, holdId));
   }
 
-  function extendSeatHold(db, { userId, holdId }) {
-    const hold = requireOwnHold(db, userId, holdId);
-    if (hold.status !== "ACTIVE") throw httpError(409, "HOLD_NOT_ACTIVE", "만료되었거나 종료된 홀드는 연장할 수 없습니다.");
-    if (hold.extensionsUsed >= HOLD_MAX_EXTENSIONS) {
-      throw httpError(409, "HOLD_EXTENSION_LIMIT", "좌석 홀드 연장 횟수를 초과했습니다.");
-    }
-    hold.expiresAt = futureIso(HOLD_EXTENSION_MS);
-    hold.extensionsUsed += 1;
-    hold.updatedAt = now();
-    for (const ticketId of hold.ticketIds) {
-      const ticket = db.tickets.find((item) => item.id === ticketId);
-      if (ticket) ticket.holdExpiresAt = hold.expiresAt;
-    }
-    return publicSeatHold(hold);
+  function extendSeatHold(db, { userId, holdId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "seat-hold-extend",
+      userId,
+      key: idempotencyKey,
+      payload: { holdId }
+    }, () => {
+      const hold = requireOwnHold(db, userId, holdId);
+      if (hold.status !== "ACTIVE") throw httpError(409, "HOLD_NOT_ACTIVE", "만료되었거나 종료된 홀드는 연장할 수 없습니다.");
+      if (hold.extensionsUsed >= HOLD_MAX_EXTENSIONS) {
+        throw httpError(409, "HOLD_EXTENSION_LIMIT", "좌석 홀드 연장 횟수를 초과했습니다.");
+      }
+      hold.expiresAt = futureIso(HOLD_EXTENSION_MS);
+      hold.extensionsUsed += 1;
+      hold.updatedAt = now();
+      for (const ticketId of hold.ticketIds) {
+        const ticket = db.tickets.find((item) => item.id === ticketId);
+        if (ticket) ticket.holdExpiresAt = hold.expiresAt;
+      }
+      return publicSeatHold(hold);
+    });
   }
 
-  function releaseSeatHold(db, { userId, holdId }) {
-    const hold = requireOwnHold(db, userId, holdId);
-    if (hold.status === "ACTIVE") {
-      hold.status = "RELEASED";
-      hold.updatedAt = now();
-      releaseHeldTickets(db, hold);
-    }
-    return publicSeatHold(hold);
+  function releaseSeatHold(db, { userId, holdId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "seat-hold-release",
+      userId,
+      key: idempotencyKey,
+      payload: { holdId }
+    }, () => {
+      const hold = requireOwnHold(db, userId, holdId);
+      if (hold.status === "ACTIVE") {
+        hold.status = "RELEASED";
+        hold.updatedAt = now();
+        releaseHeldTickets(db, hold);
+      }
+      return publicSeatHold(hold);
+    });
   }
 
   // ----------------------------------------------------- reservation draft --
@@ -306,55 +317,48 @@ export function createBookingHoldsBackend({
     const user = findUser(db, userId);
     if (!holdId) throw httpError(400, "MISSING_FIELD", "holdId 값이 필요합니다.");
 
-    const idempotency = idempotencyKey
-      ? bookingIdempotency("draft", user.id, idempotencyKey, { holdId })
-      : null;
-    if (idempotency) {
-      const existing = db.reservationDrafts.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
-      if (existing) {
-        if (existing.idempotency.requestDigest !== idempotency.requestDigest) {
-          throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 예약 초안 요청이 전달되었습니다.");
-        }
-        return publicReservationDraft(reconcileDraft(db, existing));
-      }
-    }
-
-    const hold = requireOwnHold(db, user.id, holdId);
-    if (hold.status !== "ACTIVE") throw httpError(409, "HOLD_NOT_ACTIVE", "만료되었거나 종료된 홀드는 예약으로 전환할 수 없습니다.");
-
-    const tickets = hold.ticketIds.map((ticketId) => {
-      const ticket = db.tickets.find((item) => item.id === ticketId);
-      if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
-      return ticket;
-    });
-    const faceValueTotal = tickets.reduce((sum, ticket) => sum + ticket.faceValue, 0);
-    const serviceFee = tickets.length * SERVICE_FEE_PER_SEAT;
-
-    hold.status = "CONVERTED";
-    hold.updatedAt = now();
-
-    const draft = {
-      id: id("resv"),
+    return idempotentMutation(db, {
+      kind: "reservation-draft-create",
       userId: user.id,
-      holdId: hold.id,
-      performanceDateId: hold.performanceDateId,
-      ticketIds: hold.ticketIds,
-      status: "PENDING_PAYMENT",
-      expiresAt: futureIso(DRAFT_TTL_MS),
-      amount: { faceValueTotal, serviceFee, total: faceValueTotal + serviceFee },
-      ...(idempotency ? { idempotency } : {}),
-      createdAt: now(),
-      updatedAt: now()
-    };
-    for (const ticket of tickets) {
-      ticket.status = "RESERVED";
-      ticket.heldBy = null;
-      ticket.holdExpiresAt = null;
-      ticket.reservationId = draft.id;
-      ticket.reservationExpiresAt = draft.expiresAt;
-    }
-    db.reservationDrafts.push(draft);
-    return publicReservationDraft(draft);
+      key: idempotencyKey,
+      payload: { holdId }
+    }, () => {
+      const hold = requireOwnHold(db, user.id, holdId);
+      if (hold.status !== "ACTIVE") throw httpError(409, "HOLD_NOT_ACTIVE", "만료되었거나 종료된 홀드는 예약으로 전환할 수 없습니다.");
+
+      const tickets = hold.ticketIds.map((ticketId) => {
+        const ticket = db.tickets.find((item) => item.id === ticketId);
+        if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
+        return ticket;
+      });
+      const faceValueTotal = tickets.reduce((sum, ticket) => sum + ticket.faceValue, 0);
+      const serviceFee = tickets.length * SERVICE_FEE_PER_SEAT;
+
+      hold.status = "CONVERTED";
+      hold.updatedAt = now();
+
+      const draft = {
+        id: id("resv"),
+        userId: user.id,
+        holdId: hold.id,
+        performanceDateId: hold.performanceDateId,
+        ticketIds: hold.ticketIds,
+        status: "PENDING_PAYMENT",
+        expiresAt: futureIso(DRAFT_TTL_MS),
+        amount: { faceValueTotal, serviceFee, total: faceValueTotal + serviceFee },
+        createdAt: now(),
+        updatedAt: now()
+      };
+      for (const ticket of tickets) {
+        ticket.status = "RESERVED";
+        ticket.heldBy = null;
+        ticket.holdExpiresAt = null;
+        ticket.reservationId = draft.id;
+        ticket.reservationExpiresAt = draft.expiresAt;
+      }
+      db.reservationDrafts.push(draft);
+      return publicReservationDraft(draft);
+    });
   }
 
   function requireOwnDraft(db, userId, draftId) {
@@ -368,14 +372,21 @@ export function createBookingHoldsBackend({
     return publicReservationDraft(requireOwnDraft(db, userId, draftId));
   }
 
-  function cancelReservationDraft(db, { userId, draftId }) {
-    const draft = requireOwnDraft(db, userId, draftId);
-    if (draft.status === "PENDING_PAYMENT") {
-      draft.status = "CANCELLED";
-      draft.updatedAt = now();
-      releaseDraftTickets(db, draft);
-    }
-    return publicReservationDraft(draft);
+  function cancelReservationDraft(db, { userId, draftId, idempotencyKey }) {
+    return idempotentMutation(db, {
+      kind: "reservation-draft-cancel",
+      userId,
+      key: idempotencyKey,
+      payload: { draftId }
+    }, () => {
+      const draft = requireOwnDraft(db, userId, draftId);
+      if (draft.status === "PENDING_PAYMENT") {
+        draft.status = "CANCELLED";
+        draft.updatedAt = now();
+        releaseDraftTickets(db, draft);
+      }
+      return publicReservationDraft(draft);
+    });
   }
 
   return {

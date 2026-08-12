@@ -1726,9 +1726,7 @@ final class LiveBackendServiceTests: XCTestCase {
             (.ticketPurchase(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "purchase"), .post, "/api/tickets/buy", "userId"),
             (.identityStart(userID: "user-1", phone: "01012345678", idempotencyKey: "identity-start"), .post, "/api/identity/portone-danal/start", "userId"),
             (.identityConfirm(userID: "user-1", phone: "01012345678", verificationID: "identity-1", idempotencyKey: "identity-confirm"), .post, "/api/identity/portone-danal/confirm", "userId"),
-            (.trustDevice(userID: "user-1", deviceID: "device-1", attestation: "attestation", idempotencyKey: "trust"), .post, "/api/devices/trust", "userId"),
             (.pushToken(userID: "user-1", token: "push-token", idempotencyKey: "push"), .post, "/api/devices/push-token", "userId"),
-            (.admissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "device-1", attestation: "attestation", idempotencyKey: "qr"), .post, "/api/tickets/qr", "userId"),
             (.virtualQR(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "virtual-qr"), .post, "/api/tickets/virtual-qr", "userId")
         ]
 
@@ -1828,6 +1826,86 @@ final class LiveBackendServiceTests: XCTestCase {
             XCTAssertNil(json["userId"])
             XCTAssertNil(json["ownerId"])
         }
+    }
+
+    func testAttestedLifecycleRequestsBoundChallengesBeforeProofBodiesWithoutLegacyField() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "POST /api/me/device-attestation/challenges": Data(#"{"ok":true,"data":{"id":"challenge-1","challenge":"server-challenge","expiresAt":"2026-08-12T09:10:00Z"}}"#.utf8),
+            "POST /api/devices/trust": Data(#"{"ok":true,"data":{"device":{"id":"device-1","userId":"user-1","deviceId":"iphone-1","deviceName":"Test iPhone","platform":"iOS","status":"TRUSTED","lastVerifiedAt":"2026-08-12T09:06:00Z"},"deviceToken":"trusted-device-token"}}"#.utf8),
+            "POST /api/tickets/qr": Data(#"{"ok":true,"data":{"type":"ADMISSION","ticketId":"ticket-1","ownerId":"user-1","expiresAt":"2026-08-12T09:08:20Z","nonce":"nonce-1","signature":"signature-1","issuedAt":"2026-08-12T09:08:00Z","performanceStartsAt":"2026-09-19T19:00:00Z","preparedAt":"2026-09-18T19:00:00Z","activeAt":"2026-09-19T16:00:00Z","ttlSeconds":20,"traceCode":"TRACE123","channel":"APP","emergencyReason":null}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let service = mutationReadyService(for: client)
+
+        let trustChallenge = try await service.appAttestChallenge(
+            userID: "user-1",
+            purpose: "TRUST_DEVICE",
+            deviceID: "iphone-1"
+        )
+        let trusted = try await service.trustDevice(
+            userID: "user-1",
+            deviceID: "iphone-1",
+            deviceName: "Test iPhone",
+            platform: "iOS",
+            proof: LifecycleAttestationProof(
+                deviceID: "iphone-1",
+                challengeID: trustChallenge.id,
+                keyID: "key-1",
+                attestationObject: "attestation-proof"
+            )
+        )
+        let qrChallenge = try await service.appAttestChallenge(
+            userID: "user-1",
+            purpose: "ISSUE_QR",
+            deviceID: "iphone-1",
+            ticketID: "ticket-1"
+        )
+        _ = try await service.issueAdmissionQR(
+            userID: "user-1",
+            ticketID: "ticket-1",
+            deviceID: "iphone-1",
+            deviceToken: trusted.deviceToken,
+            proof: LifecycleAssertionProof(
+                challengeID: qrChallenge.id,
+                keyID: "key-1",
+                assertion: "assertion-proof"
+            )
+        )
+
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            [
+                "/api/me/device-attestation/challenges",
+                "/api/devices/trust",
+                "/api/me/device-attestation/challenges",
+                "/api/tickets/qr"
+            ]
+        )
+        let bodies = try LiveBackendServiceURLProtocol.requestBodies.map { data in
+            try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(data)) as? [String: Any])
+        }
+        XCTAssertEqual(bodies[0]["purpose"] as? String, "TRUST_DEVICE")
+        XCTAssertEqual(bodies[0]["deviceId"] as? String, "iphone-1")
+        XCTAssertNil(bodies[0]["ticketId"])
+        XCTAssertEqual(bodies[1]["challengeId"] as? String, "challenge-1")
+        XCTAssertEqual(bodies[1]["keyId"] as? String, "key-1")
+        XCTAssertEqual(bodies[1]["attestationObject"] as? String, "attestation-proof")
+        XCTAssertEqual(bodies[2]["purpose"] as? String, "ISSUE_QR")
+        XCTAssertEqual(bodies[2]["ticketId"] as? String, "ticket-1")
+        XCTAssertEqual(bodies[3]["challengeId"] as? String, "challenge-1")
+        XCTAssertEqual(bodies[3]["assertion"] as? String, "assertion-proof")
+        let removedLegacyField = "app" + "Attestation"
+        XCTAssertTrue(bodies.allSatisfy { $0[removedLegacyField] == nil })
+        XCTAssertTrue(bodies.allSatisfy { $0["userId"] == nil })
     }
 
     func testNativeLifecycleCapabilityFailsClosedAndMapsServerError() async throws {

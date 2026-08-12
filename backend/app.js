@@ -4,6 +4,7 @@ import { createGateSessionBackend } from "./gate-sessions.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
 import { createBookingHoldsBackend } from "./booking-holds.js";
+import { createIdempotentMutationRunner } from "./idempotent-mutation.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
@@ -122,6 +123,13 @@ export async function createTicketgroundApp(options) {
     id: runtime.id,
     now: runtime.now,
     randomHex: runtime.randomHex,
+    androidPackageNames: options.runtime.playIntegrityAndroidPackageNames || (
+      process.env.NODE_ENV === "production"
+        ? ["kr.ticketground.app"]
+        : ["kr.ticketground.app", "kr.ticketground.app.dev"]
+    ),
+    playIntegrityVerifierURL: options.runtime.playIntegrityVerifierURL || process.env.TIG_PLAY_INTEGRITY_VERIFIER_URL,
+    playIntegrityVerifierToken: options.runtime.playIntegrityVerifierToken || process.env.TIG_PLAY_INTEGRITY_VERIFIER_TOKEN,
     verifierURL: options.runtime.appAttestVerifierURL,
     verifierToken: options.runtime.appAttestVerifierToken
   });
@@ -133,12 +141,19 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     randomHex: runtime.randomHex
   });
-  const engagement = createEngagementBackend({
-    appendLedger: persistence.appendLedger,
-    findUser: runtime.findUser,
+  const idempotentMutation = createIdempotentMutationRunner({
     hash: runtime.hash,
     httpError: runtime.httpError,
     id: runtime.id,
+    now: runtime.now,
+    sortJson: runtime.sortJson
+  });
+  const engagement = createEngagementBackend({
+    appendLedger: persistence.appendLedger,
+    findUser: runtime.findUser,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    idempotentMutation,
     now: runtime.now,
     offsetIso: runtime.offsetIso,
     primaryDate: catalog.primaryDate,
@@ -158,6 +173,7 @@ export async function createTicketgroundApp(options) {
     findUser: runtime.findUser,
     hmac: runtime.hmac,
     httpError: runtime.httpError,
+    idempotentMutation,
     issueNativeSession: nativeSession.issueNativeSession,
     now: runtime.now,
     stableId: runtime.stableId
@@ -221,9 +237,9 @@ export async function createTicketgroundApp(options) {
     currentTimeMs: runtime.currentTimeMs,
     eventZone: catalog.eventZone,
     findUser: runtime.findUser,
-    hash: runtime.hash,
     httpError: runtime.httpError,
     id: runtime.id,
+    idempotentMutation,
     isEventBookable: catalog.isEventBookable,
     now: runtime.now
   });
