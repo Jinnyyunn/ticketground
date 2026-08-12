@@ -134,7 +134,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
     { label: "예매", count: reservationCount, href: "/mypage#reservations" },
     { label: "취소", count: cancelHistoryCount, href: "/mypage#cancel-history" },
     { label: "양도", count: resaleSeatCount, href: "/mypage/resale" },
-    { label: "문의", count: inquiryCount, href: "/inquiry" },
+    { label: "문의", count: inquiryCount, href: "https://pf.kakao.com/_xmTniX/chat" },
   ] as const;
 
   return (
@@ -156,14 +156,17 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
         </div>
         <div className="grid grid-cols-4 gap-3 text-center text-sm sm:gap-4">
           {counters.map((counter) => (
-            <Link
-              key={counter.label}
-              href={counter.href}
-              className="min-w-0 whitespace-nowrap rounded-[6px] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-2"
-            >
-              <strong className="block text-2xl">{counter.count}</strong>
-              <span className="text-on-ink-2/70">{counter.label}</span>
-            </Link>
+            counter.href.startsWith("http") ? (
+              <a key={counter.label} href={counter.href} rel="noreferrer" target="_blank" className="min-w-0 whitespace-nowrap rounded-[6px] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-2">
+                <strong className="block text-2xl">{counter.count}</strong>
+                <span className="text-on-ink-2/70">{counter.label}</span>
+              </a>
+            ) : (
+              <Link key={counter.label} href={counter.href} className="min-w-0 whitespace-nowrap rounded-[6px] px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-2">
+                <strong className="block text-2xl">{counter.count}</strong>
+                <span className="text-on-ink-2/70">{counter.label}</span>
+              </Link>
+            )
           ))}
         </div>
       </div>

@@ -10,7 +10,7 @@ const sideNav = [
   ["취소내역", "/mypage#cancel-history"],
   ["양도내역", "/mypage/resale#resale-history"],
   ["관심공연", "/watchlist"],
-  ["1:1 문의", "/inquiry"],
+  ["1:1 문의", "https://pf.kakao.com/_xmTniX/chat"],
 ] as const;
 
 const today = "2026.06.29";
@@ -27,9 +27,15 @@ export default function MyPage() {
             <h2 className="px-2 text-base font-black text-ink-2">마이페이지</h2>
             <nav className="mt-3 grid gap-1">
               {sideNav.map(([label, href]) => (
-                <Link key={label} href={href} className="rounded-sm px-3 py-2 text-sm font-bold text-ink-3 hover:bg-surface">
-                  {label}
-                </Link>
+                href.startsWith("http") ? (
+                  <a key={label} href={href} rel="noreferrer" target="_blank" className="rounded-sm px-3 py-2 text-sm font-bold text-ink-3 hover:bg-surface">
+                    {label}
+                  </a>
+                ) : (
+                  <Link key={label} href={href} className="rounded-sm px-3 py-2 text-sm font-bold text-ink-3 hover:bg-surface">
+                    {label}
+                  </Link>
+                )
               ))}
             </nav>
           </aside>
