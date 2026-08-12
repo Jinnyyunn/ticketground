@@ -12,6 +12,13 @@ test("footer terms link uses a distinct terms route while customer center remain
   try {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
 
+    const footer = page.locator("footer");
+    await footer.getByText("회사명: Ticketground Inc.", { exact: true }).waitFor({ timeout: 5000 });
+    await footer.getByText("대표: 박지원", { exact: true }).waitFor({ timeout: 5000 });
+    await footer.getByText("사업자등록번호: 527-44-01245", { exact: true }).waitFor({ timeout: 5000 });
+    await footer.getByText("고객센터: 1577-0000", { exact: true }).waitFor({ timeout: 5000 });
+    await footer.getByText("ticketground.kr", { exact: true }).waitFor({ timeout: 5000 });
+
     const termsLink = page.getByRole("link", { name: "이용약관", exact: true });
     await termsLink.waitFor({ timeout: 5000 });
     assert.equal(await termsLink.getAttribute("href"), "/terms");

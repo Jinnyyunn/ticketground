@@ -40,7 +40,14 @@ export function SiteFooter() {
       </div>
 
       <div className="border-t border-line">
-        <div className="ticketground-container flex flex-col gap-3 py-5 text-sm text-ink-4 md:flex-row md:items-center">
+        <div className="ticketground-container flex flex-col gap-3 py-5 text-sm text-ink-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs leading-relaxed sm:text-sm">
+            <span>회사명: Ticketground Inc.</span>
+            <span>대표: 박지원</span>
+            <span>사업자등록번호: 527-44-01245</span>
+            <span>고객센터: 1577-0000</span>
+            <span>ticketground.kr</span>
+          </div>
           <p>© Ticketground Inc. 통신판매중개자로서 공연 예매와 공식 문의 연결을 제공합니다.</p>
         </div>
       </div>
