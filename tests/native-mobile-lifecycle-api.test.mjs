@@ -231,6 +231,14 @@ test("native cancellation requests require an owned ticket, persist idempotently
   assert.equal(first.data.status, "PENDING_REVIEW");
   assert.deepEqual(replay.data, first.data);
 
+  const differentKeyRetry = await request(server, "/api/me/cancellation-requests", {
+    authorization: seller.authorization,
+    method: "POST",
+    idempotencyKey: "native-cancel-different-key",
+    body
+  });
+  assert.deepEqual(differentKeyRetry.data, first.data);
+
   const conflict = await request(server, "/api/me/cancellation-requests", {
     authorization: seller.authorization,
     method: "POST",

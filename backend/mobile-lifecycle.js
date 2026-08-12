@@ -128,6 +128,12 @@ export function createMobileLifecycleBackend({
       if (ticket.status !== "OWNED") {
         throw httpError(409, "INVALID_TICKET_STATE", "보유 중인 티켓만 취소 요청할 수 있습니다.");
       }
+      const activeRequest = db.cancellationRequests.find((request) => (
+        request.userId === userId
+        && request.ticketId === ticket.id
+        && request.status === "PENDING_REVIEW"
+      ));
+      if (activeRequest) return publicCancellationRequest(activeRequest);
       const timestamp = now();
       const request = {
         id: id("cancel_request"),
