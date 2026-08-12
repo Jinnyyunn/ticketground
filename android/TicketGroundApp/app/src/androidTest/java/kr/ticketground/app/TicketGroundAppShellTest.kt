@@ -63,19 +63,17 @@ class TicketGroundAppShellTest {
   }
 
   @Test
-  fun tabletNavigation_exposesRailAndTwoPaneContent() {
+  fun tabletProductionHome_exposesRailTwoPaneSearchCalendarAndSupport() {
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
     composeRule.setContent {
-      MaterialTheme { TicketGroundNavigation(selected = AppDestination.Home, width = 840.dp, onNavigate = {}) {
-        EventListScreen(
-          title = "티켓 랭킹",
-          state = AsyncContent.Ready(listOf(event())),
-          expanded = true,
-          onRetry = {},
-          onEvent = {},
-        )
-      } }
+      TicketGroundTheme {
+        Box(Modifier.width(840.dp)) { TicketGroundCustomerApp(viewModel) }
+      }
     }
 
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag("event-list-two-pane").fetchSemanticsNodes().isNotEmpty()
+    }
     composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
     composeRule.onNodeWithTag("event-list-two-pane").assertIsDisplayed()
     composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").assertIsDisplayed().assertHasClickAction()
@@ -99,23 +97,6 @@ class TicketGroundAppShellTest {
     }
     composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").performClick()
     composeRule.onNodeWithText("공연 검색").assertIsDisplayed()
-  }
-
-  @Test
-  fun expandedCustomerHome_reachesTwoPaneThroughProductionAppPath() {
-    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
-    composeRule.setContent {
-      TicketGroundTheme {
-        Box(Modifier.width(840.dp)) {
-          TicketGroundCustomerApp(viewModel)
-        }
-      }
-    }
-
-    composeRule.waitUntil(timeoutMillis = 5_000) {
-      composeRule.onAllNodesWithTag("event-list-two-pane").fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag("event-list-two-pane").assertIsDisplayed()
   }
 
   @Test
