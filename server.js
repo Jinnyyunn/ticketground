@@ -54,6 +54,8 @@ const app = await createTicketgroundApp({
   mediaDir: { directory: adminUploadDir, urlPrefix: "/uploads/admin" },
   runtime: {
     appAttestationSecret: process.env.TIG_APP_ATTESTATION_SECRET,
+    appAttestVerifierURL: process.env.TIG_APP_ATTEST_VERIFIER_URL,
+    appAttestVerifierToken: process.env.TIG_APP_ATTEST_VERIFIER_TOKEN,
     nowOverride: process.env.TIG_NOW,
     secret: requiredSecret("TIG_SECRET")
   },

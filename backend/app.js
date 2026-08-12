@@ -1,4 +1,5 @@
 import { createAdmissionBackend } from "./admission.js";
+import { createAppAttestBackend } from "./app-attest.js";
 import { createGateSessionBackend } from "./gate-sessions.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
@@ -12,6 +13,7 @@ import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
 import { createNativeSessionBackend } from "./native-session.js";
+import { createMobileLifecycleBackend } from "./mobile-lifecycle.js";
 import { createPersistence } from "./persistence.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
@@ -114,6 +116,15 @@ export async function createTicketgroundApp(options) {
     stableId: runtime.stableId
   });
   ({ ensureAdmissionCredential } = admission);
+  const appAttest = createAppAttestBackend({
+    currentTimeMs: runtime.currentTimeMs,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now,
+    randomHex: runtime.randomHex,
+    verifierURL: options.runtime.appAttestVerifierURL,
+    verifierToken: options.runtime.appAttestVerifierToken
+  });
   const gateSessions = createGateSessionBackend({
     appendLedger: persistence.appendLedger,
     hash: runtime.hash,
@@ -177,6 +188,18 @@ export async function createTicketgroundApp(options) {
     resolvePaymentMethod: runtime.resolvePaymentMethod,
     saleSummary: catalog.saleSummary
   });
+  const mobileLifecycle = createMobileLifecycleBackend({
+    appendLedger: persistence.appendLedger,
+    cancelResaleListing: commerce.cancelResaleListing,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    joinPool: commerce.joinPool,
+    listForResale: commerce.listForResale,
+    now: runtime.now,
+    publicResalePool: dtos.publicResalePool,
+    sortJson: runtime.sortJson
+  });
   groupBooking = createGroupBookingBackend({
     appendLedger: persistence.appendLedger,
     businessRegistrationDir: options.businessRegistrationDir,
@@ -213,6 +236,7 @@ export async function createTicketgroundApp(options) {
     ...gateSessions,
     ...groupBooking,
     ...identity,
+    ...mobileLifecycle,
     ...nativeSession,
     ...sellerApplications,
     ...sellerAccounts,
@@ -240,7 +264,8 @@ export async function createTicketgroundApp(options) {
     seatMap: admin.seatMap,
     tosspaymentsConfig: tosspayments.tosspaymentsConfig,
     trustDevice: admission.trustDevice,
-    verifyAppAttestation: runtime.verifyAppAttestation,
+    issueAppAttestChallenge: appAttest.issueChallenge,
+    verifyAppAttestProof: appAttest.verifyProof,
     verifyLedger: persistence.verifyLedger,
     verifyQr: admission.verifyQr,
     virtualQr: admission.virtualQr,

@@ -90,7 +90,9 @@ extension AppRoute {
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
         case .queue, .booking, .checkout, .reservation:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 사용자 세션, 토스페이먼츠 결제 승인")
-        case .cancel, .resale, .transfer:
+        case .cancel, .resale:
+            return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 사용자 세션, native lifecycle 계약")
+        case .transfer:
             return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "고객 거래 계약이 아직 연결되지 않음")
         }
     }
@@ -1005,6 +1007,9 @@ final class AppContainer {
         if FixtureScenario.isFixtureMode {
             return fixture()
         }
+        if let configuration = RuntimeConfiguration.liveLifecycleTestConfiguration {
+            return liveLifecycleTest(configuration)
+        }
         if let scenario = RuntimeConfiguration.liveHomeTestScenario {
             return liveHomeTest(scenario)
         }
@@ -1020,6 +1025,20 @@ final class AppContainer {
             ))
         }
         return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL)
+    }
+
+    private static func liveLifecycleTest(_ configuration: UITestLifecycleConfiguration) -> AppContainer {
+        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
+        if configuration.scenario != .signedOut {
+            sessionStore.saveNativeCredential("ui-lifecycle-credential", serverUserID: "ui-user")
+        }
+        let container = AppContainer(environment: AppEnvironment(
+            mode: .live,
+            apiClient: UITestLifecycleAPIClient(scenario: configuration.scenario),
+            sessionStore: sessionStore
+        ))
+        container.navigationPath = [configuration.route]
+        return container
     }
 
     // Drives LiveCheckoutRouteView against an in-process scripted client

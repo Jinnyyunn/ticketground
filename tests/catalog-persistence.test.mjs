@@ -60,4 +60,7 @@ test("catalog normalization fills missing ticket issue time and legacy event dat
   assert.equal(changed, true);
   assert.ok(db.events.find((event) => event.id === "event_kpop_001").dates.length > 0);
   assert.equal(db.tickets.find((ticket) => ticket.id === "ticket_missing_issued_at").issuedAt, "2026-09-19T00:00:00.000Z");
+  assert.deepEqual(db.cancellationRequests, []);
+  assert.deepEqual(db.pushTokens, []);
+  assert.deepEqual(db.mobileMutationReceipts, []);
 });

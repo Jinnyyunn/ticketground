@@ -842,7 +842,13 @@ private struct LiveDiscoveryRouteView: View {
             LiveDiscoveryContractView(route: route)
         case .checkout(let ticketId):
             LiveCheckoutRouteView(ticketId: ticketId)
-        case .signup, .resale, .transfer, .cancel, .reservation:
+        case .reservation(let id):
+            LiveTicketLifecycleRouteView(destination: .reservation(id: id))
+        case .cancel:
+            LiveTicketLifecycleRouteView(destination: .cancellation)
+        case .resale:
+            LiveTicketLifecycleRouteView(destination: .resale)
+        case .signup, .transfer:
             LiveUnsupportedRouteView(route: route)
         default:
             LiveUnsupportedRouteView(route: route)
@@ -2041,9 +2047,7 @@ private struct LiveAccountRouteView: View {
                         .accessibilityIdentifier("live-account-empty-tickets")
                 } else {
                     ForEach(tickets, id: \.id) { ticket in
-                        NavigationLink {
-                            LiveTicketDetailView(ticket: ticket)
-                        } label: {
+                        NavigationLink(value: AppRoute.reservation(id: ticket.id)) {
                             VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
                                 Text(ticket.event?.title ?? "예매 티켓")
                                     .font(.headline)

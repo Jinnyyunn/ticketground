@@ -1750,6 +1750,146 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
+    func testNativeLifecycleUsesBearerPrincipalForTypedRoutesAndDecodesSafeResponses() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "GET /api/me/resale-pools": Data(#"{"ok":true,"data":[{"id":"pool-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-1","showSlug":"neon-stage","price":99000,"buyerFee":1000,"buyerTotal":100000,"sellerSettlement":98000,"buyerCount":1,"status":"OPEN","createdAt":"2026-08-12T09:00:00Z","matchedAt":null}]}"#.utf8),
+            "POST /api/me/resale-pools": Data(#"{"ok":true,"data":{"id":"pool-2","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-2","showSlug":null,"price":88000,"buyerFee":1000,"buyerTotal":89000,"sellerSettlement":87000,"buyerCount":0,"status":"OPEN","createdAt":"2026-08-12T09:01:00Z","matchedAt":null}}"#.utf8),
+            "POST /api/me/resale-pools/pool-1/join": Data(#"{"ok":true,"data":{"id":"pool-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-1","showSlug":"neon-stage","price":99000,"buyerFee":1000,"buyerTotal":100000,"sellerSettlement":98000,"buyerCount":1,"status":"MATCHED","createdAt":"2026-08-12T09:00:00Z","matchedAt":"2026-08-12T09:02:00Z"}}"#.utf8),
+            "DELETE /api/me/resale-pools/pool-2": Data(#"{"ok":true,"data":{"id":"pool-2","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-2","showSlug":null,"price":88000,"buyerFee":1000,"buyerTotal":89000,"sellerSettlement":87000,"buyerCount":0,"status":"CANCELED","createdAt":"2026-08-12T09:01:00Z","matchedAt":null}}"#.utf8),
+            "GET /api/me/cancellation-requests": Data(#"{"ok":true,"data":[{"id":"cancel-1","ticketId":"ticket-1","reason":"일정 변경","refundAcknowledged":true,"status":"PENDING_REVIEW","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}]}"#.utf8),
+            "POST /api/me/cancellation-requests": Data(#"{"ok":true,"data":{"id":"cancel-2","ticketId":"ticket-2","reason":"공연 취소","refundAcknowledged":true,"status":"PENDING_REVIEW","createdAt":"2026-08-12T09:03:00Z","updatedAt":"2026-08-12T09:03:00Z"}}"#.utf8),
+            "GET /api/me/devices": Data(#"{"ok":true,"data":[{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"TRUSTED","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":null}]}"#.utf8),
+            "DELETE /api/me/devices/device-1": Data(#"{"ok":true,"data":{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"REVOKED","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":"2026-08-12T09:04:00Z"}}"#.utf8),
+            "GET /api/me/push-tokens": Data(#"{"ok":true,"data":[{"platform":"ios","status":"ACTIVE","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}]}"#.utf8),
+            "POST /api/me/push-tokens": Data(#"{"ok":true,"data":{"platform":"ios","status":"ACTIVE","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:05:00Z"}}"#.utf8),
+            "POST /api/devices/trust": Data(#"{"ok":true,"data":{"device":{"id":"device-2","userId":"user-1","deviceId":"iphone-2","deviceName":"새 iPhone","platform":"iOS","status":"TRUSTED","lastVerifiedAt":"2026-08-12T09:06:00Z"},"deviceToken":"trusted-device-token"}}"#.utf8),
+            "POST /api/tickets/virtual-qr": Data(#"{"ok":true,"data":{"type":"VIRTUAL_TICKET","ticketId":"ticket-1","issuedAt":"2026-08-12T09:07:00Z","eventTitle":"Neon Stage","seatLabel":"A-01","performanceStartsAt":"2026-09-19T19:00:00Z","qrPreparedAt":"2026-09-18T19:00:00Z","realQrAvailableAt":"2026-09-19T16:00:00Z","admissionCredentialStatus":"VIRTUAL_READY","admissionChannel":"APP_ONLY"}}"#.utf8),
+            "POST /api/tickets/qr": Data(#"{"ok":true,"data":{"type":"ADMISSION","ticketId":"ticket-1","ownerId":"user-1","expiresAt":"2026-08-12T09:08:20Z","nonce":"nonce-1","signature":"signature-1","issuedAt":"2026-08-12T09:08:00Z","performanceStartsAt":"2026-09-19T19:00:00Z","preparedAt":"2026-09-18T19:00:00Z","activeAt":"2026-09-19T16:00:00Z","ttlSeconds":20,"traceCode":"TRACE123","channel":"APP","emergencyReason":null}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeLifecycleRoutesConfirmed: true
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        let pools = try await service.getResalePools(userID: "user-1")
+        let listed = try await service.createResalePool(userID: "user-1", ticketID: "ticket-2", price: 88_000, showSlug: nil, idempotencyKey: "list-key")
+        let joined = try await service.joinResalePool(userID: "user-1", poolID: "pool-1", idempotencyKey: "join-key")
+        let cancelledPool = try await service.cancelResalePool(userID: "user-1", poolID: "pool-2")
+        let cancellations = try await service.getCancellationRequests(userID: "user-1")
+        let requestedCancellation = try await service.createCancellationRequest(userID: "user-1", ticketID: "ticket-2", reason: "공연 취소", refundAcknowledged: true, idempotencyKey: "cancel-key")
+        let devices = try await service.getTrustedDevices(userID: "user-1")
+        let revoked = try await service.revokeTrustedDevice(userID: "user-1", deviceID: "device-1")
+        let tokens = try await service.getPushTokens(userID: "user-1")
+        let registeredToken = try await service.registerPushToken(userID: "user-1", platform: .ios, token: "apns-token-cdef", idempotencyKey: "push-key")
+        let trustProof = LifecycleAttestationProof(deviceID: "iphone-2", challengeID: "challenge-trust", keyID: "key-1", attestationObject: "attestation")
+        let trust = try await service.trustDevice(userID: "user-1", deviceID: "iphone-2", deviceName: "새 iPhone", platform: "iOS", proof: trustProof)
+        let virtualTicket = try await service.getVirtualTicketQR(userID: "user-1", ticketID: "ticket-1")
+        let qrProof = LifecycleAssertionProof(challengeID: "challenge-qr", keyID: "key-1", assertion: "assertion")
+        let admission = try await service.issueAdmissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "iphone-2", deviceToken: trust.deviceToken, proof: qrProof)
+
+        XCTAssertEqual(pools.first?.id, "pool-1")
+        XCTAssertEqual(listed.status, .open)
+        XCTAssertEqual(joined.status, .matched)
+        XCTAssertEqual(cancelledPool.status, .cancelled)
+        XCTAssertEqual(cancellations.first?.status, .pendingReview)
+        XCTAssertEqual(requestedCancellation.refundAcknowledged, true)
+        XCTAssertEqual(devices.first?.status, .trusted)
+        XCTAssertEqual(revoked.status, .revoked)
+        XCTAssertEqual(tokens.first?.suffix, "cdef")
+        XCTAssertEqual(registeredToken.platform, .ios)
+        XCTAssertEqual(trust.device.deviceID, "iphone-2")
+        XCTAssertEqual(virtualTicket.admissionChannel, "APP_ONLY")
+        XCTAssertEqual(admission.ttlSeconds, 20)
+
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy { request in
+            request.url?.query == nil
+        })
+        for index in [1, 2, 5, 9] {
+            XCTAssertNotNil(LiveBackendServiceURLProtocol.requests[index].value(forHTTPHeaderField: "X-Idempotency-Key"))
+        }
+        for index in [1, 2, 5, 9, 10, 11, 12] {
+            let body = try XCTUnwrap(LiveBackendServiceURLProtocol.requestBodies[index])
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertNil(json["userId"])
+            XCTAssertNil(json["ownerId"])
+        }
+    }
+
+    func testNativeLifecycleCapabilityFailsClosedAndMapsServerError() async throws {
+        let baseURL = URL(string: "https://ticketground.test/")!
+        let absent = LiveAPIContract.deployed.capabilityMap(
+            for: baseURL,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion
+        )
+        XCTAssertEqual(absent.state(for: .resalePools), .blocked(.serverAuthorizationUnverified))
+        XCTAssertEqual(absent.state(for: .resalePoolList), .blocked(.unsupportedMutation))
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(baseURL: baseURL, assetBaseURL: nil, credentialStore: credentials, session: URLSession(configuration: configuration))
+        let unavailable = LiveBackendService(apiClient: client, initialCapabilityMap: absent)
+        do {
+            _ = try await unavailable.getResalePools(userID: "user-1")
+            XCTFail("Expected native lifecycle capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .resalePools, state: .blocked(.serverAuthorizationUnverified)))
+        }
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+
+        LiveBackendServiceURLProtocol.responses = [
+            "GET /api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c","capabilities":["native-lifecycle-v1"]}}"#.utf8),
+            "GET /api/me/resale-pools": Data(#"{"ok":false,"error":{"code":"NOT_OWNER","message":"ownership required"}}"#.utf8)
+        ]
+        LiveBackendServiceURLProtocol.statusCodes["/api/me/resale-pools"] = 403
+        let service = LiveBackendService(apiClient: client)
+        _ = try await service.diagnosePublicContract()
+        XCTAssertEqual(service.capabilityMap.state(for: .resalePools), .available)
+
+        do {
+            _ = try await service.getResalePools(userID: "user-1")
+            XCTFail("Expected mapped lifecycle server error")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .server(status: 403, code: "NOT_OWNER", message: "ownership required"))
+        }
+    }
+
+    func testNativeLifecycleModelsRejectLeakedDeviceAndPushSecrets() throws {
+        let leakedDevice = Data(#"{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"TRUSTED","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":null,"tokenHash":"secret-hash"}"#.utf8)
+        let leakedPushToken = Data(#"{"platform":"ios","status":"ACTIVE","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z","tokenDigest":"secret-digest"}"#.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveTrustedDevice.self, from: leakedDevice))
+        XCTAssertThrowsError(try JSONDecoder().decode(LivePushToken.self, from: leakedPushToken))
+    }
+
+    func testNativeLifecycleModelsRejectUnknownStatuses() throws {
+        let unknownResale = Data(#"{"id":"pool-1","eventId":"event-1","performanceDateId":"performance-1","zoneId":"zone-1","ticketId":"ticket-1","showSlug":"show-1","price":10000,"buyerFee":1000,"buyerTotal":11000,"sellerSettlement":9000,"buyerCount":0,"status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","matchedAt":null}"#.utf8)
+        let unknownCancellation = Data(#"{"id":"cancel-1","ticketId":"ticket-1","reason":"Changed plans","refundAcknowledged":true,"status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}"#.utf8)
+        let unknownDevice = Data(#"{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":null}"#.utf8)
+        let unknownPushToken = Data(#"{"platform":"ios","status":"FUTURE_STATUS","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}"#.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveLifecycleResalePool.self, from: unknownResale))
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveCancellationRequest.self, from: unknownCancellation))
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveTrustedDevice.self, from: unknownDevice))
+        XCTAssertThrowsError(try JSONDecoder().decode(LivePushToken.self, from: unknownPushToken))
+    }
+
     func testServiceRejectsUnknownIncompatibleAndBlockedCapabilitiesBeforeDispatch() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]

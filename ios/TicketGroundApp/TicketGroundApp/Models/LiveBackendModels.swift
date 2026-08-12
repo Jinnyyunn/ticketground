@@ -43,6 +43,16 @@ enum LiveAPIEndpoint: Hashable {
     case reservationDraftCreate
     case reservationDraftStatus
     case reservationDraftCancel
+    case resalePools
+    case resalePoolList
+    case resalePoolJoin
+    case resalePoolCancel
+    case cancellationRequests
+    case cancellationRequestCreate
+    case trustedDevices
+    case trustedDeviceRevoke
+    case pushTokens
+    case pushTokenRegister
     case unknown(method: APIRequestMethod, path: String)
 
     static let known: [LiveAPIEndpoint] = [
@@ -81,20 +91,32 @@ enum LiveAPIEndpoint: Hashable {
         .seatHoldRelease,
         .reservationDraftCreate,
         .reservationDraftStatus,
-        .reservationDraftCancel
+        .reservationDraftCancel,
+        .resalePools,
+        .resalePoolList,
+        .resalePoolJoin,
+        .resalePoolCancel,
+        .cancellationRequests,
+        .cancellationRequestCreate,
+        .trustedDevices,
+        .trustedDeviceRevoke,
+        .pushTokens,
+        .pushTokenRegister
     ]
 
     var method: APIRequestMethod {
         switch self {
         case .watchlistUpsert:
             return .put
-        case .watchlistDelete, .queueEntryLeave, .seatHoldRelease, .reservationDraftCancel:
+        case .watchlistDelete, .queueEntryLeave, .seatHoldRelease, .reservationDraftCancel,
+             .resalePoolCancel, .trustedDeviceRevoke:
             return .delete
         case .supportThreadMutation, .supportMessages, .watchlistMutation,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
              .ticketQR, .virtualQR, .queueEntryEnter, .seatHoldCreate,
-             .reservationDraftCreate:
+             .reservationDraftCreate, .resalePoolList, .resalePoolJoin,
+             .cancellationRequestCreate, .pushTokenRegister:
             return .post
         case .seatHoldExtend:
             return .patch
@@ -102,7 +124,8 @@ enum LiveAPIEndpoint: Hashable {
             return method
         case .health, .state, .catalog, .regions, .artist, .openCalendar,
              .publicSupport, .seatMap, .session, .tickets, .watchlist, .supportThreads,
-             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus:
+             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus, .resalePools,
+             .cancellationRequests, .trustedDevices, .pushTokens:
             return .get
         }
     }
@@ -145,6 +168,16 @@ enum LiveAPIEndpoint: Hashable {
         case .reservationDraftCreate: return "/api/me/reservation-drafts"
         case .reservationDraftStatus: return "/api/me/reservation-drafts/{draftId}"
         case .reservationDraftCancel: return "/api/me/reservation-drafts/{draftId}"
+        case .resalePools: return "/api/me/resale-pools"
+        case .resalePoolList: return "/api/me/resale-pools"
+        case .resalePoolJoin: return "/api/me/resale-pools/{poolId}/join"
+        case .resalePoolCancel: return "/api/me/resale-pools/{poolId}"
+        case .cancellationRequests: return "/api/me/cancellation-requests"
+        case .cancellationRequestCreate: return "/api/me/cancellation-requests"
+        case .trustedDevices: return "/api/me/devices"
+        case .trustedDeviceRevoke: return "/api/me/devices/{deviceId}"
+        case .pushTokens: return "/api/me/push-tokens"
+        case .pushTokenRegister: return "/api/me/push-tokens"
         case .unknown(_, let path): return path
         }
     }
@@ -154,14 +187,17 @@ enum LiveAPIEndpoint: Hashable {
         case .health, .state, .catalog, .regions, .artist, .openCalendar, .publicSupport, .seatMap:
             return .publicRead
         case .session, .tickets, .watchlist, .supportThreads,
-             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus:
+             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus, .resalePools,
+             .cancellationRequests, .trustedDevices, .pushTokens:
             return .authenticatedRead
         case .supportThreadMutation, .supportMessages, .watchlistMutation,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
              .ticketQR, .virtualQR, .watchlistUpsert, .watchlistDelete,
              .queueEntryEnter, .queueEntryLeave, .seatHoldCreate, .seatHoldExtend,
-             .seatHoldRelease, .reservationDraftCreate, .reservationDraftCancel:
+             .seatHoldRelease, .reservationDraftCreate, .reservationDraftCancel,
+             .resalePoolList, .resalePoolJoin, .resalePoolCancel,
+             .cancellationRequestCreate, .trustedDeviceRevoke, .pushTokenRegister:
             return .mutation
         case .unknown:
             return .mutation
@@ -251,7 +287,8 @@ struct LiveAPIContract {
         nativeAccountRoutesConfirmed: Bool = false,
         nativeSupportRoutesConfirmed: Bool = false,
         nativeWatchlistRoutesConfirmed: Bool = false,
-        nativeBookingHoldsRoutesConfirmed: Bool = false
+        nativeBookingHoldsRoutesConfirmed: Bool = false,
+        nativeLifecycleRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         var provenPublicEndpoints = provenPublicEndpoints
         if validatedStateResponse {
@@ -275,7 +312,8 @@ struct LiveAPIContract {
                     nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed,
                     nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed,
                     nativeWatchlistRoutesConfirmed: nativeWatchlistRoutesConfirmed,
-                    nativeBookingHoldsRoutesConfirmed: nativeBookingHoldsRoutesConfirmed
+                    nativeBookingHoldsRoutesConfirmed: nativeBookingHoldsRoutesConfirmed,
+                    nativeLifecycleRoutesConfirmed: nativeLifecycleRoutesConfirmed
                 )
             )
         })
@@ -290,7 +328,8 @@ struct LiveAPIContract {
         nativeAccountRoutesConfirmed: Bool,
         nativeSupportRoutesConfirmed: Bool,
         nativeWatchlistRoutesConfirmed: Bool,
-        nativeBookingHoldsRoutesConfirmed: Bool
+        nativeBookingHoldsRoutesConfirmed: Bool,
+        nativeLifecycleRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
@@ -324,6 +363,11 @@ struct LiveAPIContract {
                     && [.queueEntryStatus, .seatHoldStatus, .reservationDraftStatus].contains(endpoint) {
                     return .available
                 }
+                if nativeLifecycleRoutesConfirmed && [
+                    .resalePools, .cancellationRequests, .trustedDevices, .pushTokens
+                ].contains(endpoint) {
+                    return .available
+                }
                 return nativeSupportRoutesConfirmed && endpoint == .supportThreads
                     ? .available
                     : .blocked(.serverAuthorizationUnverified)
@@ -340,6 +384,13 @@ struct LiveAPIContract {
                 if nativeBookingHoldsRoutesConfirmed && [
                     .queueEntryEnter, .queueEntryLeave, .seatHoldCreate, .seatHoldExtend,
                     .seatHoldRelease, .reservationDraftCreate, .reservationDraftCancel
+                ].contains(endpoint) {
+                    return .available
+                }
+                if nativeLifecycleRoutesConfirmed && [
+                    .resalePoolList, .resalePoolJoin, .resalePoolCancel,
+                    .cancellationRequestCreate, .trustedDeviceRevoke, .pushTokenRegister,
+                    .deviceTrust, .ticketQR, .virtualQR
                 ].contains(endpoint) {
                     return .available
                 }
@@ -707,6 +758,193 @@ struct LiveResalePool: Decodable, Equatable {
     let status: String
     let createdAt: String
     let matchedAt: String?
+}
+
+enum LiveLifecycleResalePoolStatus: String, Decodable, Equatable {
+    case open = "OPEN"
+    case matched = "MATCHED"
+    case cancelled = "CANCELED"
+}
+
+struct LiveLifecycleResalePool: Decodable, Equatable {
+    let id: String
+    let eventId: String
+    let performanceDateId: String
+    let zoneId: String
+    let ticketId: String
+    let showSlug: String?
+    let price: Int
+    let buyerFee: Int?
+    let buyerTotal: Int?
+    let sellerSettlement: Int?
+    let buyerCount: Int
+    let status: LiveLifecycleResalePoolStatus
+    let createdAt: String
+    let matchedAt: String?
+}
+
+enum LiveCancellationRequestStatus: String, Decodable, Equatable {
+    case pendingReview = "PENDING_REVIEW"
+}
+
+struct LiveCancellationRequest: Decodable, Equatable {
+    let id: String
+    let ticketId: String
+    let reason: String
+    let refundAcknowledged: Bool
+    let status: LiveCancellationRequestStatus
+    let createdAt: String
+    let updatedAt: String
+}
+
+enum LiveTrustedDeviceStatus: String, Decodable, Equatable {
+    case trusted = "TRUSTED"
+    case revoked = "REVOKED"
+}
+
+struct LiveTrustedDevice: Decodable, Equatable {
+    let id: String
+    let deviceID: String
+    let deviceName: String
+    let platform: String
+    let status: LiveTrustedDeviceStatus
+    let createdAt: String
+    let lastVerifiedAt: String
+    let revokedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case deviceID = "deviceId"
+        case deviceName
+        case platform
+        case status
+        case createdAt
+        case lastVerifiedAt
+        case revokedAt
+        case deviceToken
+        case tokenHash
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard !container.contains(.deviceToken), !container.contains(.tokenHash) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .tokenHash,
+                in: container,
+                debugDescription: "Trusted device responses must not contain secrets."
+            )
+        }
+        id = try container.decode(String.self, forKey: .id)
+        deviceID = try container.decode(String.self, forKey: .deviceID)
+        deviceName = try container.decode(String.self, forKey: .deviceName)
+        platform = try container.decode(String.self, forKey: .platform)
+        status = try container.decode(LiveTrustedDeviceStatus.self, forKey: .status)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        lastVerifiedAt = try container.decode(String.self, forKey: .lastVerifiedAt)
+        revokedAt = try container.decodeIfPresent(String.self, forKey: .revokedAt)
+    }
+}
+
+struct LiveTrustedDeviceRegistration: Decodable, Equatable {
+    let id: String
+    let deviceID: String
+    let deviceName: String
+    let platform: String
+    let status: LiveTrustedDeviceStatus
+    let lastVerifiedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case deviceID = "deviceId"
+        case deviceName
+        case platform
+        case status
+        case lastVerifiedAt
+    }
+}
+
+struct LiveDeviceTrustResult: Decodable, Equatable {
+    let device: LiveTrustedDeviceRegistration
+    let deviceToken: String
+}
+
+struct LiveAppAttestChallenge: Decodable, Equatable {
+    let id: String
+    let challenge: String
+    let expiresAt: String
+}
+
+enum LivePushPlatform: String, Codable, Equatable {
+    case ios
+    case android
+}
+
+enum LivePushTokenStatus: String, Decodable, Equatable {
+    case active = "ACTIVE"
+}
+
+struct LivePushToken: Decodable, Equatable {
+    let platform: LivePushPlatform
+    let status: LivePushTokenStatus
+    let suffix: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case platform
+        case status
+        case suffix
+        case createdAt
+        case updatedAt
+        case token
+        case tokenDigest
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard !container.contains(.token), !container.contains(.tokenDigest) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .tokenDigest,
+                in: container,
+                debugDescription: "Push token responses must not contain secrets."
+            )
+        }
+        platform = try container.decode(LivePushPlatform.self, forKey: .platform)
+        status = try container.decode(LivePushTokenStatus.self, forKey: .status)
+        suffix = try container.decode(String.self, forKey: .suffix)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+    }
+}
+
+struct LiveVirtualTicketQR: Decodable, Equatable {
+    let type: String
+    let ticketId: String
+    let issuedAt: String
+    let eventTitle: String
+    let seatLabel: String
+    let performanceStartsAt: String
+    let qrPreparedAt: String
+    let realQrAvailableAt: String
+    let admissionCredentialStatus: String
+    let admissionChannel: String
+}
+
+struct LiveAdmissionQR: Decodable, Equatable {
+    let type: String
+    let ticketId: String
+    let ownerId: String
+    let expiresAt: String
+    let nonce: String
+    let signature: String
+    let issuedAt: String
+    let performanceStartsAt: String
+    let preparedAt: String
+    let activeAt: String
+    let ttlSeconds: Int
+    let traceCode: String
+    let channel: String
+    let emergencyReason: String?
 }
 
 struct LiveWatchlistItem: Decodable, Equatable {

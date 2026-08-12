@@ -27,10 +27,13 @@ export function createApiRouter({
   confirmTosspaymentsPayment,
   createAdminAccount,
   cancelResaleListing,
+  cancelResalePoolForPrincipal,
+  createCancellationRequestForPrincipal,
   createReservationDraft,
   createSeatHold,
   createSupportThread,
   createSupportThreadForPrincipal,
+  createResalePoolForPrincipal,
   createEventDraft,
   cancelReservationDraft,
   createSellerEvent,
@@ -52,13 +55,19 @@ export function createApiRouter({
   confirmPortOneDanalVerification,
   SERVICE_FEE_PER_SEAT,
   issueGateSession,
+  issueAppAttestChallenge,
   issueQr,
   issueNativeSession,
   issueSellerAccount,
   joinPool,
+  joinResalePoolForPrincipal,
   leaveQueue,
   listForResale,
   listGateSessions,
+  listCancellationRequestsForPrincipal,
+  listDevicesForPrincipal,
+  listPushTokensForPrincipal,
+  listResalePoolsForPrincipal,
   listSellerEvents,
   notifyWatchlist,
   nativeLogout,
@@ -80,6 +89,7 @@ export function createApiRouter({
   publicResalePool,
   publicState,
   removeWatchlistForPrincipal,
+  revokeDeviceForPrincipal,
   publicTicketsForUser,
   publicIdentityStatus,
   approveSellerApplication,
@@ -116,10 +126,11 @@ export function createApiRouter({
   updateUserStatuses,
   upsertWatchlist,
   upsertWatchlistForPrincipal,
+  upsertPushTokenForPrincipal,
   userWatchlist,
   userWatchlistForPrincipal,
   venueMapForEvent,
-  verifyAppAttestation,
+  verifyAppAttestProof,
   verifyLedger,
   verifyQr,
   virtualQr
@@ -248,6 +259,9 @@ async function handleApi(req, res, db, surface) {
   const seatHoldMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)$/);
   const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
   const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
+  const principalResalePoolMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)$/);
+  const principalResaleJoinMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)\/join$/);
+  const principalDeviceMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname.startsWith("/api/ledger");
@@ -257,7 +271,7 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
-    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1", "native-booking-holds-v1"] };
+    return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1", "native-booking-holds-v1", "native-lifecycle-v1"] };
   }
   if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
@@ -372,6 +386,76 @@ async function handleApi(req, res, db, surface) {
       userId: authenticateNativeSession(db, req).user.id,
       draftId: reservationDraftMatch[1]
     });
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/resale-pools") {
+    return listResalePoolsForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/resale-pools") {
+    requireBody(body, ["ticketId", "price"]);
+    return createResalePoolForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "POST" && principalResaleJoinMatch) {
+    return joinResalePoolForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      principalResaleJoinMatch[1],
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "DELETE" && principalResalePoolMatch) {
+    return cancelResalePoolForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      principalResalePoolMatch[1]
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/cancellation-requests") {
+    return listCancellationRequestsForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/cancellation-requests") {
+    requireBody(body, ["ticketId", "reason", "refundAcknowledged"]);
+    return createCancellationRequestForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/devices") {
+    return listDevicesForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/device-attestation/challenges") {
+    requireBody(body, ["purpose", "deviceId"]);
+    return issueAppAttestChallenge(db, {
+      userId: authenticateNativeSession(db, req).user.id,
+      purpose: body.purpose,
+      deviceId: body.deviceId,
+      ticketId: body.ticketId
+    });
+  }
+  if (req.method === "DELETE" && principalDeviceMatch) {
+    return revokeDeviceForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      principalDeviceMatch[1]
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/push-tokens") {
+    return listPushTokensForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/push-tokens") {
+    requireBody(body, ["platform", "token"]);
+    return upsertPushTokenForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
     requireBody(body, ["name"]);
@@ -770,15 +854,15 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/devices/trust") {
     requireBody(body, ["deviceId", "biometricVerified"]);
     const trustUserId = resolvePurchaseUserId(db, req, body);
-    verifyAppAttestation(body, "TRUST_DEVICE", [trustUserId, body.deviceId]);
+    await verifyAppAttestProof(db, { userId: trustUserId, purpose: "TRUST_DEVICE", deviceId: body.deviceId, body, kind: "attestation" });
     return trustDevice(db, { ...body, userId: trustUserId, attestationVerified: true });
   }
   if (req.method === "POST" && url.pathname === "/api/tickets/qr") {
     requireBody(body, ["ticketId"]);
     const qrUserId = resolvePurchaseUserId(db, req, body);
     if (String(body.channel || "WEB").toUpperCase() === "APP") {
-      requireBody(body, ["deviceId", "appAttestation"]);
-      verifyAppAttestation(body, "ISSUE_QR", [qrUserId, body.deviceId, body.ticketId]);
+      requireBody(body, ["deviceId"]);
+      await verifyAppAttestProof(db, { userId: qrUserId, purpose: "ISSUE_QR", deviceId: body.deviceId, ticketId: body.ticketId, body, kind: "assertion" });
       return issueQr(db, { ...body, userId: qrUserId, attestationVerified: true });
     }
     return issueQr(db, { ...body, userId: qrUserId });
