@@ -13,10 +13,10 @@ test("resale page registers and purchases through backend APIs", async (t) => {
   });
 
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  await page.goto(`${baseUrl}/resale?sessionUserId=user_fan_b`);
+  await page.goto(`${baseUrl}/mypage/resale?sessionUserId=user_fan_b`);
   const contextCard = page.getByTestId("resale-reservation-context");
   await contextCard.waitFor({ timeout: 5000 });
-  assert.match(await contextCard.innerText(), /이 예약을 재판매\/양도합니다/);
+  assert.match(await contextCard.innerText(), /이 예약을 CLEAN 티켓으로 양도합니다/);
   assert.match(await contextCard.innerText(), /CTI-260513-A4F2K9/);
   assert.equal(await contextCard.locator("img").count(), 1, "reservation context should render a poster thumbnail");
 
@@ -27,7 +27,7 @@ test("resale page registers and purchases through backend APIs", async (t) => {
   );
   assert.ok(!buyerOwnedTicketIds.includes(ticket.id), "buyer session must not see seller-owned tickets");
 
-  await page.goto(`${baseUrl}/resale?sessionUserId=user_fan_a`);
+  await page.goto(`${baseUrl}/mypage/resale?sessionUserId=user_fan_a`);
 
   await page.getByTestId("owned-ticket-select").selectOption(ticket.id);
   await page.getByTestId("resale-price-input").fill(String(ticket.faceValue));
@@ -43,7 +43,7 @@ test("resale page registers and purchases through backend APIs", async (t) => {
   assert.equal(listed.ok, true);
   assert.equal(listed.data.ticketId, ticket.id);
 
-  await page.goto(`${baseUrl}/resale?sessionUserId=user_fan_b`);
+  await page.goto(`${baseUrl}/mypage/resale?sessionUserId=user_fan_b`);
   const findTab = page.getByRole("button", { name: "구하기", exact: true });
   await findTab.click();
   assert.equal(await findTab.getAttribute("data-resale-tab-state"), "selected");
