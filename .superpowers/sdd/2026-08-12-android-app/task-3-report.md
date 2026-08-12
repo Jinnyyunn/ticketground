@@ -30,6 +30,7 @@ All Gradle work ran serially with the Android Studio JBR and local Android SDK.
 | TDD RED for the new UI contract | `./gradlew compileDevDebugAndroidTestKotlin --no-daemon` before implementation | Failed on missing `ui` surfaces and symbols | `.omo/evidence/task-3-android-ui/tdd-red-androidtest-compile.log` |
 | JVM state/repository tests | `./gradlew testDevDebugUnitTest --no-daemon` | `BUILD SUCCESSFUL` | `.omo/evidence/task-3-android-ui/jvm-tests.log` |
 | Compose UI test source readiness | `./gradlew compileDevDebugAndroidTestKotlin --no-daemon` | `BUILD SUCCESSFUL` | `.omo/evidence/task-3-android-ui/ui-test-source-compile.log` |
+| Compose UI test APK readiness | `./gradlew assembleDevDebugAndroidTest --no-daemon` | `BUILD SUCCESSFUL`; signed debug test APK produced | `.omo/evidence/task-3-android-ui/assemble-ui-test-apk.log` |
 | Android lint | `./gradlew lintDevDebug --no-daemon` | `BUILD SUCCESSFUL` | `.omo/evidence/task-3-android-ui/lint-dev-debug.log` |
 | Debug APK assembly | `./gradlew assembleDevDebug --no-daemon` | `BUILD SUCCESSFUL`; `app-dev-debug.apk` produced | `.omo/evidence/task-3-android-ui/assemble-dev-debug.log` |
 | Release/R8 assembly | `./gradlew assembleProdRelease --no-daemon` | `BUILD SUCCESSFUL`; unsigned release APK produced | `.omo/evidence/task-3-android-ui/assemble-prod-release.log` |
