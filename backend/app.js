@@ -12,6 +12,7 @@ import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
 import { createNativeSessionBackend } from "./native-session.js";
+import { createMobileLifecycleBackend } from "./mobile-lifecycle.js";
 import { createPersistence } from "./persistence.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
@@ -177,6 +178,18 @@ export async function createTicketgroundApp(options) {
     resolvePaymentMethod: runtime.resolvePaymentMethod,
     saleSummary: catalog.saleSummary
   });
+  const mobileLifecycle = createMobileLifecycleBackend({
+    appendLedger: persistence.appendLedger,
+    cancelResaleListing: commerce.cancelResaleListing,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    joinPool: commerce.joinPool,
+    listForResale: commerce.listForResale,
+    now: runtime.now,
+    publicResalePool: dtos.publicResalePool,
+    sortJson: runtime.sortJson
+  });
   groupBooking = createGroupBookingBackend({
     appendLedger: persistence.appendLedger,
     businessRegistrationDir: options.businessRegistrationDir,
@@ -213,6 +226,7 @@ export async function createTicketgroundApp(options) {
     ...gateSessions,
     ...groupBooking,
     ...identity,
+    ...mobileLifecycle,
     ...nativeSession,
     ...sellerApplications,
     ...sellerAccounts,

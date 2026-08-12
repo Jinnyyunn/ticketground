@@ -27,10 +27,13 @@ export function createApiRouter({
   confirmTosspaymentsPayment,
   createAdminAccount,
   cancelResaleListing,
+  cancelResalePoolForPrincipal,
+  createCancellationRequestForPrincipal,
   createReservationDraft,
   createSeatHold,
   createSupportThread,
   createSupportThreadForPrincipal,
+  createResalePoolForPrincipal,
   createEventDraft,
   cancelReservationDraft,
   createSellerEvent,
@@ -56,9 +59,14 @@ export function createApiRouter({
   issueNativeSession,
   issueSellerAccount,
   joinPool,
+  joinResalePoolForPrincipal,
   leaveQueue,
   listForResale,
   listGateSessions,
+  listCancellationRequestsForPrincipal,
+  listDevicesForPrincipal,
+  listPushTokensForPrincipal,
+  listResalePoolsForPrincipal,
   listSellerEvents,
   notifyWatchlist,
   nativeLogout,
@@ -80,6 +88,7 @@ export function createApiRouter({
   publicResalePool,
   publicState,
   removeWatchlistForPrincipal,
+  revokeDeviceForPrincipal,
   publicTicketsForUser,
   publicIdentityStatus,
   approveSellerApplication,
@@ -116,6 +125,7 @@ export function createApiRouter({
   updateUserStatuses,
   upsertWatchlist,
   upsertWatchlistForPrincipal,
+  upsertPushTokenForPrincipal,
   userWatchlist,
   userWatchlistForPrincipal,
   venueMapForEvent,
@@ -248,6 +258,9 @@ async function handleApi(req, res, db, surface) {
   const seatHoldMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)$/);
   const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
   const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
+  const principalResalePoolMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)$/);
+  const principalResaleJoinMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)\/join$/);
+  const principalDeviceMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname.startsWith("/api/ledger");
@@ -372,6 +385,67 @@ async function handleApi(req, res, db, surface) {
       userId: authenticateNativeSession(db, req).user.id,
       draftId: reservationDraftMatch[1]
     });
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/resale-pools") {
+    return listResalePoolsForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/resale-pools") {
+    requireBody(body, ["ticketId", "price"]);
+    return createResalePoolForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "POST" && principalResaleJoinMatch) {
+    return joinResalePoolForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      principalResaleJoinMatch[1],
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "DELETE" && principalResalePoolMatch) {
+    return cancelResalePoolForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      principalResalePoolMatch[1]
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/cancellation-requests") {
+    return listCancellationRequestsForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/cancellation-requests") {
+    requireBody(body, ["ticketId", "reason", "refundAcknowledged"]);
+    return createCancellationRequestForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/devices") {
+    return listDevicesForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "DELETE" && principalDeviceMatch) {
+    return revokeDeviceForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      principalDeviceMatch[1]
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/push-tokens") {
+    return listPushTokensForPrincipal(db, authenticateNativeSession(db, req).user.id);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/push-tokens") {
+    requireBody(body, ["platform", "token"]);
+    return upsertPushTokenForPrincipal(
+      db,
+      authenticateNativeSession(db, req).user.id,
+      body,
+      requireIdempotencyKey(req)
+    );
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
     requireBody(body, ["name"]);
