@@ -537,6 +537,11 @@ struct DiscoveryMenuView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("menu-kakao-channel")
+                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
+                        menuRow(title: "카카오톡 채널 추가", icon: "person.crop.circle.badge.plus")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("menu-kakao-channel-add")
                     menuLink(title: "공지사항", icon: "megaphone", route: .open, identifier: "menu-notice")
                 }
 
@@ -1213,6 +1218,11 @@ private struct LiveMenuRouteView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("live-menu-kakao-channel")
+                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
+                        liveMenuRow(title: "카카오톡 채널 추가", icon: "person.crop.circle.badge.plus")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("live-menu-kakao-channel-add")
                 }
 
                 menuSection(title: "서비스 안내", detail: "현재 연결 상태를 확인하세요") {
@@ -1953,6 +1963,12 @@ private struct LiveAccountRouteView: View {
                             .tint(Color(red: 254 / 255, green: 229 / 255, blue: 0))
                             .foregroundStyle(Color.black)
                             .accessibilityIdentifier("live-mypage-kakao-channel")
+                            Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
+                                Label("카카오톡 채널 추가", systemImage: "person.crop.circle.badge.plus")
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("live-mypage-kakao-channel-add")
                         }
                     }
                     .padding(TicketgroundSpacing.xl)
@@ -2918,6 +2934,12 @@ private struct LiveSupportRouteView: View {
                         .tint(Color(red: 254 / 255, green: 229 / 255, blue: 0))
                         .foregroundStyle(Color.black)
                         .accessibilityIdentifier("live-support-kakao-channel")
+                        Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
+                            Label("카카오톡 채널 추가", systemImage: "person.crop.circle.badge.plus")
+                                .frame(maxWidth: .infinity, minHeight: 46)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("live-support-kakao-channel-add")
                     }
                     .padding(TicketgroundSpacing.xl)
                 }
