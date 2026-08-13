@@ -153,9 +153,15 @@ export function SiteHeader({
       <div className="hidden border-b border-line bg-surface sm:block">
         <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-sm font-bold text-ink-3">
           {utilityLinksBeforeAuth.map((link) => (
-            <Link key={link.href} href={localizeHref(locale, link.href)} className={utilityLinkClassName}>
-              {dict.utilityHelp}
-            </Link>
+            link.external ? (
+              <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className={utilityLinkClassName}>
+                카카오톡 문의
+              </a>
+            ) : (
+              <Link key={link.href} href={localizeHref(locale, link.href)} className={utilityLinkClassName}>
+                {dict.utilityHelp}
+              </Link>
+            )
           ))}
           <HeaderAuthLinks signedIn={signedIn} signOut={signOut} dict={dict} locale={locale} />
           <LanguageSwitcher

@@ -7,7 +7,10 @@ import { StarIcon, TicketIcon, UserIcon } from "@/components/icons";
 export type CategoryId = "home" | "concert" | "musical" | "theater" | "classical" | "exhibition" | "kids" | "sports";
 export type HighlightCategoryId = "resale" | "calendar";
 
-export const utilityLinksBeforeAuth = [{ id: "help", href: "/help" }] as const;
+export const utilityLinksBeforeAuth = [
+  { id: "help", href: "/help", external: false },
+  { id: "kakao-channel", href: "https://pf.kakao.com/_xmTniX/chat", external: true },
+] as const;
 
 export const signedInUtilityLinks = [{ id: "my", href: "/mypage" }] as const;
 
