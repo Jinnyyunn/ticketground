@@ -8,16 +8,15 @@ import { Readable } from "node:stream";
 import { createTicketgroundApp } from "../backend/app.js";
 import { startAppAttestVerifier } from "./backend-test-utils.mjs";
 
-// NODE_ENV=production (as used by `npm test`) blocks PortOne Danal's mock
-// verification unless this is explicitly set - same production safeguard
-// startServer()'s child process gets by default (see backend/identity.js's
-// portOneMockAllowed()).
-function withPortOneTestMode(t) {
-  const previous = process.env.TIG_PORTONE_IDENTITY_TEST_MODE;
-  process.env.TIG_PORTONE_IDENTITY_TEST_MODE = "1";
+// NODE_ENV=production (as used by `npm test`) blocks NICE's mock verification
+// unless this is explicitly set - same production safeguard startServer()'s
+// child process gets by default (see backend/identity.js's niceMockAllowed()).
+function withNiceTestMode(t) {
+  const previous = process.env.TIG_NICE_IDENTITY_TEST_MODE;
+  process.env.TIG_NICE_IDENTITY_TEST_MODE = "1";
   t.after(() => {
-    if (previous === undefined) delete process.env.TIG_PORTONE_IDENTITY_TEST_MODE;
-    else process.env.TIG_PORTONE_IDENTITY_TEST_MODE = previous;
+    if (previous === undefined) delete process.env.TIG_NICE_IDENTITY_TEST_MODE;
+    else process.env.TIG_NICE_IDENTITY_TEST_MODE = previous;
   });
 }
 
@@ -80,10 +79,10 @@ async function requestApp(app, { authorization, body, expectedStatus = 200, meth
 }
 
 async function verifyIdentity(app, userId, phone) {
-  const started = await requestApp(app, { method: "POST", url: "/api/identity/portone-danal/start", body: { userId, phone } });
+  const started = await requestApp(app, { method: "POST", url: "/api/identity/nice/start", body: { userId } });
   await requestApp(app, {
     method: "POST",
-    url: "/api/identity/portone-danal/confirm",
+    url: "/api/identity/nice/mock-complete",
     body: { userId, phone, identityVerificationId: started.data.identityVerificationId }
   });
 }
@@ -169,7 +168,7 @@ async function trustAndIssueQr(app, { userId, ticketId, deviceId, otpVerified, d
 }
 
 test("issueQr risk gate: OTP band blocks without otpVerified and passes with it", async (t) => {
-  withPortOneTestMode(t);
+  withNiceTestMode(t);
   const app = await ticketgroundApp(t);
   await verifyIdentity(app, "user_fan_a", "010-9000-0001");
   const ticket = await buyFirstTicket(app, "user_fan_a");
@@ -184,7 +183,7 @@ test("issueQr risk gate: OTP band blocks without otpVerified and passes with it"
 });
 
 test("issueQr risk gate: delay band blocks until delayAcknowledged, then passes", async (t) => {
-  withPortOneTestMode(t);
+  withNiceTestMode(t);
   const app = await ticketgroundApp(t);
   await verifyIdentity(app, "user_fan_a", "010-9000-0001");
   const ticket = await buyFirstTicket(app, "user_fan_a");
@@ -199,7 +198,7 @@ test("issueQr risk gate: delay band blocks until delayAcknowledged, then passes"
 });
 
 test("issueQr risk gate: HOLD band cannot be bypassed by otpVerified or delayAcknowledged", async (t) => {
-  withPortOneTestMode(t);
+  withNiceTestMode(t);
   const app = await ticketgroundApp(t);
   await verifyIdentity(app, "user_fan_a", "010-9000-0001");
   const ticket = await buyFirstTicket(app, "user_fan_a");

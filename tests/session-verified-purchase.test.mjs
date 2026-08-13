@@ -6,8 +6,8 @@ import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-t
 import { configureSocialEnv, cookieHeaderFromSetCookie, PROVIDERS, redirected } from "./social-auth-test-helpers.mjs";
 
 async function verifyIdentityFor(baseUrl, userId, phone) {
-  const started = await api(baseUrl, "/api/identity/portone-danal/start", { userId, phone });
-  await api(baseUrl, "/api/identity/portone-danal/confirm", {
+  const started = await api(baseUrl, "/api/identity/nice/start", { userId });
+  await api(baseUrl, "/api/identity/nice/mock-complete", {
     userId,
     phone,
     identityVerificationId: started.data.identityVerificationId
@@ -115,17 +115,16 @@ test("Kakao web login session also issues a credential that identity verificatio
   // 요청 본문에는 다른 사람(someone-else)의 id를 넣어 사칭을 시도한다.
   const started = await api(
     baseUrl,
-    "/api/identity/portone-danal/start",
-    { userId: "someone-else", phone: "010-5555-6666" },
+    "/api/identity/nice/start",
+    { userId: "someone-else" },
     200,
     { Authorization: `Bearer ${session.credential}` }
   );
-  assert.equal(started.data.provider, "portone-danal");
-  assert.equal(started.data.phoneMasked, "010-****-6666");
+  assert.equal(started.data.provider, "nice-standard");
 
   const confirmed = await api(
     baseUrl,
-    "/api/identity/portone-danal/confirm",
+    "/api/identity/nice/mock-complete",
     { userId: "someone-else", phone: "010-5555-6666", identityVerificationId: started.data.identityVerificationId },
     200,
     { Authorization: `Bearer ${session.credential}` }

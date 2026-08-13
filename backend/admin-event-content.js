@@ -20,7 +20,7 @@ const defaultZones = [
   { id: "zone_s", name: "S석", faceValue: 99000, resaleFeeRate: 0.06, maxTransferCount: 1, seatCount: 12 }
 ];
 const clearableTextKeys = ["shortTitle", "period", "runtime", "artistSlug", "summary"];
-export const defaultCheckoutNotice = "티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다.";
+export const defaultCheckoutNotice = "티켓 예매 및 결제 전 NICE 휴대폰 본인인증이 필요합니다.";
 
 export function createAdminEventContentBackend({ httpError, money, stableId }) {
   function hasOwn(payload, key) {

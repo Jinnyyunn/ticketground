@@ -190,9 +190,7 @@ export const apiIdentityStatusSchema = z.object({
   provider: z.string(),
   phoneMasked: z.string().nullable(),
   verifiedAt: z.string().nullable(),
-  portOneConfigured: z.boolean(),
-  storeId: z.string(),
-  channelKey: z.string(),
+  niceConfigured: z.boolean(),
   mockAvailable: z.boolean(),
 }) satisfies ZodType<ApiIdentityStatus>;
 
@@ -200,10 +198,9 @@ export const apiIdentityStartSchema = z.object({
   identityVerificationId: z.string(),
   provider: z.string(),
   status: z.string(),
-  phoneMasked: z.string(),
-  storeId: z.string(),
-  channelKey: z.string(),
-  portOneConfigured: z.boolean(),
+  product: z.string(),
+  authUrl: z.string().nullable(),
+  niceConfigured: z.boolean(),
   mockAvailable: z.boolean(),
 }) satisfies ZodType<ApiIdentityStart>;
 

@@ -8,11 +8,11 @@ import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/d
 import { currency } from "@/data/ticketing";
 import {
   buyTicket,
-  confirmDanalIdentityVerification,
   getIdentityStatus,
   getState,
   getTosspaymentsConfig,
-  startDanalIdentityVerification,
+  mockCompleteNiceIdentityVerification,
+  startNiceIdentityVerification,
   storedSessionUserId,
   TicketgroundApiError,
   type ApiIdentityStatus,
@@ -78,30 +78,6 @@ type CheckoutSelection = {
   readonly ticketId: string;
 };
 
-type PortOneIdentityVerificationRequest = {
-  readonly storeId: string;
-  readonly channelKey: string;
-  readonly identityVerificationId: string;
-};
-
-type PortOneIdentityVerificationResponse = {
-  readonly code?: string;
-  readonly message?: string;
-  readonly identityVerificationId?: string;
-};
-
-type PortOneBrowserSdk = {
-  readonly requestIdentityVerification: (
-    request: PortOneIdentityVerificationRequest,
-  ) => Promise<PortOneIdentityVerificationResponse>;
-};
-
-declare global {
-  interface Window {
-    readonly PortOne?: PortOneBrowserSdk;
-  }
-}
-
 export function CheckoutPanel({
   show,
   selection,
@@ -118,7 +94,6 @@ export function CheckoutPanel({
   const [sessionUserId, setSessionUserId] = useState("");
   const [identityStatus, setIdentityStatus] = useState<ApiIdentityStatus | null>(null);
   const [identityPhone, setIdentityPhone] = useState("");
-  const [identityVerificationId, setIdentityVerificationId] = useState("");
   const [identityBusy, setIdentityBusy] = useState(false);
   const [identityMessage, setIdentityMessage] = useState("간편 로그인 후 본인인증 상태를 확인합니다.");
   const [tosspaymentsConfig, setTosspaymentsConfig] = useState<ApiTosspaymentsConfig | null>(null);
@@ -225,7 +200,6 @@ export function CheckoutPanel({
     const userId = storedSessionUserId();
     setSessionUserId(userId ?? "");
     setIdentityStatus(null);
-    setIdentityVerificationId("");
     if (!userId) {
       setIdentityMessage("간편 로그인 후 티켓 예매 전 본인인증을 진행해 주세요.");
       return () => {
@@ -238,7 +212,7 @@ export function CheckoutPanel({
       .then((nextStatus) => {
         if (!mounted) return;
         setIdentityStatus(nextStatus);
-        setIdentityMessage(nextStatus.verified ? "본인인증 완료 · 결제를 진행할 수 있습니다." : "결제 전 포트원 다날 휴대폰 본인인증이 필요합니다.");
+        setIdentityMessage(nextStatus.verified ? "본인인증 완료 · 결제를 진행할 수 있습니다." : "결제 전 NICE 휴대폰 본인인증이 필요합니다.");
       })
       .catch((error: unknown) => {
         if (!mounted) return;
@@ -251,79 +225,64 @@ export function CheckoutPanel({
     };
   }, []);
 
+  // NICE 표준창은 서버 push가 아니라 사용자의 브라우저를 콜백 URL로 돌려보내는 방식이라,
+  // 팝업을 띄운 뒤 그 창이 닫히기를 기다렸다가 본인인증 상태를 다시 조회해서 반영한다.
+  // (niceConfigured가 false인 로컬/QA 환경은 팝업 없이 입력한 번호로 바로 확정한다.)
   async function requestIdentityVerification() {
-    const phone = identityPhone.trim();
-    if (!sessionUserId || !phone || identityBusy) return;
+    if (!sessionUserId || identityBusy) return;
     setIdentityBusy(true);
-    setIdentityMessage("다날 휴대폰 본인인증 요청 중");
+    setIdentityMessage("NICE 본인인증 요청 중");
     try {
-      const started = await startDanalIdentityVerification({ userId: sessionUserId, phone });
-      setIdentityVerificationId(started.identityVerificationId);
-      if (started.portOneConfigured) {
-        const portOne = window.PortOne;
-        if (!portOne) {
-          setIdentityMessage("포트원 본인인증 SDK를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      const started = await startNiceIdentityVerification({ userId: sessionUserId });
+      if (started.authUrl) {
+        setIdentityMessage("NICE 본인인증 창을 여는 중입니다.");
+        const popup = window.open(started.authUrl, "nice-identity-verify", "width=430,height=640");
+        if (!popup) {
+          setIdentityMessage("팝업이 차단되었습니다. 브라우저의 팝업 차단을 해제한 뒤 다시 시도해주세요.");
           return;
         }
-        setIdentityMessage("포트원 다날 본인인증 창을 여는 중입니다.");
-        const result = await portOne.requestIdentityVerification({
-          storeId: started.storeId,
-          channelKey: started.channelKey,
-          identityVerificationId: started.identityVerificationId,
+        await new Promise<void>((resolve) => {
+          const timer = window.setInterval(() => {
+            if (popup.closed) {
+              window.clearInterval(timer);
+              resolve();
+            }
+          }, 500);
         });
-        if (result.code) {
-          setIdentityMessage(result.message || "다날 휴대폰 본인인증이 취소되었거나 실패했습니다.");
-          return;
-        }
-        const confirmed = await confirmDanalIdentityVerification({
-          userId: sessionUserId,
-          phone,
-          identityVerificationId: result.identityVerificationId || started.identityVerificationId,
-        });
-        setIdentityStatus(confirmed);
-        setIdentityVerificationId("");
-        setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
+        setIdentityMessage("본인인증 결과 확인 중");
+        const refreshed = await getIdentityStatus(sessionUserId);
+        setIdentityStatus(refreshed);
+        setIdentityMessage(
+          refreshed.verified
+            ? `${refreshed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`
+            : "본인인증이 완료되지 않았습니다. 다시 시도해주세요.",
+        );
         return;
       }
-      setIdentityMessage(`${started.phoneMasked} 다날 본인인증 요청 완료 · 로컬 QA 모드에서 인증 완료 확인을 진행합니다.`);
-      if (started.mockAvailable) {
-        const confirmed = await confirmDanalIdentityVerification({
-          userId: sessionUserId,
-          phone,
-          identityVerificationId: started.identityVerificationId,
-        });
-        setIdentityStatus(confirmed);
-        setIdentityVerificationId("");
-        setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
+      if (!started.mockAvailable) {
+        setIdentityMessage("NICE 본인인증이 아직 설정되지 않았습니다.");
+        return;
       }
+      const phone = identityPhone.trim();
+      if (!phone) {
+        setIdentityMessage("로컬 QA 모드입니다. 휴대폰 번호를 입력한 뒤 다시 시도해주세요.");
+        return;
+      }
+      setIdentityMessage("로컬 QA 모드에서 인증 완료를 진행합니다.");
+      const confirmed = await mockCompleteNiceIdentityVerification({
+        userId: sessionUserId,
+        phone,
+        identityVerificationId: started.identityVerificationId,
+      });
+      setIdentityStatus(confirmed);
+      setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
     } catch (error: unknown) {
       const message = error instanceof TicketgroundApiError && error.code === "PHONE_ALREADY_VERIFIED"
         ? "이미 다른 계정에서 인증된 휴대폰 번호입니다."
         : error instanceof Error
           ? error.message
-          : "다날 휴대폰 본인인증 요청에 실패했습니다.";
+          : "NICE 본인인증 요청에 실패했습니다.";
       setIdentityMessage(message);
-    } finally {
-      setIdentityBusy(false);
-    }
-  }
-
-  async function confirmIdentityVerification() {
-    const phone = identityPhone.trim();
-    if (!sessionUserId || !phone || !identityVerificationId || identityBusy) return;
-    setIdentityBusy(true);
-    setIdentityMessage("다날 휴대폰 본인인증 완료 확인 중");
-    try {
-      const confirmed = await confirmDanalIdentityVerification({
-        userId: sessionUserId,
-        phone,
-        identityVerificationId,
-      });
-      setIdentityStatus(confirmed);
-      setIdentityVerificationId("");
-      setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
-    } catch (error: unknown) {
-      setIdentityMessage(error instanceof Error ? error.message : "본인인증 완료 확인에 실패했습니다.");
     } finally {
       setIdentityBusy(false);
     }
@@ -398,7 +357,6 @@ export function CheckoutPanel({
 
   return (
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
-      <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="afterInteractive" />
       <Script src="https://js.tosspayments.com/v2/standard" strategy="afterInteractive" onLoad={() => setTossSdkLoaded(true)} />
       <section className="rounded-md border border-line p-6">
         <p className="text-sm font-bold text-ticketground">STEP 3</p>
@@ -459,7 +417,7 @@ export function CheckoutPanel({
             <div>
               <h2 className="text-[19px] font-black text-ink">본인인증</h2>
               <p className="mt-2 break-keep text-sm font-bold text-ink-3">
-                티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다. 한 번 인증된 휴대폰 번호는 다른 계정에서 다시 인증할 수 없습니다.
+                티켓 예매 및 결제 전 NICE 휴대폰 본인인증이 필요합니다. 한 번 인증된 휴대폰 번호는 다른 계정에서 다시 인증할 수 없습니다.
               </p>
             </div>
             <span className={identityVerified ? "rounded-sm bg-ok px-3 py-1 text-xs font-black text-white" : "rounded-sm bg-ticketground px-3 py-1 text-xs font-black text-white"}>
@@ -476,29 +434,23 @@ export function CheckoutPanel({
               인증 계정: {sessionUserId} · {identityStatus.phoneMasked ?? "휴대폰 인증 완료"}
             </div>
           ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <input
-                value={identityPhone}
-                onChange={(event) => setIdentityPhone(event.target.value)}
-                inputMode="tel"
-                placeholder="휴대폰 번호 입력"
-                className="h-11 rounded-sm border border-line-strong bg-card px-3 text-sm font-bold text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-              />
+            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              {identityStatus?.niceConfigured !== true ? (
+                <input
+                  value={identityPhone}
+                  onChange={(event) => setIdentityPhone(event.target.value)}
+                  inputMode="tel"
+                  placeholder="휴대폰 번호 (로컬 QA 모드)"
+                  className="h-11 rounded-sm border border-line-strong bg-card px-3 text-sm font-bold text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+                />
+              ) : null}
               <button
                 type="button"
-                disabled={!identityPhone.trim() || identityBusy}
+                disabled={identityBusy}
                 onClick={requestIdentityVerification}
                 className="h-11 rounded-sm bg-ink px-4 text-sm font-black text-on-ink disabled:bg-surface-3 disabled:text-ink-4"
               >
-                {identityBusy ? "요청 중" : "다날 본인인증 시작"}
-              </button>
-              <button
-                type="button"
-                disabled={!identityVerificationId || identityBusy}
-                onClick={confirmIdentityVerification}
-                className="h-11 rounded-sm border border-line bg-card px-4 text-sm font-black text-ink disabled:bg-surface-3 disabled:text-ink-4"
-              >
-                인증 완료 확인
+                {identityBusy ? "요청 중" : "NICE 본인인증 시작"}
               </button>
             </div>
           )}

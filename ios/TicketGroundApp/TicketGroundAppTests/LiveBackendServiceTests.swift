@@ -1724,8 +1724,8 @@ final class LiveBackendServiceTests: XCTestCase {
             (.watchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "watch"), .put, "/api/me/watchlist/event-1", "__bearer__"),
             (.watchlistNotification(userID: "user-1", eventID: "event-1", idempotencyKey: "notify"), .put, "/api/me/watchlist/event-1", "__bearer__"),
             (.ticketPurchase(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "purchase"), .post, "/api/tickets/buy", "userId"),
-            (.identityStart(userID: "user-1", phone: "01012345678", idempotencyKey: "identity-start"), .post, "/api/identity/portone-danal/start", "userId"),
-            (.identityConfirm(userID: "user-1", phone: "01012345678", verificationID: "identity-1", idempotencyKey: "identity-confirm"), .post, "/api/identity/portone-danal/confirm", "userId"),
+            (.identityStart(userID: "user-1", phone: "01012345678", idempotencyKey: "identity-start"), .post, "/api/identity/nice/start", "userId"),
+            (.identityConfirm(userID: "user-1", phone: "01012345678", verificationID: "identity-1", idempotencyKey: "identity-confirm"), .post, "/api/identity/nice/mock-complete", "userId"),
             (.pushToken(userID: "user-1", token: "push-token", idempotencyKey: "push"), .post, "/api/devices/push-token", "userId"),
             (.virtualQR(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "virtual-qr"), .post, "/api/tickets/virtual-qr", "userId")
         ]

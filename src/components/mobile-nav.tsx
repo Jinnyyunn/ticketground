@@ -103,6 +103,9 @@ export function MobileNav({
                 </Link>
               </>
             )}
+            <Link href="/mypage#identity" onClick={close} className="col-span-2 rounded-lg border border-ticketground/40 bg-ticketground/10 px-3 py-3 text-center text-ticketground">
+              본인인증
+            </Link>
           </nav>
 
           <nav aria-label={mobileNavDict.ariaCategory} className="grid gap-2 overflow-y-auto py-4 text-lg font-black">

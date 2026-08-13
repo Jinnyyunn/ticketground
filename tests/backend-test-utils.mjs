@@ -144,7 +144,7 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_ADMIN_PASSWORD: bootstrapAdminPassword,
       TIG_DB_PATH: resolvedDbPath,
       TIG_NOW: now,
-      TIG_PORTONE_IDENTITY_TEST_MODE: "1",
+      TIG_NICE_IDENTITY_TEST_MODE: "1",
       TIG_DEMO_PROFILE_API: "1",
       TIG_DEMO_SUPPORT_API: "1",
       TIG_DEMO_WATCHLIST_API: "1",
@@ -219,11 +219,10 @@ export async function nativeGoogleLogin(baseUrl) {
 
 export async function verifyNativeIdentity(baseUrl, login, phone = "010-9000-0011") {
   const headers = { Authorization: login.authorization };
-  const started = await api(baseUrl, "/api/identity/portone-danal/start", {
-    userId: "ignored-body-user",
-    phone
+  const started = await api(baseUrl, "/api/identity/nice/start", {
+    userId: "ignored-body-user"
   }, 200, headers);
-  await api(baseUrl, "/api/identity/portone-danal/confirm", {
+  await api(baseUrl, "/api/identity/nice/mock-complete", {
     userId: "ignored-body-user",
     phone,
     identityVerificationId: started.data.identityVerificationId
@@ -303,8 +302,8 @@ export async function issueGateToken(server, gateLabel = "GATE-A") {
 }
 
 export async function verifyIdentity(baseUrl, userId = "user_fan_a", phone = "010-9000-0001") {
-  const started = await api(baseUrl, "/api/identity/portone-danal/start", { userId, phone });
-  const verified = await api(baseUrl, "/api/identity/portone-danal/confirm", {
+  const started = await api(baseUrl, "/api/identity/nice/start", { userId });
+  const verified = await api(baseUrl, "/api/identity/nice/mock-complete", {
     userId,
     phone,
     identityVerificationId: started.data.identityVerificationId

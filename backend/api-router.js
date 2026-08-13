@@ -53,7 +53,8 @@ export function createApiRouter({
   hmac,
   httpError,
   isDev,
-  confirmPortOneDanalVerification,
+  completeNiceVerificationFromCallback,
+  mockCompleteNiceVerification,
   SERVICE_FEE_PER_SEAT,
   issueGateSession,
   issueAppAttestChallenge,
@@ -109,7 +110,7 @@ export function createApiRouter({
   buyPrimary,
   rejectGroupBookingRequest,
   seatMap,
-  startPortOneDanalVerification,
+  startNiceVerification,
   submitGroupBookingRequest,
   supportThreadForUser,
   supportThreadsForPrincipal,
@@ -161,6 +162,19 @@ function requireBody(body, keys) {
       throw httpError(400, "MISSING_FIELD", `${key} 값이 필요합니다.`);
     }
   }
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
+}
+
+// NICE 표준창은 서버 push가 아니라 사용자의 브라우저를 return_url로 돌려보내는 방식이라,
+// 이 팝업 창 안에서 결과를 보여주고 스스로 닫는 최소한의 HTML을 응답한다.
+function niceCallbackHtml(message) {
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px;text-align:center;">`
+    + `<p>${escapeHtml(message)}</p>`
+    + `<script>setTimeout(function(){ window.close(); }, 900);</script>`
+    + `</body></html>`;
 }
 
 function decodeArtistSlug(value) {
@@ -689,13 +703,24 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/auth/native/logout") {
     return nativeLogout(db, req);
   }
-  if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/start") {
-    requireBody(body, ["userId", "phone"]);
-    return startPortOneDanalVerification(db, { ...body, userId: resolvePurchaseUserId(db, req, body) });
+  if (req.method === "POST" && url.pathname === "/api/identity/nice/start") {
+    return startNiceVerification(db, { ...body, userId: resolvePurchaseUserId(db, req, body) });
   }
-  if (req.method === "POST" && url.pathname === "/api/identity/portone-danal/confirm") {
-    requireBody(body, ["userId", "phone", "identityVerificationId"]);
-    return confirmPortOneDanalVerification(db, { ...body, userId: resolvePurchaseUserId(db, req, body) });
+  if (req.method === "GET" && url.pathname === "/api/identity/nice/callback") {
+    let message = "본인인증이 완료되었습니다. 창을 닫아주세요.";
+    try {
+      await completeNiceVerificationFromCallback(db, {
+        identityVerificationId: url.searchParams.get("rid") || "",
+        webTransactionId: url.searchParams.get("web_transaction_id") || ""
+      });
+    } catch (error) {
+      message = error.message || "본인인증에 실패했습니다. 창을 닫고 다시 시도해주세요.";
+    }
+    return { rawBody: niceCallbackHtml(message), responseHeaders: { "Content-Type": "text/html; charset=utf-8" } };
+  }
+  if (req.method === "POST" && url.pathname === "/api/identity/nice/mock-complete") {
+    requireBody(body, ["userId", "identityVerificationId", "phone"]);
+    return mockCompleteNiceVerification(db, { ...body, userId: resolvePurchaseUserId(db, req, body) });
   }
   if (req.method === "POST" && url.pathname === "/api/watchlist") {
     requireDemoWatchlistAPI();

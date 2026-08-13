@@ -195,20 +195,22 @@ export function getIdentityStatus(userId = currentSessionUserId()) {
   return authedRequest(`/api/users/${encodeURIComponent(userId)}/identity`, apiIdentityStatusSchema);
 }
 
-export function startDanalIdentityVerification({
-  phone,
+export function startNiceIdentityVerification({
   userId = currentSessionUserId(),
+  product = "phone",
 }: {
-  readonly phone: string;
   readonly userId?: string;
-}): Promise<ApiIdentityStart> {
-  return post("/api/identity/portone-danal/start", apiIdentityStartSchema, {
+  readonly product?: string;
+} = {}): Promise<ApiIdentityStart> {
+  return post("/api/identity/nice/start", apiIdentityStartSchema, {
     userId,
-    phone,
+    product,
   });
 }
 
-export function confirmDanalIdentityVerification({
+// 목(mock) 전용 - 실서비스에서는 서버가 항상 404를 준다. 로컬/QA에서 실제 NICE 팝업 없이
+// 인증 완료를 흉내내기 위한 경로다.
+export function mockCompleteNiceIdentityVerification({
   phone,
   userId = currentSessionUserId(),
   identityVerificationId,
@@ -217,7 +219,7 @@ export function confirmDanalIdentityVerification({
   readonly userId?: string;
   readonly identityVerificationId: string;
 }): Promise<ApiIdentityStatus> {
-  return post("/api/identity/portone-danal/confirm", apiIdentityStatusSchema, {
+  return post("/api/identity/nice/mock-complete", apiIdentityStatusSchema, {
     userId,
     phone,
     identityVerificationId,
