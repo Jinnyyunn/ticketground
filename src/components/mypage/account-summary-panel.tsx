@@ -134,7 +134,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
     { label: "예매", count: reservationCount, href: "/mypage#reservations" },
     { label: "취소", count: cancelHistoryCount, href: "/mypage#cancel-history" },
     { label: "양도", count: resaleSeatCount, href: "/mypage/resale" },
-    { label: "문의", count: inquiryCount, href: "https://pf.kakao.com/_xmTniX" },
+    { label: "문의", count: inquiryCount, href: "https://pf.kakao.com/_xmTniX/chat" },
   ] as const;
 
   return (
