@@ -12,7 +12,7 @@ const sideNav = [
   ["양도내역", "/mypage/resale#resale-history"],
   ["관심공연", "/watchlist"],
   ["본인인증", "/mypage#identity"],
-  ["1:1 문의", "https://pf.kakao.com/_xmTniX/chat"],
+  ["1:1 문의", "https://pf.kakao.com/_xmTniX"],
 ] as const;
 
 const today = "2026.06.29";
