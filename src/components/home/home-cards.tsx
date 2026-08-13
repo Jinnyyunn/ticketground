@@ -67,7 +67,7 @@ export function FeaturedCard({ show, size, ctaLabel }: FeaturedCardProps) {
         <Image
           {...homeFeaturedImagePolicy}
           alt={homeFeaturedImagePolicy.alt}
-          className="absolute inset-0 size-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]"
+          className="absolute inset-0 size-full object-cover object-[center_28%] transition-transform duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]"
         />
       ) : (
         <Image
