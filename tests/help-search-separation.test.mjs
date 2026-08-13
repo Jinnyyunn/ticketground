@@ -57,7 +57,7 @@ async function assertKakaoContactCard(browser, baseUrl) {
   const page = await browser.newPage({ viewport: { width: 1293, height: 1043 }, deviceScaleFactor: 1 });
   try {
     await page.goto(`${baseUrl}/help`, { waitUntil: "networkidle" });
-    const contactCards = page.locator('main a[href="https://pf.kakao.com/_xmTniX/chat"]');
+    const contactCards = page.locator('main a[href="https://pf.kakao.com/_xmTniX"]');
     assert.equal(await contactCards.count(), 1);
     assert.equal(await page.getByText("전화 상담", { exact: true }).count(), 0);
     assert.equal(await page.getByText("문의 스레드 열기", { exact: true }).count(), 0);

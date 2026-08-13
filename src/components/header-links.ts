@@ -9,7 +9,7 @@ export type HighlightCategoryId = "resale" | "calendar";
 
 export const utilityLinksBeforeAuth = [
   { id: "help", href: "/help", external: false },
-  { id: "kakao-channel", href: "https://pf.kakao.com/_xmTniX/chat", external: true },
+  { id: "kakao-channel", href: "https://pf.kakao.com/_xmTniX", external: true },
 ] as const;
 
 export const signedInUtilityLinks = [{ id: "my", href: "/mypage" }] as const;
