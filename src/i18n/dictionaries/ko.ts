@@ -87,11 +87,11 @@ export const dictionary = {
       cardTitle: "CLEAN 티켓 공식 양도",
       cardDescription: "정가 범위와 구매 이력 검증을 통과한 티켓만 풀에 등록됩니다. 외부 직거래 없이 예매 내역과 결제 기록이 함께 보존됩니다.",
       viewPoolCta: "공식 풀 보기",
-      safetyStepsTitle: "3단계 안전 장치",
+      safetyStepsTitle: "안전한 거래를 위한 3단계",
       steps: {
-        verifyTicket: { title: "보유 티켓 확인", description: "예매 내역에서 바로 등록" },
-        autoPolicyCheck: { title: "정책 자동 판별", description: "정가 90~110% 자동 검증" },
-        qrProtection: { title: "QR 보호", description: "입장 직전 동적 QR 전달" },
+        verifyTicket: { title: "내 티켓 등록", description: "예매 내역에서 바로 등록" },
+        autoPolicyCheck: { title: "정가 범위 확인", description: "정가 90~110%만 거래 가능" },
+        qrProtection: { title: "QR 보호", description: "입장 직전에 QR 발급" },
       },
     },
     editorialEvents: {
