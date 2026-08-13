@@ -75,6 +75,7 @@ export const cleanTicketReservation: CleanTicketReservation = {
   seat: "VIP H-14 / VIP H-15",
   price: "346,000원",
   status: "예매완료",
+  badge: "클린티켓",
   seats: [
     { id: "VIP-H-14", grade: "VIP", label: "VIP H-14", row: "H", number: 14, faceValue: 190000 },
     { id: "VIP-H-15", grade: "VIP", label: "VIP H-15", row: "H", number: 15, faceValue: 190000 },

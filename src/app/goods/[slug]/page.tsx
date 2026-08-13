@@ -106,7 +106,10 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               <p className="text-sm font-black text-ticketground">공연소개</p>
               <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">Tig 티켓으로 만나는 대표 회차</h2>
               <p className="mt-4 text-base leading-loose text-ink-3">
-                {show.summary} CLEAN 티켓 공식 양도 정책이 함께 적용되어 좌석 소유, 입장 QR, 거래 기록이 분리 관리됩니다.
+                {show.summary}{" "}
+                {show.badge === "클린티켓"
+                  ? "CLEAN 티켓 공식 양도 정책이 함께 적용되어 좌석 소유, 입장 QR, 거래 기록이 분리 관리됩니다."
+                  : "Tig 티켓 예매 내역은 좌석 소유, 입장 QR, 거래 기록이 안전하게 관리됩니다."}
               </p>
             </section>
 

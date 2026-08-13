@@ -1,6 +1,16 @@
 // JSON DB normalization and seed construction for catalog data.
 import { defaultCheckoutNotice } from "./admin-event-content.js";
 
+// "Tig 티켓" 브랜드 분리(양도=CLEAN, 일반판매=Tig) 이후에도 이미 저장된 db.json은
+// legacy-show-seed-data.js의 새 문구를 자동으로 받지 못한다 - 시드는 최초 생성 시에만
+// 쓰이고 이후엔 event.notices가 이미 채워져 있어 백필되지 않기 때문. 알려진 구 문구만
+// 정확히 치환한다(부분 문자열 치환은 조사(은/는) 불일치를 만들 수 있어 피한다).
+const STALE_NOTICE_REPLACEMENTS = new Map([
+  ["Tig 공식 양도 티켓 정책은 공연별 공지에 따라 제한될 수 있습니다.", "CLEAN 티켓 공식 양도 정책은 공연별 공지에 따라 제한될 수 있습니다."],
+  ["공식 양도와 취소 정책은 클린티켓 기준을 따릅니다.", "공식 양도와 취소 정책은 CLEAN 티켓 기준을 따릅니다."],
+  ["Tig 공식 양도 티켓은 정가 범위 안에서만 등록할 수 있습니다.", "CLEAN 티켓 공식 양도는 정가 범위 안에서만 등록할 수 있습니다."]
+]);
+
 export function createCatalogPersistence({
   appendLedger,
   clone,
@@ -97,6 +107,9 @@ function normalizeDb(db) {
     event.checkoutNotice ||= defaultCheckoutNotice;
     event.sellerAccountId ??= null;
     event.publishStatus ||= "PUBLISHED";
+    if (Array.isArray(event.notices)) {
+      event.notices = event.notices.map((notice) => STALE_NOTICE_REPLACEMENTS.get(notice) || notice);
+    }
     primaryDate(event);
     syncEventVenue(db, event);
     if (JSON.stringify(event) !== before) changed = true;

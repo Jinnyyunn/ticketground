@@ -26,7 +26,7 @@ async function assertHomeDesktopResaleMenu(browser, baseUrl) {
   try {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
 
-    const resaleMenu = page.getByRole("link", { name: "CLEAN TICKET 재판매", exact: true });
+    const resaleMenu = page.getByRole("link", { name: "CLEAN 티켓 공식 양도", exact: true });
     await resaleMenu.waitFor({ timeout: 5000 });
     assert.equal(await resaleMenu.count(), 1);
     assert.match(await resaleMenu.first().getAttribute("href"), /\/resale$/);

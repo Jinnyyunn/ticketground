@@ -183,6 +183,7 @@ export interface Reservation {
   readonly seat: string;
   readonly price: string;
   readonly status: "예매완료" | "취소요청";
+  readonly badge?: string;
 }
 
 export interface CleanTicketReservation extends Reservation {
