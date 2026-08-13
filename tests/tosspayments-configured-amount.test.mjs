@@ -64,10 +64,10 @@ async function requestApp(app, { body, expectedStatus = 200, headers = {}, metho
 }
 
 async function verifyIdentity(app, userId, phone) {
-  const started = await requestApp(app, { method: "POST", url: "/api/identity/portone-danal/start", body: { userId, phone } });
+  const started = await requestApp(app, { method: "POST", url: "/api/identity/nice/start", body: { userId } });
   await requestApp(app, {
     method: "POST",
-    url: "/api/identity/portone-danal/confirm",
+    url: "/api/identity/nice/mock-complete",
     body: { userId, phone, identityVerificationId: started.data.identityVerificationId }
   });
 }
@@ -83,21 +83,21 @@ function withConfiguredTossEnv(t) {
   const previous = {
     client: process.env.TIG_TOSSPAYMENTS_CLIENT_KEY,
     secret: process.env.TIG_TOSSPAYMENTS_SECRET_KEY,
-    // NODE_ENV=production (as used by `npm test`) blocks PortOne Danal's
-    // mock verification unless this is explicitly set - same production
+    // NODE_ENV=production (as used by `npm test`) blocks NICE's mock
+    // verification unless this is explicitly set - same production
     // safeguard startServer()'s child process gets by default.
-    identityTestMode: process.env.TIG_PORTONE_IDENTITY_TEST_MODE
+    identityTestMode: process.env.TIG_NICE_IDENTITY_TEST_MODE
   };
   process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = "test_gck_toss_amount";
   process.env.TIG_TOSSPAYMENTS_SECRET_KEY = "test_gsk_toss_amount";
-  process.env.TIG_PORTONE_IDENTITY_TEST_MODE = "1";
+  process.env.TIG_NICE_IDENTITY_TEST_MODE = "1";
   t.after(() => {
     if (previous.client === undefined) delete process.env.TIG_TOSSPAYMENTS_CLIENT_KEY;
     else process.env.TIG_TOSSPAYMENTS_CLIENT_KEY = previous.client;
     if (previous.secret === undefined) delete process.env.TIG_TOSSPAYMENTS_SECRET_KEY;
     else process.env.TIG_TOSSPAYMENTS_SECRET_KEY = previous.secret;
-    if (previous.identityTestMode === undefined) delete process.env.TIG_PORTONE_IDENTITY_TEST_MODE;
-    else process.env.TIG_PORTONE_IDENTITY_TEST_MODE = previous.identityTestMode;
+    if (previous.identityTestMode === undefined) delete process.env.TIG_NICE_IDENTITY_TEST_MODE;
+    else process.env.TIG_NICE_IDENTITY_TEST_MODE = previous.identityTestMode;
   });
 }
 

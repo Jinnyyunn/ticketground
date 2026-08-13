@@ -40,11 +40,11 @@ async function nativeLogin(server) {
 }
 
 async function buyOwnedTickets(server, login, count) {
-  await request(server, "/api/identity/portone-danal/start", {
+  await request(server, "/api/identity/nice/start", {
     authorization: login.authorization,
     method: "POST",
-    body: { userId: "spoofed-user", phone: "010-9000-0011" }
-  }).then((started) => request(server, "/api/identity/portone-danal/confirm", {
+    body: { userId: "spoofed-user" }
+  }).then((started) => request(server, "/api/identity/nice/mock-complete", {
     authorization: login.authorization,
     method: "POST",
     body: {

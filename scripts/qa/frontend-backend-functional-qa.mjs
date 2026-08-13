@@ -128,7 +128,7 @@ async function startServer(name, { now = "2026-09-19T17:00:00+09:00" } = {}) {
       ...verifier.env,
       TIG_GOOGLE_AUTH_TEST_MODE: "1",
       TIG_GOOGLE_CLIENT_ID: "ticketground-test-client.apps.googleusercontent.com",
-      TIG_PORTONE_IDENTITY_TEST_MODE: "1",
+      TIG_NICE_IDENTITY_TEST_MODE: "1",
       TIG_SECRET: "qa-runtime-secret",
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -203,11 +203,10 @@ async function buyFirstTicket(baseUrl, userId = "user_fan_a") {
 }
 
 async function verifyTestIdentity(baseUrl, userId, phone) {
-  const started = await api(baseUrl, "/api/identity/portone-danal/start", {
+  const started = await api(baseUrl, "/api/identity/nice/start", {
     userId,
-    phone,
   }, 200, {}, `identity verification start ${userId}`);
-  await api(baseUrl, "/api/identity/portone-danal/confirm", {
+  await api(baseUrl, "/api/identity/nice/mock-complete", {
     userId,
     phone,
     identityVerificationId: started.data.identityVerificationId,

@@ -191,6 +191,7 @@ export async function createTicketgroundApp(options) {
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
     hash: runtime.hash,
+    hmac: runtime.hmac,
     httpError: runtime.httpError,
     id: runtime.id,
     now: runtime.now

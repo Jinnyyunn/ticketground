@@ -173,9 +173,7 @@ export type ApiIdentityStatus = {
   readonly provider: string;
   readonly phoneMasked: string | null;
   readonly verifiedAt: string | null;
-  readonly portOneConfigured: boolean;
-  readonly storeId: string;
-  readonly channelKey: string;
+  readonly niceConfigured: boolean;
   readonly mockAvailable: boolean;
 };
 
@@ -183,10 +181,9 @@ export type ApiIdentityStart = {
   readonly identityVerificationId: string;
   readonly provider: string;
   readonly status: string;
-  readonly phoneMasked: string;
-  readonly storeId: string;
-  readonly channelKey: string;
-  readonly portOneConfigured: boolean;
+  readonly product: string;
+  readonly authUrl: string | null;
+  readonly niceConfigured: boolean;
   readonly mockAvailable: boolean;
 };
 
