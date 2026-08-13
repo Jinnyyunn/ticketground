@@ -3,21 +3,25 @@ import { footerColumnLinks, footerLinks } from "@/data/content";
 import { BrandLogo } from "@/components/brand-logo";
 import { dictionary as koDictionary } from "@/i18n/dictionaries/ko";
 import type { Dictionary } from "@/i18n/get-dictionary";
+import { defaultLocale, type Locale } from "@/i18n/config";
+import { localizeHref } from "@/i18n/routing";
 
 type SiteFooterProps = {
   readonly dict?: Dictionary["footer"];
+  readonly locale?: Locale;
   readonly showBusinessInformation?: boolean;
 };
 
 export function SiteFooter({
   dict = koDictionary.footer,
+  locale = defaultLocale,
   showBusinessInformation = true,
 }: SiteFooterProps) {
   return (
     <footer className="mt-[70px] border-t border-line bg-background text-ink">
       <div className="ticketground-container grid gap-8 py-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,3fr)]">
         <div>
-          <Link href="/" aria-label="Ticketground" className="inline-flex items-center">
+          <Link href={localizeHref(locale, "/")} aria-label="Ticketground" className="inline-flex items-center">
             <BrandLogo className="h-8" />
           </Link>
           <p className="mt-4 break-keep text-sm leading-loose text-ink-3">
@@ -25,7 +29,7 @@ export function SiteFooter({
           </p>
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm font-bold text-ink-3">
             {footerLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="text-ink-3 visited:text-ink-3 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
+              <Link key={link.href} href={localizeHref(locale, link.href)} className="text-ink-3 visited:text-ink-3 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
                 {dict.links[link.id]}
               </Link>
             ))}
@@ -40,7 +44,7 @@ export function SiteFooter({
                 <ul className="mt-3 grid gap-2 text-center text-xs leading-snug text-ink-3 sm:text-sm md:mt-4 md:gap-3 md:text-left md:text-sm">
                   {column.links.map((link) => (
                     <li key={link.href} className="min-w-0">
-                      <Link href={link.href} className="block min-w-0 break-keep hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
+                      <Link href={localizeHref(locale, link.href)} className="block min-w-0 break-keep hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50">
                         {(columnDict as unknown as Record<string, string>)[link.id]}
                       </Link>
                     </li>

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { dictionary as koDictionary } from "@/i18n/dictionaries/ko";
 import type { Dictionary } from "@/i18n/get-dictionary";
 import { defaultLocale, type Locale } from "@/i18n/config";
+import { localizeHref } from "@/i18n/routing";
 
 type MobileNavProps = {
   readonly className?: string;
@@ -84,7 +85,7 @@ export function MobileNav({
             {signedIn ? (
               <>
                 {signedInUtilityLinks.map((link) => (
-                  <Link key={link.href} href={link.href} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">
+                  <Link key={link.href} href={localizeHref(locale, link.href)} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">
                     {dict.utilityMy}
                   </Link>
                 ))}
@@ -94,10 +95,10 @@ export function MobileNav({
               </>
             ) : (
               <>
-                <Link href={loginLink.href} onClick={close} className="rounded-lg border border-line bg-ink px-3 py-3 text-center text-on-ink">
+                <Link href={localizeHref(locale, loginLink.href)} onClick={close} className="rounded-lg border border-line bg-ink px-3 py-3 text-center text-on-ink">
                   {dict.login}
                 </Link>
-                <Link href={signupLink.href} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">
+                <Link href={localizeHref(locale, signupLink.href)} onClick={close} className="rounded-lg border border-line bg-surface px-3 py-3 text-center">
                   {dict.signup}
                 </Link>
               </>
@@ -111,7 +112,7 @@ export function MobileNav({
               return (
                 <Link
                   key={id}
-                  href={href ?? "/contents/search"}
+                  href={localizeHref(locale, href ?? "/contents/search")}
                   onClick={close}
                   className={cn(
                     "rounded-lg px-3 py-3 transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -128,7 +129,7 @@ export function MobileNav({
             {utilityLinksBeforeAuth.map((link) => (
               <Link
                 key={link.href}
-                href={link.href}
+                href={localizeHref(locale, link.href)}
                 onClick={close}
                 className="text-sm font-normal text-ink-3 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
