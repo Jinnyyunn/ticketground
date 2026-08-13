@@ -4,7 +4,7 @@ export function LoginHeroAside() {
       <div>
         <p className="text-sm font-black text-accent-2">Ticketground Members</p>
         <h1 className="balanced-title mt-4 text-[24px] font-black leading-[1.28] sm:text-[38px] lg:text-[42px]">
-          클린 티켓 예매와 Tig 공식 양도 티켓을
+          Tig 티켓 예매와 CLEAN 티켓 공식 양도를
           <br />
           한 계정에서 이용해보세요.
         </h1>

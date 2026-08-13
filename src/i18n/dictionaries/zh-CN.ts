@@ -100,7 +100,7 @@ export const dictionary = {
       items: {
         cleanTicketPicks: {
           title: "CLEAN票精选馆",
-          description: "只收录支持Tig官方转让与动态二维码入场的演出。",
+          description: "只收录支持CLEAN官方转让与动态二维码入场的演出。",
         },
         summerConcerts: {
           title: "夏季大型演唱会",
@@ -136,7 +136,7 @@ export const dictionary = {
     },
   },
   footer: {
-    description: "官方预订、CLEAN票、客户咨询一站式演出票务服务。",
+    description: "官方预订、Tig票、客户咨询一站式演出票务服务。",
     links: {
       company: "公司介绍",
       terms: "服务条款",

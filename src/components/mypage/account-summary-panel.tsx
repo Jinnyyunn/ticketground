@@ -146,7 +146,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
             {displayName} 회원
           </h1>
           <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-base text-on-ink-2/75">
-            <span className="whitespace-nowrap">클린티켓 인증 기기 1대</span>
+            <span className="whitespace-nowrap">Tig 티켓 인증 기기 1대</span>
             <span className="whitespace-nowrap">예매 {reservationCount}건</span>
             <span className="whitespace-nowrap">CLEAN 티켓 양도 {resaleSeatCount}석</span>
           </p>

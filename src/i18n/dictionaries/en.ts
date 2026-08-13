@@ -100,7 +100,7 @@ export const dictionary = {
       items: {
         cleanTicketPicks: {
           title: "CLEAN Ticket Picks",
-          description: "Only shows with Tig official resale tickets and dynamic QR entry.",
+          description: "Only shows with CLEAN official resale tickets and dynamic QR entry.",
         },
         summerConcerts: {
           title: "Big Summer Concerts",
@@ -136,7 +136,7 @@ export const dictionary = {
     },
   },
   footer: {
-    description: "Official booking, CLEAN tickets, and customer support - all in one performance ticketing service.",
+    description: "Official booking, Tig tickets, and customer support - all in one performance ticketing service.",
     links: {
       company: "About us",
       terms: "Terms of service",

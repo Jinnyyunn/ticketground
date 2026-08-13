@@ -91,7 +91,7 @@ export function LoginMockForm({
             />
             <span>
               <strong className="block text-ink">필수 약관 동의</strong>
-              이용약관, 개인정보 처리, 클린티켓 정책 안내를 확인했습니다.
+              이용약관, 개인정보 처리, Tig 티켓 정책 안내를 확인했습니다.
             </span>
           </label>
         </div>

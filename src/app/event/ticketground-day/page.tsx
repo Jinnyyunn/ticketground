@@ -13,14 +13,14 @@ export default async function TicketgroundDayPage() {
         <div className="ticketground-container grid gap-8 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
           <div>
             <p className="text-sm font-black text-accent-2">Ticketground Day</p>
-            <h1 className="balanced-title mt-3 max-w-[760px] text-4xl font-black leading-tight sm:text-5xl md:text-6xl lg:text-7xl">클린티켓으로 여는 여름 공연 큐레이션</h1>
+            <h1 className="balanced-title mt-3 max-w-[760px] text-4xl font-black leading-tight sm:text-5xl md:text-6xl lg:text-7xl">Tig 티켓으로 여는 여름 공연 큐레이션</h1>
             <p className="mt-5 max-w-[620px] text-base leading-relaxed text-on-ink/75">
-              Tig 공식 양도 티켓, 동적 QR, 예매 알림이 적용된 공연을 한곳에 모은 에디토리얼 기획전입니다.
+              CLEAN 티켓 공식 양도, 동적 QR, 예매 알림이 적용된 공연을 한곳에 모은 에디토리얼 기획전입니다.
             </p>
           </div>
           <div className="rounded-xl border border-white/15 bg-white/10 p-5">
             <p className="text-sm font-black text-accent-2">7월 한정</p>
-            <p className="mt-2 text-3xl font-black">오픈 알림 등록 시 클린티켓 우선 안내</p>
+            <p className="mt-2 text-3xl font-black">오픈 알림 등록 시 Tig 티켓 우선 안내</p>
             <Link href="/open" className="mt-5 inline-flex h-10 items-center rounded-lg bg-card px-4 text-sm font-black text-ink">
               오픈 캘린더 보기
             </Link>

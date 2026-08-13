@@ -8,7 +8,7 @@ import { getTicketById } from "@/data/catalog-server";
 import { queryParam } from "@/lib/search-params";
 import type { Reservation, TicketSeat } from "@/types";
 
-function reservationFromRealTicket(ticket: { readonly id: string; readonly seatLabel: string; readonly faceValue: number }, show: { readonly title: string; readonly venue: string; readonly schedules: ReadonlyArray<{ readonly date: string; readonly times: readonly string[] }> }): Reservation {
+function reservationFromRealTicket(ticket: { readonly id: string; readonly seatLabel: string; readonly faceValue: number }, show: { readonly title: string; readonly venue: string; readonly badge?: string; readonly schedules: ReadonlyArray<{ readonly date: string; readonly times: readonly string[] }> }): Reservation {
   const schedule = show.schedules[0];
   return {
     id: ticket.id,
@@ -20,6 +20,7 @@ function reservationFromRealTicket(ticket: { readonly id: string; readonly seatL
     seat: ticket.seatLabel,
     price: `${ticket.faceValue.toLocaleString("ko-KR")}원`,
     status: "예매완료",
+    badge: show.badge,
   };
 }
 
@@ -86,7 +87,7 @@ export default async function ReservationPage({
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
           <article className="min-w-0 overflow-hidden rounded-lg border border-ink-2 bg-card shadow-sm">
             <div className="bg-ink-2 p-6 text-on-ink-2">
-              <p className="text-sm font-bold text-accent-2">CLEAN TICKET</p>
+              <p className="text-sm font-bold text-accent-2">{reservation.badge === "클린티켓" ? "CLEAN TICKET" : "Tig TICKET"}</p>
               <h2 className="balanced-title mt-2 text-[24px] font-black sm:text-[26px]">{reservation.showTitle}</h2>
               <p className="mt-2 text-sm text-on-ink-2/75">{reservation.venue}</p>
             </div>

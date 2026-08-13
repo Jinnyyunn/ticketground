@@ -100,7 +100,7 @@ export const dictionary = {
       items: {
         cleanTicketPicks: {
           title: "クリーンチケット特集",
-          description: "Tig公式譲渡チケットと動的QR入場に対応した公演のみを集めました。",
+          description: "CLEAN公式譲渡チケットと動的QR入場に対応した公演のみを集めました。",
         },
         summerConcerts: {
           title: "夏の大型コンサート",
@@ -136,7 +136,7 @@ export const dictionary = {
     },
   },
   footer: {
-    description: "公式予約、クリーンチケット、カスタマーサポートを一か所で提供する公演チケットサービスです。",
+    description: "公式予約、Tigチケット、カスタマーサポートを一か所で提供する公演チケットサービスです。",
     links: {
       company: "会社紹介",
       terms: "利用規約",
