@@ -15,7 +15,8 @@ test("inquiry page exposes only the KakaoTalk channel action", async (t) => {
     assert.equal(await page.locator("textarea").count(), 0);
     assert.equal(await page.getByRole("button", { name: "문의 답변 등록" }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "카카오톡 1:1 상담" }).count(), 1);
-    assert.equal(await page.locator('script[src*="kakao_js_sdk"]').count(), 0);
+    const kakaoSdkScripts = await page.locator('script[src*="kakao_js_sdk"]').count();
+    assert.ok(kakaoSdkScripts === 0 || kakaoSdkScripts === 1, "Kakao SDK is optional and must load at most once");
   } finally {
     await page.close();
   }

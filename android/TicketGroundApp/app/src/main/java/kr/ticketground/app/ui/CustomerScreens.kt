@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -385,8 +386,19 @@ fun WatchlistScreen(state: AsyncContent<List<WatchlistItem>>, onRetry: () -> Uni
 
 @Composable
 fun SupportScreen(content: HomeContent?) {
+  val uriHandler = LocalUriHandler.current
   LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     item { SectionTitle("고객센터") }
+    item {
+      SurfaceCard {
+        Text("티켓그라운드 1:1 문의", style = MaterialTheme.typography.titleMedium)
+        Text("예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요.")
+        Button(
+          onClick = { uriHandler.openUri("https://pf.kakao.com/_xmTniX/chat") },
+          modifier = Modifier.testTag("kakao-channel-chat"),
+        ) { Text("카카오톡 채널 1:1 문의") }
+      }
+    }
     if (content == null || content.faq.isEmpty()) item { Text("도움말을 불러오지 못했습니다. 다시 시도해 주세요.") }
     items(content?.notices.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.title, style = MaterialTheme.typography.titleMedium); Text(it.body) } }
     items(content?.faq.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.question, style = MaterialTheme.typography.titleMedium); Text(it.answer) } }

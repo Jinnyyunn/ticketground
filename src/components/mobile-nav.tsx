@@ -130,14 +130,27 @@ export function MobileNav({
 
           <div className="border-t border-line pt-4 text-center">
             {utilityLinksBeforeAuth.map((link) => (
-              <Link
-                key={link.href}
-                href={localizeHref(locale, link.href)}
-                onClick={close}
-                className="text-sm font-normal text-ink-3 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {dict.utilityHelp}
-              </Link>
+              link.external ? (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={close}
+                  className="text-sm font-normal text-ink-3 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  카카오톡 문의
+                </a>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={localizeHref(locale, link.href)}
+                  onClick={close}
+                  className="text-sm font-normal text-ink-3 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {dict.utilityHelp}
+                </Link>
+              )
             ))}
           </div>
         </Dialog.Popup>

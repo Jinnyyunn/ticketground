@@ -532,6 +532,11 @@ struct DiscoveryMenuView: View {
                 menuSection(title: "고객센터", detail: "도움이 필요할 때 이용하세요") {
                     menuLink(title: "고객센터", icon: "questionmark.circle", route: .help, identifier: "menu-help")
                     menuLink(title: "1:1 문의", icon: "bubble.left", route: .inquiry, identifier: "menu-inquiry")
+                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
+                        menuRow(title: "카카오톡 채널 문의", icon: "bubble.left.and.bubble.right")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("menu-kakao-channel")
                     menuLink(title: "공지사항", icon: "megaphone", route: .open, identifier: "menu-notice")
                 }
 
@@ -1203,6 +1208,11 @@ private struct LiveMenuRouteView: View {
                 menuSection(title: "고객센터", detail: "도움이 필요할 때 이용하세요") {
                     liveMenuLink(title: "고객센터", icon: "questionmark.circle", route: .help, identifier: "live-menu-help")
                     liveMenuLink(title: "1:1 문의", icon: "bubble.left", route: .inquiry, identifier: "live-menu-inquiry")
+                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
+                        liveMenuRow(title: "카카오톡 채널 문의", icon: "bubble.left.and.bubble.right")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("live-menu-kakao-channel")
                 }
 
                 menuSection(title: "서비스 안내", detail: "현재 연결 상태를 확인하세요") {
@@ -1935,6 +1945,14 @@ private struct LiveAccountRouteView: View {
                             }
                             .buttonStyle(.bordered)
                             .accessibilityIdentifier("live-mypage-support")
+                            Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
+                                Label("카카오톡 채널 1:1 문의", systemImage: "bubble.left.and.bubble.right")
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color(red: 254 / 255, green: 229 / 255, blue: 0))
+                            .foregroundStyle(Color.black)
+                            .accessibilityIdentifier("live-mypage-kakao-channel")
                         }
                     }
                     .padding(TicketgroundSpacing.xl)
@@ -2892,6 +2910,14 @@ private struct LiveSupportRouteView: View {
                                 }
                             }
                         }
+                        Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
+                            Label("카카오톡 채널 1:1 문의", systemImage: "bubble.left.and.bubble.right")
+                                .frame(maxWidth: .infinity, minHeight: 46)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(red: 254 / 255, green: 229 / 255, blue: 0))
+                        .foregroundStyle(Color.black)
+                        .accessibilityIdentifier("live-support-kakao-channel")
                     }
                     .padding(TicketgroundSpacing.xl)
                 }
