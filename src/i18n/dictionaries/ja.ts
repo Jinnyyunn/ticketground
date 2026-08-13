@@ -85,11 +85,11 @@ export const dictionary = {
       cardTitle: "CLEANチケット公式譲渡",
       cardDescription: "定価範囲と購入履歴の検証を通過したチケットのみプールに登録されます。外部の個人間取引なしに、予約履歴と決済記録がそのまま保存されます。",
       viewPoolCta: "公式プールを見る",
-      safetyStepsTitle: "3段階の安全対策",
+      safetyStepsTitle: "安心して取引できる3ステップ",
       steps: {
-        verifyTicket: { title: "保有チケット確認", description: "予約履歴からそのまま登録" },
-        autoPolicyCheck: { title: "ポリシー自動判定", description: "定価90〜110%を自動検証" },
-        qrProtection: { title: "QR保護", description: "入場直前に動的QRを発行" },
+        verifyTicket: { title: "チケットを登録", description: "予約履歴からそのまま登録" },
+        autoPolicyCheck: { title: "価格の範囲チェック", description: "定価の90〜110%のみ取引可能" },
+        qrProtection: { title: "QR保護", description: "入場直前にQRを発行" },
       },
     },
     editorialEvents: {

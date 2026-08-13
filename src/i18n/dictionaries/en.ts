@@ -85,11 +85,11 @@ export const dictionary = {
       cardTitle: "CLEAN Official Resale",
       cardDescription: "Only tickets that pass price-range and purchase-history verification enter the pool. Booking and payment records stay attached, with no outside private trading.",
       viewPoolCta: "View official pool",
-      safetyStepsTitle: "3-step safeguard",
+      safetyStepsTitle: "3 steps to a safe trade",
       steps: {
-        verifyTicket: { title: "Verify your ticket", description: "Register straight from your bookings" },
-        autoPolicyCheck: { title: "Automatic policy check", description: "Auto-verified at 90-110% of face value" },
-        qrProtection: { title: "QR protection", description: "A dynamic QR is issued right before entry" },
+        verifyTicket: { title: "Register your ticket", description: "Straight from your booking history" },
+        autoPolicyCheck: { title: "Price range check", description: "Only 90-110% of face value allowed" },
+        qrProtection: { title: "QR protection", description: "Your QR is issued right before entry" },
       },
     },
     editorialEvents: {

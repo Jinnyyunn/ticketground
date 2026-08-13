@@ -8,8 +8,10 @@ import {
   type ApiIdentityStatus,
 } from "@/lib/ticketground-api";
 import { storedSessionUserId } from "@/lib/ticketground-session-storage";
+import { useSessionAuth } from "@/lib/use-session-auth";
 
 export function IdentityVerificationPanel() {
+  const { signedIn } = useSessionAuth();
   const [status, setStatus] = useState<ApiIdentityStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [phone, setPhone] = useState("");
@@ -127,7 +129,13 @@ export function IdentityVerificationPanel() {
           onClick={() => void begin()}
           type="button"
         >
-          {status?.verified ? "본인인증 완료" : busy ? "인증 창 준비 중" : "NICE 본인인증 시작"}
+          {status?.verified
+            ? "본인인증 완료"
+            : busy
+              ? "인증 창 준비 중"
+              : signedIn
+                ? "NICE 본인인증 시작"
+                : "로그인하고 본인인증하기"}
         </button>
         {status?.verified && status.phoneMasked ? <span className="text-sm font-bold text-ink-3">인증 휴대폰 {status.phoneMasked}</span> : null}
       </div>

@@ -85,11 +85,11 @@ export const dictionary = {
       cardTitle: "CLEAN票官方转让",
       cardDescription: "只有通过原价范围与购票记录验证的门票才能进入转让池。无需私下交易，预订与支付记录将完整保留。",
       viewPoolCta: "查看官方转让池",
-      safetyStepsTitle: "三重安全保障",
+      safetyStepsTitle: "安全交易三步骤",
       steps: {
-        verifyTicket: { title: "确认持有门票", description: "直接从预订记录中登记" },
-        autoPolicyCheck: { title: "自动政策核验", description: "自动核验原价90%~110%区间" },
-        qrProtection: { title: "二维码保护", description: "入场前发放动态二维码" },
+        verifyTicket: { title: "登记我的门票", description: "直接从预订记录登记" },
+        autoPolicyCheck: { title: "价格范围核验", description: "仅允许原价90%~110%区间交易" },
+        qrProtection: { title: "二维码保护", description: "入场前才发放二维码" },
       },
     },
     editorialEvents: {

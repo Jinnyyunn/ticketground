@@ -28,7 +28,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
   const [cancelHistoryCount, setCancelHistoryCount] = useState(0);
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState("");
-  const [status, setStatus] = useState("세션 확인 중");
+  const [status, setStatus] = useState("로그인 정보를 확인하는 중입니다");
   const [saving, setSaving] = useState(false);
 
   const showSignedOut = useCallback(() => {
@@ -40,17 +40,17 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
 
   const loadSession = useCallback(async () => {
     setAuthState("loading");
-    setStatus("세션 확인 중");
+    setStatus("로그인 정보를 확인하는 중입니다");
     try {
       const nextSession = await getSession();
       setSession(nextSession);
       setDraftName(nextSession.name);
       setAuthState("signed-in");
-      setStatus(`${nextSession.name} 세션 연결됨`);
+      setStatus(`${nextSession.name}님, 로그인되었습니다.`);
       rememberSessionUser(nextSession);
-    } catch (error) {
+    } catch {
       setAuthState("error");
-      setStatus(error instanceof Error ? error.message : "세션을 불러오지 못했습니다.");
+      setStatus("로그인 정보를 불러오지 못했습니다. 다시 시도해주세요.");
     }
   }, []);
 
@@ -93,8 +93,8 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
       setEditing(false);
       setAuthState("signed-in");
       setStatus(`${nextSession.name} 회원 정보 저장 완료`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "회원 정보 저장에 실패했습니다.");
+    } catch {
+      setStatus("회원 정보 저장에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setSaving(false);
     }
@@ -129,7 +129,7 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
     );
   }
 
-  const displayName = session?.name ?? (authState === "loading" ? "세션 확인 중" : "회원");
+  const displayName = session?.name ?? "회원";
   const counters = [
     { label: "예매", count: reservationCount, href: "/mypage#reservations" },
     { label: "취소", count: cancelHistoryCount, href: "/mypage#cancel-history" },
@@ -143,10 +143,13 @@ export function AccountSummaryPanel({ reservationCount, resaleSeatCount, inquiry
       <div className="mt-4 flex flex-wrap items-end justify-between gap-5">
         <div>
           <h1 className="text-[32px] font-black" data-account-name>
-            {displayName} 회원
+            {authState === "loading"
+              ? "회원 정보를 불러오는 중입니다"
+              : authState === "error"
+                ? "회원 정보를 불러오지 못했습니다"
+                : `${displayName} 회원`}
           </h1>
           <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-base text-on-ink-2/75">
-            <span className="whitespace-nowrap">Tig 티켓 인증 기기 1대</span>
             <span className="whitespace-nowrap">예매 {reservationCount}건</span>
             <span className="whitespace-nowrap">CLEAN 티켓 양도 {resaleSeatCount}석</span>
           </p>
