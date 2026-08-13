@@ -236,7 +236,7 @@ printf 'backend-root=%s\nseed-db=%s\n' "$BACKEND_ROOT" "${SHARED_DB:-generated-i
 
 (cd "$BACKEND_ROOT" && TIG_NEXT_DEV=1 HOSTNAME=127.0.0.1 ADMIN_HOSTNAME=127.0.0.1 PORT="$PUBLIC_PORT" ADMIN_PORT="$ADMIN_PORT" \
   TIG_ADMIN_TOKEN="$ADMIN_TOKEN" TIG_DB_PATH="$TEMP_DB" TIG_NOW="$FIXED_NOW" \
-  TIG_SECRET="todo5-secret-$$" TIG_PORTONE_IDENTITY_TEST_MODE=1 \
+  TIG_SECRET="todo5-secret-$$" TIG_NICE_IDENTITY_TEST_MODE=1 \
   exec node server.js) >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 printf 'child-pid=%s\npublic-port=%s\nadmin-port=%s\ntemp-db=%s\n' "$SERVER_PID" "$PUBLIC_PORT" "$ADMIN_PORT" "$TEMP_DB" | tee "$SIM_LOG"

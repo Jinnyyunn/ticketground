@@ -68,8 +68,7 @@ test("primary ticket purchase requires NICE identity verification and blocks dup
 
 test("the NICE mock-complete endpoint is unavailable when mock mode is off", async (t) => {
   // Given: a server started without TIG_NICE_IDENTITY_TEST_MODE and in production mode -
-  // the same production safeguard that blocked mock verification for the old PortOne
-  // Danal path applies to NICE's mock-complete endpoint too. mockCompleteNiceVerification()
+  // mock verification must stay blocked in that state. mockCompleteNiceVerification()
   // checks niceMockAllowed() before touching the db, so this doesn't need a real pending
   // record (and deliberately avoids /api/identity/nice/start here - with real NICE
   // credentials configured, test mode off means start attempts the live NICE API instead

@@ -152,8 +152,13 @@ enum LiveAPIEndpoint: Hashable {
         case .watchlistDelete: return "/api/me/watchlist/{eventId}"
         case .ticketPurchase: return "/api/tickets/buy"
         case .googleAuthentication: return "/api/auth/google"
-        case .identityStart: return "/api/identity/portone-danal/start"
-        case .identityConfirm: return "/api/identity/portone-danal/confirm"
+        // NICE 표준창 연동 (backend/identity.js) - 실제 인증 완료는 브라우저 팝업 콜백에서
+        // 서버가 처리하므로, identityConfirm의 client-submitted phone 방식은 지금은
+        // mock-complete(로컬/QA 전용)에만 대응한다. 실제 iOS UI가 생기면
+        // ASWebAuthenticationSession 기반 팝업 흐름(SocialLoginCoordinator 참고)으로
+        // 다시 설계해야 한다 - 아직 이 액션을 쓰는 화면은 없다.
+        case .identityStart: return "/api/identity/nice/start"
+        case .identityConfirm: return "/api/identity/nice/mock-complete"
         case .deviceTrust: return "/api/devices/trust"
         case .pushToken: return "/api/devices/push-token"
         case .ticketQR: return "/api/tickets/qr"

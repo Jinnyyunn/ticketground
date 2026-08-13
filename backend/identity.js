@@ -49,7 +49,7 @@ function niceMockAllowed() {
 // TIG_NICE_IDENTITY_TEST_MODE=1 always wins even if real credentials happen to be
 // present (e.g. local/CI runs against a checkout that also has .env.local's real
 // TIG_NICE_CLIENT_ID/SECRET) - otherwise tests would silently hit the live NICE API.
-function useRealNiceApi() {
+function realNiceApiAllowed() {
   return niceApiConfigured() && !niceTestModeForced();
 }
 
@@ -171,7 +171,7 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
       provider: verification?.provider || "nice-standard",
       phoneMasked: verification?.phoneMasked || null,
       verifiedAt: verification?.verifiedAt || null,
-      niceConfigured: useRealNiceApi(),
+      niceConfigured: realNiceApiAllowed(),
       mockAvailable: niceMockAllowed()
     };
   }
@@ -226,7 +226,7 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
     db.identityVerifications.push(record);
 
     let authUrl = null;
-    if (useRealNiceApi()) {
+    if (realNiceApiAllowed()) {
       const returnUrl = new URL(niceCallbackReturnUrl());
       returnUrl.searchParams.set("rid", identityVerificationId);
       const token = await requestNiceAccessToken(requestNo);
@@ -247,7 +247,7 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
       provider: "nice-standard",
       identityVerificationId,
       product,
-      mode: useRealNiceApi() ? "nice" : "mock"
+      mode: realNiceApiAllowed() ? "nice" : "mock"
     });
 
     return {
@@ -256,7 +256,7 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
       status: record.status,
       product,
       authUrl,
-      niceConfigured: useRealNiceApi(),
+      niceConfigured: realNiceApiAllowed(),
       mockAvailable: niceMockAllowed()
     };
   }
@@ -327,7 +327,7 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
   }
 
   // 목(mock) 경로: 실제 NICE 왕복 없이 로컬/CI에서 결정적으로 테스트하기 위한 것. 운영에서는
-  // niceMockAllowed()가 항상 false라 절대 쓸 수 없다(포트원 다날 시절의 동일 패턴 유지).
+  // niceMockAllowed()가 항상 false라 절대 쓸 수 없다.
   function mockCompleteNiceVerification(db, { userId, identityVerificationId, phone }) {
     if (!niceMockAllowed()) {
       throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
