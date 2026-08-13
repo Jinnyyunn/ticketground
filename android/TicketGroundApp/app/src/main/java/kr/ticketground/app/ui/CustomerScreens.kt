@@ -397,6 +397,10 @@ fun SupportScreen(content: HomeContent?) {
           onClick = { uriHandler.openUri("https://pf.kakao.com/_xmTniX/chat") },
           modifier = Modifier.testTag("kakao-channel-chat"),
         ) { Text("카카오톡 채널 1:1 문의") }
+        OutlinedButton(
+          onClick = { uriHandler.openUri("https://pf.kakao.com/_xmTniX") },
+          modifier = Modifier.testTag("kakao-channel-add"),
+        ) { Text("카카오톡 채널 추가") }
       }
     }
     if (content == null || content.faq.isEmpty()) item { Text("도움말을 불러오지 못했습니다. 다시 시도해 주세요.") }

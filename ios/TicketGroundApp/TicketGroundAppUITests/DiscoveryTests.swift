@@ -150,6 +150,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["menu-help"].exists)
         XCTAssertTrue(app.buttons["menu-inquiry"].exists)
         XCTAssertTrue(app.buttons["menu-kakao-channel"].exists)
+        XCTAssertTrue(app.buttons["menu-kakao-channel-add"].exists)
         app.buttons["menu-login"].tap()
         XCTAssertTrue(app.staticTexts["login-screen-title"].waitForExistence(timeout: 10))
     }
@@ -683,6 +684,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support").waitForExistence(timeout: 20))
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support-public").waitForExistence(timeout: 20))
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support-kakao-channel").exists)
+        XCTAssertTrue(anyElement(supportApp, identifier: "live-support-kakao-channel-add").exists)
         XCTAssertTrue(supportApp.staticTexts["자주 묻는 질문"].exists)
         XCTAssertTrue(supportApp.staticTexts["공지사항"].exists)
         XCTAssertTrue(supportApp.staticTexts["안전한 1:1 문의"].exists)
