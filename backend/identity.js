@@ -129,20 +129,24 @@ async function requestNiceResult({ accessToken, requestNo, transactionId, webTra
   });
 }
 
-// KDF: PBKDF2WithHmacSHA256(password=ticket, salt=transactionId, iterations).
-// 가이드 원문은 출력키를 "512bit"라 적어놓고 코드 예시는 "48바이트째부터 32바이트를
-// 무결성/HMAC 키로 쓴다"고 해서 앞뒤가 안 맞는다(64바이트로는 80바이트째까지 못 읽음).
-// PBKDF2는 블록 단위로 늘어나도 앞쪽 바이트가 안 바뀌므로, 두 해석을 모두 만족하도록
-// 80바이트를 요청해서 0-31(AES 키)/48-79(HMAC 키) 둘 다 안전하게 잘라 쓴다.
 function deriveNiceKeys({ ticket, transactionId, iterations }) {
-  const material = crypto.pbkdf2Sync(ticket, transactionId, iterations, 80, "sha256");
-  return { aesKey: material.subarray(0, 32), hmacKey: material.subarray(48, 80) };
+  const material = crypto.pbkdf2Sync(ticket, transactionId, iterations, 64, "sha256");
+  const keyString = material.toString("base64url");
+  return {
+    aesKey: Buffer.from(keyString.slice(0, 32), "utf8"),
+    hmacKey: Buffer.from(keyString.slice(48, 80), "utf8")
+  };
 }
 
-// enc_data = base64url(IV(16) + ciphertext + GCM tag(16)). AES/GCM은 그 자체로 인증
-// 암호(AEAD)라 setAuthTag 검증에 실패하면 decipher.final()이 던진다 - 그게 사실상의
-// 무결성 검증이라, NICE가 별도로 내려주는 integrity_value는 지금은 따로 재검증하지
-// 않는다(정확한 계산식이 가이드에 명시돼 있지 않았다).
+function assertNiceIntegrity({ encData, integrityValue, hmacKey, httpError }) {
+  const expected = crypto.createHmac("sha256", hmacKey).update(encData, "utf8").digest("base64url");
+  const expectedBytes = Buffer.from(expected, "utf8");
+  const actualBytes = Buffer.from(String(integrityValue || ""), "utf8");
+  if (expectedBytes.length !== actualBytes.length || !crypto.timingSafeEqual(expectedBytes, actualBytes)) {
+    throw httpError(502, "NICE_INTEGRITY_INVALID", "본인인증 결과 무결성 검증에 실패했습니다.");
+  }
+}
+
 function decryptNiceEncData(encData, aesKey) {
   const raw = Buffer.from(encData, "base64url");
   const iv = raw.subarray(0, 16);
@@ -333,7 +337,8 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
       transactionId: record.transactionId,
       webTransactionId
     });
-    const { aesKey } = deriveNiceKeys({ ticket: record.ticket, transactionId: record.transactionId, iterations: record.iterators });
+    const { aesKey, hmacKey } = deriveNiceKeys({ ticket: record.ticket, transactionId: record.transactionId, iterations: record.iterators });
+    assertNiceIntegrity({ encData: result.enc_data, integrityValue: result.integrity_value, hmacKey, httpError });
     const decrypted = decryptNiceEncData(result.enc_data, aesKey);
     const fields = niceResultFields(decrypted);
     const normalizedPhone = normalizePhoneNumber(fields.mobileNo);
