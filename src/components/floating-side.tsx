@@ -28,7 +28,7 @@ export function FloatingSide() {
         </button>
       )}
       <Link
-        href="https://pf.kakao.com/_xmTniX"
+        href="https://pf.kakao.com/_xmTniX/chat"
         aria-label="1:1 문의"
         target="_blank"
         rel="noreferrer"

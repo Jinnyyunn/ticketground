@@ -84,7 +84,7 @@ export function SiteFooter({
 
       <div className="border-t border-line">
         <div className="ticketground-container flex flex-col gap-3 py-5 text-sm text-ink-4 md:flex-row md:items-center">
-          <p className="pr-16 md:pr-0">{dict.copyright}</p>
+          <p className="break-keep pr-16 md:pr-0">{dict.copyright}</p>
         </div>
       </div>
     </footer>

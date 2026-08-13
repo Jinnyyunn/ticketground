@@ -44,7 +44,7 @@ type Contact = {
 };
 
 const contacts: readonly Contact[] = [
-  { label: "카카오 상담", value: "Ticketground 채널", description: "채널을 추가한 뒤 카카오톡에서 1:1 문의를 보내주세요.", href: "https://pf.kakao.com/_xmTniX" },
+  { label: "카카오 상담", value: "Ticketground 채널", description: "카카오톡 로그인 후 1:1 채팅으로 바로 문의해주세요.", href: "https://pf.kakao.com/_xmTniX/chat" },
 ];
 
 export default function HelpPage() {
