@@ -301,7 +301,7 @@ export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYE
   });
 }
 
-export function getSession(userId = currentSessionUserId()) {
+export async function getSession(userId = currentSessionUserId()) {
   // GET /api/users/:userId/session is a demo-only route
   // (backend/api-router.js's requireDemoUserAPI) that 404s outside
   // dev/QA flags - calling it for a real logged-in session makes this
@@ -314,7 +314,18 @@ export function getSession(userId = currentSessionUserId()) {
   if (storedSessionCredential() && storedSessionUserId() === userId) {
     return authedRequest("/api/me", apiSessionSchema);
   }
-  return readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
+  try {
+    return await readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
+  } catch (error) {
+    // The demo route being gated off (NOT_FOUND, "요청한 API가 없습니다.") is a
+    // deployment-config detail, not something a caller can show a user - treat
+    // it the same as "this stored session id can't be resolved" so it lands in
+    // callers' existing USER_NOT_FOUND handling instead of surfacing raw text.
+    if (error instanceof TicketgroundApiError && error.code === "NOT_FOUND") {
+      throw new TicketgroundApiError("로그인 정보를 찾을 수 없습니다.", "USER_NOT_FOUND", error.status);
+    }
+    throw error;
+  }
 }
 
 export function completeSocialLogin(provider: SocialLoginProvider) {
