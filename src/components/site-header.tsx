@@ -16,6 +16,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { dictionary as koDictionary } from "@/i18n/dictionaries/ko";
 import type { Dictionary } from "@/i18n/get-dictionary";
 import { defaultLocale, type Locale } from "@/i18n/config";
+import { localizeHref, stripLocalePrefix } from "@/i18n/routing";
 
 const utilityLinkClassName = "hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50";
 const desktopActionIcons: Record<HighlightCategoryId, LucideIcon> = {
@@ -35,14 +36,24 @@ const categoryNavIcons: Record<CategoryId | HighlightCategoryId, LucideIcon> = {
   calendar: CalendarDays,
 };
 
-function HeaderAuthLinks({ signedIn, signOut, dict }: { readonly signedIn: boolean; readonly signOut: () => void; readonly dict: Dictionary["header"] }) {
+function HeaderAuthLinks({
+  signedIn,
+  signOut,
+  dict,
+  locale,
+}: {
+  readonly signedIn: boolean;
+  readonly signOut: () => void;
+  readonly dict: Dictionary["header"];
+  readonly locale: Locale;
+}) {
   if (!signedIn) {
     return (
       <>
-        <Link href={loginLink.href} className={utilityLinkClassName}>
+        <Link href={localizeHref(locale, loginLink.href)} className={utilityLinkClassName}>
           {dict.login}
         </Link>
-        <Link href={signupLink.href} className={utilityLinkClassName}>
+        <Link href={localizeHref(locale, signupLink.href)} className={utilityLinkClassName}>
           {dict.signup}
         </Link>
       </>
@@ -52,7 +63,7 @@ function HeaderAuthLinks({ signedIn, signOut, dict }: { readonly signedIn: boole
   return (
     <>
       {signedInUtilityLinks.map((link) => (
-        <Link key={link.href} href={link.href} className={utilityLinkClassName}>
+        <Link key={link.href} href={localizeHref(locale, link.href)} className={utilityLinkClassName}>
           {dict.utilityMy}
         </Link>
       ))}
@@ -63,7 +74,17 @@ function HeaderAuthLinks({ signedIn, signOut, dict }: { readonly signedIn: boole
   );
 }
 
-function MobileHeaderAuthControl({ signedIn, signOut, dict }: { readonly signedIn: boolean; readonly signOut: () => void; readonly dict: Dictionary["header"] }) {
+function MobileHeaderAuthControl({
+  signedIn,
+  signOut,
+  dict,
+  locale,
+}: {
+  readonly signedIn: boolean;
+  readonly signOut: () => void;
+  readonly dict: Dictionary["header"];
+  readonly locale: Locale;
+}) {
   const className =
     "inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-line bg-card px-3 text-xs font-black text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50 sm:hidden";
 
@@ -76,7 +97,7 @@ function MobileHeaderAuthControl({ signedIn, signOut, dict }: { readonly signedI
   }
 
   return (
-    <Link href={loginLink.href} className={className}>
+    <Link href={localizeHref(locale, loginLink.href)} className={className}>
       {dict.login}
     </Link>
   );
@@ -113,10 +134,11 @@ export function SiteHeader({
   const desktopOnlyIconHrefs = new Set<string>(signedInIconLinks.map((link) => link.href));
   const pathname = usePathname();
   const categoryLabels: Record<CategoryId | HighlightCategoryId, string> = { ...dict.categories, ...dict.highlightCategories };
+  const barePathname = stripLocalePrefix(pathname);
   const isActiveCategory = (id: CategoryId) => {
     const href = categoryHrefs[id];
     if (!href) return false;
-    return href === "/" ? pathname === "/" : pathname.startsWith(href);
+    return href === "/" ? barePathname === "/" : barePathname.startsWith(href);
   };
 
   useLayoutEffect(() => {
@@ -131,11 +153,11 @@ export function SiteHeader({
       <div className="hidden border-b border-line bg-surface sm:block">
         <div className="ticketground-container flex h-8 items-center justify-end gap-4 text-sm font-bold text-ink-3">
           {utilityLinksBeforeAuth.map((link) => (
-            <Link key={link.href} href={link.href} className={utilityLinkClassName}>
+            <Link key={link.href} href={localizeHref(locale, link.href)} className={utilityLinkClassName}>
               {dict.utilityHelp}
             </Link>
           ))}
-          <HeaderAuthLinks signedIn={signedIn} signOut={signOut} dict={dict} />
+          <HeaderAuthLinks signedIn={signedIn} signOut={signOut} dict={dict} locale={locale} />
           <LanguageSwitcher
             currentLocale={locale}
             label={languageSwitcherDict.label}
@@ -147,7 +169,7 @@ export function SiteHeader({
       </div>
 
       <div className="ticketground-container flex h-auto flex-wrap items-center gap-x-3 gap-y-3 py-3 md:h-[64px] md:flex-nowrap md:gap-8 md:py-0">
-        <Link href="/" aria-label="Ticketground" className="flex shrink-0 items-center">
+        <Link href={localizeHref(locale, "/")} aria-label="Ticketground" className="flex shrink-0 items-center">
           <BrandLogo priority />
         </Link>
         {showSearchBar && (
@@ -162,7 +184,7 @@ export function SiteHeader({
           {visibleIconLinks.map(({ id, href, Icon }) => (
             <Link
               key={href}
-              href={href}
+              href={localizeHref(locale, href)}
               aria-label={iconLinkLabel(id, dict)}
               className={cn(
                 "grid min-w-[42px] justify-items-center gap-0.5 whitespace-nowrap text-[11px] font-bold text-ink-2 hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-w-12 md:gap-1 md:text-sm",
@@ -174,7 +196,7 @@ export function SiteHeader({
             </Link>
           ))}
         </nav>
-        <MobileHeaderAuthControl signedIn={signedIn} signOut={signOut} dict={dict} />
+        <MobileHeaderAuthControl signedIn={signedIn} signOut={signOut} dict={dict} locale={locale} />
         <MobileNav
           className="sm:hidden"
           dict={dict}
@@ -202,7 +224,7 @@ export function SiteHeader({
               return (
                 <Link
                   key={c}
-                  href={href ?? "/contents/search"}
+                  href={localizeHref(locale, href ?? "/contents/search")}
                   className={cn(
                     "flex flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                     active ? "text-ticketground" : "text-ink-2 hover:text-ticketground",
@@ -221,7 +243,7 @@ export function SiteHeader({
               {categoryNav.map((c) => (
                 <Link
                   key={c}
-                  href={categoryHrefs[c] ?? "/contents/search"}
+                  href={localizeHref(locale, categoryHrefs[c] ?? "/contents/search")}
                   className={cn(
                     "whitespace-nowrap font-bold hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50",
                     c !== "home" && isActiveCategory(c) ? "text-ticketground underline underline-offset-4" : "text-ink-2",
@@ -255,7 +277,7 @@ export function SiteHeader({
               return (
                 <Link
                   key={c}
-                  href={highlightCategoryHrefs[c] ?? "/open"}
+                  href={localizeHref(locale, highlightCategoryHrefs[c] ?? "/open")}
                   className={cn(
                     "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-black shadow-ticket-1 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
                     isResale
