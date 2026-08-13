@@ -93,8 +93,10 @@ async function niceApiCall(url, { headers, body }) {
 }
 
 async function requestNiceAccessToken(requestNo) {
+  // 가이드 원문: "Authorization: Basic {Base64UrlEncoding(client_id + ':' + client_secret)}" -
+  // 표준 base64가 아니라 base64url(패딩 없음)을 명시하고 있어 그대로 맞춘다.
   return niceApiCall(NICE_TOKEN_URL, {
-    headers: { Authorization: `Basic ${Buffer.from(`${niceClientId()}:${niceClientSecret()}`).toString("base64")}` },
+    headers: { Authorization: `Basic ${Buffer.from(`${niceClientId()}:${niceClientSecret()}`).toString("base64url")}` },
     body: { grant_type: "client_credentials", request_no: requestNo }
   });
 }
