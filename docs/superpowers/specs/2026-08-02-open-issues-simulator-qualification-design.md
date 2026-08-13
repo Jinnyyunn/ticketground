@@ -13,7 +13,7 @@ Resolve every repository-controlled part of issues #99 through #108 without clai
 - Include #99, #100, #101, #102, #106, #107, and the repository-controlled documentation/checklist work in #108.
 - Exclude #103 payment approval, PSP callbacks/webhooks, receipts, and payment recovery.
 - Exclude #104 mutations that require refund, settlement, or payment-provider state. Existing read-only and disabled states must not regress.
-- Exclude #105 PortOne/Danal provider E2E. Existing test-mode identity code remains unchanged and must not be represented as provider qualification.
+- Exclude #105 external identity-provider E2E. Existing test-mode identity code remains unchanged and must not be represented as provider qualification.
 - Preserve the protected simple-login files and the real-provider-first localhost behavior documented in `간편로그인-수정금지-지침.md`.
 
 ## Architecture
@@ -46,4 +46,4 @@ Node integration tests cover authorization, ownership, restart durability, idemp
 - An issue is closed only when all repository-controlled acceptance criteria for its included scope pass on the current revision and the simulator flow is captured.
 - #103 and #105 remain open. #104 remains open unless its remaining acceptance criteria no longer require payment-provider behavior.
 - #108 records exactly what is implemented, what is simulator-qualified, and which provider/production items remain unavailable; secrets and transient tunnel credentials never appear in GitHub comments or committed files.
-- No source code or tests may imply that simulator push injection equals production APNs delivery, or that the existing identity test mode equals PortOne/Danal production verification.
+- No source code or tests may imply that simulator push injection equals production APNs delivery, or that the existing identity test mode equals production verification.

@@ -1,7 +1,5 @@
 import { z, type ZodType } from "zod";
 import type {
-  ApiBootpayConfig,
-  ApiBootpayPurchaseResult,
   ApiDirectTransferResult,
   ApiEvent,
   ApiIdentityStart,
@@ -11,13 +9,17 @@ import type {
   ApiResaleResult,
   ApiSeat,
   ApiSeatMap,
+  ApiSeatMapPosition,
   ApiSession,
   ApiState,
   ApiSupportThread,
   ApiTicket,
+  ApiTosspaymentsConfig,
+  ApiTosspaymentsPurchaseResult,
   ApiVirtualQr,
   ApiWatchlistBase,
   ApiWatchlistItem,
+  ApiWatchlistRemoveResult,
   ApiWatchlistUpsertResult,
 } from "./ticketground-api-types";
 
@@ -107,6 +109,15 @@ export const apiStateSchema = z.object({
   }),
 }) satisfies ZodType<ApiState>;
 
+export const apiSeatMapPositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+  rotate: z.number(),
+  shape: z.string(),
+}) satisfies ZodType<ApiSeatMapPosition>;
+
 export const apiSeatSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -116,14 +127,7 @@ export const apiSeatSchema = z.object({
   price: z.number(),
   status: z.string(),
   available: z.boolean(),
-  mapPosition: z.object({
-    x: z.number(),
-    y: z.number(),
-    width: z.number(),
-    height: z.number(),
-    rotate: z.number(),
-    shape: z.string(),
-  }),
+  mapPosition: apiSeatMapPositionSchema.optional(),
 }) satisfies ZodType<ApiSeat>;
 
 export const apiSeatMapSchema = z.object({
@@ -166,18 +170,19 @@ export const apiPurchaseResultSchema = z.object({
   }),
 }) satisfies ZodType<ApiPurchaseResult>;
 
-export const apiBootpayConfigSchema = z.object({
+export const apiTosspaymentsConfigSchema = z.object({
   configured: z.boolean(),
-  applicationId: z.string(),
-}) satisfies ZodType<ApiBootpayConfig>;
+  clientKey: z.string(),
+}) satisfies ZodType<ApiTosspaymentsConfig>;
 
-export const apiBootpayPurchaseResultSchema = apiPurchaseResultSchema.extend({
-  bootpay: z.object({
-    receiptId: z.string(),
-    method: z.string(),
-    mock: z.boolean(),
+export const apiTosspaymentsPurchaseResultSchema = apiPurchaseResultSchema.extend({
+  tosspayments: z.object({
+    tossPaymentKey: z.string(),
+    method: z.string().optional(),
+    mock: z.boolean().optional(),
+    replayed: z.boolean().optional(),
   }),
-}) satisfies ZodType<ApiBootpayPurchaseResult>;
+}) satisfies ZodType<ApiTosspaymentsPurchaseResult>;
 
 export const apiIdentityStatusSchema = z.object({
   userId: z.string(),
@@ -185,9 +190,7 @@ export const apiIdentityStatusSchema = z.object({
   provider: z.string(),
   phoneMasked: z.string().nullable(),
   verifiedAt: z.string().nullable(),
-  portOneConfigured: z.boolean(),
-  storeId: z.string(),
-  channelKey: z.string(),
+  niceConfigured: z.boolean(),
   mockAvailable: z.boolean(),
 }) satisfies ZodType<ApiIdentityStatus>;
 
@@ -195,10 +198,9 @@ export const apiIdentityStartSchema = z.object({
   identityVerificationId: z.string(),
   provider: z.string(),
   status: z.string(),
-  phoneMasked: z.string(),
-  storeId: z.string(),
-  channelKey: z.string(),
-  portOneConfigured: z.boolean(),
+  product: z.string(),
+  authUrl: z.string().nullable(),
+  niceConfigured: z.boolean(),
   mockAvailable: z.boolean(),
 }) satisfies ZodType<ApiIdentityStart>;
 
@@ -232,6 +234,8 @@ export const apiSessionSchema = z.object({
   status: z.string(),
   trustScore: z.number(),
   profileConfirmed: z.boolean(),
+  credential: z.string().optional(),
+  credentialExpiresAt: z.string().optional(),
 }) satisfies ZodType<ApiSession>;
 
 const apiNotificationJobSchema = z.object({
@@ -282,6 +286,11 @@ export const upsertWatchlistResultSchema = z.object({
   watchlist: apiWatchlistBaseSchema,
   notificationJobs: z.array(apiNotificationJobSchema),
 }) satisfies ZodType<ApiWatchlistUpsertResult>;
+
+export const removeWatchlistResultSchema = z.object({
+  deleted: z.boolean(),
+  eventId: z.string(),
+}) satisfies ZodType<ApiWatchlistRemoveResult>;
 
 export const notifyWatchlistResultSchema = z.object({
   notificationJob: z.object({

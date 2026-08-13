@@ -19,7 +19,7 @@
 - `TIG_SIMULATOR_ATTESTATION_SECRET`: 시뮬레이터 검증 환경 전용, 운영 App Attest 키와 분리
 - Google/Kakao/Naver 서버 OAuth 비밀과 등록 redirect URI
 - APNs 인증 키와 production/sandbox 환경 분리
-- PortOne/Danal 운영 본인인증 계약과 callback 검증 정보
+- NICE 운영 본인인증 계약과 callback 검증 정보
 
 ## 운영 배포 시 검증 순서
 

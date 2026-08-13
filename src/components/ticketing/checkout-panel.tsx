@@ -3,40 +3,65 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
 import {
-  buyTicketWithBootpay,
-  confirmDanalIdentityVerification,
-  getBootpayConfig,
+  buyTicket,
   getIdentityStatus,
   getState,
-  startDanalIdentityVerification,
+  getTosspaymentsConfig,
+  mockCompleteNiceIdentityVerification,
+  startNiceIdentityVerification,
   storedSessionUserId,
   TicketgroundApiError,
   type ApiIdentityStatus,
+  type ApiTosspaymentsConfig,
 } from "@/lib/ticketground-api";
 import type { TicketShow } from "@/types";
 
 const paymentMethods = [
-  { id: "credit", label: "신용카드", note: "카드사 할인 적용", bootpayKey: "CREDIT_CARD" },
-  { id: "simple", label: "간편결제", note: "카카오페이·네이버페이", bootpayKey: "SIMPLE_PAY" },
-  { id: "bank", label: "계좌이체", note: "실시간 출금", bootpayKey: "BANK_TRANSFER" },
-  { id: "mobile", label: "휴대폰 결제", note: "통신사 한도 확인", bootpayKey: "MOBILE" },
-  { id: "deposit", label: "무통장입금", note: "입금대기 후 확정", bootpayKey: "BANK_DEPOSIT" },
+  { id: "credit", label: "신용카드", note: "카드사 할인 적용", paymentMethod: "CREDIT_CARD" },
+  { id: "simple", label: "간편결제", note: "카카오페이·네이버페이", paymentMethod: "SIMPLE_PAY" },
+  { id: "bank", label: "계좌이체", note: "실시간 출금", paymentMethod: "BANK_TRANSFER" },
+  { id: "mobile", label: "휴대폰 결제", note: "통신사 한도 확인", paymentMethod: "MOBILE" },
+  { id: "deposit", label: "무통장입금", note: "입금대기 후 확정", paymentMethod: "BANK_DEPOSIT" },
 ] as const;
 
 const serviceFeePerSeat = 2000;
 
-type BootpaySdk = {
-  readonly requestPayment: (options: Record<string, unknown>) => Promise<{ receipt_id?: string; error_code?: string; message?: string }>;
+type TossPaymentsWidgets = {
+  readonly setAmount: (amount: { value: number; currency: "KRW" }) => Promise<void>;
+  readonly renderPaymentMethods: (options: { selector: string }) => Promise<unknown>;
+  readonly renderAgreement: (options: { selector: string }) => Promise<unknown>;
+  readonly requestPayment: (options: {
+    orderId: string;
+    orderName: string;
+    successUrl: string;
+    failUrl: string;
+  }) => Promise<void>;
+};
+
+type TossPaymentsSdk = {
+  readonly widgets: (options: { customerKey: string }) => TossPaymentsWidgets;
 };
 
 declare global {
   interface Window {
-    readonly Bootpay?: BootpaySdk;
+    readonly TossPayments?: (clientKey: string) => TossPaymentsSdk;
   }
+}
+
+// TossPayments requires an unpredictable customerKey (never the raw account
+// userId) - a random id, generated once per browser and reused after that.
+function tossCustomerKey(): string {
+  if (typeof window === "undefined") return "ANONYMOUS";
+  const storageKey = "ticketground:tosspayments-customer-key";
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing) return existing;
+  const generated = window.crypto.randomUUID();
+  window.localStorage.setItem(storageKey, generated);
+  return generated;
 }
 
 type PaymentMethodId = (typeof paymentMethods)[number]["id"];
@@ -52,30 +77,6 @@ type CheckoutSelection = {
   readonly totalAmount: number;
   readonly ticketId: string;
 };
-
-type PortOneIdentityVerificationRequest = {
-  readonly storeId: string;
-  readonly channelKey: string;
-  readonly identityVerificationId: string;
-};
-
-type PortOneIdentityVerificationResponse = {
-  readonly code?: string;
-  readonly message?: string;
-  readonly identityVerificationId?: string;
-};
-
-type PortOneBrowserSdk = {
-  readonly requestIdentityVerification: (
-    request: PortOneIdentityVerificationRequest,
-  ) => Promise<PortOneIdentityVerificationResponse>;
-};
-
-declare global {
-  interface Window {
-    readonly PortOne?: PortOneBrowserSdk;
-  }
-}
 
 export function CheckoutPanel({
   show,
@@ -93,9 +94,12 @@ export function CheckoutPanel({
   const [sessionUserId, setSessionUserId] = useState("");
   const [identityStatus, setIdentityStatus] = useState<ApiIdentityStatus | null>(null);
   const [identityPhone, setIdentityPhone] = useState("");
-  const [identityVerificationId, setIdentityVerificationId] = useState("");
   const [identityBusy, setIdentityBusy] = useState(false);
   const [identityMessage, setIdentityMessage] = useState("간편 로그인 후 본인인증 상태를 확인합니다.");
+  const [tosspaymentsConfig, setTosspaymentsConfig] = useState<ApiTosspaymentsConfig | null>(null);
+  const [tossSdkLoaded, setTossSdkLoaded] = useState(false);
+  const [tossWidgetReady, setTossWidgetReady] = useState(false);
+  const tossWidgetsRef = useRef<TossPaymentsWidgets | null>(null);
   const backendEventId = getTicketShowBackendEventId(show);
   const performanceDateId = getTicketShowPerformanceDateId(show, selection.date, selection.time);
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
@@ -145,10 +149,57 @@ export function CheckoutPanel({
 
   useEffect(() => {
     let mounted = true;
+    getTosspaymentsConfig()
+      .then((config) => {
+        if (mounted) setTosspaymentsConfig(config);
+      })
+      .catch(() => {
+        if (mounted) setTosspaymentsConfig({ configured: false, clientKey: "" });
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Mounts the TossPayments widget once the SDK script has loaded and the
+  // server-trusted amount is known - never before, since setAmount() needs a
+  // real value and the widget shouldn't be able to request a payment for an
+  // amount the client made up.
+  useEffect(() => {
+    if (!tosspaymentsConfig?.configured || !tossSdkLoaded || amountPending || tossWidgetsRef.current) return;
+    const createTossPayments = window.TossPayments;
+    if (!createTossPayments) return;
+    let cancelled = false;
+    let widgets: TossPaymentsWidgets;
+    try {
+      widgets = createTossPayments(tosspaymentsConfig.clientKey).widgets({ customerKey: tossCustomerKey() });
+    } catch {
+      setStatus("토스페이먼츠 결제 위젯을 초기화하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    tossWidgetsRef.current = widgets;
+    widgets
+      .setAmount({ value: trustedTotalAmount, currency: "KRW" })
+      .then(() => Promise.all([
+        widgets.renderPaymentMethods({ selector: "#toss-payment-method" }),
+        widgets.renderAgreement({ selector: "#toss-agreement" }),
+      ]))
+      .then(() => {
+        if (!cancelled) setTossWidgetReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("토스페이먼츠 결제 위젯을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tosspaymentsConfig, tossSdkLoaded, amountPending, trustedTotalAmount]);
+
+  useEffect(() => {
+    let mounted = true;
     const userId = storedSessionUserId();
     setSessionUserId(userId ?? "");
     setIdentityStatus(null);
-    setIdentityVerificationId("");
     if (!userId) {
       setIdentityMessage("간편 로그인 후 티켓 예매 전 본인인증을 진행해 주세요.");
       return () => {
@@ -161,7 +212,7 @@ export function CheckoutPanel({
       .then((nextStatus) => {
         if (!mounted) return;
         setIdentityStatus(nextStatus);
-        setIdentityMessage(nextStatus.verified ? "본인인증 완료 · 결제를 진행할 수 있습니다." : "결제 전 포트원 다날 휴대폰 본인인증이 필요합니다.");
+        setIdentityMessage(nextStatus.verified ? "본인인증 완료 · 결제를 진행할 수 있습니다." : "결제 전 NICE 휴대폰 본인인증이 필요합니다.");
       })
       .catch((error: unknown) => {
         if (!mounted) return;
@@ -174,81 +225,95 @@ export function CheckoutPanel({
     };
   }, []);
 
+  // NICE 표준창은 서버 push가 아니라 사용자의 브라우저를 콜백 URL로 돌려보내는 방식이라,
+  // 팝업을 띄운 뒤 그 창이 닫히기를 기다렸다가 본인인증 상태를 다시 조회해서 반영한다.
+  // (niceConfigured가 false인 로컬/QA 환경은 팝업 없이 입력한 번호로 바로 확정한다.)
   async function requestIdentityVerification() {
-    const phone = identityPhone.trim();
-    if (!sessionUserId || !phone || identityBusy) return;
+    if (!sessionUserId || identityBusy) return;
     setIdentityBusy(true);
-    setIdentityMessage("다날 휴대폰 본인인증 요청 중");
+    setIdentityMessage("NICE 본인인증 요청 중");
     try {
-      const started = await startDanalIdentityVerification({ userId: sessionUserId, phone });
-      setIdentityVerificationId(started.identityVerificationId);
-      if (started.portOneConfigured) {
-        const portOne = window.PortOne;
-        if (!portOne) {
-          setIdentityMessage("포트원 본인인증 SDK를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      const started = await startNiceIdentityVerification({ userId: sessionUserId });
+      if (started.authUrl) {
+        setIdentityMessage("NICE 본인인증 창을 여는 중입니다.");
+        const popup = window.open(started.authUrl, "nice-identity-verify", "width=430,height=640");
+        if (!popup) {
+          setIdentityMessage("팝업이 차단되었습니다. 브라우저의 팝업 차단을 해제한 뒤 다시 시도해주세요.");
           return;
         }
-        setIdentityMessage("포트원 다날 본인인증 창을 여는 중입니다.");
-        const result = await portOne.requestIdentityVerification({
-          storeId: started.storeId,
-          channelKey: started.channelKey,
-          identityVerificationId: started.identityVerificationId,
+        await new Promise<void>((resolve) => {
+          const timer = window.setInterval(() => {
+            if (popup.closed) {
+              window.clearInterval(timer);
+              resolve();
+            }
+          }, 500);
         });
-        if (result.code) {
-          setIdentityMessage(result.message || "다날 휴대폰 본인인증이 취소되었거나 실패했습니다.");
-          return;
-        }
-        const confirmed = await confirmDanalIdentityVerification({
-          userId: sessionUserId,
-          phone,
-          identityVerificationId: result.identityVerificationId || started.identityVerificationId,
-        });
-        setIdentityStatus(confirmed);
-        setIdentityVerificationId("");
-        setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
+        setIdentityMessage("본인인증 결과 확인 중");
+        const refreshed = await getIdentityStatus(sessionUserId);
+        setIdentityStatus(refreshed);
+        setIdentityMessage(
+          refreshed.verified
+            ? `${refreshed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`
+            : "본인인증이 완료되지 않았습니다. 다시 시도해주세요.",
+        );
         return;
       }
-      setIdentityMessage(`${started.phoneMasked} 다날 본인인증 요청 완료 · 로컬 QA 모드에서 인증 완료 확인을 진행합니다.`);
-      if (started.mockAvailable) {
-        const confirmed = await confirmDanalIdentityVerification({
-          userId: sessionUserId,
-          phone,
-          identityVerificationId: started.identityVerificationId,
-        });
-        setIdentityStatus(confirmed);
-        setIdentityVerificationId("");
-        setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
+      if (!started.mockAvailable) {
+        setIdentityMessage("NICE 본인인증이 아직 설정되지 않았습니다.");
+        return;
       }
+      const phone = identityPhone.trim();
+      if (!phone) {
+        setIdentityMessage("로컬 QA 모드입니다. 휴대폰 번호를 입력한 뒤 다시 시도해주세요.");
+        return;
+      }
+      setIdentityMessage("로컬 QA 모드에서 인증 완료를 진행합니다.");
+      const confirmed = await mockCompleteNiceIdentityVerification({
+        userId: sessionUserId,
+        phone,
+        identityVerificationId: started.identityVerificationId,
+      });
+      setIdentityStatus(confirmed);
+      setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
     } catch (error: unknown) {
       const message = error instanceof TicketgroundApiError && error.code === "PHONE_ALREADY_VERIFIED"
         ? "이미 다른 계정에서 인증된 휴대폰 번호입니다."
         : error instanceof Error
           ? error.message
-          : "다날 휴대폰 본인인증 요청에 실패했습니다.";
+          : "NICE 본인인증 요청에 실패했습니다.";
       setIdentityMessage(message);
     } finally {
       setIdentityBusy(false);
     }
   }
 
-  async function confirmIdentityVerification() {
-    const phone = identityPhone.trim();
-    if (!sessionUserId || !phone || !identityVerificationId || identityBusy) return;
-    setIdentityBusy(true);
-    setIdentityMessage("다날 휴대폰 본인인증 완료 확인 중");
+  async function completeTosspaymentsPayment(ticketId: string) {
+    if (!tossWidgetsRef.current) {
+      setStatus("결제 위젯이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    setSubmitting(true);
+    setStatus("토스페이먼츠 결제창을 여는 중입니다.");
     try {
-      const confirmed = await confirmDanalIdentityVerification({
-        userId: sessionUserId,
-        phone,
-        identityVerificationId,
+      const resultParams = new URLSearchParams({
+        paymentMethod: selectedMethod.paymentMethod,
+        date: selection.date,
+        time: selection.time,
       });
-      setIdentityStatus(confirmed);
-      setIdentityVerificationId("");
-      setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
-    } catch (error: unknown) {
-      setIdentityMessage(error instanceof Error ? error.message : "본인인증 완료 확인에 실패했습니다.");
-    } finally {
-      setIdentityBusy(false);
+      const resultUrl = `${window.location.origin}/checkout/${show.slug}/result?${resultParams.toString()}`;
+      // On success this navigates the whole page away to resultUrl (via Toss's
+      // redirect flow) - it never resolves back into this component. Only a
+      // rejection (popup blocked, SDK error, etc.) returns control here.
+      await tossWidgetsRef.current.requestPayment({
+        orderId: ticketId,
+        orderName: show.title,
+        successUrl: resultUrl,
+        failUrl: resultUrl,
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "토스페이먼츠 결제 요청에 실패했습니다.");
+      setSubmitting(false);
     }
   }
 
@@ -257,52 +322,23 @@ export function CheckoutPanel({
       setStatus("결제 전 간편 로그인과 본인인증이 필요합니다.");
       return;
     }
+    const ticketId = selection.ticketId;
+    if (!ticketId) {
+      // 사용자가 실제로 고른 좌석이 없으면 임의 좌석으로 대체 구매하지 않는다 —
+      // URL 파라미터 손상이나 좌석맵 로딩 실패로 여기 도달했을 수 있다.
+      setStatus("선택된 좌석 정보를 확인할 수 없습니다. 좌석을 다시 선택해주세요.");
+      return;
+    }
+
+    if (tosspaymentsConfig?.configured) {
+      await completeTosspaymentsPayment(ticketId);
+      return;
+    }
+
     setSubmitting(true);
     setStatus("결제 처리 중");
     try {
-      let ticketId = selection.ticketId;
-      if (!ticketId) {
-        const state = await getState();
-        ticketId = state.tickets.find(
-          (ticket) => ticket.eventId === backendEventId
-            && ticket.performanceDateId === performanceDateId
-            && ticket.status === "ON_SALE",
-        )?.id ?? "";
-      }
-      if (!ticketId) {
-        setStatus("구매 가능한 티켓이 없습니다.");
-        return;
-      }
-
-      const bootpayConfig = await getBootpayConfig();
-      let receiptId: string | undefined;
-      if (bootpayConfig.configured) {
-        const bootpay = window.Bootpay;
-        if (!bootpay) {
-          setStatus("BootPay 결제 SDK를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
-          return;
-        }
-        setStatus("BootPay 결제창을 여는 중입니다.");
-        const result = await bootpay.requestPayment({
-          application_id: bootpayConfig.applicationId,
-          price: trustedTotalAmount,
-          order_name: show.title,
-          order_id: ticketId,
-          method: selectedMethod.bootpayKey === "SIMPLE_PAY" ? "kakaopay" : "card",
-        });
-        if (!result.receipt_id) {
-          setStatus(result.message || "BootPay 결제가 취소되었거나 실패했습니다.");
-          return;
-        }
-        receiptId = result.receipt_id;
-      }
-
-      const purchase = await buyTicketWithBootpay({
-        ticketId,
-        userId: sessionUserId,
-        paymentMethod: selectedMethod.bootpayKey,
-        receiptId,
-      });
+      const purchase = await buyTicket(ticketId, sessionUserId);
       const params = new URLSearchParams({
         date: selection.date,
         time: selection.time,
@@ -310,7 +346,7 @@ export function CheckoutPanel({
         count: "1",
         ticketId: purchase.ticket.id,
       });
-      setStatus(`${purchase.payment.label} ${purchase.payment.status} · BootPay ${purchase.bootpay.receiptId}`);
+      setStatus(`${purchase.payment.label} ${purchase.payment.status} · ${purchase.ticket.id}`);
       router.push(`/reservation/${purchase.ticket.id}?${params.toString()}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "결제 처리에 실패했습니다.");
@@ -321,8 +357,7 @@ export function CheckoutPanel({
 
   return (
     <div className="ticketground-container grid gap-8 py-10 lg:grid-cols-[1fr_360px]">
-      <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="afterInteractive" />
-      <Script src="https://cdn.bootpay.co.kr/js/bootpay-5.8.0.min.js" strategy="afterInteractive" />
+      <Script src="https://js.tosspayments.com/v2/standard" strategy="afterInteractive" onLoad={() => setTossSdkLoaded(true)} />
       <section className="rounded-md border border-line p-6">
         <p className="text-sm font-bold text-ticketground">STEP 3</p>
         <h1 className="mt-1 text-4xl font-black text-ink-2">결제 정보 확인</h1>
@@ -347,24 +382,34 @@ export function CheckoutPanel({
 
         <div className="mt-7 rounded-md border border-line p-5">
           <h2 className="text-[19px] font-black">결제수단</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {paymentMethods.map((item) => (
-              <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-line px-4 py-3 text-sm font-bold">
-                <input
-                  suppressHydrationWarning
-                  type="radio"
-                  name="payment-method"
-                  checked={method === item.id}
-                  onChange={() => setMethod(item.id)}
-                  className="accent-link"
-                />
-                <span>
-                  {item.label}
-                  <small className="block pt-1 text-sm font-medium text-ink-3">{item.note}</small>
-                </span>
-              </label>
-            ))}
-          </div>
+          {tosspaymentsConfig?.configured ? (
+            <div className="mt-4">
+              <div id="toss-payment-method" />
+              <div id="toss-agreement" className="mt-4" />
+              {!tossWidgetReady ? (
+                <p className="mt-3 text-sm font-bold text-ink-3">결제 위젯을 불러오는 중입니다.</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {paymentMethods.map((item) => (
+                <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-line px-4 py-3 text-sm font-bold">
+                  <input
+                    suppressHydrationWarning
+                    type="radio"
+                    name="payment-method"
+                    checked={method === item.id}
+                    onChange={() => setMethod(item.id)}
+                    className="accent-link"
+                  />
+                  <span>
+                    {item.label}
+                    <small className="block pt-1 text-sm font-medium text-ink-3">{item.note}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         <div data-testid="identity-gate" className="mt-7 rounded-md border border-line bg-surface p-5">
@@ -372,7 +417,7 @@ export function CheckoutPanel({
             <div>
               <h2 className="text-[19px] font-black text-ink">본인인증</h2>
               <p className="mt-2 break-keep text-sm font-bold text-ink-3">
-                티켓 예매 및 결제 전 포트원 다날 휴대폰 본인인증이 필요합니다. 한 번 인증된 휴대폰 번호는 다른 계정에서 다시 인증할 수 없습니다.
+                티켓 예매 및 결제 전 NICE 휴대폰 본인인증이 필요합니다. 한 번 인증된 휴대폰 번호는 다른 계정에서 다시 인증할 수 없습니다.
               </p>
             </div>
             <span className={identityVerified ? "rounded-sm bg-ok px-3 py-1 text-xs font-black text-white" : "rounded-sm bg-ticketground px-3 py-1 text-xs font-black text-white"}>
@@ -389,29 +434,23 @@ export function CheckoutPanel({
               인증 계정: {sessionUserId} · {identityStatus.phoneMasked ?? "휴대폰 인증 완료"}
             </div>
           ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <input
-                value={identityPhone}
-                onChange={(event) => setIdentityPhone(event.target.value)}
-                inputMode="tel"
-                placeholder="휴대폰 번호 입력"
-                className="h-11 rounded-sm border border-line-strong bg-card px-3 text-sm font-bold text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-              />
+            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              {identityStatus?.niceConfigured !== true ? (
+                <input
+                  value={identityPhone}
+                  onChange={(event) => setIdentityPhone(event.target.value)}
+                  inputMode="tel"
+                  placeholder="휴대폰 번호 (로컬 QA 모드)"
+                  className="h-11 rounded-sm border border-line-strong bg-card px-3 text-sm font-bold text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+                />
+              ) : null}
               <button
                 type="button"
-                disabled={!identityPhone.trim() || identityBusy}
+                disabled={identityBusy}
                 onClick={requestIdentityVerification}
                 className="h-11 rounded-sm bg-ink px-4 text-sm font-black text-on-ink disabled:bg-surface-3 disabled:text-ink-4"
               >
-                {identityBusy ? "요청 중" : "다날 본인인증 시작"}
-              </button>
-              <button
-                type="button"
-                disabled={!identityVerificationId || identityBusy}
-                onClick={confirmIdentityVerification}
-                className="h-11 rounded-sm border border-line bg-card px-4 text-sm font-black text-ink disabled:bg-surface-3 disabled:text-ink-4"
-              >
-                인증 완료 확인
+                {identityBusy ? "요청 중" : "NICE 본인인증 시작"}
               </button>
             </div>
           )}
@@ -426,7 +465,7 @@ export function CheckoutPanel({
             onChange={(event) => setAgreed(event.target.checked)}
             className="mt-1 accent-link"
           />
-          결제 조건, 클린티켓 QR 정책, 취소/환불 규정에 동의합니다
+          결제 조건, Tig 티켓 QR 정책, 취소/환불 규정에 동의합니다
         </label>
         <div className="mt-5 rounded-md border border-line bg-surface p-4" aria-live="polite">
           <p className="text-sm font-black text-ink">결제 상태</p>
@@ -466,12 +505,17 @@ export function CheckoutPanel({
         </dl>
         <button
           type="button"
-          disabled={!agreed || submitting || amountPending || !identityVerified || !sessionUserId}
+          disabled={!hasSelectedTicket || !agreed || submitting || amountPending || !identityVerified || !sessionUserId || (tosspaymentsConfig?.configured === true && !tossWidgetReady)}
           onClick={completePayment}
           className="mt-5 h-12 w-full rounded-sm bg-ticketground text-lg font-bold text-white disabled:bg-surface-3"
         >
           {submitting ? "결제 처리 중" : "결제 완료"}
         </button>
+        {!hasSelectedTicket ? (
+          <p className="mt-3 text-sm font-bold text-ticketground">
+            선택된 좌석 정보를 확인할 수 없습니다. 좌석 선택 화면으로 돌아가 다시 선택해주세요.
+          </p>
+        ) : null}
       </aside>
     </div>
   );

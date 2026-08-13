@@ -1,27 +1,29 @@
 import { createAdmissionBackend } from "./admission.js";
-import { createAccountContract } from "./account-contract.js";
+import { createAppAttestBackend } from "./app-attest.js";
+import { createGateSessionBackend } from "./gate-sessions.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
-import { createBootpayBackend } from "./bootpay.js";
-import { createBookingSession } from "./booking-session.js";
+import { createBookingHoldsBackend } from "./booking-holds.js";
+import { createIdempotentMutationRunner } from "./idempotent-mutation.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
 import { createDiscoveryBackend } from "./discovery.js";
-import { createDeviceRegistration } from "./device-registration.js";
 import { createEngagementBackend } from "./engagement.js";
 import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
-import { createIdempotencyBackend } from "./idempotency.js";
 import { createNativeSessionBackend } from "./native-session.js";
-import { createMobileTicketQr } from "./mobile-ticket-qr.js";
+import { createMobileLifecycleBackend } from "./mobile-lifecycle.js";
+import { createMobileAdminBackend } from "./mobile-admin.js";
 import { createPersistence } from "./persistence.js";
-import { createRequestPrincipal } from "./request-principal.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
-import { createSupportContract } from "./support-contract.js";
-import { createWatchlistContract } from "./watchlist-contract.js";
+import { createSellerAccountBackend } from "./seller-accounts.js";
+import { createSellerApplicationBackend } from "./seller-applications.js";
+import { createSellerEventsBackend } from "./seller-events.js";
+import { sellerSessionFromRequest } from "./seller-session.js";
+import { createTosspaymentsBackend } from "./tosspayments.js";
 
 export async function createTicketgroundApp(options) {
   const runtime = createRuntime(options.runtime);
@@ -49,6 +51,18 @@ export async function createTicketgroundApp(options) {
     publicCatalog: dtos.publicCatalog
   });
   let groupBooking;
+  const sellerApplications = createSellerApplicationBackend({
+    appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
+  // sellerEvents is constructed after admin (it reuses admin.createEventDraft/
+  // updateEventSale) but admin's "seller-events" workspace listing needs
+  // sellerEvents.listPendingSellerEvents back - same forward-reference
+  // pattern as ensureAdmissionCredential below breaks the circular need.
+  let listPendingSellerEvents;
   const admin = createAdminBackend({
     adminTicket: dtos.adminTicket,
     appendLedger: persistence.appendLedger,
@@ -62,8 +76,33 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     seatLayoutForVenue: catalog.seatLayoutForVenue,
     stableId: runtime.stableId,
-    verifyLedger: persistence.verifyLedger
+    verifyLedger: persistence.verifyLedger,
+    listSellerApplications: sellerApplications.listSellerApplications,
+    listPendingSellerEvents: (...args) => listPendingSellerEvents(...args)
   });
+  const sellerAccounts = createSellerAccountBackend({
+    appendLedger: persistence.appendLedger,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
+  const sellerEvents = createSellerEventsBackend({
+    appendLedger: persistence.appendLedger,
+    createEventDraft: admin.createEventDraft,
+    httpError: runtime.httpError,
+    now: runtime.now,
+    updateEventSale: admin.updateEventSale
+  });
+  ({ listPendingSellerEvents } = sellerEvents);
+  function sellerSession(db, req) {
+    return sellerSessionFromRequest({
+      activeSellerAccount: sellerAccounts.activeSellerAccount,
+      currentTimeMs: runtime.currentTimeMs,
+      db,
+      hmac: runtime.hmac,
+      req
+    });
+  }
   const admission = createAdmissionBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
@@ -79,11 +118,51 @@ export async function createTicketgroundApp(options) {
     stableId: runtime.stableId
   });
   ({ ensureAdmissionCredential } = admission);
+  const appAttest = createAppAttestBackend({
+    currentTimeMs: runtime.currentTimeMs,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now,
+    randomHex: runtime.randomHex,
+    androidPackageNames: options.runtime.playIntegrityAndroidPackageNames || (
+      process.env.NODE_ENV === "production"
+        ? ["kr.ticketground.app"]
+        : ["kr.ticketground.app", "kr.ticketground.app.dev"]
+    ),
+    playIntegrityVerifierURL: options.runtime.playIntegrityVerifierURL || process.env.TIG_PLAY_INTEGRITY_VERIFIER_URL,
+    playIntegrityVerifierToken: options.runtime.playIntegrityVerifierToken || process.env.TIG_PLAY_INTEGRITY_VERIFIER_TOKEN,
+    verifierURL: options.runtime.appAttestVerifierURL,
+    verifierToken: options.runtime.appAttestVerifierToken
+  });
+  const gateSessions = createGateSessionBackend({
+    appendLedger: persistence.appendLedger,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now,
+    randomHex: runtime.randomHex
+  });
+  const idempotentMutation = createIdempotentMutationRunner({
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now,
+    sortJson: runtime.sortJson
+  });
+  const mobileAdmin = createMobileAdminBackend({
+    appendLedger: persistence.appendLedger,
+    clone: runtime.clone,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    idempotentMutation,
+    now: runtime.now
+  });
   const engagement = createEngagementBackend({
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
     httpError: runtime.httpError,
     id: runtime.id,
+    idempotentMutation,
     now: runtime.now,
     offsetIso: runtime.offsetIso,
     primaryDate: catalog.primaryDate,
@@ -97,71 +176,13 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     randomHex: runtime.randomHex
   });
-  const idempotency = createIdempotencyBackend({
-    hash: runtime.hash,
-    httpError: runtime.httpError,
-    now: runtime.now
-  });
-  const requestPrincipal = createRequestPrincipal({
-    httpError: runtime.httpError,
-    nativeSessionPrincipal: nativeSession.nativeSessionPrincipal
-  });
-  const accountContract = createAccountContract({
-    appendLedger: persistence.appendLedger,
-    executeIdempotent: idempotency.executeIdempotent,
-    findUser: runtime.findUser,
-    httpError: runtime.httpError,
-    now: runtime.now
-  });
-  const supportContract = createSupportContract({
-    addSupportMessage: engagement.addSupportMessage,
-    createSupportThread: engagement.createSupportThread,
-    executeIdempotent: idempotency.executeIdempotent,
-    httpError: runtime.httpError,
-    supportThreadForUser: engagement.supportThreadForUser
-  });
-  const watchlistContract = createWatchlistContract({
-    appendLedger: persistence.appendLedger,
-    executeIdempotent: idempotency.executeIdempotent,
-    httpError: runtime.httpError,
-    upsertWatchlist: engagement.upsertWatchlist,
-    userWatchlist: engagement.userWatchlist
-  });
-  const bookingSession = createBookingSession({
-    appendLedger: persistence.appendLedger,
-    currentTimeMs: runtime.currentTimeMs,
-    executeIdempotent: idempotency.executeIdempotent,
-    httpError: runtime.httpError,
-    id: runtime.id,
-    now: runtime.now
-  });
-  const deviceRegistration = createDeviceRegistration({
-    currentTimeMs: runtime.currentTimeMs,
-    executeIdempotent: idempotency.executeIdempotent,
-    hash: runtime.hash,
-    httpError: runtime.httpError,
-    id: runtime.id,
-    now: runtime.now,
-    randomHex: runtime.randomHex,
-    simulatorSecret: options.runtime.simulatorAttestationSecret
-  });
-  const mobileTicketQr = createMobileTicketQr({
-    appendLedger: persistence.appendLedger,
-    currentTimeMs: runtime.currentTimeMs,
-    executeIdempotent: idempotency.executeIdempotent,
-    gateApiKey: options.runtime.gateApiKey,
-    hash: runtime.hash,
-    hmac: runtime.hmac,
-    httpError: runtime.httpError,
-    id: runtime.id,
-    now: runtime.now
-  });
   const session = createSessionBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
     findUser: runtime.findUser,
     hmac: runtime.hmac,
     httpError: runtime.httpError,
+    idempotentMutation,
     issueNativeSession: nativeSession.issueNativeSession,
     now: runtime.now,
     stableId: runtime.stableId
@@ -170,6 +191,7 @@ export async function createTicketgroundApp(options) {
     appendLedger: persistence.appendLedger,
     findUser: runtime.findUser,
     hash: runtime.hash,
+    hmac: runtime.hmac,
     httpError: runtime.httpError,
     id: runtime.id,
     now: runtime.now
@@ -192,8 +214,21 @@ export async function createTicketgroundApp(options) {
     resolvePaymentMethod: runtime.resolvePaymentMethod,
     saleSummary: catalog.saleSummary
   });
+  const mobileLifecycle = createMobileLifecycleBackend({
+    appendLedger: persistence.appendLedger,
+    cancelResaleListing: commerce.cancelResaleListing,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    joinPool: commerce.joinPool,
+    listForResale: commerce.listForResale,
+    now: runtime.now,
+    publicResalePool: dtos.publicResalePool,
+    sortJson: runtime.sortJson
+  });
   groupBooking = createGroupBookingBackend({
     appendLedger: persistence.appendLedger,
+    businessRegistrationDir: options.businessRegistrationDir,
     clone: runtime.clone,
     ensureAdmissionCredential,
     httpError: runtime.httpError,
@@ -203,33 +238,48 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     saleSummary: catalog.saleSummary
   });
-  const bootpay = createBootpayBackend({
+  const tosspayments = createTosspaymentsBackend({
     hash: runtime.hash,
     httpError: runtime.httpError,
     now: runtime.now
   });
+  const bookingHolds = createBookingHoldsBackend({
+    currentTimeMs: runtime.currentTimeMs,
+    eventZone: catalog.eventZone,
+    findUser: runtime.findUser,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    idempotentMutation,
+    isEventBookable: catalog.isEventBookable,
+    now: runtime.now
+  });
   const apiRouter = createApiRouter({
     ...admin,
-    ...accountContract,
-    ...bookingSession,
+    ...bookingHolds,
     ...commerce,
     ...discovery,
-    ...deviceRegistration,
     ...engagement,
+    ...gateSessions,
     ...groupBooking,
     ...identity,
-    ...idempotency,
+    ...mobileLifecycle,
+    ...mobileAdmin,
     ...nativeSession,
-    ...mobileTicketQr,
-    ...requestPrincipal,
+    ...sellerApplications,
+    ...sellerAccounts,
+    ...sellerEvents,
     ...session,
-    ...supportContract,
-    ...watchlistContract,
+    accountTicketsForUser: dtos.accountTicketsForUser,
     appendLedger: persistence.appendLedger,
-    bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,
-    confirmBootpayPayment: bootpay.confirmBootpayPayment,
+    cancelTosspaymentsPayment: tosspayments.cancelTosspaymentsPayment,
+    confirmTosspaymentsPayment: tosspayments.confirmTosspaymentsPayment,
+    currentTimeMs: runtime.currentTimeMs,
+    hmac: runtime.hmac,
     httpError: runtime.httpError,
+    isDev: options.isDev === true,
+    isWebhookSignatureValid: tosspayments.isWebhookSignatureValid,
+    sellerSession,
     publicCatalog: dtos.publicCatalog,
     publicDirectTransferResult: dtos.publicDirectTransferResult,
     publicPurchaseResult: dtos.publicPurchaseResult,
@@ -239,10 +289,12 @@ export async function createTicketgroundApp(options) {
     publicTicket: dtos.publicTicket,
     publicTicketsForUser: dtos.publicTicketsForUser,
     seatMap: admin.seatMap,
+    tosspaymentsConfig: tosspayments.tosspaymentsConfig,
     trustDevice: admission.trustDevice,
-    verifyAppAttestation: runtime.verifyAppAttestation,
+    issueAppAttestChallenge: appAttest.issueChallenge,
+    verifyAppAttestProof: appAttest.verifyProof,
     verifyLedger: persistence.verifyLedger,
-    verifyQr: (db, payload) => ({ valid: admission.verifyQr(db, payload).valid }),
+    verifyQr: admission.verifyQr,
     virtualQr: admission.virtualQr,
     issueQr: admission.issueQr
   });

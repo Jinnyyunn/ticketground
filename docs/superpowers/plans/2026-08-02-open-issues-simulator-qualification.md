@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Complete and simulator-qualify the repository-controlled work for issues #99, #100, #101, #102, #106, #107, and #108 while excluding real payment-provider and PortOne/Danal integrations.
+**Goal:** Complete and simulator-qualify the repository-controlled work for issues #99, #100, #101, #102, #106, #107, and #108 while excluding external payment-provider integrations.
 
 **Architecture:** Add principal-owned `/api/me/*` contracts and a durable idempotency layer on the existing disk-backed backend, then connect focused Swift feature views through the existing HTTPS-only `APIClient`. Verify each feature with Node integration tests, XCTest/XCUITest on the booted iPhone 17 Pro simulator, and a temporary Cloudflare HTTPS tunnel.
 
@@ -17,7 +17,7 @@
 - Require durable idempotency for every included consumer mutation and return `409 IDEMPOTENCY_CONFLICT` for same-key/different-payload reuse.
 - Keep build, full tests, simulator execution, and browser work serial to protect host memory.
 - Do not implement or claim Bootpay/PSP payment approval, webhook, receipt, refund, or settlement (#103 and payment-bound #104).
-- Do not implement or claim PortOne/Danal provider qualification (#105).
+- Do not implement or claim external provider qualification (#105).
 - Preserve current disabled/unsupported presentation for every excluded mutation.
 - Do not commit or push unless the repository owner gives a separate explicit Git instruction.
 

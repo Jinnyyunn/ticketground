@@ -1,4 +1,11 @@
-const PORTONE_IDENTITY_VERIFICATION_URL = "https://api.portone.io/identity-verifications";
+import crypto from "node:crypto";
+
+// NICE 통합인증 API (auth-guide.niceid.co.kr, "통합인증 서비스 가이드"). 엔드포인트/필드명은
+// 2026-08-13에 가이드 원문에서 확인한 값이며, 실제 테스트베드 호출로 아직 검증되지 않았다 -
+// 문제가 생기면 가이드 원문과 다시 대조할 것. `NICE 본인인증 연동 계획서.md` 참고.
+const NICE_TOKEN_URL = "https://auth.niceid.co.kr/ido/intc/v1.0/auth/token";
+const NICE_AUTH_URL_ENDPOINT = "https://auth.niceid.co.kr/ido/intc/v1.0/auth/url";
+const NICE_RESULT_URL = "https://auth.niceid.co.kr/ido/intc/v1.0/auth/result";
 
 function normalizePhoneNumber(value) {
   const digits = String(value || "").replace(/\D/g, "");
@@ -11,29 +18,52 @@ function maskPhoneNumber(normalizedPhone) {
   return `${normalizedPhone.slice(0, 3)}-${"*".repeat(Math.max(3, normalizedPhone.length - 7))}-${normalizedPhone.slice(-4)}`;
 }
 
-function portOneApiSecret() {
-  return (process.env.PORTONE_API_SECRET || process.env.TIG_PORTONE_API_SECRET || "").trim();
+function niceClientId() {
+  return (process.env.TIG_NICE_CLIENT_ID || "").trim();
 }
 
-function portOneStoreId() {
-  return (process.env.NEXT_PUBLIC_PORTONE_STORE_ID || process.env.TIG_PORTONE_STORE_ID || "").trim();
+function niceClientSecret() {
+  return (process.env.TIG_NICE_CLIENT_SECRET || "").trim();
 }
 
-function portOneDanalChannelKey() {
-  return (process.env.NEXT_PUBLIC_PORTONE_DANAL_CHANNEL_KEY || process.env.TIG_PORTONE_DANAL_CHANNEL_KEY || "").trim();
+function niceCallbackReturnUrl() {
+  return (process.env.TIG_NICE_CALLBACK_RETURN_URL || "").trim();
 }
 
-function portOneApiConfigured() {
-  return Boolean(portOneApiSecret() && portOneStoreId() && portOneDanalChannelKey());
+function niceDevLang() {
+  return (process.env.TIG_NICE_DEV_LANG || "Linux/Node.js").trim();
 }
 
-function portOneMockAllowed() {
-  return process.env.NODE_ENV !== "production" || process.env.TIG_PORTONE_IDENTITY_TEST_MODE === "1";
+function niceProductCodeAdult() {
+  return (process.env.TIG_NICE_PRODUCT_CODE_ADULT || "").trim();
 }
 
-function portOneIdentityLookupUrl(identityVerificationId) {
-  const baseUrl = process.env.TIG_PORTONE_IDENTITY_LOOKUP_URL || PORTONE_IDENTITY_VERIFICATION_URL;
-  return `${baseUrl.replace(/\/$/, "")}/${encodeURIComponent(identityVerificationId)}`;
+function niceApiConfigured() {
+  return Boolean(niceClientId() && niceClientSecret() && niceCallbackReturnUrl());
+}
+
+function niceTestModeForced() {
+  return process.env.TIG_NICE_IDENTITY_TEST_MODE === "1";
+}
+
+function niceMockAllowed() {
+  return process.env.NODE_ENV !== "production" || niceTestModeForced();
+}
+
+// TIG_NICE_IDENTITY_TEST_MODE=1 always wins even if real credentials happen to be
+// present (e.g. local/CI runs against a checkout that also has .env.local's real
+// TIG_NICE_CLIENT_ID/SECRET) - otherwise tests would silently hit the live NICE API.
+function realNiceApiAllowed() {
+  return niceApiConfigured() && !niceTestModeForced();
+}
+
+// 표준창 인증수단 코드: 우리 계약은 휴대폰(M)만 쓴다. 성인인증은 상품 코드/연동 방식이
+// 아직 확인되지 않아 미지원 - `TIG_NICE_PRODUCT_CODE_ADULT`가 채워지고 실제 연동 방식이
+// 확인된 뒤에 추가한다.
+const SVC_TYPES_BY_PRODUCT = { phone: ["M"] };
+
+function generateNiceRequestNo() {
+  return `TIG${Date.now()}${crypto.randomBytes(8).toString("hex")}`;
 }
 
 function pickString(record, keys) {
@@ -45,53 +75,104 @@ function pickString(record, keys) {
   return "";
 }
 
-function verifiedCustomerFrom(payload) {
-  if (!payload || typeof payload !== "object") return {};
-  const direct = payload.verifiedCustomer;
-  if (direct && typeof direct === "object") return direct;
-  const data = payload.data;
-  if (!data || typeof data !== "object") return {};
-  return data.verifiedCustomer && typeof data.verifiedCustomer === "object" ? data.verifiedCustomer : data;
-}
-
-function portOneStatusFrom(payload) {
-  if (!payload || typeof payload !== "object") return "";
-  const status = pickString(payload, ["status", "identityVerificationStatus"]);
-  if (status) return status;
-  const data = payload.data;
-  return data && typeof data === "object" ? pickString(data, ["status", "identityVerificationStatus"]) : "";
-}
-
-function portOneVerificationSucceeded(payload) {
-  return /^(VERIFIED|SUCCESS|SUCCEEDED|DONE)$/i.test(portOneStatusFrom(payload));
-}
-
-async function readPortOneIdentityVerification({ httpError, identityVerificationId }) {
-  const response = await fetch(portOneIdentityLookupUrl(identityVerificationId), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `PortOne ${portOneApiSecret()}`
-    }
+async function niceApiCall(url, { headers, body }) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Intc-DevLang": niceDevLang(), ...headers },
+    body: JSON.stringify(body)
   });
-
   let payload = null;
   try {
     payload = await response.json();
   } catch {
-    throw httpError(502, "PORTONE_INVALID_RESPONSE", "포트원 본인인증 응답 형식을 확인하지 못했습니다.");
+    payload = null;
   }
-
-  if (!response.ok) {
-    throw httpError(502, "PORTONE_REQUEST_FAILED", "포트원 본인인증 조회 요청에 실패했습니다.");
+  if (!response.ok || !payload || payload.result_code !== "0000") {
+    const providerCode = String(payload?.result_code || "");
+    const detail = payload ? `${providerCode} ${payload.result_message || ""}`.trim() : `HTTP ${response.status}`;
+    const error = new Error(`NICE API 요청이 실패했습니다 (${url}): ${detail}`);
+    error.niceDetail = detail;
+    if (providerCode === "1006") {
+      error.code = "NICE_CLIENT_PERMISSION";
+      error.status = 503;
+      error.detail = { providerCode, action: "NICE 통합인증 API 사용 권한과 Client ID 발급 상품을 확인하세요." };
+    } else if (providerCode === "1007") {
+      error.code = "NICE_OUTBOUND_IP_DENIED";
+      error.status = 503;
+      error.detail = { providerCode, action: "NICE에 실제 서버 Outbound IP 또는 Cloudflare 연동 IP 등록을 요청하세요." };
+    }
+    throw error;
   }
-  if (!portOneVerificationSucceeded(payload)) {
-    throw httpError(422, "PORTONE_IDENTITY_NOT_VERIFIED", "다날 휴대폰 본인인증이 아직 완료되지 않았습니다.");
-  }
-  return verifiedCustomerFrom(payload);
+  return payload;
 }
 
-export function createIdentityBackend({ appendLedger, findUser, hash, httpError, id, now }) {
+async function requestNiceAccessToken(requestNo) {
+  // 가이드 원문: "Authorization: Basic {Base64UrlEncoding(client_id + ':' + client_secret)}" -
+  // 표준 base64가 아니라 base64url(패딩 없음)을 명시하고 있어 그대로 맞춘다.
+  return niceApiCall(NICE_TOKEN_URL, {
+    headers: { Authorization: `Basic ${Buffer.from(`${niceClientId()}:${niceClientSecret()}`).toString("base64url")}` },
+    body: { grant_type: "client_credentials", request_no: requestNo }
+  });
+}
+
+async function requestNiceAuthUrl({ accessToken, requestNo, returnUrl, svcTypes }) {
+  return niceApiCall(NICE_AUTH_URL_ENDPOINT, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: { request_no: requestNo, return_url: returnUrl, svc_types: svcTypes, method_type: "GET" }
+  });
+}
+
+async function requestNiceResult({ accessToken, requestNo, transactionId, webTransactionId }) {
+  return niceApiCall(NICE_RESULT_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: { web_transaction_id: webTransactionId, transaction_id: transactionId, request_no: requestNo }
+  });
+}
+
+function deriveNiceKeys({ ticket, transactionId, iterations }) {
+  const material = crypto.pbkdf2Sync(ticket, transactionId, iterations, 64, "sha256");
+  const keyString = material.toString("base64url");
+  return {
+    aesKey: Buffer.from(keyString.slice(0, 32), "utf8"),
+    hmacKey: Buffer.from(keyString.slice(48, 80), "utf8")
+  };
+}
+
+function assertNiceIntegrity({ encData, integrityValue, hmacKey, httpError }) {
+  const expected = crypto.createHmac("sha256", hmacKey).update(encData, "utf8").digest("base64url");
+  const expectedBytes = Buffer.from(expected, "utf8");
+  const actualBytes = Buffer.from(String(integrityValue || ""), "utf8");
+  if (expectedBytes.length !== actualBytes.length || !crypto.timingSafeEqual(expectedBytes, actualBytes)) {
+    throw httpError(502, "NICE_INTEGRITY_INVALID", "본인인증 결과 무결성 검증에 실패했습니다.");
+  }
+}
+
+function decryptNiceEncData(encData, aesKey) {
+  const raw = Buffer.from(encData, "base64url");
+  const iv = raw.subarray(0, 16);
+  const tag = raw.subarray(raw.length - 16);
+  const cipherText = raw.subarray(16, raw.length - 16);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", aesKey, iv);
+  decipher.setAuthTag(tag);
+  const plaintext = Buffer.concat([decipher.update(cipherText), decipher.final()]).toString("utf8");
+  return JSON.parse(plaintext);
+}
+
+// 필드명은 가이드 원문 기준(name/birthdate/gender/national_info/ci/di/mobile_co/mobile_no)이지만
+// 실제 응답에서 표기가 다를 가능성을 감안해 흔한 변형도 함께 시도한다.
+function niceResultFields(decrypted) {
+  return {
+    ci: pickString(decrypted, ["ci", "CI"]),
+    di: pickString(decrypted, ["di", "DI"]),
+    mobileNo: pickString(decrypted, ["mobile_no", "mobileno", "mobileNo", "phone_no", "phoneno"]),
+    name: pickString(decrypted, ["name", "utf8_name", "username"]),
+    birthdate: pickString(decrypted, ["birthdate", "birth_date"]),
+    gender: pickString(decrypted, ["gender"]),
+    nationalInfo: pickString(decrypted, ["national_info", "nationalinfo"])
+  };
+}
+
+export function createIdentityBackend({ appendLedger, findUser, hash, hmac, httpError, id, now }) {
   function normalizeIdentityStore(db) {
     db.identityVerifications ||= [];
     for (const user of db.users || []) {
@@ -107,13 +188,11 @@ export function createIdentityBackend({ appendLedger, findUser, hash, httpError,
     return {
       userId: user.id,
       verified: Boolean(verification?.verifiedAt),
-      provider: verification?.provider || "portone-danal",
+      provider: verification?.provider || "nice-standard",
       phoneMasked: verification?.phoneMasked || null,
       verifiedAt: verification?.verifiedAt || null,
-      portOneConfigured: portOneApiConfigured(),
-      storeId: portOneStoreId(),
-      channelKey: portOneDanalChannelKey(),
-      mockAvailable: portOneMockAllowed()
+      niceConfigured: realNiceApiAllowed(),
+      mockAvailable: niceMockAllowed()
     };
   }
 
@@ -128,110 +207,161 @@ export function createIdentityBackend({ appendLedger, findUser, hash, httpError,
     }
   }
 
-  function startPortOneDanalVerification(db, { userId, phone }) {
+  function identityKeyHash(ciOrDi) {
+    return hmac(`nice-standard:${ciOrDi}`);
+  }
+
+  async function startNiceVerification(db, { userId, product = "phone" }) {
     normalizeIdentityStore(db);
     const user = findUser(db, userId);
+    if (!niceApiConfigured() && !niceMockAllowed()) {
+      throw httpError(503, "NICE_NOT_CONFIGURED", "NICE 본인인증 환경변수가 설정되지 않았습니다.");
+    }
+    if (product !== "phone") {
+      if (!niceProductCodeAdult()) {
+        throw httpError(503, "NICE_ADULT_NOT_CONFIGURED", "성인인증은 아직 도입되지 않았습니다.");
+      }
+      throw httpError(501, "NICE_ADULT_NOT_IMPLEMENTED", "성인인증 연동은 아직 구현되지 않았습니다.");
+    }
+
+    const identityVerificationId = id("idv");
+    const tokenRequestNo = generateNiceRequestNo();
+    const authRequestNo = generateNiceRequestNo();
+    const record = {
+      id: identityVerificationId,
+      userId: user.id,
+      provider: "nice-standard",
+      product,
+      phoneHash: null,
+      personHash: null,
+      phoneMasked: null,
+      status: "PENDING",
+      requestNo: authRequestNo,
+      tokenRequestNo,
+      ticket: null,
+      iterators: null,
+      transactionId: null,
+      accessToken: null,
+      createdAt: now(),
+      verifiedAt: null
+    };
+    db.identityVerifications.push(record);
+
+    let authUrl = null;
+    if (realNiceApiAllowed()) {
+      const returnUrl = new URL(niceCallbackReturnUrl());
+      returnUrl.searchParams.set("rid", identityVerificationId);
+      const token = await requestNiceAccessToken(tokenRequestNo);
+      const auth = await requestNiceAuthUrl({
+        accessToken: token.access_token,
+        requestNo: authRequestNo,
+        returnUrl: returnUrl.toString(),
+        svcTypes: SVC_TYPES_BY_PRODUCT[product]
+      });
+      record.ticket = token.ticket;
+      record.iterators = token.iterators;
+      record.accessToken = token.access_token;
+      record.transactionId = auth.transaction_id;
+      authUrl = auth.auth_url;
+    }
+
+    appendLedger(db, user.id, "IDENTITY_VERIFICATION_STARTED", {
+      provider: "nice-standard",
+      identityVerificationId,
+      product,
+      mode: realNiceApiAllowed() ? "nice" : "mock"
+    });
+
+    return {
+      identityVerificationId,
+      provider: "nice-standard",
+      status: record.status,
+      product,
+      authUrl,
+      niceConfigured: realNiceApiAllowed(),
+      mockAvailable: niceMockAllowed()
+    };
+  }
+
+  function findPendingRecord(db, predicate) {
+    normalizeIdentityStore(db);
+    const record = db.identityVerifications.find((item) => item.status === "PENDING" && predicate(item));
+    if (!record) throw httpError(404, "IDENTITY_VERIFICATION_NOT_FOUND", "진행 중인 본인인증 요청을 찾을 수 없습니다.");
+    return record;
+  }
+
+  function finalizeVerification(db, record, { normalizedPhone, ciOrDi, mode }) {
+    const user = findUser(db, record.userId);
+    const phoneHash = normalizedPhone ? hash(`identity-phone:${normalizedPhone}`) : null;
+    const personHash = ciOrDi ? identityKeyHash(ciOrDi) : identityKeyHash(normalizedPhone);
+    assertIdentityCanBeVerified(db, user.id, { phoneHash, personHash });
+
+    record.status = "VERIFIED";
+    record.verifiedAt ||= now();
+    record.phoneHash = phoneHash;
+    record.personHash = personHash;
+    record.phoneMasked = normalizedPhone ? maskPhoneNumber(normalizedPhone) : null;
+    user.identityVerification = {
+      provider: "nice-standard",
+      phoneHash,
+      personHash,
+      phoneMasked: record.phoneMasked,
+      verifiedAt: record.verifiedAt
+    };
+    appendLedger(db, user.id, "IDENTITY_VERIFIED", {
+      provider: "nice-standard",
+      identityVerificationId: record.id,
+      product: record.product,
+      phoneHash,
+      personHash,
+      verifiedAt: record.verifiedAt,
+      mode,
+      policy: "unique-phone-per-account"
+    });
+    return publicIdentityStatus(db, user.id);
+  }
+
+  // 실제 콜백: NICE가 사용자의 브라우저를 return_url(=/api/identity/nice/callback?rid=...)로
+  // 돌려보내며 web_transaction_id를 넘겨준다(서버 push가 아니라 브라우저 경유). rid로 우리
+  // 쪽에 저장해둔 세션(ticket/transactionId/accessToken)을 찾아 결과를 조회·복호화한다.
+  async function completeNiceVerificationFromCallback(db, { identityVerificationId, webTransactionId }) {
+    if (!webTransactionId) throw httpError(400, "NICE_WEB_TRANSACTION_ID_REQUIRED", "인증 결과 값을 확인할 수 없습니다.");
+    const record = findPendingRecord(db, (item) => item.id === identityVerificationId && item.provider === "nice-standard");
+    if (!record.accessToken || !record.ticket || !record.transactionId) {
+      throw httpError(409, "NICE_VERIFICATION_NOT_STARTED", "본인인증 요청 정보가 올바르지 않습니다.");
+    }
+
+    const result = await requestNiceResult({
+      accessToken: record.accessToken,
+      requestNo: record.requestNo,
+      transactionId: record.transactionId,
+      webTransactionId
+    });
+    const { aesKey, hmacKey } = deriveNiceKeys({ ticket: record.ticket, transactionId: record.transactionId, iterations: record.iterators });
+    assertNiceIntegrity({ encData: result.enc_data, integrityValue: result.integrity_value, hmacKey, httpError });
+    const decrypted = decryptNiceEncData(result.enc_data, aesKey);
+    const fields = niceResultFields(decrypted);
+    const normalizedPhone = normalizePhoneNumber(fields.mobileNo);
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+      throw httpError(422, "NICE_PHONE_NUMBER_UNAVAILABLE", "본인인증 결과에서 휴대폰 번호를 확인하지 못했습니다.");
+    }
+    const ciOrDi = fields.ci || fields.di;
+    return finalizeVerification(db, record, { normalizedPhone, ciOrDi, mode: "nice" });
+  }
+
+  // 목(mock) 경로: 실제 NICE 왕복 없이 로컬/CI에서 결정적으로 테스트하기 위한 것. 운영에서는
+  // niceMockAllowed()가 항상 false라 절대 쓸 수 없다.
+  function mockCompleteNiceVerification(db, { userId, identityVerificationId, phone }) {
+    if (!niceMockAllowed()) {
+      throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
+    }
+    const user = findUser(db, userId);
+    const record = findPendingRecord(db, (item) => item.id === identityVerificationId && item.userId === user.id && item.provider === "nice-standard");
     const normalizedPhone = normalizePhoneNumber(phone);
     if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
       throw httpError(422, "INVALID_PHONE_NUMBER", "휴대폰 번호를 확인해주세요.");
     }
-
-    const phoneHash = hash(`identity-phone:${normalizedPhone}`);
-    assertIdentityCanBeVerified(db, user.id, { phoneHash, personHash: "" });
-    const existing = db.identityVerifications.find((item) => item.userId === user.id && item.phoneHash === phoneHash && item.status !== "EXPIRED");
-    const identityVerificationId = existing?.id || id("idv");
-    const verification = existing || {
-      id: identityVerificationId,
-      userId: user.id,
-      provider: "portone-danal",
-      phoneHash,
-      personHash: null,
-      phoneMasked: maskPhoneNumber(normalizedPhone),
-      status: "PENDING",
-      createdAt: now(),
-      verifiedAt: null
-    };
-    if (!existing) db.identityVerifications.push(verification);
-
-    appendLedger(db, user.id, "IDENTITY_VERIFICATION_STARTED", {
-      provider: "portone-danal",
-      identityVerificationId: verification.id,
-      phoneHash,
-      mode: portOneApiConfigured() ? "portone" : "mock"
-    });
-    return {
-      identityVerificationId: verification.id,
-      provider: "portone-danal",
-      status: verification.status,
-      phoneMasked: verification.phoneMasked,
-      storeId: portOneStoreId(),
-      channelKey: portOneDanalChannelKey(),
-      portOneConfigured: portOneApiConfigured(),
-      mockAvailable: portOneMockAllowed()
-    };
-  }
-
-  async function confirmPortOneDanalVerification(db, { userId, phone, identityVerificationId }) {
-    normalizeIdentityStore(db);
-    const user = findUser(db, userId);
-
-    if (!portOneApiConfigured() && !portOneMockAllowed()) {
-      throw httpError(503, "PORTONE_DANAL_NOT_CONFIGURED", "포트원 다날 본인인증 환경변수가 설정되지 않았습니다.");
-    }
-
-    let normalizedPhone = normalizePhoneNumber(phone);
-    let personKey = "";
-    if (portOneApiConfigured() && process.env.TIG_PORTONE_IDENTITY_TEST_MODE !== "1") {
-      const customer = await readPortOneIdentityVerification({ httpError, identityVerificationId });
-      const verifiedPhone = normalizePhoneNumber(pickString(customer, ["phoneNumber", "mobileNumber", "phone"]));
-      if (!verifiedPhone) {
-        throw httpError(422, "DANAL_PHONE_NUMBER_UNAVAILABLE", "다날 본인인증 결과에서 휴대폰 번호를 확인하지 못했습니다.");
-      }
-      if (verifiedPhone !== normalizedPhone) {
-        throw httpError(422, "DANAL_PHONE_MISMATCH", "입력한 휴대폰 번호와 본인인증 결과가 일치하지 않습니다.");
-      }
-      normalizedPhone = verifiedPhone;
-      personKey = pickString(customer, ["di", "ci", "identityKey", "customerId"]);
-    }
-
-    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
-      throw httpError(422, "INVALID_PHONE_NUMBER", "휴대폰 번호를 확인해주세요.");
-    }
-
-    const phoneHash = hash(`identity-phone:${normalizedPhone}`);
-    const personHash = personKey ? hash(`identity-person:${personKey}`) : hash(`identity-person:${normalizedPhone}`);
-    assertIdentityCanBeVerified(db, user.id, { phoneHash, personHash });
-
-    const verification = db.identityVerifications.find((item) =>
-      item.userId === user.id
-      && item.phoneHash === phoneHash
-      && (!identityVerificationId || item.id === identityVerificationId)
-      && item.status !== "EXPIRED"
-    );
-    if (!verification) {
-      throw httpError(404, "IDENTITY_VERIFICATION_NOT_FOUND", "진행 중인 본인인증 요청을 찾을 수 없습니다.");
-    }
-
-    verification.status = "VERIFIED";
-    verification.verifiedAt ||= now();
-    verification.personHash = personHash;
-    verification.phoneMasked = maskPhoneNumber(normalizedPhone);
-    user.identityVerification = {
-      provider: "portone-danal",
-      phoneHash,
-      personHash,
-      phoneMasked: verification.phoneMasked,
-      verifiedAt: verification.verifiedAt
-    };
-    appendLedger(db, user.id, "IDENTITY_VERIFIED", {
-      provider: "portone-danal",
-      identityVerificationId: verification.id,
-      phoneHash,
-      personHash,
-      verifiedAt: verification.verifiedAt,
-      policy: "unique-phone-per-account"
-    });
-    return publicIdentityStatus(db, user.id);
+    return finalizeVerification(db, record, { normalizedPhone, ciOrDi: null, mode: "mock" });
   }
 
   function ensureIdentityVerified(db, userId) {
@@ -243,10 +373,11 @@ export function createIdentityBackend({ appendLedger, findUser, hash, httpError,
   }
 
   return {
-    confirmPortOneDanalVerification,
+    completeNiceVerificationFromCallback,
     ensureIdentityVerified,
+    mockCompleteNiceVerification,
     normalizeIdentityStore,
     publicIdentityStatus,
-    startPortOneDanalVerification
+    startNiceVerification
   };
 }

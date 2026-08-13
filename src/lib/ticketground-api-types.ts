@@ -92,6 +92,15 @@ export type ApiState = {
   };
 };
 
+export type ApiSeatMapPosition = {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly rotate: number;
+  readonly shape: string;
+};
+
 export type ApiSeat = {
   readonly id: string;
   readonly label: string;
@@ -101,14 +110,7 @@ export type ApiSeat = {
   readonly price: number;
   readonly status: string;
   readonly available: boolean;
-  readonly mapPosition: {
-    readonly x: number;
-    readonly y: number;
-    readonly width: number;
-    readonly height: number;
-    readonly rotate: number;
-    readonly shape: string;
-  };
+  readonly mapPosition?: ApiSeatMapPosition;
 };
 
 export type ApiSeatMap = {
@@ -151,16 +153,17 @@ export type ApiPurchaseResult = {
   };
 };
 
-export type ApiBootpayConfig = {
+export type ApiTosspaymentsConfig = {
   readonly configured: boolean;
-  readonly applicationId: string;
+  readonly clientKey: string;
 };
 
-export type ApiBootpayPurchaseResult = ApiPurchaseResult & {
-  readonly bootpay: {
-    readonly receiptId: string;
-    readonly method: string;
-    readonly mock: boolean;
+export type ApiTosspaymentsPurchaseResult = ApiPurchaseResult & {
+  readonly tosspayments: {
+    readonly tossPaymentKey: string;
+    readonly method?: string;
+    readonly mock?: boolean;
+    readonly replayed?: boolean;
   };
 };
 
@@ -170,9 +173,7 @@ export type ApiIdentityStatus = {
   readonly provider: string;
   readonly phoneMasked: string | null;
   readonly verifiedAt: string | null;
-  readonly portOneConfigured: boolean;
-  readonly storeId: string;
-  readonly channelKey: string;
+  readonly niceConfigured: boolean;
   readonly mockAvailable: boolean;
 };
 
@@ -180,10 +181,9 @@ export type ApiIdentityStart = {
   readonly identityVerificationId: string;
   readonly provider: string;
   readonly status: string;
-  readonly phoneMasked: string;
-  readonly storeId: string;
-  readonly channelKey: string;
-  readonly portOneConfigured: boolean;
+  readonly product: string;
+  readonly authUrl: string | null;
+  readonly niceConfigured: boolean;
   readonly mockAvailable: boolean;
 };
 
@@ -217,6 +217,9 @@ export type ApiSession = {
   readonly status: string;
   readonly trustScore: number;
   readonly profileConfirmed: boolean;
+  /** 실제 로그인(Google/Kakao/Naver) 성공 시에만 내려온다. 서버가 이후 구매·결제·본인인증 요청의 신원을 검증하는 데 쓰인다. */
+  readonly credential?: string;
+  readonly credentialExpiresAt?: string;
 };
 
 export type ApiNotificationJob = {
@@ -242,6 +245,11 @@ export type ApiWatchlistItem = ApiWatchlistBase & {
 export type ApiWatchlistUpsertResult = {
   readonly watchlist: ApiWatchlistBase;
   readonly notificationJobs: readonly ApiNotificationJob[];
+};
+
+export type ApiWatchlistRemoveResult = {
+  readonly deleted: boolean;
+  readonly eventId: string;
 };
 
 export type ApiSupportThread = {

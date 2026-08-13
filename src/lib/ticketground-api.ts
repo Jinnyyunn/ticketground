@@ -1,6 +1,4 @@
 import {
-  apiBootpayConfigSchema,
-  apiBootpayPurchaseResultSchema,
   apiDirectTransferResultSchema,
   apiIdentityStartSchema,
   apiIdentityStatusSchema,
@@ -12,13 +10,14 @@ import {
   apiStateSchema,
   apiSupportThreadSchema,
   apiTicketSchema,
+  apiTosspaymentsConfigSchema,
+  apiTosspaymentsPurchaseResultSchema,
   apiVirtualQrSchema,
   apiWatchlistItemSchema,
-  notifyWatchlistResultSchema,
-  upsertWatchlistResultSchema,
+  removeWatchlistResultSchema,
 } from "./ticketground-api-schemas";
 import type { ApiIdentityStart, ApiIdentityStatus, ApiResalePool, ApiResaleResult, ApiSession, ApiTicket } from "./ticketground-api-types";
-import { currentSessionUserId, DEMO_USER_ID } from "./ticketground-session-storage";
+import { currentSessionUserId, DEMO_USER_ID, storedSessionCredential, storedSessionUserId } from "./ticketground-session-storage";
 import { z, type ZodType } from "zod";
 
 export const DEMO_BUYER_ID = "user_fan_b";
@@ -33,16 +32,16 @@ export {
   lastLoginProvider,
   rememberLastLoginProvider,
   rememberSessionUser,
+  SESSION_CREDENTIAL_STORAGE_KEY,
   SESSION_USER_CHANGED_EVENT,
   SESSION_USER_STORAGE_KEY,
   SIGNED_OUT_VALUE,
+  storedSessionCredential,
   storedSessionUserId,
 } from "./ticketground-session-storage";
 export type { LastLoginProvider } from "./ticketground-session-storage";
 
 export type {
-  ApiBootpayConfig,
-  ApiBootpayPurchaseResult,
   ApiDirectTransferResult,
   ApiEvent,
   ApiIdentityStart,
@@ -56,6 +55,8 @@ export type {
   ApiState,
   ApiSupportThread,
   ApiTicket,
+  ApiTosspaymentsConfig,
+  ApiTosspaymentsPurchaseResult,
   ApiVirtualQr,
   ApiWatchlistItem,
 } from "./ticketground-api-types";
@@ -133,9 +134,11 @@ async function readApi<T>(path: string, dataSchema: ZodType<T>, init?: RequestIn
 }
 
 function post<T>(path: string, dataSchema: ZodType<T>, body: Record<string, unknown>) {
+  const credential = storedSessionCredential();
   return readApi(path, dataSchema, {
     method: "POST",
     body: JSON.stringify(body),
+    ...(credential ? { headers: { Authorization: `Bearer ${credential}` } } : {}),
   });
 }
 
@@ -156,47 +159,58 @@ export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
   });
 }
 
-export function getBootpayConfig() {
-  return readApi("/api/payments/bootpay/config", apiBootpayConfigSchema);
+export function getTosspaymentsConfig() {
+  return readApi("/api/payments/tosspayments/config", apiTosspaymentsConfigSchema);
 }
 
-export function buyTicketWithBootpay({
+// Unlike post(), this needs a caller-supplied X-Idempotency-Key - the backend
+// rejects the request without one (see backend/api-router.js's tosspayments
+// purchase route), so it goes through readApi() directly instead of the
+// shared post() helper, which doesn't accept extra headers.
+export function confirmTosspaymentsPurchase({
   ticketId,
   userId,
   paymentMethod,
-  receiptId,
+  tossPaymentKey,
+  idempotencyKey,
 }: {
   readonly ticketId: string;
   readonly userId: string;
   readonly paymentMethod: string;
-  readonly receiptId?: string;
+  readonly tossPaymentKey: string;
+  readonly idempotencyKey: string;
 }) {
-  return post("/api/payments/bootpay/purchase", apiBootpayPurchaseResultSchema, {
-    userId,
-    ticketId,
-    paymentMethod,
-    receiptId,
+  const credential = storedSessionCredential();
+  return readApi("/api/payments/tosspayments/purchase", apiTosspaymentsPurchaseResultSchema, {
+    method: "POST",
+    body: JSON.stringify({ userId, ticketId, paymentMethod, tossPaymentKey }),
+    headers: {
+      "X-Idempotency-Key": idempotencyKey,
+      ...(credential ? { Authorization: `Bearer ${credential}` } : {}),
+    },
   });
 }
 
 export function getIdentityStatus(userId = currentSessionUserId()) {
-  return readApi(`/api/users/${encodeURIComponent(userId)}/identity`, apiIdentityStatusSchema);
+  return authedRequest(`/api/users/${encodeURIComponent(userId)}/identity`, apiIdentityStatusSchema);
 }
 
-export function startDanalIdentityVerification({
-  phone,
+export function startNiceIdentityVerification({
   userId = currentSessionUserId(),
+  product = "phone",
 }: {
-  readonly phone: string;
   readonly userId?: string;
-}): Promise<ApiIdentityStart> {
-  return post("/api/identity/portone-danal/start", apiIdentityStartSchema, {
+  readonly product?: string;
+} = {}): Promise<ApiIdentityStart> {
+  return post("/api/identity/nice/start", apiIdentityStartSchema, {
     userId,
-    phone,
+    product,
   });
 }
 
-export function confirmDanalIdentityVerification({
+// 목(mock) 전용 - 실서비스에서는 서버가 항상 404를 준다. 로컬/QA에서 실제 NICE 팝업 없이
+// 인증 완료를 흉내내기 위한 경로다.
+export function mockCompleteNiceIdentityVerification({
   phone,
   userId = currentSessionUserId(),
   identityVerificationId,
@@ -205,7 +219,7 @@ export function confirmDanalIdentityVerification({
   readonly userId?: string;
   readonly identityVerificationId: string;
 }): Promise<ApiIdentityStatus> {
-  return post("/api/identity/portone-danal/confirm", apiIdentityStatusSchema, {
+  return post("/api/identity/nice/mock-complete", apiIdentityStatusSchema, {
     userId,
     phone,
     identityVerificationId,
@@ -287,8 +301,31 @@ export function directTransferAttempt(ticketId: string, targetUserId = DEMO_BUYE
   });
 }
 
-export function getSession(userId = currentSessionUserId()) {
-  return readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
+export async function getSession(userId = currentSessionUserId()) {
+  // GET /api/users/:userId/session is a demo-only route
+  // (backend/api-router.js's requireDemoUserAPI) that 404s outside
+  // dev/QA flags - calling it for a real logged-in session makes this
+  // check fail in any production-configured deployment, even though the
+  // user is genuinely logged in. Use the session-authenticated endpoint
+  // whenever a Bearer credential for this exact user is available; only
+  // fall back to the legacy demo route when there isn't one (e.g. the QA
+  // mock-login buttons intentionally call this without a real provider
+  // login/credential).
+  if (storedSessionCredential() && storedSessionUserId() === userId) {
+    return authedRequest("/api/me", apiSessionSchema);
+  }
+  try {
+    return await readApi(`/api/users/${encodeURIComponent(userId)}/session`, apiSessionSchema);
+  } catch (error) {
+    // The demo route being gated off (NOT_FOUND, "요청한 API가 없습니다.") is a
+    // deployment-config detail, not something a caller can show a user - treat
+    // it the same as "this stored session id can't be resolved" so it lands in
+    // callers' existing USER_NOT_FOUND handling instead of surfacing raw text.
+    if (error instanceof TicketgroundApiError && error.code === "NOT_FOUND") {
+      throw new TicketgroundApiError("로그인 정보를 찾을 수 없습니다.", "USER_NOT_FOUND", error.status);
+    }
+    throw error;
+  }
 }
 
 export function completeSocialLogin(provider: SocialLoginProvider) {
@@ -302,31 +339,51 @@ export function loginWithGoogle(credential: string) {
 }
 
 export function updateProfile(name: string, userId = currentSessionUserId()) {
+  // POST /api/users/:userId/profile is the same demo-only route as
+  // getSession's legacy path (backend/api-router.js's requireDemoUserAPI) -
+  // it 404s outside dev/QA flags, meaning a real logged-in user could never
+  // actually save their nickname in a production-configured deployment.
+  // PATCH /api/me/profile is the already-existing, already-tested,
+  // session-authenticated equivalent (see tests/native-account-api.test.mjs).
+  if (storedSessionCredential() && storedSessionUserId() === userId) {
+    return authedRequest("/api/me/profile", apiSessionSchema, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+  }
   return post(`/api/users/${encodeURIComponent(userId)}/profile`, apiSessionSchema, {
     name,
   });
 }
 
-export function getWatchlist(userId = DEMO_USER_ID) {
-  return readApi(`/api/users/${encodeURIComponent(userId)}/watchlist`, z.array(apiWatchlistItemSchema));
-}
-
-export function upsertWatchlist(eventId: string, channels: readonly string[], userId = DEMO_USER_ID) {
-  return post("/api/watchlist", upsertWatchlistResultSchema, {
-    userId,
-    eventId,
-    channels,
-    calendarEnabled: true,
-    notificationEnabled: true,
+// The watchlist is per-session-user data (not the client-trusted body.userId
+// legacy pattern used elsewhere in this file) - it always goes through the
+// Bearer-authenticated /api/me/watchlist routes, same as purchase/identity.
+function authedRequest<T>(path: string, dataSchema: ZodType<T>, init: RequestInit = {}): Promise<T> {
+  const credential = storedSessionCredential();
+  if (!credential) {
+    return Promise.reject(new TicketgroundApiError("로그인이 필요합니다.", "LOGIN_REQUIRED", 401));
+  }
+  return readApi(path, dataSchema, {
+    ...init,
+    headers: { Authorization: `Bearer ${credential}`, ...init.headers },
   });
 }
 
-export function notifyWatchlist(eventId: string, userId = DEMO_USER_ID) {
-  return post("/api/watchlist/notify", notifyWatchlistResultSchema, {
-    userId,
-    eventId,
-    type: "STATUS_CHANGE",
-    dispatchNow: true,
+export function getMyWatchlist() {
+  return authedRequest("/api/me/watchlist", z.array(apiWatchlistItemSchema));
+}
+
+export function addToMyWatchlist(eventId: string) {
+  return authedRequest(`/api/me/watchlist/${encodeURIComponent(eventId)}`, apiWatchlistItemSchema, {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+}
+
+export function removeFromMyWatchlist(eventId: string) {
+  return authedRequest(`/api/me/watchlist/${encodeURIComponent(eventId)}`, removeWatchlistResultSchema, {
+    method: "DELETE",
   });
 }
 
