@@ -30,6 +30,10 @@ function niceCallbackReturnUrl() {
   return (process.env.TIG_NICE_CALLBACK_RETURN_URL || "").trim();
 }
 
+function niceDevLang() {
+  return (process.env.TIG_NICE_DEV_LANG || "Linux/Node.js").trim();
+}
+
 function niceProductCodeAdult() {
   return (process.env.TIG_NICE_PRODUCT_CODE_ADULT || "").trim();
 }
@@ -74,7 +78,7 @@ function pickString(record, keys) {
 async function niceApiCall(url, { headers, body }) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: { "Content-Type": "application/json", "X-Intc-DevLang": niceDevLang(), ...headers },
     body: JSON.stringify(body)
   });
   let payload = null;
@@ -84,9 +88,19 @@ async function niceApiCall(url, { headers, body }) {
     payload = null;
   }
   if (!response.ok || !payload || payload.result_code !== "0000") {
-    const detail = payload ? `${payload.result_code || ""} ${payload.result_message || ""}`.trim() : `HTTP ${response.status}`;
+    const providerCode = String(payload?.result_code || "");
+    const detail = payload ? `${providerCode} ${payload.result_message || ""}`.trim() : `HTTP ${response.status}`;
     const error = new Error(`NICE API 요청이 실패했습니다 (${url}): ${detail}`);
     error.niceDetail = detail;
+    if (providerCode === "1006") {
+      error.code = "NICE_CLIENT_PERMISSION";
+      error.status = 503;
+      error.detail = { providerCode, action: "NICE 통합인증 API 사용 권한과 Client ID 발급 상품을 확인하세요." };
+    } else if (providerCode === "1007") {
+      error.code = "NICE_OUTBOUND_IP_DENIED";
+      error.status = 503;
+      error.detail = { providerCode, action: "NICE에 실제 서버 Outbound IP 또는 Cloudflare 연동 IP 등록을 요청하세요." };
+    }
     throw error;
   }
   return payload;
@@ -207,7 +221,8 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
     }
 
     const identityVerificationId = id("idv");
-    const requestNo = generateNiceRequestNo();
+    const tokenRequestNo = generateNiceRequestNo();
+    const authRequestNo = generateNiceRequestNo();
     const record = {
       id: identityVerificationId,
       userId: user.id,
@@ -217,7 +232,8 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
       personHash: null,
       phoneMasked: null,
       status: "PENDING",
-      requestNo,
+      requestNo: authRequestNo,
+      tokenRequestNo,
       ticket: null,
       iterators: null,
       transactionId: null,
@@ -231,10 +247,10 @@ export function createIdentityBackend({ appendLedger, findUser, hash, hmac, http
     if (realNiceApiAllowed()) {
       const returnUrl = new URL(niceCallbackReturnUrl());
       returnUrl.searchParams.set("rid", identityVerificationId);
-      const token = await requestNiceAccessToken(requestNo);
+      const token = await requestNiceAccessToken(tokenRequestNo);
       const auth = await requestNiceAuthUrl({
         accessToken: token.access_token,
-        requestNo,
+        requestNo: authRequestNo,
         returnUrl: returnUrl.toString(),
         svcTypes: SVC_TYPES_BY_PRODUCT[product]
       });

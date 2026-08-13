@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AccountSummaryPanel } from "@/components/mypage/account-summary-panel";
 import { BackendTicketPanel } from "@/components/mypage/backend-ticket-panel";
 import { CancelHistoryPanel } from "@/components/mypage/cancel-history-panel";
+import { IdentityVerificationPanel } from "@/components/mypage/identity-verification-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { appOnlyQrReservation, reservations } from "@/data/ticketing";
 
@@ -10,6 +11,7 @@ const sideNav = [
   ["취소내역", "/mypage#cancel-history"],
   ["양도내역", "/mypage/resale#resale-history"],
   ["관심공연", "/watchlist"],
+  ["본인인증", "/mypage#identity"],
   ["1:1 문의", "https://pf.kakao.com/_xmTniX/chat"],
 ] as const;
 
@@ -21,6 +23,7 @@ export default function MyPage() {
     <TicketingPageShell>
       <section className="ticketground-container py-10">
         <AccountSummaryPanel inquiryCount={3} resaleSeatCount={2} reservationCount={reservations.length} />
+        <IdentityVerificationPanel />
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="h-fit rounded-md border border-line p-4">
