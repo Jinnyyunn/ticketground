@@ -164,6 +164,25 @@ function requireBody(body, keys) {
   }
 }
 
+function kakaoChannelWebhook(body, req) {
+  const expectedAdminKey = String(process.env.TIG_KAKAO_CHANNEL_WEBHOOK_ADMIN_KEY || "");
+  if (!expectedAdminKey || req.headers.authorization !== `KakaoAK ${expectedAdminKey}`) {
+    throw httpError(401, "KAKAO_WEBHOOK_UNAUTHORIZED", "카카오 채널 웹훅 인증에 실패했습니다.");
+  }
+  if (!(["added", "blocked"].includes(body.event)
+    && ["app_user_id", "open_id"].includes(body.id_type)
+    && typeof body.id === "string"
+    && body.id.length > 0
+    && body.channel_public_id === "_xmTniX"
+    && typeof body.channel_uuid === "string"
+    && body.channel_uuid.length > 0
+    && typeof body.updated_at === "string"
+    && !Number.isNaN(Date.parse(body.updated_at)))) {
+    throw httpError(400, "KAKAO_WEBHOOK_INVALID", "카카오 채널 웹훅 본문을 확인해주세요.");
+  }
+  return { received: true };
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
 }
@@ -292,6 +311,9 @@ async function handleApi(req, res, db, surface) {
 
   if (req.method === "GET" && url.pathname === "/api/health") {
     return { status: "UP", version: "78b3c7c", capabilities: ["native-account-v1", "native-support-v1", "native-watchlist-v1", "native-booking-holds-v1", "native-lifecycle-v1"] };
+  }
+  if (req.method === "POST" && url.pathname === "/api/kakao/channel/webhook") {
+    return kakaoChannelWebhook(body, req);
   }
   if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
