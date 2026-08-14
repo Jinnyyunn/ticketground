@@ -796,51 +796,6 @@ final class LiveBackendService {
         )
     }
 
-    func getSupportPublicContent() async throws -> LiveSupportPublicContent {
-        let content = try await get(
-            APIRequest(path: "/api/support/v1/public"),
-            endpoint: .supportPublic,
-            bypassCapability: true,
-            as: LiveSupportPublicContent.self
-        )
-        guard content.version == Self.discoveryVersion else {
-            throw APIClientError.invalidResponse
-        }
-        return content
-    }
-
-    func createSupportThread(
-        userID: String,
-        category: String,
-        subject: String,
-        message: String,
-        idempotencyKey: String
-    ) async throws -> LiveSupportThread {
-        let action = LiveAuthenticatedAction.supportThread(
-            userID: userID,
-            category: category,
-            subject: subject,
-            message: message,
-            idempotencyKey: idempotencyKey
-        )
-        return try await get(action.request(), endpoint: action.endpoint, as: LiveSupportThread.self)
-    }
-
-    func addSupportMessage(
-        userID: String,
-        threadID: String,
-        message: String,
-        idempotencyKey: String
-    ) async throws -> LiveSupportThread {
-        let action = LiveAuthenticatedAction.supportMessage(
-            userID: userID,
-            threadID: threadID,
-            message: message,
-            idempotencyKey: idempotencyKey
-        )
-        return try await get(action.request(), endpoint: action.endpoint, as: LiveSupportThread.self)
-    }
-
     func perform(_ action: LiveAuthenticatedAction) async throws -> LiveMutationReceipt {
         try await get(action.request(), endpoint: action.endpoint, as: LiveMutationReceipt.self)
     }
@@ -1007,36 +962,6 @@ final class LiveBackendService {
             path: path,
             authentication: .required(userID: userID),
             ownerBinding: .bearerPrincipal
-        )
-    }
-
-    private func principalRequest(path: String, userID: String) -> APIRequest {
-        APIRequest(
-            path: path,
-            authentication: .required(userID: userID),
-            ownerBinding: .principal
-        )
-    }
-
-    private func principalJSONRequest(
-        method: APIRequestMethod,
-        path: String,
-        userID: String,
-        body: [String: Any],
-        idempotencyKey: String
-    ) throws -> APIRequest {
-        guard !userID.isEmpty,
-              !idempotencyKey.isEmpty,
-              JSONSerialization.isValidJSONObject(body) else {
-            throw APIClientError.invalidResponse
-        }
-        return APIRequest(
-            method: method,
-            path: path,
-            body: .json(try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])),
-            idempotencyKey: idempotencyKey,
-            authentication: .required(userID: userID),
-            ownerBinding: .principal
         )
     }
 }
