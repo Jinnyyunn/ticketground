@@ -52,6 +52,7 @@ class TicketGroundApiClient private constructor(
   private val publicApi = PublicApi(this)
   private val accountApi = AccountApi(this)
   private val lifecycleApi = LifecycleApi(this)
+  private val gateApi = GateApi(this)
   private val paymentsApi = TossPaymentApi(this, accountApi)
   private var compatibleHealth: ApiHealth? = null
 
@@ -60,6 +61,8 @@ class TicketGroundApiClient private constructor(
   fun account(): AccountApi = accountApi
 
   fun lifecycle(): LifecycleApi = lifecycleApi
+
+  fun gate(): GateApi = gateApi
 
   fun payments(): TossPaymentApi = paymentsApi
 
@@ -115,6 +118,7 @@ class TicketGroundApiClient private constructor(
       require(key.isNotBlank())
       builder.header("X-Idempotency-Key", key)
     }
+    apiRequest.headers.forEach { (name, value) -> builder.header(name, value) }
     if (apiRequest.authenticated) {
       if (!baseUrl.isHttps) throw ApiError.InsecureOrigin()
       val token = sessionVault.read()?.accessToken?.takeIf(String::isNotBlank)
@@ -182,6 +186,7 @@ internal data class ApiRequest(
   val body: String? = null,
   val idempotencyKey: String? = null,
   val authenticated: Boolean = false,
+  val headers: List<Pair<String, String>> = emptyList(),
 )
 
 private fun JsonObject?.string(name: String): String? = this?.get(name)?.jsonPrimitive?.content

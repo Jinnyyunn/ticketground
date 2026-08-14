@@ -20,6 +20,7 @@ firebaseInstallations = "19.1.1"
 tossPayments = "0.1.22"
 biometric = "1.1.0"
 zxing = "3.5.4"
+zxingEmbedded = "4.3.0"
 googleServices = "4.4.3"
 
 [libraries]
@@ -56,6 +57,7 @@ firebase-installations = { module = "com.google.firebase:firebase-installations"
 toss-payments = { module = "com.github.tosspayments:payment-sdk-android", version.ref = "tossPayments" }
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+zxing-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingEmbedded" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

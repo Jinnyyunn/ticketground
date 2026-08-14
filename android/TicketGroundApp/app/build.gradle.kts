@@ -49,6 +49,19 @@ android {
     }
   }
 
+  flavorDimensions += "role"
+  productFlavors {
+    create("customer") {
+      dimension = "role"
+      buildConfigField("Boolean", "GATE_APP", "false")
+    }
+    create("gate") {
+      dimension = "role"
+      applicationIdSuffix = ".gate"
+      buildConfigField("Boolean", "GATE_APP", "true")
+    }
+  }
+
   buildTypes {
     debug {
       isMinifyEnabled = false
@@ -107,6 +120,7 @@ dependencies {
   implementation(libs.toss.payments)
   implementation(libs.androidx.biometric)
   implementation(libs.zxing.core)
+  implementation(libs.zxing.embedded)
 
   debugImplementation(libs.androidx.compose.ui.tooling)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
