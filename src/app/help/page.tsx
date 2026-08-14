@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { HelpSearch } from "@/components/support/help-search";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 
@@ -7,15 +8,15 @@ const categories = ["예매/결제", "클린티켓", "취소/환불", "입장/�
 const faqs = [
   {
     question: "예매내역은 어디에서 확인하나요?",
-    answer: "마이페이지의 예매내역에서 공연일, 좌석, 결제 금액, 클린티켓 QR 상태를 확인할 수 있습니다.",
+    answer: "마이페이지의 예매내역에서 공연일, 좌석, 결제 금액, Tig 티켓 QR 상태를 확인할 수 있습니다.",
   },
   {
-    question: "Tig 공식 양도 티켓은 어디에서 진행하나요?",
-    answer: "마이페이지 예매내역에서 Tig 공식 양도 티켓과 동반자 양도로 이동할 수 있습니다. Tig 공식 양도 티켓은 정가의 90~110% 범위에서만 등록됩니다.",
+    question: "CLEAN 티켓 공식 양도는 어디에서 진행하나요?",
+    answer: "마이페이지 예매내역에서 CLEAN 티켓 공식 양도와 동반자 양도로 이동할 수 있습니다. CLEAN 티켓 공식 양도는 정가의 90~110% 범위에서만 등록됩니다.",
   },
   {
     question: "공연 당일 입장 문의는 어떻게 하나요?",
-    answer: "공연 당일 입장 문의는 1:1 문의에서 예매번호를 포함해 남기면 우선 응대합니다.",
+    answer: "공연 당일 입장 문의는 카카오톡 채널 1:1 채팅으로 예매번호를 포함해 보내주시면 우선 응대합니다.",
   },
   {
     question: "가상 티켓과 입장 QR은 무엇이 다른가요?",
@@ -43,9 +44,7 @@ type Contact = {
 };
 
 const contacts: readonly Contact[] = [
-  { label: "전화 상담", value: "1577-0000", description: "평일 09:00~18:00, 공연 당일 입장 문의 우선 응대" },
-  { label: "1:1 문의", value: "문의 스레드 열기", description: "예매정보 자동첨부, 상담원 답변과 시스템 접수 알림", href: "/inquiry" },
-  { label: "카카오 상담", value: "Ticketground 채널", description: "알림 수신 동의와 예매 오픈 알림 설정을 함께 확인" },
+  { label: "카카오 상담", value: "Ticketground 채널", description: "카카오톡 로그인 후 1:1 채팅으로 바로 문의해주세요.", href: "https://pf.kakao.com/_xmTniX/chat" },
 ];
 
 export default function HelpPage() {
@@ -93,19 +92,20 @@ export default function HelpPage() {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        <div className="mt-10 max-w-xl">
           {contacts.map((contact) => {
             const body = (
               <>
-                <span className="text-xs font-black text-ticketground">{contact.label}</span>
+                <Image alt="Ticketground 카카오톡 채널 로고" className="size-12 rounded-lg object-cover" height={48} src="/images/kakao-channel-logo.jpg" width={48} />
+                <span className="mt-4 block text-xs font-black text-ticketground">{contact.label}</span>
                 <strong className="mt-2 block text-lg font-black text-ink">{contact.value}</strong>
                 <span className="mt-3 block text-sm leading-loose text-ink-3">{contact.description}</span>
               </>
             );
             return contact.href ? (
-              <Link key={contact.label} href={contact.href} className="rounded-lg border border-line bg-card p-5 hover:border-line-strong">
+              <a key={contact.label} href={contact.href} rel="noreferrer" target="_blank" className="block rounded-lg border border-line bg-card p-5 hover:border-line-strong">
                 {body}
-              </Link>
+              </a>
             ) : (
               <article key={contact.label} className="rounded-lg border border-line bg-card p-5">
                 {body}

@@ -1,3 +1,5 @@
+import { BrandLogo } from "@/components/brand-logo";
+
 type VirtualTicketCardProps = {
   readonly date: string;
   readonly reservationId: string;
@@ -19,7 +21,7 @@ export function VirtualTicketCard({ date, reservationId, seatLabel, ticketIndex,
         <div className="bg-card px-3 py-3 text-left">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-[11px] font-black tracking-[0.08em] text-ticketground">TICKETGROUND</p>
+              <BrandLogo className="h-3.5 max-w-[112px]" />
               <p className="mt-1 text-xl leading-tight font-black text-ink">VIRTUAL TICKET</p>
             </div>
             <p className="rounded-full border border-line bg-surface px-2 py-1 text-[10px] font-black text-ink-3">

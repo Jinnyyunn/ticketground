@@ -1,13 +1,14 @@
 import {
   BadgeCheck,
   Banknote,
+  Building,
   Building2,
   ClipboardCheck,
-  LifeBuoy,
   PackagePlus,
   QrCode,
   ReceiptText,
   ShieldCheck,
+  Smartphone,
   Ticket,
   UserCog,
 } from "lucide-react";
@@ -87,26 +88,10 @@ export type AdminTicket = {
   readonly ownerId: string | null;
   readonly faceValue: number;
 };
-export type SupportCategory = "GENERAL" | "PAYMENT" | "TICKET_QR" | "URGENT";
-export type SupportThread = {
-  readonly id: string;
-  readonly userId: string;
-  readonly subject?: string;
-  readonly status: string;
-  readonly category: SupportCategory;
-  readonly priority: string;
-  readonly messageCount: number;
-  readonly lastMessagePreview: string;
-  readonly relatedTicketId: string | null;
-  readonly relatedBookingId: string | null;
-  readonly messages: readonly { readonly id: string; readonly actorId: string; readonly role: string; readonly body: string; readonly at: string | null }[];
-};
-
 export type OverviewWorkspace = {
   readonly stats: {
     readonly totalTickets: number;
     readonly onSaleTickets: number;
-    readonly supportOpen: number;
     readonly ledgerVerified: boolean;
     readonly todayPaymentCount: number;
     readonly todayPaymentAmount: number;
@@ -115,7 +100,20 @@ export type OverviewWorkspace = {
     readonly totalSettlements: number;
   };
 };
-export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly eventSummaries?: readonly AdminEventSummary[]; readonly venues: readonly Venue[] };
+export type SellerApplicationPrefill = {
+  readonly applicationId: string;
+  readonly title: string;
+  readonly category: string;
+  readonly venueName: string;
+  readonly period: string;
+  readonly summary: string;
+  readonly castNotes: string;
+  readonly noticesDraft: string;
+  readonly posterImageDataUrl: string;
+  readonly seatGrades: readonly { readonly gradeName: string; readonly price: number; readonly quantity: number }[];
+  readonly sessions: readonly { readonly label?: string; readonly date: string; readonly times: readonly string[] }[];
+};
+export type CatalogWorkspace = { readonly events: readonly AdminEvent[]; readonly eventSummaries?: readonly AdminEventSummary[]; readonly venues: readonly Venue[]; readonly sellerApplicationPrefill?: SellerApplicationPrefill };
 export type InventoryWorkspace = {
   readonly eventSummaries: readonly AdminEventSummary[];
   readonly events: readonly AdminEvent[];
@@ -133,7 +131,6 @@ export type InventoryWorkspace = {
 };
 export type PageInfo = { readonly page: number; readonly limit: number; readonly total: number; readonly hasNext: boolean; readonly hasPrevious: boolean };
 export type AccountsWorkspace = { readonly filters: { readonly search: string | null }; readonly users: readonly AdminUser[] };
-export type SupportWorkspace = { readonly filters: { readonly category: string | null; readonly status: string | null }; readonly supportThreads: readonly SupportThread[] };
 export type FinanceWorkspace = {
   readonly eventSummaries: readonly AdminEventSummary[];
   readonly filters: { readonly eventId: string | null; readonly from: string | null; readonly method: string | null; readonly status: string | null; readonly to: string | null };
@@ -209,6 +206,7 @@ export type AdminAccount = {
   readonly id: string;
   readonly username: string;
   readonly roleKeys: readonly string[];
+  readonly permissions: readonly string[];
   readonly active: boolean;
   readonly ipAllowlist: readonly string[];
   readonly bootstrap?: boolean;
@@ -251,7 +249,88 @@ export type GroupBookingWorkspace = {
   readonly eventSummaries: readonly AdminEventSummary[];
   readonly filters: { readonly status: string | null };
 };
-export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | SupportWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace;
+export type SellerApplicationOrgType = "AGENCY" | "PRODUCTION" | "VENUE" | "FOUNDATION" | "SPORTS_CLUB" | "OTHER";
+export type SellerApplicationChannelType = "EXCLUSIVE" | "SHARED" | "SEAT_PRIORITY" | "PRESALE";
+export type SellerApplicationStatus = "PENDING" | "APPROVED" | "REJECTED" | "REGISTERED";
+export type SellerApplication = {
+  readonly id: string;
+  readonly organization: {
+    readonly legalName: string;
+    readonly orgType: SellerApplicationOrgType;
+    readonly bizRegistrationNumber: string;
+    readonly bizRegistrationDocDataUrl: string;
+    readonly representativeName: string;
+    readonly address?: string;
+    readonly website?: string;
+  };
+  readonly contact: { readonly name: string; readonly title?: string; readonly phone: string; readonly email: string };
+  readonly proposedEvent: {
+    readonly title: string;
+    readonly category: string;
+    readonly venueName: string;
+    readonly sessions: readonly { readonly label?: string; readonly date: string; readonly times: readonly string[] }[];
+    readonly seatGrades: readonly { readonly gradeName: string; readonly price: number; readonly quantity: number }[];
+    readonly desiredSaleOpenDate?: string;
+    readonly eventDateRange?: string;
+    readonly discountPolicyNotes?: string;
+    readonly posterImageDataUrl: string;
+    readonly castNotes?: string;
+    readonly summaryDraft?: string;
+    readonly noticesDraft?: string;
+  };
+  readonly saleTerms: {
+    readonly channelType: SellerApplicationChannelType;
+    readonly requestedCommissionNotes?: string;
+    readonly settlement: { readonly bankName: string; readonly accountNumber: string; readonly accountHolder: string };
+  };
+  readonly otherNotes?: string;
+  readonly status: SellerApplicationStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly review: {
+    readonly verificationChecklist: { readonly bizNumberVerified: boolean; readonly contactPhoneVerified: boolean; readonly eventAuthenticityChecked: boolean };
+    readonly log: readonly { readonly at: string; readonly by: string; readonly action: string; readonly note: string | null }[];
+    readonly rejectionReason: string | null;
+    readonly linkedEventId: string | null;
+  };
+};
+export type SellerApplicationsWorkspace = { readonly applications: readonly SellerApplication[]; readonly page: PageInfo };
+export type SellerAccount = {
+  readonly id: string;
+  readonly applicationId: string;
+  readonly organizationName: string;
+  readonly username: string;
+  readonly active: boolean;
+  readonly mustChangePassword: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+export type SellerEventPublishStatus = "DRAFT" | "PENDING_ADMIN_REVIEW" | "PUBLISHED";
+export type SellerEvent = {
+  readonly id: string;
+  readonly slug: string;
+  readonly title: string;
+  readonly shortTitle?: string;
+  readonly category: string;
+  readonly venue: string;
+  readonly date: string;
+  readonly publishStatus: SellerEventPublishStatus;
+  readonly sellerAccountId: string;
+  readonly ticketCount: number;
+  readonly soldCount: number;
+  readonly updatedAt: string | null;
+};
+export type SellerEventsWorkspace = { readonly events: readonly SellerEvent[] };
+export type MobileReleasePolicy = { readonly platform: "ios" | "android"; readonly minimumVersion: string; readonly recommendedVersion: string; readonly storeUrl: string; readonly updatedAt: string | null };
+export type MobileMaintenance = { readonly enabled: boolean; readonly title: string; readonly message: string; readonly startsAt: string | null; readonly endsAt: string | null; readonly updatedAt: string | null };
+export type MobilePushCampaign = { readonly id: string; readonly title: string; readonly message: string; readonly audience: string; readonly scheduledAt: string; readonly status: string; readonly createdAt: string };
+export type MobileTrustedDevice = { readonly id: string; readonly userName: string; readonly deviceName: string; readonly platform: string; readonly status: string; readonly lastVerifiedAt: string; readonly revokedAt: string | null; readonly revokeReason: string | null };
+export type MobileQrAudit = { readonly id: string; readonly ticketId: string; readonly channel: string; readonly traceCode: string | null; readonly issuedAt: string; readonly expiresAt: string; readonly status: string };
+export type MobileCancellation = { readonly id: string; readonly ticketId: string; readonly userName: string; readonly eventTitle: string; readonly seatLabel: string; readonly reason: string; readonly status: string; readonly refundStatus: string; readonly reviewNote: string | null; readonly createdAt: string; readonly updatedAt: string };
+export type MobilePayment = { readonly id: string; readonly ticketId: string; readonly method: string; readonly status: string; readonly amount: number; readonly createdAt: string };
+export type MobileAudit = { readonly index: number; readonly actorId: string; readonly action: string; readonly at: string };
+export type MobileWorkspace = { readonly releasePolicies: readonly MobileReleasePolicy[]; readonly maintenance: MobileMaintenance; readonly pushCampaigns: readonly MobilePushCampaign[]; readonly trustedDevices: readonly MobileTrustedDevice[]; readonly qrAudit: readonly MobileQrAudit[]; readonly cancellationRequests: readonly MobileCancellation[]; readonly payments: readonly MobilePayment[]; readonly audit: readonly MobileAudit[] };
+export type WorkspaceData = OverviewWorkspace | CatalogWorkspace | InventoryWorkspace | AccountsWorkspace | FinanceWorkspace | ResaleWorkspace | AdmissionWorkspace | MobileWorkspace | AuditWorkspace | AclWorkspaceData | GroupBookingWorkspace | SellerApplicationsWorkspace | SellerEventsWorkspace;
 export type Feedback = { readonly tone: "error" | "success"; readonly message: string } | null;
 export type Mutation = (path: string, body: Record<string, unknown>, success: string) => Promise<boolean>;
 
@@ -269,23 +348,24 @@ export const workspaceDefinitions = {
   sales: { label: "판매 설정", heading: "판매 설정", description: "공연별 판매 상태와 가격을 조정합니다.", permission: "catalog.manage", Icon: Ticket },
   inventory: { label: "티켓 재고", heading: "티켓 재고", description: "판매 가능 티켓의 운영 보류 상태를 관리합니다.", permission: "catalog.manage", Icon: ClipboardCheck },
   accounts: { label: "계정", heading: "계정", description: "회원 신뢰도와 계정 상태를 검토합니다.", permission: "accounts.manage", Icon: UserCog },
-  support: { label: "고객 지원", heading: "고객 지원", description: "열린 문의를 답변하고 처리 상태를 갱신합니다.", permission: "support.manage", Icon: LifeBuoy },
   finance: { label: "정산", heading: "정산", description: "결제 거래, 수수료, 판매자 정산 합계를 조회합니다.", permission: "finance.read", Icon: ReceiptText },
   resale: { label: "재판매/양도", heading: "재판매/양도", description: "재판매 풀을 강제 취소하고 운영 알림을 확인합니다.", permission: "finance.read", Icon: Banknote },
   admission: { label: "입장/QR", heading: "입장/QR", description: "입장 자격과 현장 리스크 상태를 확인합니다.", permission: "admission.manage", Icon: QrCode },
+  mobile: { label: "앱 운영", heading: "앱 운영", description: "iOS·Android 버전, 점검, 푸시, 신뢰 기기와 취소·환불 상태를 관리합니다.", permission: "mobile.read", Icon: Smartphone },
   audit: { label: "감사 원장", heading: "감사 원장", description: "최근 감사 원장과 체인 검증 상태를 확인합니다.", permission: "security.manage", Icon: BadgeCheck },
   acl: { label: "관리자/ACL", heading: "관리자/ACL", description: "관리자 계정, 역할, 접근 허용 IP를 관리합니다.", permission: "acl.read", Icon: ShieldCheck },
   "group-booking": { label: "단체/기관 예매", heading: "단체/기관 예매", description: "학교·기업·기관의 단체 예매 신청을 검토하고 승인합니다.", permission: "groupBooking.manage", Icon: Building2 },
+  "seller-applications": { label: "기업 판매자 신청", heading: "기업 판매자 신청", description: "제작사·기획사·공연장·구단의 판매 등록 신청을 검토하고 승인합니다.", permission: "sellerApplications.manage", Icon: Building },
+  "seller-events": { label: "기업 등록 공연 검토", heading: "기업 등록 공연 검토", description: "기업이 직접 등록한 공연을 검토하고 공개 여부를 승인합니다.", permission: "sellerEventReview.manage", Icon: Building },
 } satisfies Record<WorkspaceKey, WorkspaceDefinition>;
 
 export const saleStates = ["ON_SALE", "OPEN_SOON", "DISCOUNT_SOON", "ADMIN_HOLD", "CLOSED"] as const;
 export const userStatuses = ["ACTIVE", "WATCHLIST", "BANNED"] as const;
 export const ticketStatuses = ["ON_SALE", "ADMIN_HOLD"] as const;
-export const supportStatuses = ["OPEN", "ANSWERED", "CLOSED"] as const;
-export const supportCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"] as const;
 export const groupBookingStatuses = ["PENDING", "APPROVED", "REJECTED"] as const;
 export const groupBookingOrgTypes = ["SCHOOL", "ACADEMY", "WELFARE", "COMPANY", "GOVERNMENT", "OTHER"] as const;
 export const groupBookingPaymentMethods = ["CARD", "TAX_INVOICE", "BANK_TRANSFER"] as const;
+export const sellerApplicationStatuses = ["PENDING", "APPROVED", "REJECTED", "REGISTERED"] as const;
 
 const operatorLabels: Record<string, string> = {
   ACTIVE: "활성",
@@ -329,7 +409,25 @@ const operatorLabels: Record<string, string> = {
   GOVERNMENT: "지자체",
   OTHER: "기타",
   TAX_INVOICE: "세금계산서",
-  CARD: "카드"
+  CARD: "카드",
+  REGISTERED: "카탈로그 등록됨",
+  AGENCY: "기획사",
+  PRODUCTION: "제작사",
+  VENUE: "공연장",
+  FOUNDATION: "문화재단",
+  SPORTS_CLUB: "스포츠구단",
+  EXCLUSIVE: "전용판매",
+  SHARED: "공동판매",
+  SEAT_PRIORITY: "좌석우위판매",
+  PRESALE: "프리세일 참여",
+  DRAFT: "반려됨(수정 대기)",
+  PENDING_ADMIN_REVIEW: "검토 대기",
+  PENDING_OPERATOR_ACTION: "운영자 처리 대기",
+  NOT_REVIEWED: "검토 전",
+  NOT_REQUIRED: "처리 불필요",
+  REVOKED: "해제됨",
+  SCHEDULED: "예약됨",
+  PUBLISHED: "게시됨"
 };
 
 export function operatorLabel(value: string): string {

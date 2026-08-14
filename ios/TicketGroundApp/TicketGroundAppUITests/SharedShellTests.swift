@@ -7,11 +7,13 @@ final class SharedShellTests: XCTestCase {
 
         XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
         assertHittable(app.buttons["header-search"])
-        assertHittable(app.buttons["header-watchlist"])
-        assertHittable(app.buttons["header-mypage"])
+        assertHittable(app.buttons["header-login"])
+        assertHittable(app.buttons["header-menu"])
         XCTAssertEqual(app.buttons["header-search"].label, "공연, 아티스트 또는 공연장 검색")
-        XCTAssertEqual(app.buttons["header-watchlist"].label, "로그인")
-        XCTAssertEqual(app.buttons["header-mypage"].label, "전체 메뉴")
+        XCTAssertEqual(app.buttons["header-login"].label, "로그인")
+        XCTAssertEqual(app.buttons["header-menu"].label, "전체 메뉴")
+        XCTAssertFalse(app.buttons["header-watchlist"].exists)
+        XCTAssertFalse(app.buttons["header-mypage"].exists)
     }
 
     func testBottomNavigationRemainsReachable() {

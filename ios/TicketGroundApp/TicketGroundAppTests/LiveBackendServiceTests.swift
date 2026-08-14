@@ -7,18 +7,22 @@ private final class LiveBackendServiceURLProtocol: URLProtocol {
     static var statusCodes: [String: Int] = [:]
     static var errors: [String: URLError.Code] = [:]
     static var requests: [URLRequest] = []
+    static var requestBodies: [Data?] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         Self.requests.append(request)
+        Self.requestBodies.append(Self.readBody(from: request))
         let key = request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") } ?? ""
+        let methodKey = "\(request.httpMethod ?? "GET") \(key)"
         if let errorCode = Self.errors[key] {
             client?.urlProtocol(self, didFailWithError: URLError(errorCode))
             return
         }
-        let data = Self.responses[key]
+        let data = Self.responses[methodKey]
+            ?? Self.responses[key]
             ?? Self.responses["*"]
             ?? Data(#"{"ok":false,"error":{"code":"MISSING_FIXTURE","message":"Missing test fixture"}}"#.utf8)
         let statusCode = Self.statusCodes[key] ?? 200
@@ -34,6 +38,21 @@ private final class LiveBackendServiceURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+
+    private static func readBody(from request: URLRequest) -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(contentsOf: buffer.prefix(count))
+        }
+        return data
+    }
 }
 
 final class LiveBackendServiceTests: XCTestCase {
@@ -43,17 +62,18 @@ final class LiveBackendServiceTests: XCTestCase {
         LiveBackendServiceURLProtocol.statusCodes = [:]
         LiveBackendServiceURLProtocol.errors = [:]
         LiveBackendServiceURLProtocol.requests = []
+        LiveBackendServiceURLProtocol.requestBodies = []
     }
 
     func testExplicitlyCompatibleContractDispatchesTypedPublicReads() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/state": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8),
-            "/api/seat-map?eventId=event-1&performanceDateId=date-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[{"id":"zone-vip","name":"VIP","price":99000,"available":2}],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"zone-vip","zoneName":"VIP","price":99000,"status":"ON_SALE","available":true}]}}"#.utf8),
-            "/api/users/user-1/session": Data(#"{"ok":true,"data":{"id":"user-1","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8),
-            "/api/users/user-1/tickets": Data(#"{"ok":true,"data":[{"id":"ticket-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","seatLabel":"A-01","status":"OWNED","available":false,"faceValue":99000,"minPrice":49500,"maxPrice":106920,"transferCount":0,"maxTransferCount":1,"issuedAt":"2026-09-19T19:00:00+09:00","virtualQr":{"type":"virtual","issuedAt":"2026-09-19T18:00:00+09:00"}}]}"#.utf8),
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19T19:00:00+09:00","period":"2026.09.19","image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8),
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[{"id":"zone-vip","name":"VIP","price":99000,"available":2}],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"zone-vip","zoneName":"VIP","price":99000,"status":"ON_SALE","available":true}]}}"#.utf8),
+            "/api/me": Data(#"{"ok":true,"data":{"id":"user-1","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8),
+            "/api/me/tickets": Data(#"{"ok":true,"data":[{"id":"ticket-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","seatLabel":"A-01","status":"OWNED","available":false,"faceValue":99000,"minPrice":49500,"maxPrice":106920,"transferCount":0,"maxTransferCount":1,"issuedAt":"2026-09-19T19:00:00+09:00","virtualQr":{"type":"virtual","issuedAt":"2026-09-19T18:00:00+09:00"},"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","performance":{"id":"date-1","label":"9월 19일 공연","startsAt":"2026-09-19T19:00:00+09:00"}},"payment":{"amount":105000,"method":"CREDIT_CARD","status":"CAPTURED"}}]}"#.utf8),
             "/api/me/watchlist": Data(#"{"ok":true,"data":[{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[{"id":"job-1","type":"BOOKING_D3","title":"예매 오픈 D-3 알림","status":"SCHEDULED","scheduledAt":"2026-08-19T19:00:00+09:00"}]}]}"#.utf8),
-            "/api/me/support/threads": Data(#"{"ok":true,"data":[{"id":"thread-1","userId":"user-1","subject":"문의","status":"OPEN","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","actorId":"user-1","role":"CUSTOMER","body":"도와주세요","at":"2026-07-15T00:00:00Z"}]}]}"#.utf8)
+            "/api/me/support/threads": Data(#"{"ok":true,"data":[{"id":"thread-1","subject":"문의","status":"OPEN","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","role":"CUSTOMER","body":"도와주세요","at":"2026-07-15T00:00:00Z"}]}]}"#.utf8)
         ]
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -70,7 +90,8 @@ final class LiveBackendServiceTests: XCTestCase {
 
         let state = try await service.getState()
         let catalog = try await service.getCatalog()
-        let seatMap = try await service.getSeatMap(eventID: "event-1", performanceDateID: "date-1")
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let seatMap = try await service.getSeatMap(eventID: "event-1")
         let session = try await service.getSession(userID: "user-1")
         let tickets = try await service.getTickets(userID: "user-1")
         let watchlist = try await service.getWatchlist(userID: "user-1")
@@ -81,6 +102,8 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(seatMap.seats.first?.displayCode, "A-01")
         XCTAssertEqual(session.name, "Tester")
         XCTAssertEqual(tickets.first?.virtualQR?.type, "virtual")
+        XCTAssertEqual(tickets.first?.event?.performance?.id, "date-1")
+        XCTAssertEqual(tickets.first?.payment?.amount, 105_000)
         XCTAssertEqual(watchlist.first?.event?.title, "Neon Stage")
         XCTAssertEqual(watchlist.first?.notificationJobs.first?.status, "SCHEDULED")
         XCTAssertEqual(threads.first?.messages.first?.role, .customer)
@@ -105,7 +128,6 @@ final class LiveBackendServiceTests: XCTestCase {
         let event = #"{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venue":"Arena","soldCount":4}"#
         LiveBackendServiceURLProtocol.responses = [
             "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[{"slug":"seoul","name":"서울","eventCount":1,"events":[\#(event)]}]}}"#.utf8),
-            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[\#(event)]}}"#.utf8),
             "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[{"opensAt":"2026-08-20T10:00:00.000Z","saleState":"OPEN_SOON","event":\#(event)}]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
@@ -119,16 +141,59 @@ final class LiveBackendServiceTests: XCTestCase {
         let service = compatibleService(for: client)
 
         let regions = try await service.getRegions()
-        let artist = try await service.getArtist(slug: "iu")
         let calendar = try await service.getOpenCalendar()
 
         XCTAssertEqual(regions.version, "1")
         XCTAssertEqual(regions.regions.first?.slug, "seoul")
-        XCTAssertEqual(artist.artist.name, "IU")
         XCTAssertEqual(calendar.entries.first?.event.slug, "neon-stage")
         XCTAssertEqual(
             Set(LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path)),
             Set(LiveBackendServiceURLProtocol.responses.keys)
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == nil
+        })
+    }
+
+    func testExplicitPublicContractDiagnosisAdmitsVersionedDiscoveryReads() async throws {
+        let event = #"{"id":"event-1","slug":"neon-stage","title":"Neon Stage","venue":"Arena","soldCount":4}"#
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8),
+            "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[{"slug":"seoul","name":"서울","eventCount":1,"events":[\#(event)]}]}}"#.utf8),
+            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[{"opensAt":"2026-08-20T10:00:00.000Z","saleState":"OPEN_SOON","event":\#(event)}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnosePublicContract()
+        let regions = try await service.getRegions()
+        let calendar = try await service.getOpenCalendar()
+
+        XCTAssertEqual(regions.regions.first?.name, "서울")
+        XCTAssertEqual(calendar.entries.first?.event.id, "event-1")
+        XCTAssertEqual(service.capabilityMap.state(for: .artist), .available)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            [
+                "/api/health",
+                "/api/state",
+                "/api/discovery/v1/contract",
+                "/api/catalog?limit=1",
+                "/api/discovery/v1/regions",
+                "/api/discovery/v1/open-calendar"
+            ]
         )
         XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
             $0.value(forHTTPHeaderField: "Authorization") == nil
@@ -247,7 +312,7 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
-    func testEncodesAuthenticatedUserIDAsOnePathSegment() async throws {
+    func testNativeAccountRequestDoesNotExposeUserIDInURL() async throws {
         let userID = "server/user 한"
         LiveBackendServiceURLProtocol.responses["*"] = Data(#"{"ok":true,"data":{"id":"server/user 한","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8)
 
@@ -268,23 +333,93 @@ final class LiveBackendServiceTests: XCTestCase {
             URLComponents(url: $0, resolvingAgainstBaseURL: false)
         })
 
-        XCTAssertEqual(components.percentEncodedPath, "/api/users/server%2Fuser%20%ED%95%9C/session")
+        XCTAssertEqual(components.percentEncodedPath, "/api/me")
+        XCTAssertNil(components.percentEncodedQuery)
+        XCTAssertFalse(request.url?.absoluteString.contains("server") ?? true)
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
     }
 
-    func testDecodesUnknownSupportStatusAndRoleAsUnknown() throws {
-        let data = Data(#"{"id":"thread-1","userId":"user-1","subject":"문의","status":"ESCALATED","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","actorId":"moderator-1","role":"MODERATOR","body":"확인 중입니다","at":"2026-07-15T00:00:00Z"}]}"#.utf8)
+    func testNativeProfileUpdateUsesBearerPrincipalAndAllowlistedBody() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/me/profile"] = Data(#"{"ok":true,"data":{"id":"user-1","name":"새닉네임","status":"ACTIVE","trustScore":90}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
 
-        let thread = try JSONDecoder().decode(LiveSupportThread.self, from: data)
+        let profile = try await compatibleService(for: client, authenticatedReads: true)
+            .updateProfile(userID: "user-1", name: "새닉네임")
+        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
 
-        XCTAssertEqual(thread.status, .unknown)
-        XCTAssertEqual(thread.messages.first?.role, .unknown)
+        XCTAssertEqual(profile.name, "새닉네임")
+        XCTAssertEqual(request.url?.path, "/api/me/profile")
+        XCTAssertEqual(request.httpMethod, "PATCH")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
     }
 
-    func testSupportPublicContentAndPrincipalOwnedRequestsUseVersionedContract() async throws {
+    func testSupportProbeAndPublicContentDoNotDependOnCatalog() async throws {
         LiveBackendServiceURLProtocol.responses = [
-            "/api/support/v1/public": Data(#"{"ok":true,"data":{"version":"1","categories":[{"id":"GENERAL","label":"일반"}],"faqs":[{"id":"faq-1","category":"GENERAL","question":"문의 방법","answer":"1:1 문의를 이용해 주세요."}],"notices":[{"id":"notice-1","title":"운영시간","body":"평일 운영"}]}}"#.utf8),
-            "/api/me/support/threads": Data(#"{"ok":true,"data":[]}"#.utf8)
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c","capabilities":["native-account-v1","native-support-v1"]}}"#.utf8),
+            "/api/support/public": Data(#"{"ok":true,"data":{"version":"1","faqs":[{"id":"booking","question":"예매 내역은 어디에서 확인하나요?","answer":"마이페이지에서 확인합니다."}],"notices":[{"id":"secure","title":"안전한 문의","body":"본인 문의만 확인할 수 있습니다."}]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        let probe = try await service.diagnoseSupportContract()
+        let content = try await service.getPublicSupport()
+
+        XCTAssertEqual(probe.capabilities.state(for: .publicSupport), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .supportThreads), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .supportMessages), .available)
+        XCTAssertEqual(content.faqs.first?.id, "booking")
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            ["/api/health", "/api/support/public"]
+        )
+    }
+
+    func testWatchlistProbeDoesNotDependOnCatalog() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c","capabilities":["native-watchlist-v1"]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let probe = try await LiveBackendService(apiClient: client).diagnoseWatchlistContract()
+
+        XCTAssertEqual(probe.capabilities.state(for: .watchlist), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .watchlistUpsert), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .watchlistDelete), .available)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            ["/api/health"]
+        )
+    }
+
+    func testNativeSupportRequestsUseBearerPrincipalAndIdempotency() async throws {
+        let thread = #"{"id":"thread-1","subject":"결제 문의","status":"OPEN","category":"PAYMENT","createdAt":"2026-08-02T00:00:00Z","updatedAt":"2026-08-02T00:00:00Z","messages":[{"id":"message-1","role":"CUSTOMER","body":"확인해주세요.","at":"2026-08-02T00:00:00Z"}]}"#
+        LiveBackendServiceURLProtocol.responses = [
+            "GET /api/me/support/threads": Data(#"{"ok":true,"data":[\#(thread)]}"#.utf8),
+            "POST /api/me/support/threads": Data(#"{"ok":true,"data":\#(thread)}"#.utf8),
+            "POST /api/me/support/messages": Data(#"{"ok":true,"data":\#(thread)}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -296,20 +431,208 @@ final class LiveBackendServiceTests: XCTestCase {
             credentialStore: credentials,
             session: URLSession(configuration: configuration)
         )
-        let service = compatibleService(for: client, authenticatedReads: true)
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeSupportRoutesConfirmed: true
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
 
-        let publicContent = try await service.getSupportPublicContent()
-        let threads = try await service.getSupportThreads(userID: "user-1")
+        _ = try await service.getSupportThreads(userID: "user-1")
+        _ = try await service.createSupportThread(
+            userID: "user-1",
+            subject: "결제 문의",
+            message: "확인해주세요.",
+            idempotencyKey: "support-create"
+        )
+        _ = try await service.addSupportMessage(
+            userID: "user-1",
+            threadID: "thread-1",
+            message: "추가 문의",
+            idempotencyKey: "support-reply"
+        )
 
-        XCTAssertEqual(publicContent.version, "1")
-        XCTAssertEqual(publicContent.faqs.first?.question, "문의 방법")
-        XCTAssertTrue(threads.isEmpty)
-        let publicRequest = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
-        XCTAssertNil(publicRequest.value(forHTTPHeaderField: "Authorization"))
-        let threadRequest = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.last)
-        XCTAssertEqual(threadRequest.url?.path, "/api/me/support/threads")
-        XCTAssertNil(threadRequest.url?.query)
-        XCTAssertEqual(threadRequest.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            ["/api/me/support/threads", "/api/me/support/threads", "/api/me/support/messages"]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        XCTAssertNil(LiveBackendServiceURLProtocol.requests[1].url?.query)
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[1].value(forHTTPHeaderField: "X-Idempotency-Key"), "support-create")
+        XCTAssertNil(LiveBackendServiceURLProtocol.requests[2].url?.query)
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[2].value(forHTTPHeaderField: "X-Idempotency-Key"), "support-reply")
+    }
+
+    func testDecodesUnknownSupportStatusAndRoleAsUnknown() throws {
+        let data = Data(#"{"id":"thread-1","userId":"user-1","subject":"문의","status":"ESCALATED","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","actorId":"moderator-1","role":"MODERATOR","body":"확인 중입니다","at":"2026-07-15T00:00:00Z"}]}"#.utf8)
+
+        let thread = try JSONDecoder().decode(LiveSupportThread.self, from: data)
+
+        XCTAssertEqual(thread.status, .unknown)
+        XCTAssertEqual(thread.messages.first?.role, .unknown)
+    }
+
+    func testNativeWatchlistUsesBearerPrincipalForReadUpdateAndDelete() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "GET /api/me/watchlist": Data(#"{"ok":true,"data":[]}"#.utf8),
+            "PUT /api/me/watchlist/event-1": Data(#"{"ok":true,"data":{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":false,"notificationEnabled":true,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[]}}"#.utf8),
+            "DELETE /api/me/watchlist/event-1": Data(#"{"ok":true,"data":{"deleted":true,"eventId":"event-1"}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeWatchlistRoutesConfirmed: true
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        let initial = try await service.getWatchlist(userID: "user-1")
+        XCTAssertEqual(initial, [])
+        let updated = try await service.upsertWatchlist(
+            userID: "user-1",
+            eventID: "event-1",
+            channels: ["APP_PUSH"],
+            calendarEnabled: false,
+            notificationEnabled: true
+        )
+        XCTAssertEqual(updated.eventId, "event-1")
+        let deleted = try await service.deleteWatchlist(userID: "user-1", eventID: "event-1")
+        XCTAssertEqual(deleted.eventId, "event-1")
+
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { "\(request.httpMethod ?? "") \($0.path)" }
+            },
+            ["GET /api/me/watchlist", "PUT /api/me/watchlist/event-1", "DELETE /api/me/watchlist/event-1"]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        let updateBody = try XCTUnwrap(LiveBackendServiceURLProtocol.requestBodies[1])
+        let updateJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: updateBody) as? [String: Any])
+        XCTAssertNil(updateJSON["userId"])
+        XCTAssertEqual(updateJSON["notificationEnabled"] as? Bool, true)
+    }
+
+    func testNativeBookingHoldsUsesBearerPrincipalAcrossQueueHoldAndDraft() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "POST /api/me/queue-entries": Data(#"{"ok":true,"data":{"id":"queue-1","performanceDateId":"perf-1","status":"ADMITTED","position":0,"admittedAt":"2026-08-05T10:00:00.000Z","admissionExpiresAt":"2026-08-05T10:10:00.000Z","enteredAt":"2026-08-05T09:59:00.000Z"}}"#.utf8),
+            "GET /api/me/queue-entries/queue-1": Data(#"{"ok":true,"data":{"id":"queue-1","performanceDateId":"perf-1","status":"ADMITTED","position":0,"admittedAt":"2026-08-05T10:00:00.000Z","admissionExpiresAt":"2026-08-05T10:10:00.000Z","enteredAt":"2026-08-05T09:59:00.000Z"}}"#.utf8),
+            "DELETE /api/me/queue-entries/queue-1": Data(#"{"ok":true,"data":{"id":"queue-1","status":"LEFT"}}"#.utf8),
+            "POST /api/me/seat-holds": Data(#"{"ok":true,"data":{"id":"hold-1","status":"ACTIVE","performanceDateId":"perf-1","ticketIds":["ticket-1"],"expiresAt":"2026-08-05T10:05:00.000Z","extensionsUsed":0}}"#.utf8),
+            "GET /api/me/seat-holds/hold-1": Data(#"{"ok":true,"data":{"id":"hold-1","status":"ACTIVE","performanceDateId":"perf-1","ticketIds":["ticket-1"],"expiresAt":"2026-08-05T10:05:00.000Z","extensionsUsed":0}}"#.utf8),
+            "PATCH /api/me/seat-holds/hold-1/extend": Data(#"{"ok":true,"data":{"id":"hold-1","status":"ACTIVE","performanceDateId":"perf-1","ticketIds":["ticket-1"],"expiresAt":"2026-08-05T10:10:00.000Z","extensionsUsed":1}}"#.utf8),
+            "POST /api/me/reservation-drafts": Data(#"{"ok":true,"data":{"id":"draft-1","status":"PENDING_PAYMENT","performanceDateId":"perf-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":88000,"serviceFee":2000,"total":90000},"expiresAt":"2026-08-05T10:15:00.000Z"}}"#.utf8),
+            "GET /api/me/reservation-drafts/draft-1": Data(#"{"ok":true,"data":{"id":"draft-1","status":"PENDING_PAYMENT","performanceDateId":"perf-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":88000,"serviceFee":2000,"total":90000},"expiresAt":"2026-08-05T10:15:00.000Z"}}"#.utf8),
+            "DELETE /api/me/reservation-drafts/draft-1": Data(#"{"ok":true,"data":{"id":"draft-1","status":"CANCELLED","performanceDateId":"perf-1","ticketIds":["ticket-1"],"amount":{"faceValueTotal":88000,"serviceFee":2000,"total":90000},"expiresAt":"2026-08-05T10:15:00.000Z"}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeBookingHoldsRoutesConfirmed: true
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        let entry = try await service.enterQueue(userID: "user-1", performanceDateID: "perf-1")
+        XCTAssertEqual(entry.status, .admitted)
+        let fetchedEntry = try await service.getQueueEntry(userID: "user-1", entryID: entry.id)
+        XCTAssertEqual(fetchedEntry.id, "queue-1")
+        let leftEntry = try await service.leaveQueue(userID: "user-1", entryID: entry.id)
+        XCTAssertEqual(leftEntry.status, .left)
+
+        let hold = try await service.createSeatHold(
+            userID: "user-1",
+            performanceDateID: "perf-1",
+            ticketIDs: ["ticket-1"],
+            idempotencyKey: "hold-key-1"
+        )
+        XCTAssertEqual(hold.status, .active)
+        let fetchedHold = try await service.getSeatHold(userID: "user-1", holdID: hold.id)
+        XCTAssertEqual(fetchedHold.ticketIds, ["ticket-1"])
+        let extended = try await service.extendSeatHold(userID: "user-1", holdID: hold.id)
+        XCTAssertEqual(extended.extensionsUsed, 1)
+
+        let draft = try await service.createReservationDraft(userID: "user-1", holdID: hold.id, idempotencyKey: "draft-key-1")
+        XCTAssertEqual(draft.status, .pendingPayment)
+        XCTAssertEqual(draft.amount.total, 90000)
+        let fetchedDraft = try await service.getReservationDraft(userID: "user-1", draftID: draft.id)
+        XCTAssertEqual(fetchedDraft.id, "draft-1")
+        let cancelledDraft = try await service.cancelReservationDraft(userID: "user-1", draftID: draft.id)
+        XCTAssertEqual(cancelledDraft.status, .cancelled)
+
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { "\(request.httpMethod ?? "") \($0.path)" }
+            },
+            [
+                "POST /api/me/queue-entries",
+                "GET /api/me/queue-entries/queue-1",
+                "DELETE /api/me/queue-entries/queue-1",
+                "POST /api/me/seat-holds",
+                "GET /api/me/seat-holds/hold-1",
+                "PATCH /api/me/seat-holds/hold-1/extend",
+                "POST /api/me/reservation-drafts",
+                "GET /api/me/reservation-drafts/draft-1",
+                "DELETE /api/me/reservation-drafts/draft-1"
+            ]
+        )
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[3].value(forHTTPHeaderField: "X-Idempotency-Key"), "hold-key-1")
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests[6].value(forHTTPHeaderField: "X-Idempotency-Key"), "draft-key-1")
+
+        let holdRequestBody = try XCTUnwrap(LiveBackendServiceURLProtocol.requestBodies[3])
+        let holdRequestJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: holdRequestBody) as? [String: Any])
+        XCTAssertEqual(holdRequestJSON["performanceDateId"] as? String, "perf-1")
+        XCTAssertEqual(holdRequestJSON["ticketIds"] as? [String], ["ticket-1"])
+    }
+
+    func testBookingHoldsCapabilityRequiresConfirmedRoutesAndHTTPS() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let unconfirmedMap = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: unconfirmedMap)
+
+        do {
+            _ = try await service.enterQueue(userID: "user-1", performanceDateID: "perf-1")
+            XCTFail("Expected booking-hold mutation to remain unavailable without server confirmation")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .queueEntryEnter, state: .blocked(.unsupportedMutation)))
+        }
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 0)
     }
 
     func testPublicHTTPReadSendsNoAuthorizationAndExcludesAdminPort() async throws {
@@ -331,6 +654,351 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(request.url?.scheme, "http")
         XCTAssertFalse(LiveAPIContract.deployed.publicHost.absoluteString.contains("50084"))
         XCTAssertTrue(LiveAPIEndpoint.known.allSatisfy { !$0.pathTemplate.contains("50084") })
+    }
+
+    func testSeatMapAdmissionMatchesOnlyEventIDOnlyRoute() {
+        let admission = LiveSeatMapAdmission(eventID: "event-1", performanceDateID: nil)
+
+        XCTAssertTrue(admission.matches(eventID: "event-1", performanceDateID: nil))
+        XCTAssertFalse(admission.matches(eventID: "event-2", performanceDateID: nil))
+        XCTAssertFalse(admission.matches(eventID: "event-1", performanceDateID: "date-1"))
+    }
+
+    func testSeatMapEventIDOnlyDiagnosisAndMatchingReadUseOneRequest() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let seatMap = try await service.getSeatMap(eventID: "event-1")
+
+        XCTAssertEqual(seatMap.event.id, "event-1")
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 1)
+        let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/seat-map")
+        XCTAssertEqual(request.url?.query, "eventId=event-1")
+        XCTAssertNil(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first {
+            $0.name == "performanceDateId"
+        })
+    }
+
+    func testSeatMapDiagnosisRejectsEmptyEventIDWithoutDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await LiveBackendService(apiClient: client).diagnoseSeatMap(eventID: "   ")
+            XCTFail("Expected empty event ID rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testFailedSeatMapReprobeRejectsReturnedIdentityAndClearsPriorAdmission() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8),
+            "/api/seat-map?eventId=event-2": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Stale Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        do {
+            _ = try await service.diagnoseSeatMap(eventID: "event-2")
+            XCTFail("Expected returned event identity mismatch")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(service.capabilityMap.state(for: .seatMap), .unknown)
+        }
+
+        let requestCount = LiveBackendServiceURLProtocol.requests.count
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected prior admission to be cleared")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, requestCount)
+        }
+    }
+
+    func testSeatMapDiagnosisRejectsEmptyReturnedEventID() async {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"","title":"Unknown","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        do {
+            _ = try await service.diagnoseSeatMap(eventID: "event-1")
+            XCTFail("Expected empty returned event ID rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(service.capabilityMap.state(for: .seatMap), .unknown)
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 1)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSeatMapCacheFailsClosedAfterCapabilityBecomesUnknown() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let probe = try await service.diagnosePublicContract()
+        XCTAssertEqual(probe.capabilities.state(for: .seatMap), .unknown)
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected stale cached seat map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSeatMapCacheFailsClosedAfterCapabilityBecomesIncompatible() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/seat-map?eventId=event-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8),
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"future-contract"}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        let probe = try await service.diagnosePublicContract()
+        let state = LiveCapabilityState.incompatible(
+            expected: LiveAPIContract.deployed.expectedResponseVersion,
+            observed: "future-contract"
+        )
+        XCTAssertEqual(probe.capabilities.state(for: .seatMap), state)
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected stale cached seat map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: state))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testIncompatibleSeatMapDiagnosisFailsClosedWithoutDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL!,
+            observedResponseVersion: "future-contract"
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        do {
+            _ = try await service.diagnoseSeatMap(eventID: "event-1")
+            XCTFail("Expected incompatible seat-map diagnosis rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(
+                error,
+                .capabilityUnavailable(endpoint: .seatMap, state: map.state(for: .seatMap))
+            )
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSeatMapAdmissionRejectsDifferentEventAndPerformanceDateWithoutDispatch() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-2")
+            XCTFail("Expected different event seat-map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        }
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1", performanceDateID: "date-1")
+            XCTFail("Expected performance-date seat-map rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        }
+    }
+
+    func testSeatMapAdmissionDoesNotAuthorizeVenueRoute() async throws {
+        LiveBackendServiceURLProtocol.responses["/api/seat-map?eventId=event-1"] = Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[],"seats":[]}}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        _ = try await service.diagnoseSeatMap(eventID: "event-1")
+        LiveBackendServiceURLProtocol.requests = []
+
+        do {
+            _ = try await service.getVenueSeatMap(eventID: "event-1")
+            XCTFail("Expected unproved venue seat-map route rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testDefaultSeatMapUnknownDoesNotDispatchWithoutExplicitDiagnosis() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        do {
+            _ = try await service.getSeatMap(eventID: "event-1")
+            XCTFail("Expected unknown seat-map capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .seatMap, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testStateProofKeepsUnknownCatalogUndispatched() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL!,
+            observedResponseVersion: nil,
+            provenPublicEndpoints: [.state]
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        do {
+            _ = try await service.getCatalog()
+            XCTFail("Expected unproved catalog capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .catalog, state: .unknown))
+            XCTAssertEqual(map.state(for: .state), .available)
+            XCTAssertEqual(map.state(for: .catalog), .unknown)
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testDefaultCatalogUnknownDoesNotDispatchDiagnosticOrCatalogRequest() async {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/catalog": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        do {
+            _ = try await service.getCatalog()
+            XCTFail("Expected unknown catalog capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .catalog, state: .unknown))
+            XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testCapabilityMapRejectsUnknownOrIncompatibleContractState() {
@@ -370,11 +1038,11 @@ final class LiveBackendServiceTests: XCTestCase {
         let discoveryConfirmed = LiveAPIContract.deployed.capabilityMap(
             for: URL(string: "http://132.145.109.87:4174/")!,
             observedResponseVersion: "78b3c7c",
-            catalogRouteConfirmed: true,
-            discoveryRoutesConfirmed: true
+            provenPublicEndpoints: [.regions, .openCalendar],
+            catalogRouteConfirmed: true
         )
         XCTAssertEqual(discoveryConfirmed.state(for: .regions), .available)
-        XCTAssertEqual(discoveryConfirmed.state(for: .artist), .available)
+        XCTAssertEqual(discoveryConfirmed.state(for: .artist), .unknown)
         XCTAssertEqual(discoveryConfirmed.state(for: .openCalendar), .available)
     }
 
@@ -396,10 +1064,27 @@ final class LiveBackendServiceTests: XCTestCase {
 
         XCTAssertEqual(map.state(for: .session), .blocked(.serverAuthorizationUnverified))
         XCTAssertEqual(map.state(for: .tickets), .blocked(.serverAuthorizationUnverified))
-        XCTAssertEqual(map.state(for: .profile), .unknown)
-        XCTAssertEqual(map.state(for: .reservations), .unknown)
-        XCTAssertEqual(map.state(for: .watchlist), .unknown)
-        XCTAssertEqual(map.state(for: .supportThreads), .unknown)
+        XCTAssertEqual(map.state(for: .watchlist), .blocked(.serverAuthorizationUnverified))
+        XCTAssertEqual(map.state(for: .supportThreads), .blocked(.serverAuthorizationUnverified))
+
+        let attested = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            catalogRouteConfirmed: true,
+            nativeAccountRoutesConfirmed: true
+        )
+        XCTAssertEqual(attested.state(for: .session), .available)
+        XCTAssertEqual(attested.state(for: .tickets), .available)
+        XCTAssertEqual(attested.state(for: .watchlist), .blocked(.serverAuthorizationUnverified))
+
+        let watchlistAttested = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeWatchlistRoutesConfirmed: true
+        )
+        XCTAssertEqual(watchlistAttested.state(for: .watchlist), .available)
+        XCTAssertEqual(watchlistAttested.state(for: .watchlistUpsert), .available)
+        XCTAssertEqual(watchlistAttested.state(for: .watchlistDelete), .available)
     }
 
     func testCatalogAdmissionUsesHealthThenBoundedCatalogProbe() async throws {
@@ -407,7 +1092,7 @@ final class LiveBackendServiceTests: XCTestCase {
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8),
             "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar","venues"]}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":null,"period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":null}]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -419,6 +1104,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         let service = LiveBackendService(apiClient: client)
+        _ = try await service.diagnosePublicContract()
         let catalog = try await service.getCatalog()
 
         XCTAssertEqual(catalog.events.map(\.id), ["event-1"])
@@ -427,18 +1113,179 @@ final class LiveBackendServiceTests: XCTestCase {
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/native/v1/contract", "/api/support/v1/public", "/api/catalog"]
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
         )
         XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
             $0.value(forHTTPHeaderField: "Authorization") == nil
         })
     }
 
-    func testLiveHomeLoadsHealthyCatalogWithoutDependingOnState() async throws {
+    func testCatalogRejectsOutOfRangeLimitWithoutDispatch() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = compatibleService(for: client)
+
+        for limit in [0, 101] {
+            do {
+                _ = try await service.getCatalog(limit: limit)
+                XCTFail("Expected local limit rejection for \(limit)")
+            } catch let error as APIClientError {
+                XCTAssertEqual(error, .invalidResponse)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+    }
+
+    func testCatalogAggregatesPagesUsingOnlyServerIssuedCursors() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/catalog?limit=2": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"One","venue":"Arena","soldCount":1},{"id":"event-2","title":"Two","venue":"Arena","soldCount":2}],"nextCursor":"server-page-2","total":3}}"#.utf8),
+            "/api/catalog?limit=2&cursor=server-page-2": Data(#"{"ok":true,"data":{"events":[{"id":"event-3","title":"Three","venue":"Arena","soldCount":3}],"total":3}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let catalog = try await compatibleService(for: client).getCatalog(limit: 2)
+
+        XCTAssertEqual(catalog.events.map(\.id), ["event-1", "event-2", "event-3"])
+        XCTAssertNil(catalog.nextCursor)
+        XCTAssertEqual(catalog.total, 3)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { $0.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") } },
+            ["/api/catalog?limit=2", "/api/catalog?limit=2&cursor=server-page-2"]
+        )
+    }
+
+    func testCatalogRejectsRepeatedCursorWithoutLooping() async {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[],"nextCursor":"repeat"}}"#.utf8),
+            "/api/catalog?limit=1&cursor=repeat": Data(#"{"ok":true,"data":{"events":[],"nextCursor":"repeat"}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await compatibleService(for: client).getCatalog(limit: 1)
+            XCTFail("Expected repeated cursor rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 2)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCatalogStopsAtFinitePageLimit() async {
+        for index in 0..<20 {
+            let key = index == 0
+                ? "/api/catalog?limit=1"
+                : "/api/catalog?limit=1&cursor=server-\(index)"
+            LiveBackendServiceURLProtocol.responses[key] = Data(
+                #"{"ok":true,"data":{"events":[],"nextCursor":"server-\#(index + 1)"}}"#.utf8
+            )
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await compatibleService(for: client).getCatalog(limit: 1)
+            XCTFail("Expected finite aggregation rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .invalidResponse)
+            XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, 20)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCompatibleDiagnosisKeepsStateAndDiscoveryIndependentFromCatalogFailure() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
+            "/api/catalog?limit=1": Data("{".utf8),
+            "/api/discovery/v1/contract": Data(#"{"ok":true,"data":{"version":"1","endpoints":["regions","artists","open-calendar"]}}"#.utf8),
+            "/api/discovery/v1/regions": Data(#"{"ok":true,"data":{"version":"1","regions":[]}}"#.utf8),
+            "/api/discovery/v1/open-calendar": Data(#"{"ok":true,"data":{"version":"1","entries":[]}}"#.utf8),
+            "/api/discovery/v1/artists/iu": Data(#"{"ok":true,"data":{"version":"1","artist":{"slug":"iu","name":"IU"},"events":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+        let service = LiveBackendService(apiClient: client)
+
+        let probe = try await service.diagnosePublicContract()
+        XCTAssertEqual(probe.capabilities.state(for: .state), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .catalog), .unknown)
+        XCTAssertEqual(probe.capabilities.state(for: .regions), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .openCalendar), .available)
+        XCTAssertEqual(probe.capabilities.state(for: .artist), .available)
+        _ = try await service.getRegions()
+        _ = try await service.getOpenCalendar()
+
+        let requestCount = LiveBackendServiceURLProtocol.requests.count
+        let artist = try await service.getArtist(slug: "iu")
+        XCTAssertEqual(artist.artist.name, "IU")
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.count, requestCount + 1)
+    }
+
+    func testLiveHomeFallsBackToIndependentlyProvenStateWhenCatalogProbeFails() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c"}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
+            "/api/catalog?limit=1": Data("{".utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: URL(string: "https://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        let result = try await DiscoveryFixtureLoader.loadLive(using: client)
+
+        guard case .stateOnly(let state) = result else {
+            return XCTFail("Expected state fallback")
+        }
+        XCTAssertEqual(state.events.first?.id, "event-1")
+    }
+
+    func testLiveHomeExplicitDiagnosisLoadsHealthyCatalogWhenStateProbeFails() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19","period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[{"id":"event-1","slug":"neon-stage","category":"concert","title":"Neon Stage","venue":"Arena","date":"2026-09-19","period":null,"image":null,"pinnedRank":1,"soldCount":4,"sale":{"state":"ON_SALE","label":"예매 가능","note":"공식 판매"}}]}}"#.utf8)
         ]
         LiveBackendServiceURLProtocol.errors["/api/state"] = .timedOut
         let configuration = URLSessionConfiguration.ephemeral
@@ -465,7 +1312,13 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(content.shortcuts.first { $0.label == "VIP석" }?.route, .genre(name: "vip"))
         XCTAssertTrue(Set(content.shortcuts.map(\.label)).isDisjoint(with: ["당일 공연", "지방 공연", "양도", "오픈캘린더"]))
         XCTAssertTrue(Set(content.categories.map(\.label)).isDisjoint(with: ["티켓 양도", "캘린더"]))
-        XCTAssertFalse(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.contains { $0.url?.path == "/api/state" })
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
+        )
     }
 
     func testCatalogAdmissionRejectsIncompatibleHealthWithoutCatalogDispatch() async {
@@ -479,8 +1332,10 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
+        let service = LiveBackendService(apiClient: client)
         do {
-            _ = try await LiveBackendService(apiClient: client).getCatalog()
+            _ = try await service.diagnosePublicContract()
+            _ = try await service.getCatalog()
             XCTFail("Expected incompatible catalog capability")
         } catch let error as APIClientError {
             XCTAssertEqual(
@@ -512,28 +1367,23 @@ final class LiveBackendServiceTests: XCTestCase {
         ]
         let service = LiveBackendService(apiClient: client)
 
-        do {
-            _ = try await service.getCatalog()
-            XCTFail("Expected catalog admission rejection")
-        } catch let error as APIClientError {
-            XCTAssertEqual(error, .invalidResponse)
-            XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
-            XCTAssertEqual(
-                LiveBackendServiceURLProtocol.requests.compactMap { request in
-                    request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
-                },
-                ["/api/health", "/api/catalog?limit=1"]
-            )
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
+        let probe = try? await service.diagnosePublicContract()
+
+        XCTAssertEqual(probe?.capabilities.state(for: .catalog), .unknown)
+        XCTAssertEqual(service.capabilityMap.state(for: .catalog), .unknown)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1"]
+        )
     }
 
     func testCatalogAdmissionAcceptsEmptyProbeAndReturnsEmptyCatalog() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
-            "/api/catalog": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
@@ -545,6 +1395,7 @@ final class LiveBackendServiceTests: XCTestCase {
         )
 
         let service = LiveBackendService(apiClient: client)
+        _ = try await service.diagnosePublicContract()
         let catalog = try await service.getCatalog()
 
         XCTAssertTrue(catalog.events.isEmpty)
@@ -554,7 +1405,7 @@ final class LiveBackendServiceTests: XCTestCase {
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/native/v1/contract", "/api/support/v1/public", "/api/catalog"]
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
         )
     }
 
@@ -571,7 +1422,7 @@ final class LiveBackendServiceTests: XCTestCase {
         let service = LiveBackendService(apiClient: client)
 
         do {
-            _ = try await service.getCatalog()
+            _ = try await service.diagnosePublicContract()
             XCTFail("Expected health timeout")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .requestFailed(code: URLError.timedOut.rawValue))
@@ -607,25 +1458,16 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(seatMap.seats.first?.mapPosition?.shape, "actual-map")
     }
 
-    func testDecodesEventVenueSeatMapRoute() async throws {
-        LiveBackendServiceURLProtocol.responses["/api/events/event-1/seat-map"] = Data(#"{"ok":true,"data":{"eventId":"event-1","venueId":"venue-1","venue":"Arena","address":"Seoul","type":"svg","imageUrl":"/assets/map.svg","imageSource":"venue-map","stage":"STAGE","helper":"좌석 안내","labels":[{"text":"VIP","x":50,"y":38}],"seats":[{"zoneId":"vip","seatLabel":"VIP-01","number":1,"x":34,"y":58,"section":"VIP"}]}}"#.utf8)
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
-        let client = LiveAPIClient(
-            baseURL: URL(string: "http://ticketground.test/")!,
-            assetBaseURL: URL(string: "http://ticketground.test/")!,
-            credentialStore: InMemoryCredentialStore(),
-            session: URLSession(configuration: configuration)
+    func testDecodesEventVenueSeatMapModel() throws {
+        let map = try JSONDecoder().decode(
+            LiveVenueSeatMap.self,
+            from: Data(#"{"eventId":"event-1","venueId":"venue-1","venue":"Arena","address":"Seoul","type":"svg","imageUrl":"/assets/map.svg","imageSource":"venue-map","stage":"STAGE","helper":"좌석 안내","labels":[{"text":"VIP","x":50,"y":38}],"seats":[{"zoneId":"vip","seatLabel":"VIP-01","number":1,"x":34,"y":58,"section":"VIP"}]}"#.utf8)
         )
-        let service = compatibleService(for: client)
-
-        let map = try await service.getVenueSeatMap(eventID: "event-1")
 
         XCTAssertEqual(map.eventID, "event-1")
         XCTAssertEqual(map.imageURL, "/assets/map.svg")
         XCTAssertEqual(map.labels?.first?.text, "VIP")
         XCTAssertEqual(map.seats.first?.seatLabel, "VIP-01")
-        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.compactMap { $0.url?.path }, ["/api/events/event-1/seat-map"])
     }
 
     func testPlaceRouteMatchesCatalogVenueIdentifier() throws {
@@ -742,15 +1584,16 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testMutationContractMatchesDeployedRouterPaths() {
         XCTAssertEqual(LiveAPIEndpoint.supportMessages.method, .post)
-        XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/me/support/threads/{threadId}/messages")
-        XCTAssertEqual(LiveAPIEndpoint.profileMutation.method, .patch)
-        XCTAssertEqual(LiveAPIEndpoint.profileMutation.pathTemplate, "/api/me/profile")
-        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.method, .put)
-        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.pathTemplate, "/api/me/watchlist/{eventId}")
-        XCTAssertEqual(LiveAPIEndpoint.watchlistRemoval.method, .delete)
-        XCTAssertEqual(LiveAPIEndpoint.watchlistNotification.method, .put)
+        XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/me/support/messages")
+        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.method, .post)
+        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.pathTemplate, "/api/watchlist")
+        XCTAssertEqual(LiveAPIEndpoint.watchlistUpsert.method, .put)
+        XCTAssertEqual(LiveAPIEndpoint.watchlistUpsert.pathTemplate, "/api/me/watchlist/{eventId}")
+        XCTAssertEqual(LiveAPIEndpoint.watchlistDelete.method, .delete)
         XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.method, .post)
         XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.pathTemplate, "/api/tickets/buy")
+        XCTAssertEqual(LiveAPIEndpoint.session.pathTemplate, "/api/me")
+        XCTAssertEqual(LiveAPIEndpoint.tickets.pathTemplate, "/api/me/tickets")
     }
 
     func testPrincipalAccountAndWatchlistContractDispatchesTypedRequests() async throws {
@@ -797,7 +1640,7 @@ final class LiveBackendServiceTests: XCTestCase {
     }
 
     func testAuthenticatedActionSendsOwnerBoundJSONAndIdempotencyKeyOverHTTPS() async throws {
-        LiveBackendServiceURLProtocol.responses["/api/me/watchlist/event-1"] = Data(#"{"ok":true,"data":{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"notificationJobs":[]}}"#.utf8)
+        LiveBackendServiceURLProtocol.responses["/api/me/watchlist/event-1"] = Data(#"{"ok":true,"data":{"id":"watch-1","eventId":"event-1"}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
         let credentials = InMemoryCredentialStore()
@@ -826,14 +1669,10 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(emittedBody["notificationEnabled"] as? Bool, true)
         XCTAssertNil(emittedBody["userId"])
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), "watchlist-1")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Idempotency-Key"), "watchlist-1")
         XCTAssertEqual(receipt.payload, .object([
             "id": .string("watch-1"),
-            "eventId": .string("event-1"),
-            "channels": .array([.string("APP_PUSH")]),
-            "calendarEnabled": .bool(true),
-            "notificationEnabled": .bool(true),
-            "notificationJobs": .array([])
+            "eventId": .string("event-1")
         ]))
     }
 
@@ -894,8 +1733,8 @@ final class LiveBackendServiceTests: XCTestCase {
         for status in [401, 403, 409, 422, 429] {
             let code = "ACTION_\(status)"
             let message = "Mutation rejected: \(status)"
-            LiveBackendServiceURLProtocol.responses["/api/me/support/threads/thread-1/messages"] = Data(#"{"ok":false,"error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8)
-            LiveBackendServiceURLProtocol.statusCodes["/api/me/support/threads/thread-1/messages"] = status
+            LiveBackendServiceURLProtocol.responses["/api/me/support/messages"] = Data(#"{"ok":false,"error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8)
+            LiveBackendServiceURLProtocol.statusCodes["/api/me/support/messages"] = status
 
             do {
                 _ = try await mutationReadyService(for: client).perform(.supportMessage(
@@ -922,30 +1761,27 @@ final class LiveBackendServiceTests: XCTestCase {
     }
 
     func testAuthenticatedActionDefinitionsMatchDocumentedPathsAndOwners() throws {
-        let actions: [(LiveAuthenticatedAction, String, String)] = [
-            (.supportThread(userID: "user-1", category: "GENERAL", subject: "문의 제목", message: "문의", idempotencyKey: "thread"), "/api/me/support/threads", "principal"),
-            (.supportMessage(userID: "user-1", threadID: "thread-1", message: "답변", idempotencyKey: "message"), "/api/me/support/threads/thread-1/messages", "principal"),
-            (.watchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "watch"), "/api/me/watchlist/event-1", "principal"),
-            (.watchlistNotification(userID: "user-1", eventID: "event-1", idempotencyKey: "notify"), "/api/me/watchlist/event-1/notification", "principal"),
-            (.ticketPurchase(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "purchase"), "/api/tickets/buy", "userId"),
-            (.identityStart(userID: "user-1", phone: "01012345678", idempotencyKey: "identity-start"), "/api/identity/nice/start", "userId"),
-            (.identityConfirm(userID: "user-1", phone: "01012345678", verificationID: "identity-1", idempotencyKey: "identity-confirm"), "/api/identity/nice/mock-complete", "userId"),
-            (.trustDevice(userID: "user-1", deviceID: "device-1", attestation: "attestation", idempotencyKey: "trust"), "/api/devices/trust", "userId"),
-            (.pushToken(userID: "user-1", token: "push-token", idempotencyKey: "push"), "/api/devices/push-token", "userId"),
-            (.admissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "device-1", attestation: "attestation", idempotencyKey: "qr"), "/api/tickets/qr", "userId"),
-            (.virtualQR(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "virtual-qr"), "/api/tickets/virtual-qr", "userId")
+        let actions: [(LiveAuthenticatedAction, APIRequestMethod, String, String)] = [
+            (.supportThread(userID: "user-1", message: "문의", idempotencyKey: "thread"), .post, "/api/me/support/threads", "__bearer__"),
+            (.supportMessage(userID: "user-1", threadID: "thread-1", message: "답변", idempotencyKey: "message"), .post, "/api/me/support/messages", "__bearer__"),
+            (.watchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "watch"), .put, "/api/me/watchlist/event-1", "__bearer__"),
+            (.watchlistNotification(userID: "user-1", eventID: "event-1", idempotencyKey: "notify"), .put, "/api/me/watchlist/event-1", "__bearer__"),
+            (.ticketPurchase(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "purchase"), .post, "/api/tickets/buy", "userId"),
+            (.identityStart(userID: "user-1", phone: "01012345678", idempotencyKey: "identity-start"), .post, "/api/identity/nice/start", "userId"),
+            (.identityConfirm(userID: "user-1", phone: "01012345678", verificationID: "identity-1", idempotencyKey: "identity-confirm"), .post, "/api/identity/nice/mock-complete", "userId"),
+            (.pushToken(userID: "user-1", token: "push-token", idempotencyKey: "push"), .post, "/api/devices/push-token", "userId"),
+            (.virtualQR(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "virtual-qr"), .post, "/api/tickets/virtual-qr", "userId")
         ]
 
-        for (action, path, ownerField) in actions {
+        for (action, method, path, ownerField) in actions {
             let request = try action.request()
             let body = try XCTUnwrap(request.body.jsonObject)
-            let expectedMethod: APIRequestMethod = action.endpoint == .watchlistMutation || action.endpoint == .watchlistNotification ? .put : .post
-            XCTAssertEqual(request.method, expectedMethod)
+            XCTAssertEqual(request.method, method)
             XCTAssertEqual(request.path, path)
             XCTAssertEqual(request.idempotencyKey?.isEmpty, false)
             XCTAssertEqual(request.authentication, .required(userID: "user-1"))
-            if ownerField == "principal" {
-                XCTAssertEqual(request.ownerBinding, .principal)
+            if ownerField == "__bearer__" {
+                XCTAssertEqual(request.ownerBinding, .bearerPrincipal)
                 XCTAssertNil(body["userId"])
                 XCTAssertNil(body["actorId"])
             } else {
@@ -998,9 +1834,11 @@ final class LiveBackendServiceTests: XCTestCase {
         let revoked = try await service.revokeTrustedDevice(userID: "user-1", deviceID: "device-1")
         let tokens = try await service.getPushTokens(userID: "user-1")
         let registeredToken = try await service.registerPushToken(userID: "user-1", platform: .ios, token: "apns-token-cdef", idempotencyKey: "push-key")
-        let trust = try await service.trustDevice(userID: "user-1", deviceID: "iphone-2", deviceName: "새 iPhone", platform: "iOS", attestation: "attestation")
+        let trustProof = LifecycleAttestationProof(deviceID: "iphone-2", challengeID: "challenge-trust", keyID: "key-1", attestationObject: "attestation")
+        let trust = try await service.trustDevice(userID: "user-1", deviceID: "iphone-2", deviceName: "새 iPhone", platform: "iOS", proof: trustProof)
         let virtualTicket = try await service.getVirtualTicketQR(userID: "user-1", ticketID: "ticket-1")
-        let admission = try await service.issueAdmissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "iphone-2", deviceToken: trust.deviceToken, attestation: "attestation")
+        let qrProof = LifecycleAssertionProof(challengeID: "challenge-qr", keyID: "key-1", assertion: "assertion")
+        let admission = try await service.issueAdmissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "iphone-2", deviceToken: trust.deviceToken, proof: qrProof)
 
         XCTAssertEqual(pools.first?.id, "pool-1")
         XCTAssertEqual(listed.status, .open)
@@ -1031,6 +1869,86 @@ final class LiveBackendServiceTests: XCTestCase {
             XCTAssertNil(json["userId"])
             XCTAssertNil(json["ownerId"])
         }
+    }
+
+    func testAttestedLifecycleRequestsBoundChallengesBeforeProofBodiesWithoutLegacyField() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "POST /api/me/device-attestation/challenges": Data(#"{"ok":true,"data":{"id":"challenge-1","challenge":"server-challenge","expiresAt":"2026-08-12T09:10:00Z"}}"#.utf8),
+            "POST /api/devices/trust": Data(#"{"ok":true,"data":{"device":{"id":"device-1","userId":"user-1","deviceId":"iphone-1","deviceName":"Test iPhone","platform":"iOS","status":"TRUSTED","lastVerifiedAt":"2026-08-12T09:06:00Z"},"deviceToken":"trusted-device-token"}}"#.utf8),
+            "POST /api/tickets/qr": Data(#"{"ok":true,"data":{"type":"ADMISSION","ticketId":"ticket-1","ownerId":"user-1","expiresAt":"2026-08-12T09:08:20Z","nonce":"nonce-1","signature":"signature-1","issuedAt":"2026-08-12T09:08:00Z","performanceStartsAt":"2026-09-19T19:00:00Z","preparedAt":"2026-09-18T19:00:00Z","activeAt":"2026-09-19T16:00:00Z","ttlSeconds":20,"traceCode":"TRACE123","channel":"APP","emergencyReason":null}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let service = mutationReadyService(for: client)
+
+        let trustChallenge = try await service.appAttestChallenge(
+            userID: "user-1",
+            purpose: "TRUST_DEVICE",
+            deviceID: "iphone-1"
+        )
+        let trusted = try await service.trustDevice(
+            userID: "user-1",
+            deviceID: "iphone-1",
+            deviceName: "Test iPhone",
+            platform: "iOS",
+            proof: LifecycleAttestationProof(
+                deviceID: "iphone-1",
+                challengeID: trustChallenge.id,
+                keyID: "key-1",
+                attestationObject: "attestation-proof"
+            )
+        )
+        let qrChallenge = try await service.appAttestChallenge(
+            userID: "user-1",
+            purpose: "ISSUE_QR",
+            deviceID: "iphone-1",
+            ticketID: "ticket-1"
+        )
+        _ = try await service.issueAdmissionQR(
+            userID: "user-1",
+            ticketID: "ticket-1",
+            deviceID: "iphone-1",
+            deviceToken: trusted.deviceToken,
+            proof: LifecycleAssertionProof(
+                challengeID: qrChallenge.id,
+                keyID: "key-1",
+                assertion: "assertion-proof"
+            )
+        )
+
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap(\.url?.path),
+            [
+                "/api/me/device-attestation/challenges",
+                "/api/devices/trust",
+                "/api/me/device-attestation/challenges",
+                "/api/tickets/qr"
+            ]
+        )
+        let bodies = try LiveBackendServiceURLProtocol.requestBodies.map { data in
+            try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(data)) as? [String: Any])
+        }
+        XCTAssertEqual(bodies[0]["purpose"] as? String, "TRUST_DEVICE")
+        XCTAssertEqual(bodies[0]["deviceId"] as? String, "iphone-1")
+        XCTAssertNil(bodies[0]["ticketId"])
+        XCTAssertEqual(bodies[1]["challengeId"] as? String, "challenge-1")
+        XCTAssertEqual(bodies[1]["keyId"] as? String, "key-1")
+        XCTAssertEqual(bodies[1]["attestationObject"] as? String, "attestation-proof")
+        XCTAssertEqual(bodies[2]["purpose"] as? String, "ISSUE_QR")
+        XCTAssertEqual(bodies[2]["ticketId"] as? String, "ticket-1")
+        XCTAssertEqual(bodies[3]["challengeId"] as? String, "challenge-1")
+        XCTAssertEqual(bodies[3]["assertion"] as? String, "assertion-proof")
+        let removedLegacyField = "app" + "Attestation"
+        XCTAssertTrue(bodies.allSatisfy { $0[removedLegacyField] == nil })
+        XCTAssertTrue(bodies.allSatisfy { $0["userId"] == nil })
     }
 
     func testNativeLifecycleCapabilityFailsClosedAndMapsServerError() async throws {
@@ -1071,6 +1989,26 @@ final class LiveBackendServiceTests: XCTestCase {
         } catch let error as APIClientError {
             XCTAssertEqual(error, .server(status: 403, code: "NOT_OWNER", message: "ownership required"))
         }
+    }
+
+    func testNativeLifecycleModelsRejectLeakedDeviceAndPushSecrets() throws {
+        let leakedDevice = Data(#"{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"TRUSTED","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":null,"tokenHash":"secret-hash"}"#.utf8)
+        let leakedPushToken = Data(#"{"platform":"ios","status":"ACTIVE","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z","tokenDigest":"secret-digest"}"#.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveTrustedDevice.self, from: leakedDevice))
+        XCTAssertThrowsError(try JSONDecoder().decode(LivePushToken.self, from: leakedPushToken))
+    }
+
+    func testNativeLifecycleModelsRejectUnknownStatuses() throws {
+        let unknownResale = Data(#"{"id":"pool-1","eventId":"event-1","performanceDateId":"performance-1","zoneId":"zone-1","ticketId":"ticket-1","showSlug":"show-1","price":10000,"buyerFee":1000,"buyerTotal":11000,"sellerSettlement":9000,"buyerCount":0,"status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","matchedAt":null}"#.utf8)
+        let unknownCancellation = Data(#"{"id":"cancel-1","ticketId":"ticket-1","reason":"Changed plans","refundAcknowledged":true,"status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}"#.utf8)
+        let unknownDevice = Data(#"{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"FUTURE_STATUS","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":null}"#.utf8)
+        let unknownPushToken = Data(#"{"platform":"ios","status":"FUTURE_STATUS","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}"#.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveLifecycleResalePool.self, from: unknownResale))
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveCancellationRequest.self, from: unknownCancellation))
+        XCTAssertThrowsError(try JSONDecoder().decode(LiveTrustedDevice.self, from: unknownDevice))
+        XCTAssertThrowsError(try JSONDecoder().decode(LivePushToken.self, from: unknownPushToken))
     }
 
     func testServiceRejectsUnknownIncompatibleAndBlockedCapabilitiesBeforeDispatch() async {
@@ -1146,6 +2084,7 @@ final class LiveBackendServiceTests: XCTestCase {
 
         let service = LiveBackendService(apiClient: client)
         do {
+            _ = try await service.diagnosePublicContract()
             _ = try await service.getCatalog()
             XCTFail("Expected versionless contract to remain unknown")
         } catch let error as APIClientError {
@@ -1162,7 +2101,7 @@ final class LiveBackendServiceTests: XCTestCase {
         }
     }
 
-    func testLiveHomeKeepsTypedStateWhenCatalogRouteIsUnconfirmed() async throws {
+    func testLiveHomeExplicitDiagnosisKeepsTypedStateWhenCatalogRouteIsUnconfirmed() async throws {
         LiveBackendServiceURLProtocol.responses["/api/health"] = Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":null}}"#.utf8)
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE","sale":{"state":"ON_SALE","label":"예매 가능","bookable":true}}],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":1,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
@@ -1192,13 +2131,13 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
-    func testLiveHomeSurfacesTransientCatalogFailureAfterSuccessfulAdmission() async {
+    func testLiveHomeExplicitDiagnosisFallsBackToStateAfterTransientCatalogFailure() async throws {
         LiveBackendServiceURLProtocol.responses = [
             "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
             "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
             "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
         ]
-        LiveBackendServiceURLProtocol.errors["/api/catalog"] = .timedOut
+        LiveBackendServiceURLProtocol.errors["/api/catalog?limit=50"] = .timedOut
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
         let client = LiveAPIClient(
@@ -1208,14 +2147,18 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
-        do {
-            _ = try await DiscoveryFixtureLoader.loadLive(using: client)
-            XCTFail("Expected the transient catalog failure to remain retryable")
-        } catch let error as APIClientError {
-            XCTAssertEqual(error, .requestFailed(code: URLError.timedOut.rawValue))
-        } catch {
-            XCTFail("Unexpected error: \(error)")
+        let result = try await DiscoveryFixtureLoader.loadLive(using: client)
+
+        guard case .stateOnly(let state) = result else {
+            return XCTFail("Expected independently proven state fallback")
         }
+        XCTAssertEqual(state.backendSummary.events, 0)
+        XCTAssertEqual(
+            LiveBackendServiceURLProtocol.requests.compactMap { request in
+                request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
+            },
+            ["/api/health", "/api/state", "/api/discovery/v1/contract", "/api/catalog?limit=1", "/api/catalog?limit=50"]
+        )
     }
 
     func testDefaultLiveCatalogBootstrapFailureDoesNotDispatchCatalog() async {
@@ -1229,8 +2172,9 @@ final class LiveBackendServiceTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
 
+        let service = LiveBackendService(apiClient: client)
         do {
-            _ = try await LiveBackendService(apiClient: client).getCatalog()
+            _ = try await service.diagnosePublicContract()
             XCTFail("Expected bootstrap failure")
         } catch let error as APIClientError {
             XCTAssertEqual(error, .server(status: 200, code: "BOOTSTRAP_DOWN", message: "Bootstrap unavailable"))
@@ -1276,8 +2220,8 @@ final class LiveBackendServiceTests: XCTestCase {
         let map = LiveAPIContract.deployed.capabilityMap(
             for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
             observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
-            catalogRouteConfirmed: true,
-            discoveryRoutesConfirmed: true
+            provenPublicEndpoints: [.state, .catalog, .seatMap, .regions, .openCalendar],
+            catalogRouteConfirmed: true
         )
         let states = authenticatedReads
             ? Dictionary(uniqueKeysWithValues: LiveAPIEndpoint.known.map { endpoint in

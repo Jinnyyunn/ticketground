@@ -1,0 +1,22 @@
+{
+  "name": "Ticketground 게이트 스캐너",
+  "short_name": "게이트 스캐너",
+  "description": "공연장 입구에서 입장 QR을 검증하는 게이트 운영자 전용 도구",
+  "start_url": "/gate",
+  "scope": "/gate",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/seo/tig-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/seo/tig-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

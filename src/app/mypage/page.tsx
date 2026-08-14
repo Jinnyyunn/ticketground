@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AccountSummaryPanel } from "@/components/mypage/account-summary-panel";
 import { BackendTicketPanel } from "@/components/mypage/backend-ticket-panel";
 import { CancelHistoryPanel } from "@/components/mypage/cancel-history-panel";
+import { IdentityVerificationPanel } from "@/components/mypage/identity-verification-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
 import { appOnlyQrReservation, reservations } from "@/data/ticketing";
 
@@ -10,7 +11,8 @@ const sideNav = [
   ["취소내역", "/mypage#cancel-history"],
   ["양도내역", "/mypage/resale#resale-history"],
   ["관심공연", "/watchlist"],
-  ["1:1 문의", "/inquiry"],
+  ["본인인증", "/mypage#identity"],
+  ["1:1 문의", "https://pf.kakao.com/_xmTniX/chat"],
 ] as const;
 
 const today = "2026.06.29";
@@ -21,15 +23,22 @@ export default function MyPage() {
     <TicketingPageShell>
       <section className="ticketground-container py-10">
         <AccountSummaryPanel inquiryCount={3} resaleSeatCount={2} reservationCount={reservations.length} />
+        <IdentityVerificationPanel />
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="h-fit rounded-md border border-line p-4">
             <h2 className="px-2 text-base font-black text-ink-2">마이페이지</h2>
             <nav className="mt-3 grid gap-1">
               {sideNav.map(([label, href]) => (
-                <Link key={label} href={href} className="rounded-sm px-3 py-2 text-sm font-bold text-ink-3 hover:bg-surface">
-                  {label}
-                </Link>
+                href.startsWith("http") ? (
+                  <a key={label} href={href} rel="noreferrer" target="_blank" className="rounded-sm px-3 py-2 text-sm font-bold text-ink-3 hover:bg-surface">
+                    {label}
+                  </a>
+                ) : (
+                  <Link key={label} href={href} className="rounded-sm px-3 py-2 text-sm font-bold text-ink-3 hover:bg-surface">
+                    {label}
+                  </Link>
+                )
               ))}
             </nav>
           </aside>

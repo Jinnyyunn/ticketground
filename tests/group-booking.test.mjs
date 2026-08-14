@@ -89,6 +89,21 @@ test("public group-booking request submission stores a pending request without e
   assert.ok(workspace.data.requests[0].zoneName);
   assert.ok(workspace.data.requests[0].dateLabel);
   assert.ok(workspace.data.eventSummaries.some((event) => event.id === "event_kpop_001"));
+  // The admin console's status filter dropdown reads data.filters.status
+  // directly (GroupBookingWorkspace in admin-workspaces.tsx) - if this key
+  // is ever missing, the whole workspace crashes with a TypeError on load.
+  assert.deepEqual(workspace.data.filters, { status: null });
+});
+
+test("group-booking workspace echoes back the applied status filter", async (t) => {
+  const server = await startServer(t);
+  await submitGroupBooking(server);
+
+  const unfiltered = await adminApi(server, "/api/admin/workspaces/group-booking");
+  assert.deepEqual(unfiltered.data.filters, { status: null });
+
+  const filtered = await adminApi(server, "/api/admin/workspaces/group-booking?status=pending");
+  assert.deepEqual(filtered.data.filters, { status: "PENDING" });
 });
 
 test("public group-booking request validation rejects bad required fields with specific codes", async (t) => {
@@ -280,6 +295,62 @@ test("rejecting a group-booking request requires a review note and does not assi
     reviewNote: "승인 불가"
   }, 409);
   assert.equal(denied.error.code, "GROUP_BOOKING_ALREADY_REVIEWED");
+});
+
+test("business registration file is stored outside the JSON DB and served only to admins", async (t) => {
+  const server = await startServer(t);
+  const created = await submitGroupBooking(server);
+
+  const workspace = await adminApi(server, "/api/admin/workspaces/group-booking");
+  const request = workspace.data.requests.find((item) => item.id === created.data.id);
+  assert.equal(request.businessRegistrationFileUrl, `/api/admin/group-booking/requests/${created.data.id}/business-registration-file`);
+
+  const unauthorized = await fetch(`${server.adminUrl}${request.businessRegistrationFileUrl}`);
+  assert.equal(unauthorized.status, 401);
+
+  const download = await fetch(`${server.adminUrl}${request.businessRegistrationFileUrl}`, {
+    headers: { "x-tig-admin-token": server.adminToken }
+  });
+  assert.equal(download.status, 200);
+  assert.equal(download.headers.get("content-type"), "application/pdf");
+  const bytes = Buffer.from(await download.arrayBuffer());
+  const expected = Buffer.from(businessRegistrationFileUrl.split(",")[1], "base64");
+  assert.ok(bytes.equals(expected), "downloaded bytes match the originally submitted file");
+});
+
+test("business registration file download requires groupBooking.manage permission for browser sessions", async (t) => {
+  const server = await startServer(t, { env: { TIG_ADMIN_ROLES: "readonly" } });
+  const created = await submitGroupBooking(server);
+  const login = await adminSessionRequest(server, "/api/admin/login", {
+    body: { username: "admin", password: bootstrapAdminPassword }
+  });
+  const cookie = login.setCookie.split(";")[0];
+
+  const response = await fetch(`${server.adminUrl}/api/admin/group-booking/requests/${created.data.id}/business-registration-file`, {
+    headers: { Cookie: cookie }
+  });
+  assert.equal(response.status, 403);
+});
+
+test("group-booking upload endpoint rate limits repeated submissions from the same client", async (t) => {
+  const server = await startServer(t);
+  const state = await api(server.baseUrl, "/api/state");
+  for (let i = 0; i < 5; i += 1) {
+    await api(server.baseUrl, "/api/group-booking/requests", requestPayload(state, { contactEmail: `rl-${i}@example.org` }));
+  }
+
+  const blocked = await fetch(`${server.baseUrl}/api/group-booking/requests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestPayload(state, { contactEmail: "rl-blocked@example.org" }))
+  });
+  assert.equal(blocked.status, 429);
+  const json = await blocked.json();
+  assert.equal(json.error.code, "RATE_LIMITED");
+  assert.ok(blocked.headers.get("retry-after"));
+
+  const workspace = await adminApi(server, "/api/admin/workspaces/group-booking");
+  assert.equal(workspace.data.requests.length, 5, "the blocked 6th submission never reaches the backend");
 });
 
 test("institutional tickets assigned by approval cannot be listed for resale", async (t) => {

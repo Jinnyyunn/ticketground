@@ -8,9 +8,16 @@ import { cn } from "@/lib/utils";
 type SiteSearchBarProps = {
   readonly className?: string;
   readonly keyboardReachable?: boolean;
+  readonly ariaLabel?: string;
+  readonly buttonLabel?: string;
 };
 
-export function SiteSearchBar({ className, keyboardReachable = true }: SiteSearchBarProps) {
+export function SiteSearchBar({
+  className,
+  keyboardReachable = true,
+  ariaLabel = "공연명, 아티스트, 공연장 검색",
+  buttonLabel = "검색",
+}: SiteSearchBarProps) {
   const [query, setQuery] = useState("");
   const router = useRouter();
 
@@ -44,18 +51,18 @@ export function SiteSearchBar({ className, keyboardReachable = true }: SiteSearc
       )}
     >
       <input
-        aria-label="공연명, 아티스트, 공연장 검색"
+        aria-label={ariaLabel}
         className="h-full min-w-0 flex-1 bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink-3"
         name="q"
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="공연명, 아티스트, 공연장 검색"
+        placeholder={ariaLabel}
         tabIndex={keyboardReachable ? undefined : -1}
         type="search"
         value={query}
         suppressHydrationWarning
       />
       <button
-        aria-label="검색"
+        aria-label={buttonLabel}
         className="grid size-8 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50"
         tabIndex={keyboardReachable ? undefined : -1}
         type="submit"

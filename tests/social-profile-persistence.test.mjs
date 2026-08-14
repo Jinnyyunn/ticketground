@@ -51,7 +51,7 @@ test("database reload preserves explicitly incomplete profiles while backfilling
   assert.equal(database.users[2].profileConfirmedAt, confirmedAt);
 });
 
-test("new Kakao and Naver identities persist an explicit incomplete-profile marker", async (t) => {
+test("new Kakao and Naver identities are confirmed immediately using the provider's own nickname", async (t) => {
   // Given: enabled deterministic provider callbacks for isolated Kakao and Naver identities.
   configureSocialEnv(t, true);
 
@@ -75,13 +75,16 @@ test("new Kakao and Naver identities persist an explicit incomplete-profile mark
       new URLSearchParams({ code: PROVIDERS[provider].code, state }),
     );
 
-    // Then: persistence can distinguish this incomplete profile from legacy missing data.
+    // Then: the provider already verified this identity and supplied a real
+    // nickname - there is nothing left for Ticketground to ask the user to
+    // confirm, so the profile is complete from the first login.
     assert.equal(db.users.length, 1);
-    assert.equal(db.users[0].profileConfirmedAt, null);
+    assert.ok(db.users[0].profileConfirmedAt, `${provider} profile is confirmed immediately`);
+    assert.notEqual(db.users[0].name, `${provider} 사용자`, `${provider} uses the real provider nickname, not a generic fallback`);
   }
 });
 
-test("new Google identities persist an explicit incomplete-profile marker", async (t) => {
+test("new Google identities are confirmed immediately using the Google account's own name", async (t) => {
   // Given: a deterministic Google credential and an empty user database.
   const previousTestMode = process.env.TIG_GOOGLE_AUTH_TEST_MODE;
   process.env.TIG_GOOGLE_AUTH_TEST_MODE = "1";
@@ -102,6 +105,7 @@ test("new Google identities persist an explicit incomplete-profile marker", asyn
     httpError(status, code, message) {
       return Object.assign(new Error(message), { code, status });
     },
+    issueNativeSession: (database, userId) => ({ credential: `test-credential-${userId}`, expiresAt: "2026-10-19T17:00:00.000Z" }),
     now: () => "2026-09-19T17:00:00.000Z",
     stableId: (prefix, value) => `${prefix}_${value}`,
   });
@@ -111,9 +115,12 @@ test("new Google identities persist an explicit incomplete-profile marker", asyn
     credential: "ticketground-google-test-credential",
   });
 
-  // Then: persistence can distinguish this incomplete profile from legacy missing data.
+  // Then: Google already verified this identity and supplied a real display
+  // name - there is nothing left for Ticketground to ask the user to
+  // confirm, so the profile is complete from the first login.
   assert.equal(db.users.length, 1);
-  assert.equal(db.users[0].profileConfirmedAt, null);
+  assert.ok(db.users[0].profileConfirmedAt);
+  assert.equal(db.users[0].name, "Google 테스트 사용자");
 });
 
 test("Kakao, Naver, and Google identities cannot expose another provider profile", async (t) => {
@@ -139,6 +146,7 @@ test("Kakao, Naver, and Google identities cannot expose another provider profile
     httpError(status, code, message) {
       return Object.assign(new Error(message), { code, status });
     },
+    issueNativeSession: (database, userId) => ({ credential: `test-credential-${userId}`, expiresAt: "2026-10-19T17:00:00.000Z" }),
     now: () => "2026-09-19T17:00:00.000Z",
     stableId: (prefix, ...values) => `${prefix}_${crypto.createHash("sha256").update(values.join(":")).digest("hex").slice(0, 12)}`,
   });
@@ -211,7 +219,9 @@ test("saved Naver identity survives a real server restart on the same database",
 
   const firstServer = await startServer(t, { dbPath });
   const firstSession = await completeNaverLogin(firstServer);
-  assert.equal(firstSession.profileConfirmed, false);
+  // Naver already verified this identity and supplied a real nickname, so
+  // the profile is confirmed from the first login - no manual save needed.
+  assert.equal(firstSession.profileConfirmed, true);
   const savedProfile = await api(firstServer.baseUrl, `/api/users/${firstSession.id}/profile`, {
     name: "재시작 보존 닉네임",
   });
@@ -222,7 +232,7 @@ test("saved Naver identity survives a real server restart on the same database",
   const secondServer = await startServer(t, { dbPath });
   const secondSession = await completeNaverLogin(secondServer);
 
-  // Then: relogin reuses the persisted identity and completed profile.
+  // Then: relogin reuses the persisted identity and the manually renamed profile.
   assert.notEqual(secondServer.pid, firstServer.pid);
   assert.equal(secondSession.id, firstSession.id);
   assert.equal(secondSession.name, "재시작 보존 닉네임");

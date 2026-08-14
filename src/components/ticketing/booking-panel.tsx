@@ -1,15 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
 import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/data/ticketing-backend-events";
 import { currency } from "@/data/ticketing";
+import {
+  bindChartLayoutToBackendSeats,
+  chartCoversAllBackendSeats,
+} from "@/lib/seat-charts/bind-backend-seats";
+import { apiChartForShow } from "@/lib/seat-charts/client";
+import type { InventoryResult } from "@/lib/seat-charts/inventory";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
-import { BackendSeatPicker } from "./backend-seat-picker";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
+import { ChartSeatMap } from "./chart-seat-map";
+import { VenueSeatMap } from "./venue-seat-map";
 
 const serviceFeePerSeat = 2000;
 const maxSelectableSeats = 2;
@@ -28,14 +35,27 @@ function minutes(seconds: number) {
 }
 
 type BookingPanelProps = { readonly show: TicketShow; readonly initialSelection: Pick<BookingSelection, "date" | "time">; readonly initialTimerSeconds?: number };
+type PublishedChartState = {
+  readonly requestKey: string;
+  readonly inventory: InventoryResult | null;
+  readonly name: string | null;
+};
 
 export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 * 60 }: BookingPanelProps) {
+  const chartPrices = useMemo(() => ({
+    VIP: show.prices.find((price) => price.grade === "VIP")?.price ?? 190000,
+    R: show.prices.find((price) => price.grade === "R")?.price ?? 160000,
+    S: show.prices.find((price) => price.grade === "S")?.price ?? 120000,
+    A: show.prices.find((price) => price.grade === "A")?.price ?? 80000,
+  }), [show.prices]);
+  const chartRequestKey = `${show.slug}:${chartPrices.VIP}:${chartPrices.R}:${chartPrices.S}:${chartPrices.A}`;
   const [date, setDate] = useState(initialSelection.date || show.schedules[0]?.date || "");
   const [time, setTime] = useState(initialSelection.time || show.schedules[0]?.times[0] || "");
   const [quantity, setQuantity] = useState(maxSelectableSeats);
   const [step, setStep] = useState<BookingStep>("schedule");
   const [seatMap, setSeatMap] = useState<ApiSeatMap | null>(null);
   const [seatMapStatus, setSeatMapStatus] = useState("좌석도 로딩 중");
+  const [publishedChart, setPublishedChart] = useState<PublishedChartState | null>(null);
   const [selectedBackendTicketIds, setSelectedBackendTicketIds] = useState<readonly string[]>([]);
   const [timerSeconds, setTimerSeconds] = useState(initialTimerSeconds);
   const timerExpired = timerSeconds === 0;
@@ -67,7 +87,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
       .then((nextSeatMap) => {
         if (!mounted) return;
         setSeatMap(nextSeatMap);
-        setSeatMapStatus(`${nextSeatMap.event.title} · ${nextSeatMap.seats.length}석 로드`);
+        setSeatMapStatus(
+          nextSeatMap.seats.some((seat) => seat.available)
+            ? `${nextSeatMap.event.title} · ${nextSeatMap.seats.length}석 로드`
+            : "선택 가능한 좌석이 없습니다.",
+        );
       })
       .catch((error: unknown) => {
         if (!mounted) return;
@@ -79,10 +103,48 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     };
   }, [backendEventId, performanceDateId]);
 
-  const backendSeats = seatMap?.seats.filter((seat) => seat.available).slice(0, 48) ?? [];
+  useEffect(() => {
+    let mounted = true;
+    void apiChartForShow(show.slug, {
+      vip: chartPrices.VIP,
+      r: chartPrices.R,
+      s: chartPrices.S,
+      a: chartPrices.A,
+    })
+      .then((response) => {
+        if (!mounted) return;
+        setPublishedChart({
+          requestKey: chartRequestKey,
+          inventory: response.source === "published" ? response.inventory : null,
+          name: response.source === "published" ? response.record?.name ?? response.chart?.name ?? null : null,
+        });
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setPublishedChart({ requestKey: chartRequestKey, inventory: null, name: null });
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [chartPrices.A, chartPrices.R, chartPrices.S, chartPrices.VIP, chartRequestKey, show.slug]);
+
+  // Stable across the once-a-second timer re-render so VenueSeatMap (wrapped in
+  // React.memo) doesn't reconcile its marker set every tick.
+  const backendSeats = useMemo(() => seatMap?.seats ?? [], [seatMap]);
+  const availableBackendSeats = useMemo(() => backendSeats.filter((seat) => seat.available), [backendSeats]);
+  const allBoundChartSeats = useMemo(
+    () => publishedChart?.requestKey === chartRequestKey && publishedChart.inventory
+      ? bindChartLayoutToBackendSeats(publishedChart.inventory.seats, backendSeats)
+      : [],
+    [backendSeats, chartRequestKey, publishedChart],
+  );
+  const boundChartSeats = useMemo(() => allBoundChartSeats.filter((seat) => !seat.sold), [allBoundChartSeats]);
+  const usePublishedChart = Boolean(
+    publishedChart?.inventory && chartCoversAllBackendSeats(allBoundChartSeats, backendSeats),
+  );
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
-  const useBackendSeatMap = Boolean(seatMap && backendSeats.length > 0);
-  const selectedLabels = selectedBackendSeats.map((seat) => seat.displayCode).join(", ");
+  const useBackendSeatMap = Boolean(seatMap && availableBackendSeats.length > 0);
+  const selectedLabels = selectedBackendSeats.map((seat) => seat.label).join(", ");
   const selectedCount = selectedBackendSeats.length;
   const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
   const feeAmount = selectedCount * serviceFeePerSeat;
@@ -91,13 +153,13 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const canPay = show.sale.bookable && !timerExpired && selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity;
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}`;
 
-  function selectBackendSeat(ticketId: string) {
+  const selectBackendSeat = useCallback((ticketId: string) => {
     setSelectedBackendTicketIds((current) => {
       if (current.includes(ticketId)) return current.filter((id) => id !== ticketId);
       const allowedCount = Math.min(quantity, maxSelectableSeats);
       return [...current, ticketId].slice(-allowedCount);
     });
-  }
+  }, [quantity]);
 
   function changeDate(nextDate: string) {
     const nextTimes = show.schedules.find((schedule) => schedule.date === nextDate)?.times;
@@ -160,7 +222,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               <span className="font-black text-ticketground">{show.sale.label}</span> · {show.sale.note}
             </div>
           ) : null}
-          <div data-testid="booking-identity-notice" className="rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3">
+          <div data-testid="booking-identity-notice" className="break-keep rounded-lg border border-line bg-card p-4 text-sm font-bold text-ink-3">
             {show.checkoutNotice} 이미 다른 계정에서 인증된 휴대폰 번호는 다시 사용할 수 없습니다.
           </div>
 
@@ -208,11 +270,31 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <p className="text-sm font-black text-ticketground">STEP 2</p>
                   <h2 className="balanced-title mt-1 text-2xl font-black text-ink sm:text-[24px]">좌석 선택</h2>
                 </div>
-                <p className="text-sm font-bold text-ink-3">20행 A-T × 22열, 12열 앞 중앙 통로</p>
+                <p className="text-sm font-bold text-ink-3">
+                  {publishedChart?.requestKey !== chartRequestKey && "게시 배치도 확인 중"}
+                  {publishedChart?.requestKey === chartRequestKey && usePublishedChart && `게시 배치도 · ${publishedChart.name ?? "이름 없음"}`}
+                  {publishedChart?.requestKey === chartRequestKey && !usePublishedChart && "실시간 공연장 좌석도"}
+                  {seatMap && ` · ${seatMapStatus}`}
+                </p>
               </div>
-              <div className="mt-5 min-w-0">
+              <div className="mt-5 min-w-0 space-y-4">
                 {useBackendSeatMap && seatMap ? (
-                  <BackendSeatPicker map={seatMap.map} seats={backendSeats} selectedTicketIds={selectedBackendTicketIds} status={seatMapStatus} onSelect={selectBackendSeat} />
+                  usePublishedChart && publishedChart?.inventory ? (
+                    <ChartSeatMap
+                      seats={boundChartSeats}
+                      bounds={publishedChart.inventory.bounds}
+                      selectedSeatIds={selectedBackendTicketIds}
+                      onSelect={selectBackendSeat}
+                    />
+                  ) : (
+                    <VenueSeatMap
+                      mapImage={seatMap.map.image}
+                      mapTitle={seatMap.map.title}
+                      seats={backendSeats}
+                      selectedTicketIds={selectedBackendTicketIds}
+                      onSelect={selectBackendSeat}
+                    />
+                  )
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
                     {seatMapStatus}

@@ -6,14 +6,19 @@ const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth
 const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 const GOOGLE_AUTH_TEST_CREDENTIAL = "ticketground-google-test-credential";
 
-export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, issueNativeSession, now, stableId }) {
+export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hmac, httpError, idempotentMutation, issueNativeSession, now, stableId }) {
+  function publicSessionUserWithCredential(db, user) {
+    const session = issueNativeSession(db, user.id);
+    return { ...publicSessionUser(user), credential: session.credential, credentialExpiresAt: session.expiresAt };
+  }
+
   const socialOAuth = createSocialOAuthBackend({
     appendLedger,
     currentTimeMs,
     hmac,
     httpError,
     now,
-    publicSessionUser,
+    publicSessionUserWithCredential,
     stableId
   });
 
@@ -37,6 +42,10 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     const id = claims.ticketgroundUserId || stableId("google_user", subject);
     const existingUser = db.users.find((user) => user.id === id);
     if (existingUser) {
+      // Backfill accounts stuck from before Google's own name was trusted
+      // as confirmed - they already proved this is a real Google identity
+      // by logging in again just now.
+      if (!existingUser.profileConfirmedAt) existingUser.profileConfirmedAt = now();
       return existingUser;
     }
 
@@ -47,7 +56,12 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       status: "ACTIVE",
       trustScore: 90,
       sanctions: [],
-      profileConfirmedAt: null
+      // Google already verified this identity and supplied a real display
+      // name (claims.name) - Ticketground has no separate identity of its
+      // own to confirm, so there is nothing left to ask the user to
+      // re-enter. profileConfirmedAt only exists to gate other UI, not to
+      // force a redundant nickname step for provider-verified logins.
+      profileConfirmedAt: now()
     };
     db.users.push(user);
     appendLedger(db, user.id, "GOOGLE_USER_REGISTERED", {
@@ -92,7 +106,7 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
       provider: "google",
       authenticatedAt: now()
     });
-    return publicSessionUser(user);
+    return publicSessionUserWithCredential(db, user);
   }
 
   async function googleNativeSession(db, { credential }) {
@@ -106,22 +120,29 @@ export function createSessionBackend({ appendLedger, currentTimeMs, findUser, hm
     return { user: publicSessionUser(user), session };
   }
 
-  function updateDemoProfile(db, { userId, name }) {
-    const user = findUser(db, userId);
+  function updateDemoProfile(db, { userId, name, idempotencyKey }) {
     const nextName = String(name || "").trim();
-    if (!nextName || nextName.length > 12) {
-      throw httpError(422, "INVALID_PROFILE_NAME", "닉네임은 1자 이상 12자 이하로 입력해주세요.");
-    }
-    const previousName = user.name;
-    user.name = nextName;
-    user.profileConfirmedAt = now();
-    appendLedger(db, user.id, "DEMO_PROFILE_UPDATED", {
-      previousName,
-      nextName,
-      updatedAt: now(),
-      policy: "demo-session-profile-edit"
+    return idempotentMutation(db, {
+      kind: "profile-update",
+      userId,
+      key: idempotencyKey,
+      payload: { name: nextName }
+    }, () => {
+      const user = findUser(db, userId);
+      if (!nextName || nextName.length > 12) {
+        throw httpError(422, "INVALID_PROFILE_NAME", "닉네임은 1자 이상 12자 이하로 입력해주세요.");
+      }
+      const previousName = user.name;
+      user.name = nextName;
+      user.profileConfirmedAt = now();
+      appendLedger(db, user.id, "DEMO_PROFILE_UPDATED", {
+        previousNameDigest: hmac(`profile_name:${previousName}`),
+        nextNameDigest: hmac(`profile_name:${nextName}`),
+        updatedAt: now(),
+        policy: "demo-session-profile-edit"
+      });
+      return publicSessionUser(user);
     });
-    return publicSessionUser(user);
   }
 
   return {

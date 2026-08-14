@@ -1,18 +1,10 @@
 import type { DealItem, OpenItem, PlayItem, ProductItem, RankingItem, ReviewItem } from "@/types";
+import type { CategoryId, HighlightCategoryId } from "@/components/header-links";
 
 const P = "/images/posters";
 
-export const categoryNav = [
-  "홈",
-  "콘서트",
-  "뮤지컬",
-  "연극",
-  "클래식",
-  "전시",
-  "아동",
-  "스포츠",
-];
-export const categoryNavHighlight = ["티켓 양도", "티켓오픈 캘린더"];
+export const categoryNav: readonly CategoryId[] = ["home", "concert", "musical", "theater", "classical", "exhibition", "kids", "sports"];
+export const categoryNavHighlight: readonly HighlightCategoryId[] = ["resale", "calendar"];
 
 // Top promo row — baked mini banners (rotating)
 export const promoBanners = [
@@ -131,43 +123,46 @@ export const reviews: ReviewItem[] = [
   },
 ];
 
+// Display labels for these ids come from src/i18n/dictionaries/*.ts
+// (footer.links / footer.columns) - the id is a stable lookup key, never
+// a translated string.
 export const footerLinks = [
-  { label: "회사소개", href: "/company" },
-  { label: "이용약관", href: "/terms" },
-  { label: "개인정보처리방침", href: "/privacy" },
-  { label: "티켓판매안내", href: "/seller" },
+  { id: "company", href: "/company" },
+  { id: "terms", href: "/terms" },
+  { id: "privacy", href: "/privacy" },
+  { id: "sellerGuide", href: "/seller" },
 ] as const;
 
 export const footerColumnLinks = [
   {
-    title: "예매",
+    id: "booking",
     links: [
-      { label: "티켓오픈 캘린더", href: "/open" },
-      { label: "랭킹", href: "/contents/ranking" },
-      { label: "공연장", href: "/place" },
+      { id: "calendar", href: "/open" },
+      { id: "ranking", href: "/contents/ranking" },
+      { id: "venues", href: "/place" },
     ],
   },
   {
-    title: "MY",
+    id: "my",
     links: [
-      { label: "예매내역", href: "/mypage#reservations" },
-      { label: "CLEAN 티켓 양도", href: "/mypage/resale" },
-      { label: "관심공연", href: "/watchlist" },
-      { label: "취소/환불", href: "/cancel" },
+      { id: "reservations", href: "/mypage#reservations" },
+      { id: "resale", href: "/mypage/resale" },
+      { id: "watchlist", href: "/watchlist" },
+      { id: "cancel", href: "/cancel" },
     ],
   },
   {
-    title: "고객센터",
+    id: "support",
     links: [
-      { label: "고객센터 홈", href: "/help" },
-      { label: "1:1 문의", href: "/inquiry" },
-      { label: "공지사항", href: "/contents/notice" },
+      { id: "home", href: "/help" },
+      { id: "inquiry", href: "https://pf.kakao.com/_xmTniX/chat" },
+      { id: "notice", href: "/contents/notice" },
     ],
   },
   {
-    title: "기업/기관",
+    id: "business",
     links: [
-      { label: "단체/기관 예매", href: "/group-booking" },
+      { id: "groupBooking", href: "/group-booking" },
     ],
   },
 ] as const;

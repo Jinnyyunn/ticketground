@@ -7,13 +7,15 @@ import { useTheme } from "@/lib/use-theme";
 
 type ThemeToggleProps = {
   readonly className?: string;
+  readonly lightLabel?: string;
+  readonly darkLabel?: string;
 };
 
-export function ThemeToggle({ className }: ThemeToggleProps) {
+export function ThemeToggle({ className, lightLabel = "라이트 모드 켜기", darkLabel = "다크 모드 켜기" }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const [rootTheme, setRootTheme] = useState<"light" | "dark" | null>(null);
   const darkEnabled = (rootTheme ?? resolvedTheme) === "dark";
-  const label = darkEnabled ? "라이트 모드 켜기" : "다크 모드 켜기";
+  const label = darkEnabled ? lightLabel : darkLabel;
   const syncFromRoot = useCallback(() => {
     setRootTheme(document.documentElement.classList.contains("dark") ? "dark" : "light");
   }, []);
@@ -44,6 +46,8 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
         setRootTheme(nextTheme);
       }}
       data-theme-toggle
+      data-label-light={lightLabel}
+      data-label-dark={darkLabel}
     >
       <span
         className={cn(

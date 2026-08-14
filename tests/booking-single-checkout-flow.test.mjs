@@ -15,14 +15,15 @@ test("booking seat selection goes to the single checkout page without an interme
   await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
   await page.getByRole("heading", { name: "좌석 선택" }).waitFor({ timeout: 5000 });
   assert.equal(await page.getByRole("heading", { name: "결제수단" }).count(), 0);
-  await page.locator("[data-backend-seat]").first().waitFor({ timeout: 5000 });
+  const seatMapSeat = page.locator("[data-seat-map-seat]").first();
+  await seatMapSeat.waitFor({ timeout: 5000 });
   assert.equal(await page.locator("[data-static-seat-map]").count(), 0);
   assert.equal(await page.getByRole("heading", { name: "실제 구매 가능한 티켓 선택" }).count(), 0);
   assert.equal(await page.locator("[data-realtime-seat-map]").count(), 1);
-  assert.equal(await page.locator("[data-realtime-seat-map] img").count(), 1);
 
   const paymentButton = page.getByRole("link", { name: "결제하기", exact: true });
-  await page.locator("[data-backend-seat]").first().click();
+  await seatMapSeat.click();
+  assert.equal(await seatMapSeat.getAttribute("aria-pressed"), "true");
   await paymentButton.waitFor({ timeout: 5000 });
   await paymentButton.click();
 
@@ -55,7 +56,7 @@ test("booking fails closed when the selected performance seat map is unavailable
   assert.equal(await page.getByRole("link", { name: "결제하기", exact: true }).count(), 0);
 });
 
-test("backend seat picker keeps two selected seats and replaces the oldest seat when quantity is two", async (t) => {
+test("seat map keeps two selected seats and replaces the oldest seat when quantity is two", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -63,21 +64,18 @@ test("backend seat picker keeps two selected seats and replaces the oldest seat 
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   t.after(() => page.close());
 
-  const isSelected = async (seatButton) => {
-    const className = (await seatButton.getAttribute("class")) ?? "";
-    return className.split(/\s+/).includes("bg-ink");
-  };
+  const isSelected = async (seatButton) => (await seatButton.getAttribute("aria-pressed")) === "true";
 
   // Given: the booking page is on the realtime backend seat picker with quantity set to two.
   await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "2매" }).click();
   await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
-  await page.locator("[data-backend-seat]").first().waitFor({ timeout: 5000 });
-  await page.waitForFunction(() => document.querySelectorAll("[data-backend-seat]").length >= 3);
+  await page.locator("[data-seat-map-seat]").first().waitFor({ timeout: 5000 });
+  await page.waitForFunction(() => document.querySelectorAll("[data-seat-map-seat]").length >= 3);
 
-  const firstSeat = page.locator("[data-backend-seat]").nth(0);
-  const secondSeat = page.locator("[data-backend-seat]").nth(1);
-  const thirdSeat = page.locator("[data-backend-seat]").nth(2);
+  const firstSeat = page.locator("[data-seat-map-seat]").nth(0);
+  const secondSeat = page.locator("[data-seat-map-seat]").nth(1);
+  const thirdSeat = page.locator("[data-seat-map-seat]").nth(2);
 
   // When: two different backend seats are selected.
   await firstSeat.click();
@@ -128,4 +126,30 @@ test("checkout ignores tampered URL amount parameters for a selected backend tic
   const bodyText = await page.locator("body").innerText();
   assert.doesNotMatch(bodyText, /좌석 금액\s*1원/);
   assert.doesNotMatch(bodyText, /총 결제금액\s*2원/);
+});
+
+test("checkout blocks payment instead of silently substituting a seat when ticketId is missing", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+  t.after(() => page.close());
+
+  // Given: a checkout URL that lost its ticketId (e.g. corrupted link, back-navigation) but
+  // otherwise looks like a normal checkout deep link.
+  const missingTicketUrl = new URL(`${baseUrl}/checkout/les-miserables`);
+  missingTicketUrl.searchParams.set("date", "2026.05.13");
+  missingTicketUrl.searchParams.set("time", "19:30");
+
+  // When: the checkout page loads without a ticketId.
+  await page.goto(missingTicketUrl.toString(), { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "결제 정보 확인", level: 1 }).waitFor({ timeout: 5000 });
+
+  // Then: the payment button stays disabled and the page tells the user to reselect a seat,
+  // instead of silently buying whatever seat happens to still be on sale.
+  const payButton = page.getByRole("button", { name: "결제 완료" });
+  await payButton.waitFor({ timeout: 5000 });
+  assert.equal(await payButton.isDisabled(), true);
+  await page.getByText("선택된 좌석 정보를 확인할 수 없습니다. 좌석 선택 화면으로 돌아가 다시 선택해주세요.").waitFor({ timeout: 5000 });
 });

@@ -177,7 +177,7 @@ async function socialProfile(provider, code, state, config) {
   return normalizeProfile(provider, await fetchProfile(config, accessToken));
 }
 
-export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, httpError, now, publicSessionUser, stableId }) {
+export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, httpError, now, publicSessionUserWithCredential, stableId }) {
   function upsertSocialUser(db, provider, profile) {
     const subject = String(profile.subject || "").trim();
     if (!subject) throw new Error(`${provider} profile subject missing`);
@@ -190,6 +190,10 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
         providerName: name,
         updatedAt: now()
       });
+      // Backfill accounts stuck from before the provider's own nickname was
+      // trusted as confirmed - they already proved this is a real account
+      // by logging in again just now.
+      if (!existingUser.profileConfirmedAt) existingUser.profileConfirmedAt = now();
       return existingUser;
     }
 
@@ -200,7 +204,11 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
       status: "ACTIVE",
       trustScore: 88,
       sanctions: [],
-      profileConfirmedAt: null
+      // Kakao/Naver already authenticated this identity and supplied a
+      // real nickname (normalizeProfile()) - Ticketground has no separate
+      // identity of its own to confirm, so there is nothing left to ask
+      // the user to re-enter for a provider-verified login.
+      profileConfirmedAt: now()
     };
     db.users.push(user);
     appendLedger(db, id, "SOCIAL_USER_REGISTERED", {
@@ -301,7 +309,7 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
     }
     return {
       responseHeaders: setCookieHeaders(clearSocialSessionCookie(provider, secureCookie)),
-      responseBody: publicSessionUser(user)
+      responseBody: publicSessionUserWithCredential(db, user)
     };
   }
 

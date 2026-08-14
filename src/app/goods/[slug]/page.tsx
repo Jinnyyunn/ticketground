@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { DetailBookingPanel } from "@/components/ticketing/detail-booking-panel";
 import { TicketingPageShell } from "@/components/ticketing/page-shell";
+import { WatchlistAddButton } from "@/components/watchlist/watchlist-add-button";
 import { currency } from "@/data/ticketing";
 import { getShowBySlug } from "@/data/catalog-server";
 import { getVenueForShow } from "@/data/venues";
@@ -54,7 +55,10 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
               {show.ranking && <span className="text-sm font-bold text-ticketground">{show.ranking}</span>}
               <span className="rounded border border-line px-2 py-1 text-xs font-black text-ink-3">{show.sale.label}</span>
             </div>
-            <h2 className="balanced-title mt-4 text-[30px] font-black leading-tight text-ink sm:text-4xl">{show.title}</h2>
+            <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+              <h2 className="balanced-title text-[30px] font-black leading-tight text-ink sm:text-4xl">{show.title}</h2>
+              {show.backendEventId ? <WatchlistAddButton className="shrink-0" eventId={show.backendEventId} title={show.title} /> : null}
+            </div>
             <p className="mt-4 max-w-[680px] text-base leading-loose text-ink-3">{show.summary}</p>
 
             <dl className="mt-8 grid gap-0 overflow-hidden rounded-lg border border-line text-sm md:grid-cols-2">
@@ -100,9 +104,12 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
           <div className="min-w-0 space-y-12 lg:col-span-2">
             <section id="intro" className="scroll-mt-[128px]">
               <p className="text-sm font-black text-ticketground">공연소개</p>
-              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">클린티켓으로 만나는 대표 회차</h2>
+              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">Tig 티켓으로 만나는 대표 회차</h2>
               <p className="mt-4 text-base leading-loose text-ink-3">
-                {show.summary} Tig 공식 양도 티켓과 공식 양도 정책이 함께 적용되어 좌석 소유, 입장 QR, 거래 기록이 분리 관리됩니다.
+                {show.summary}{" "}
+                {show.badge === "클린티켓"
+                  ? "CLEAN 티켓 공식 양도 정책이 함께 적용되어 좌석 소유, 입장 QR, 거래 기록이 분리 관리됩니다."
+                  : "Tig 티켓 예매 내역은 좌석 소유, 입장 QR, 거래 기록이 안전하게 관리됩니다."}
               </p>
             </section>
 
@@ -218,7 +225,7 @@ export default async function GoodsPage({ params }: { params: Promise<{ slug: st
 
             <section id="notices" className="scroll-mt-[128px]">
               <p className="text-sm font-black text-ticketground">유의사항</p>
-              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">클린티켓 운영 안내</h2>
+              <h2 className="balanced-title mt-2 text-[26px] font-black text-ink sm:text-3xl">Tig 티켓 운영 안내</h2>
               <ul className="mt-5 grid gap-3 text-sm leading-loose text-ink-3">
                 {show.notices.map((notice) => (
                   <li key={notice} className="rounded-sm border border-line bg-card px-4 py-3">

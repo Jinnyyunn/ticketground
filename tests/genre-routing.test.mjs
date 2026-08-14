@@ -40,7 +40,7 @@ test("theater and classic header links route to their own genre booking lists", 
       await page.locator(`a[href="/goods/${route.slug}"]`).first().click();
       await page.waitForURL(new RegExp(`/goods/${route.slug}$`));
       await page.getByRole("heading", { name: new RegExp(route.title) }).first().waitFor({ timeout: 5000 });
-      await page.getByRole("link", { name: "선택 회차 예매" }).waitFor({ timeout: 5000 });
+      await page.getByRole("link", { name: "예매하기" }).waitFor({ timeout: 5000 });
     }
   }
 });

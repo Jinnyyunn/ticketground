@@ -1,34 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
-import { api, startServer } from "./backend-test-utils.mjs";
+import { startServer } from "./backend-test-utils.mjs";
 
-const evidenceDir = ".omo/evidence/issue-63-inquiry-show-slug";
-
-test("inquiry backend thread resolves Les Miserables show context", async (t) => {
-  await mkdir(evidenceDir, { recursive: true });
+test("inquiry page exposes direct chat first and channel add as an optional action", async (t) => {
   const server = await startServer(t);
-  await api(server.baseUrl, "/api/support/threads", {
-    userId: "user_fan_a",
-    subject: "레미제라블 입장 문의",
-    message: "공연 당일 입장 시간을 확인하고 싶습니다."
-  });
-
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
-
   const page = await browser.newPage({ viewport: { width: 1280, height: 960 }, deviceScaleFactor: 1 });
   try {
     await page.goto(`${server.baseUrl}/inquiry`, { waitUntil: "networkidle" });
-    await page.getByText("1건의 문의 동기화").waitFor({ timeout: 8000 });
+    await page.getByRole("heading", { name: "카카오톡 1:1 문의" }).waitFor();
+    assert.equal(await page.getByText("카카오톡 채널에서만 접수합니다.", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("문의 스레드").count(), 0);
+    assert.equal(await page.locator("textarea").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "문의 답변 등록" }).count(), 0);
+    const chatLink = page.getByRole("link", { name: "카카오톡으로 1:1 문의하기" });
+    assert.equal(await chatLink.count(), 1);
+    assert.equal(await chatLink.getAttribute("href"), "https://pf.kakao.com/_xmTniX/chat");
+    assert.equal(await chatLink.getAttribute("target"), "_blank");
+    assert.equal(await page.getByRole("button", { name: "채널 추가하기" }).count(), 1);
+    const kakaoSdkScripts = await page.locator('script[src*="kakao_js_sdk"]').count();
+    assert.ok(kakaoSdkScripts === 0 || kakaoSdkScripts === 1, "Kakao SDK is optional and must load at most once");
+  } finally {
+    await page.close();
+  }
+});
 
-    const contextItems = (await page.locator('[data-testid="reservation-context"] span').allTextContents()).map((item) => item.trim());
-    await writeFile(`${evidenceDir}/inquiry-context-observed.json`, `${JSON.stringify({ contextItems }, null, 2)}\n`);
-    await page.screenshot({ path: `${evidenceDir}/inquiry-context-browser.png`, fullPage: true });
-
-    assert.equal(contextItems[1], "공연 레미제라블");
-    assert.notEqual(contextItems[1], "공연", "show context must not render as a fallback-only blank label");
+test("optional channel add action uses the connected public ID", async (t) => {
+  const server = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 960 }, deviceScaleFactor: 1 });
+  try {
+    await page.goto(`${server.baseUrl}/inquiry`, { waitUntil: "networkidle" });
+    const inquiryButton = page.getByRole("button", { name: "채널 추가하기" });
+    assert.equal(await inquiryButton.getAttribute("data-channel-public-id"), "_xmTniX");
   } finally {
     await page.close();
   }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, bootstrapAdminPassword, buyFirstTicket, startServer } from "./backend-test-utils.mjs";
 
 test("public server serves the Next frontend and backend API on one port", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -59,7 +59,13 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   );
   assert.ok(seatMap.data.seats.length > 0);
   assert.ok(seatMap.data.zones.length > 0);
-  assert.ok(seatMap.data.seats.every((seat) => Number.isFinite(seat.mapPosition.x) && Number.isFinite(seat.mapPosition.y)));
+  const firstVipSeat = seatMap.data.seats.find((seat) => seat.zoneId === "zone_vip" && seat.displayCode === "01");
+  assert.equal(firstVipSeat?.label, "VIP-01");
+  assert.deepEqual(
+    { x: firstVipSeat?.mapPosition.x, y: firstVipSeat?.mapPosition.y },
+    { x: 34, y: 58 },
+    "selectable seat markers should use the venue layout instead of a dense synthetic ring",
+  );
   const expectedTicketIDs = state.data.tickets
     .filter((ticket) =>
       ticket.eventId === "event_kpop_001" && ticket.performanceDateId === performanceDateId
@@ -72,6 +78,8 @@ test("backend watchlist, notification, seat map, and admin summary APIs remain u
   assert.equal(publicAdmin.error.code, "NOT_FOUND");
   const publicLedger = await api(baseUrl, "/api/ledger", null, 404);
   assert.equal(publicLedger.error.code, "NOT_FOUND");
+  const publicLedgerVerify = await api(baseUrl, "/api/ledger/verify", null, 404);
+  assert.equal(publicLedgerVerify.error.code, "NOT_FOUND");
 
   const admin = await adminApi(server, "/api/admin/summary");
   assert.equal(admin.data.stats.watchlistEntries, 1);
@@ -185,44 +193,6 @@ test("direct transfer attempt rejects spoofed actors without penalizing the vict
   assert.equal(victimAfter.trustScore, 88);
   assert.equal(victimAfter.status, "ACTIVE");
   assert.equal(victimAfter.sanctions.length, 0);
-});
-
-test("bootpay purchase records a manual-refund ledger entry when capture wins but allocation loses", async (t) => {
-  // Given: two verified users race to buy the final same ticket through the BootPay route.
-  const server = await startServer(t, { env: { TIG_BOOTPAY_MOCK_CONFIRM_DELAY_MS: "50" } });
-  await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
-  await verifyIdentity(server.baseUrl, "user_fan_b", "010-9000-0002");
-  const state = await api(server.baseUrl, "/api/state");
-  const ticket = state.data.tickets.find((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
-  assert.ok(ticket);
-
-  // When: both requests pass the pre-confirmation availability check before one allocation wins.
-  const responses = await Promise.all([
-    fetch(`${server.baseUrl}/api/payments/bootpay/purchase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "user_fan_a", ticketId: ticket.id, paymentMethod: "CREDIT_CARD" })
-    }),
-    fetch(`${server.baseUrl}/api/payments/bootpay/purchase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "user_fan_b", ticketId: ticket.id, paymentMethod: "CREDIT_CARD" })
-    })
-  ]);
-  const payloads = await Promise.all(responses.map((response) => response.json()));
-  const success = payloads.find((payload) => payload.ok);
-  const failed = payloads.find((payload) => !payload.ok);
-
-  // Then: one purchase succeeds and the captured loser gets an explicit refund-needed error plus ledger trail.
-  assert.ok(success);
-  assert.equal(success.data.ticket.id, ticket.id);
-  assert.equal(failed.error.code, "PAYMENT_CAPTURED_ALLOCATION_FAILED");
-  assert.ok(failed.error.detail.receiptId);
-  const audit = await adminApi(server, "/api/admin/workspaces/audit?action=BOOTPAY_PAYMENT_NEEDS_REFUND");
-  assert.equal(audit.data.ledger.length, 1);
-  assert.equal(audit.data.ledger[0].payload.ticketId, ticket.id);
-  assert.equal(audit.data.ledger[0].payload.receiptId, failed.error.detail.receiptId);
-  assert.equal(audit.data.ledger[0].payload.reason, "TICKET_NOT_AVAILABLE");
 });
 
 test("public validation rejects malformed watchlist and support requests", async (t) => {

@@ -128,20 +128,31 @@ struct LiveDiscoveryContractView: View {
     private func eventRow(_ event: LiveBackendCatalogEvent) -> some View {
         NavigationLink(value: AppRoute.event(slug: event.slug ?? event.id)) {
             TicketgroundSurface {
-                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                    Text(event.title)
-                        .font(.headline.weight(.black))
-                        .foregroundStyle(TicketgroundColor.ink)
-                    Text(event.venue)
-                        .font(.subheadline)
-                        .foregroundStyle(TicketgroundColor.inkMuted)
-                    if let saleLabel = event.sale?.label {
-                        Text(saleLabel)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(TicketgroundColor.accent)
+                HStack(alignment: .top, spacing: TicketgroundSpacing.md) {
+                    TicketgroundMediaImage(
+                        resource: container.environment.apiClient.resolveResource(event.image),
+                        role: .poster,
+                        accessibilityLabel: "\(event.title) 포스터",
+                        accessibilitySuffix: "live-discovery-\(event.id)"
+                    )
+                    .frame(width: 76, height: 104)
+                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+
+                    VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                        Text(event.title)
+                            .font(.headline.weight(.black))
+                            .foregroundStyle(TicketgroundColor.ink)
+                        Text(event.venue)
+                            .font(.subheadline)
+                            .foregroundStyle(TicketgroundColor.inkMuted)
+                        if let saleLabel = event.sale?.label {
+                            Text(saleLabel)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(TicketgroundColor.accent)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .buttonStyle(.plain)
@@ -162,6 +173,7 @@ struct LiveDiscoveryContractView: View {
         guard case .loading = state else { return }
         let service = LiveBackendService(apiClient: container.environment.apiClient)
         do {
+            _ = try await service.diagnosePublicContract()
             switch route {
             case .region:
                 state = .loaded(.regions(try await service.getRegions().regions))

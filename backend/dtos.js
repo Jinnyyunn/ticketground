@@ -52,7 +52,8 @@ function publicPayment(payment) {
   return {
     method: payment.key,
     label: payment.label,
-    status: payment.status
+    status: payment.status,
+    ...(Number.isFinite(payment.amount) ? { amount: payment.amount } : {})
   };
 }
 
@@ -129,14 +130,18 @@ function soldCountByEventId(db) {
   return counts;
 }
 
-function publicCatalog(db, { limit } = {}) {
+function publicCatalog(db, { limit, offset = 0 } = {}) {
   const soldCounts = soldCountByEventId(db);
-  const visibleEvents = db.events.filter((event) => Array.isArray(event.prices) && event.prices.length > 0);
-  const selectedEvents = limit === undefined ? visibleEvents : visibleEvents.slice(0, limit);
+  // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
+  // catalog schema and never carry a prices[] array - they power internal
+  // ticket/resale-engine demos, not the public show listing. Events a
+  // corporate seller registered directly stay hidden until an admin
+  // reviews and publishes them (see backend/seller-events.js).
+  const visibleEvents = db.events.filter((event) => (
+    Array.isArray(event.prices) && event.prices.length > 0 && (event.publishStatus ?? "PUBLISHED") === "PUBLISHED"
+  ));
+  const selectedEvents = limit === undefined ? visibleEvents : visibleEvents.slice(offset, offset + limit);
   return {
-    // Legacy engine blueprint events (event_kpop_001 etc.) predate the admin
-    // catalog schema and never carry a prices[] array - they power internal
-    // ticket/resale-engine demos, not the public show listing.
     events: selectedEvents.map((event) => ({
       id: event.id,
       slug: event.slug,
@@ -172,13 +177,19 @@ function publicCatalog(db, { limit } = {}) {
       address,
       mapType: map?.type,
       imageUrl: map?.imageUrl || ""
-    }))
+    })),
+    ...(limit === undefined ? {} : {
+      total: visibleEvents.length,
+      nextCursor: offset + selectedEvents.length < visibleEvents.length
+        ? String(offset + selectedEvents.length)
+        : null,
+    }),
   };
 }
 
 function publicState(db) {
   return {
-    events: db.events.map((event) => ({
+    events: db.events.filter((event) => (event.publishStatus ?? "PUBLISHED") === "PUBLISHED").map((event) => ({
       ...event,
       sale: saleSummary(event)
     })),
@@ -209,7 +220,38 @@ function publicTicketsForUser(db, userId) {
     .map(publicTicket);
 }
 
+function accountTicketsForUser(db, userId) {
+  return db.tickets
+    .filter((ticket) => ticket.ownerId === userId)
+    .map((ticket) => {
+      const event = db.events.find((item) => item.id === ticket.eventId);
+      const performance = event?.dates?.find((item) => item.id === ticket.performanceDateId);
+      const payment = db.paymentTransactions
+        .filter((item) => item.ticketId === ticket.id && item.userId === userId)
+        .at(-1);
+      return {
+        ...publicTicket(ticket),
+        event: event ? {
+          id: event.id,
+          title: event.title,
+          venue: event.venue,
+          performance: performance ? {
+            id: performance.id,
+            label: performance.label,
+            startsAt: performance.startsAt
+          } : null
+        } : null,
+        payment: payment ? {
+          amount: payment.amount,
+          method: payment.method,
+          status: payment.status
+        } : null
+      };
+    });
+}
+
   return {
+    accountTicketsForUser,
     adminTicket,
     publicCatalog,
     publicDirectTransferResult,

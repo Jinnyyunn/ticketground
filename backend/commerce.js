@@ -18,40 +18,140 @@ export function createCommerceBackend({
 }) {
   const OFFICIAL_RESALE_FEE_RATE = 0.05;
 
-  function assertTicketPurchasable(db, ticketId) {
+  function purchaseIdempotency(userId, key, payload) {
+    return {
+      keyDigest: hash(`purchase:${userId}:${key}`),
+      requestDigest: hash(`purchase:payload:${JSON.stringify(payload)}`)
+    };
+  }
+
+  function ticketPurchaseContext(db, ticketId) {
     const ticket = db.tickets.find((item) => item.id === ticketId);
     if (!ticket) throw httpError(404, "TICKET_NOT_FOUND", "티켓을 찾을 수 없습니다.");
-    if (ticket.status !== "ON_SALE") throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
     const { event, zone } = eventZone(db, ticket.eventId, ticket.zoneId);
-    if (!isEventBookable(event)) {
-      throw httpError(409, "EVENT_NOT_ON_SALE", `${saleSummary(event).label} 티켓은 아직 예매할 수 없습니다.`);
-    }
     const performanceDate = eventDate(event, ticket.performanceDateId);
     return { ticket, event, zone, performanceDate };
   }
 
-  function buyPrimary(db, { userId, ticketId, paymentMethod, pgTransactionId }) {
+  function assertTicketPurchasable(db, ticketId, { allowOwnedSingleSeatHold = false, userId, reservationDraftId } = {}) {
+    const context = ticketPurchaseContext(db, ticketId);
+    let seatHold = null;
+    let reservationDraft = null;
+    if (context.ticket.status === "HELD" && allowOwnedSingleSeatHold && userId) {
+      seatHold = db.seatHolds.find((item) => (
+        item.id === context.ticket.heldBy
+        && item.userId === userId
+        && item.status === "ACTIVE"
+        && item.ticketIds.length === 1
+        && item.ticketIds[0] === context.ticket.id
+        && Date.parse(item.expiresAt) > currentTimeMs()
+      )) || null;
+    }
+    if (context.ticket.status === "RESERVED" && reservationDraftId && userId) {
+      reservationDraft = db.reservationDrafts.find((item) => (
+        item.id === reservationDraftId
+        && item.userId === userId
+        && item.status === "PENDING_PAYMENT"
+        && item.ticketIds.length === 1
+        && item.ticketIds[0] === context.ticket.id
+        && context.ticket.reservationId === item.id
+        && Date.parse(item.expiresAt) > currentTimeMs()
+      )) || null;
+    }
+    if (context.ticket.status !== "ON_SALE" && !seatHold && !reservationDraft) {
+      throw httpError(409, "TICKET_NOT_AVAILABLE", "구매 가능한 티켓이 아닙니다.");
+    }
+    if (!isEventBookable(context.event)) {
+      throw httpError(409, "EVENT_NOT_ON_SALE", `${saleSummary(context.event).label} 티켓은 아직 예매할 수 없습니다.`);
+    }
+    return { ...context, seatHold, reservationDraft };
+  }
+
+  // A lost response after a successful purchase can make a client retry
+  // the exact same request. Without this, that retry either fails on an
+  // already-OWNED ticket (confusing the caller) or - if the caller reacts
+  // by picking a different ticket - silently buys a second seat. A replay
+  // with the same idempotency key returns the original result unchanged;
+  // a reused key with different purchase details is rejected outright.
+  //
+  // Exposed separately (not just used inside buyPrimary) so a PG-specific
+  // route can detect a replay BEFORE re-confirming payment with the
+  // provider - re-confirming on every retry would either cost money/API
+  // calls or, worse, fail outright because assertTicketPurchasable() will
+  // no longer accept an already-OWNED ticket.
+  function findIdempotentPurchase(db, userId, idempotencyKey, payload) {
+    if (!idempotencyKey) return null;
+    const idempotency = purchaseIdempotency(userId, idempotencyKey, payload);
+    const existingTransaction = db.paymentTransactions.find((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
+    if (!existingTransaction) return null;
+    if (existingTransaction.idempotency.requestDigest !== idempotency.requestDigest) {
+      throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 구매 요청이 전달되었습니다.");
+    }
+    return existingTransaction;
+  }
+
+  function buyPrimary(db, {
+    userId, ticketId, paymentMethod, pgTransactionId, idempotencyKey,
+    allowOwnedSingleSeatHold = false, reservationDraftId, approvedAmount,
+    idempotencyPaymentMethod = paymentMethod
+  }) {
     const user = findUser(db, userId);
     ensureIdentityVerified(db, user.id);
     const payment = resolvePaymentMethod(paymentMethod);
-    const { ticket, event, zone, performanceDate } = assertTicketPurchasable(db, ticketId);
+
+    const existingTransaction = findIdempotentPurchase(
+      db, user.id, idempotencyKey, { ticketId, paymentMethod: idempotencyPaymentMethod }
+    );
+    if (existingTransaction) {
+      const context = ticketPurchaseContext(db, existingTransaction.ticketId);
+      const credential = db.admissionCredentials.find((item) => item.ticketId === existingTransaction.ticketId);
+      const replayPayment = resolvePaymentMethod(existingTransaction.method);
+      return {
+        user, ticket: context.ticket, event: context.event, performanceDate: context.performanceDate,
+        payment: { ...replayPayment, amount: existingTransaction.amount }, admissionCredential: credential
+      };
+    }
+
+    const { ticket, event, zone, performanceDate, seatHold, reservationDraft } = assertTicketPurchasable(db, ticketId, {
+      allowOwnedSingleSeatHold,
+      userId: user.id,
+      reservationDraftId
+    });
 
     ticket.ownerId = user.id;
     ticket.status = "OWNED";
+    delete ticket.heldBy;
+    delete ticket.holdExpiresAt;
+    delete ticket.reservationId;
+    delete ticket.reservationExpiresAt;
+    if (seatHold) {
+      seatHold.status = "CONVERTED";
+      seatHold.updatedAt = now();
+    }
+    if (reservationDraft) {
+      reservationDraft.status = "CONFIRMED";
+      reservationDraft.updatedAt = now();
+    }
     ticket.virtualQr = {
       issuedAt: now(),
       type: "VIRTUAL_TICKET"
     };
     const credential = ensureAdmissionCredential(db, { user, ticket, event, performanceDate });
+    const paidAmount = Number.isFinite(approvedAmount)
+      ? money(approvedAmount)
+      : reservationDraft?.amount?.total ?? ticket.faceValue;
     db.paymentTransactions.push({
       id: id("pay"),
       ticketId: ticket.id,
       userId: user.id,
       type: "PRIMARY",
-      amount: ticket.faceValue,
+      amount: paidAmount,
       method: payment.key,
       status: payment.status,
       pgTransactionId: pgTransactionId || `${payment.key}-${hash(`${ticket.id}:${user.id}:${now()}`).slice(0, 12)}`,
+      ...(idempotencyKey ? {
+        idempotency: purchaseIdempotency(user.id, idempotencyKey, { ticketId, paymentMethod: idempotencyPaymentMethod })
+      } : {}),
       createdAt: now()
     });
     appendLedger(db, user.id, "PRIMARY_PURCHASE", {
@@ -61,14 +161,15 @@ export function createCommerceBackend({
       performanceDateId: performanceDate.id,
       seatLabel: ticket.seatLabel,
       zone: zone.name,
-      price: ticket.faceValue,
+      price: paidAmount,
+      amount: paidAmount,
       paymentMethod: payment.key,
       paymentLabel: payment.label,
       paymentStatus: payment.status,
       approvalId: `${payment.key}-${id("pay").toUpperCase()}`,
       policy: "date-selected-seat-owner-assignment"
     });
-    return { user, ticket, event, performanceDate, payment, admissionCredential: credential };
+    return { user, ticket, event, performanceDate, payment: { ...payment, amount: paidAmount }, admissionCredential: credential };
   }
 
   function listForResale(db, { sellerId, ticketId, price, showSlug }) {
@@ -293,5 +394,5 @@ export function createCommerceBackend({
     return { blocked: true, user: actor, ticket };
   }
 
-  return { assertTicketPurchasable, buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, joinPool, listForResale, purchaseResale };
+  return { assertTicketPurchasable, buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, findIdempotentPurchase, joinPool, listForResale, purchaseResale };
 }

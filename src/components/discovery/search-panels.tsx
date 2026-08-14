@@ -12,7 +12,7 @@ type SearchPanelsProps = {
 };
 
 const tabs = ["전체", "공연", "아티스트", "장소", "기획전"] as const;
-const relatedTerms = ["레미제라블 좌석", "블루스퀘어 신한카드홀", "레미제라블 캐스팅", "뮤지컬 클린티켓"] as const;
+const relatedTerms = ["레미제라블 좌석", "블루스퀘어 신한카드홀", "레미제라블 캐스팅", "뮤지컬 Tig 티켓"] as const;
 
 type SearchTab = (typeof tabs)[number];
 

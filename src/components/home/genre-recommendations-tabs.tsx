@@ -6,6 +6,7 @@ import { CarouselRow } from "@/components/carousel-row";
 import { cn } from "@/lib/utils";
 import { GradientPoster } from "./home-cards";
 import type { Recommendation, RecommendationGroup } from "./home-content";
+import type { CategoryId } from "@/components/header-links";
 
 function GenreItemCard({ item, index }: { readonly item: Recommendation; readonly index: number }) {
   return (
@@ -30,16 +31,25 @@ function GenreItemCard({ item, index }: { readonly item: Recommendation; readonl
   );
 }
 
-export function GenreRecommendationsTabs({ groups }: { readonly groups: readonly RecommendationGroup[] }) {
+type GenreRecommendationsTabsProps = {
+  readonly groups: readonly RecommendationGroup[];
+  readonly categoryLabels: Record<CategoryId, string>;
+  readonly ariaTabs: string;
+  readonly emptySuffix: string;
+  readonly carouselPrevLabel: string;
+  readonly carouselNextLabel: string;
+};
+
+export function GenreRecommendationsTabs({ groups, categoryLabels, ariaTabs, emptySuffix, carouselPrevLabel, carouselNextLabel }: GenreRecommendationsTabsProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const activeGroup = groups[activeIndex];
 
   return (
     <div>
-      <div role="tablist" aria-label="장르별 추천 탭" className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+      <div role="tablist" aria-label={ariaTabs} className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
         {groups.map((group, index) => (
           <button
-            key={group.title}
+            key={group.categoryId}
             type="button"
             role="tab"
             aria-selected={index === activeIndex}
@@ -51,18 +61,18 @@ export function GenreRecommendationsTabs({ groups }: { readonly groups: readonly
                 : "border border-line bg-card text-ink-2 hover:border-line-strong",
             )}
           >
-            {group.title}
+            {categoryLabels[group.categoryId]}
           </button>
         ))}
       </div>
       {activeGroup.items.length === 0 ? (
         <p className="mt-6 rounded-lg border border-line bg-card p-8 text-center text-sm font-bold text-ink-3">
-          {activeGroup.title} 공연을 준비 중입니다.
+          {categoryLabels[activeGroup.categoryId]} {emptySuffix}
         </p>
       ) : (
         <div role="tabpanel" className="mt-6">
           <div className="lg:hidden">
-            <CarouselRow className="min-w-0 pb-1">
+            <CarouselRow className="min-w-0 pb-1" prevLabel={carouselPrevLabel} nextLabel={carouselNextLabel}>
               {activeGroup.items.map((item, index) => (
                 <div key={item.title} className="w-[136px] shrink-0 sm:w-[160px]">
                   <GenreItemCard item={item} index={index} />

@@ -226,13 +226,17 @@ test("native app bundle declares distribution version keys", async () => {
   assert.match(plist, /<key>CFBundleShortVersionString<\/key>\s*<string>\$\(MARKETING_VERSION\)<\/string>/);
   assert.match(plist, /<key>CFBundleVersion<\/key>\s*<string>\$\(CURRENT_PROJECT_VERSION\)<\/string>/);
   assert.match(plist, /<key>TicketgroundAPIBaseURL<\/key>\s*<string>\$\(TICKETGROUND_API_BASE_URL\)<\/string>/);
-  for (const configurationID of ["A10000000000000000000070", "A10000000000000000000071"]) {
+  for (const [configurationID, expectedAPIBaseURL, expectedAssetBaseURL] of [
+    ["A10000000000000000000070", "https://dev.ticketground.co.kr", "https://dev.ticketground.co.kr"],
+    ["A10000000000000000000071", "", ""],
+  ]) {
     const configuration = project.split("\n").find((line) => line.includes(`${configurationID} =`));
     assert.ok(configuration);
     assert.match(configuration, /ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon/);
     assert.match(configuration, /MARKETING_VERSION = 1\.0/);
     assert.match(configuration, /CURRENT_PROJECT_VERSION = 1/);
-    assert.match(configuration, /TICKETGROUND_API_BASE_URL = ""/);
+    assert.match(configuration, new RegExp(`TICKETGROUND_API_BASE_URL = "${expectedAPIBaseURL}"`));
+    assert.match(configuration, new RegExp(`TICKETGROUND_ASSET_BASE_URL = "${expectedAssetBaseURL}"`));
   }
   assert.ok(appIconContents.images.some((image) =>
     image.filename === "AppIcon.png"

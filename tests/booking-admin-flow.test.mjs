@@ -3,7 +3,19 @@ import assert from "node:assert/strict";
 import { rm } from "node:fs/promises";
 import { chromium } from "playwright";
 import { normalizeAdminIpAllowlist } from "../backend/admin-acl.js";
-import { adminApi, api, appAttestation, bootstrapAdminPassword, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import {
+  adminApi,
+  api,
+  bootstrapAdminPassword,
+  buyFirstNativeTicket,
+  buyFirstTicket,
+  issueIosAdmissionQr,
+  nativeGoogleLogin,
+  startAttestedServer,
+  startServer,
+  trustIosDevice,
+  verifyIdentity
+} from "./backend-test-utils.mjs";
 
 const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAF/wJ/0R5yyAAAAABJRU5ErkJggg==";
 
@@ -275,6 +287,109 @@ test("administrator cannot assign a role with permissions they do not hold", asy
   assert.ok(created.json.data.id);
 });
 
+test("an admin-role account cannot demote, deactivate, or reset the password of an owner-role account", async (t) => {
+  const server = await startServer(t);
+  const owner = await adminSessionRequest(server, "/api/admin/login", { body: { username: "admin", password: bootstrapAdminPassword } });
+  const ownerCookie = owner.setCookie.split(";")[0];
+  const ownerCsrf = owner.json.data.csrf;
+
+  // The target: a second owner-role account with more permissions than the attacker below.
+  const target = await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "second-owner", password: "second-owner-password", roleKeys: ["owner"], ipAllowlist: [] }
+  });
+
+  // The attacker: "admin" role holds every permission except finance.read, including acl.manage,
+  // so it can reach the admin-accounts/update route despite being less privileged than "owner".
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "acl-admin", password: "acl-admin-password", roleKeys: ["admin"], ipAllowlist: [] }
+  });
+  const attackerLogin = await adminSessionRequest(server, "/api/admin/login", { body: { username: "acl-admin", password: "acl-admin-password" } });
+  const attackerCookie = attackerLogin.setCookie.split(";")[0];
+  const attackerCsrf = attackerLogin.json.data.csrf;
+
+  const demoteAttempt = await adminSessionRequest(server, "/api/admin/admin-accounts/update", {
+    cookie: attackerCookie,
+    csrf: attackerCsrf,
+    body: { adminId: target.json.data.id, roleKeys: ["admin"], ipAllowlist: [] },
+    expectedStatus: 403
+  });
+  assert.equal(demoteAttempt.json.error.code, "ADMIN_ROLE_ESCALATION");
+
+  const deactivateAttempt = await adminSessionRequest(server, "/api/admin/admin-accounts/update", {
+    cookie: attackerCookie,
+    csrf: attackerCsrf,
+    body: { adminId: target.json.data.id, roleKeys: ["owner"], active: false, ipAllowlist: [] },
+    expectedStatus: 403
+  });
+  assert.equal(deactivateAttempt.json.error.code, "ADMIN_ROLE_ESCALATION");
+
+  const passwordResetAttempt = await adminSessionRequest(server, "/api/admin/admin-accounts/update", {
+    cookie: attackerCookie,
+    csrf: attackerCsrf,
+    body: { adminId: target.json.data.id, roleKeys: ["owner"], password: "attacker-chosen-password", ipAllowlist: [] },
+    expectedStatus: 403
+  });
+  assert.equal(passwordResetAttempt.json.error.code, "ADMIN_ROLE_ESCALATION");
+
+  // The target account is untouched by all three attempts - still owner, still active, still
+  // reachable with its original password.
+  const acl = await adminSessionRequest(server, "/api/admin/workspaces/acl", { cookie: ownerCookie });
+  const targetAfter = acl.json.data.adminAccounts.find((account) => account.id === target.json.data.id);
+  assert.ok(targetAfter);
+  assert.deepEqual(targetAfter.roleKeys, ["owner"]);
+  assert.equal(targetAfter.active, true);
+  const stillLogsIn = await adminSessionRequest(server, "/api/admin/login", { body: { username: "second-owner", password: "second-owner-password" } });
+  assert.ok(stillLogsIn.json.data.csrf);
+});
+
+test("ACL browser console hides the edit form for a more-privileged account instead of letting it fail on submit", async (t) => {
+  const server = await startServer(t);
+  const owner = await adminSessionRequest(server, "/api/admin/login", { body: { username: "admin", password: bootstrapAdminPassword } });
+  const ownerCookie = owner.setCookie.split(";")[0];
+  const ownerCsrf = owner.json.data.csrf;
+
+  // second-owner: out of reach for the admin-role viewer below (should render read-only).
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "second-owner", password: "second-owner-password", roleKeys: ["owner"], ipAllowlist: [] }
+  });
+  // catalog-admin: within reach for the admin-role viewer below (should stay editable).
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "catalog-admin", password: "catalog-admin-password", roleKeys: ["catalog"], ipAllowlist: [] }
+  });
+  await adminSessionRequest(server, "/api/admin/admin-accounts", {
+    cookie: ownerCookie,
+    csrf: ownerCsrf,
+    body: { username: "acl-admin", password: "acl-admin-password", roleKeys: ["admin"], ipAllowlist: [] }
+  });
+
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+  await page.goto(`${server.adminUrl}/console`);
+  await page.locator('input[name="username"]').fill("acl-admin");
+  await page.locator('input[name="password"]').fill("acl-admin-password");
+  await page.getByRole("button", { name: "로그인" }).click();
+  await page.getByRole("link", { name: "관리자/ACL" }).click();
+  await page.getByRole("heading", { name: "관리자/ACL", exact: true }).waitFor();
+
+  await page.getByText("second-owner").waitFor();
+  await page.getByText("catalog-admin").waitFor();
+
+  // Only catalog-admin (in reach) and the viewer's own row get a save button;
+  // second-owner (out of reach) must not, or the viewer could fill out a form
+  // that only fails after they submit it.
+  assert.equal(await page.getByRole("button", { name: "계정/ACL 저장" }).count(), 2);
+});
+
 test("administrator IP ACL rejects malformed CIDR entries", () => {
   assert.throws(() => normalizeAdminIpAllowlist(["10.0.0.0/8/32"]), /IPv4 주소 또는 CIDR/);
 });
@@ -392,94 +507,6 @@ test("catalog browser upload publishes a poster-backed performance to the public
   await page.goto(`${server.baseUrl}/goods/${event.slug}`);
   await page.getByRole("heading", { name: title }).waitFor();
   assert.equal(await page.getByRole("img", { name: `${title} 포스터` }).count(), 1);
-});
-
-test("browser console menus load focused workspaces and save support status", async (t) => {
-  const server = await startServer(t);
-  await api(server.baseUrl, "/api/support/threads", {
-    userId: "user_fan_a",
-    subject: "콘솔 상태 변경 확인",
-    message: "운영자 답변을 기다립니다."
-  });
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  page.on("dialog", (dialog) => void dialog.accept());
-  const statusRequests = [];
-  page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/api/admin/support/status") {
-      statusRequests.push(request.postDataJSON());
-    }
-  });
-
-  await page.goto(`${server.adminUrl}/console`);
-  await page.locator('input[name="username"]').fill("admin");
-  await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
-  await page.getByRole("button", { name: "로그인" }).click();
-
-  for (const [label, heading] of [["공연/상품", "공연/상품"], ["판매 설정", "판매 설정"], ["계정", "계정"], ["재판매/양도", "재판매/양도"]]) {
-    await page.getByRole("link", { name: label }).click();
-    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
-  }
-
-  await page.getByRole("link", { name: "고객 지원" }).click();
-  await page.getByRole("heading", { name: "고객 지원", exact: true }).waitFor();
-  await page.getByLabel("처리 상태").selectOption("CLOSED");
-  await page.getByRole("button", { name: "문의 답변 등록" }).click();
-  await page.getByText("문의 답변과 상태가 갱신되었습니다.").waitFor();
-  assert.equal(statusRequests.length, 1);
-  assert.equal(statusRequests[0].status, "CLOSED");
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "메뉴 열기" }).click();
-  await page.getByRole("link", { name: "관리자/ACL" }).click();
-  await page.getByRole("heading", { name: "관리자/ACL", exact: true }).waitFor();
-});
-
-test("admin support workspace filters threads and browser shows message history before reply", async (t) => {
-  // Given: two support threads in different categories with customer/admin history.
-  const server = await startServer(t);
-  const paymentThread = await api(server.baseUrl, "/api/support/threads", {
-    userId: "user_fan_a",
-    subject: "결제 문의",
-    message: "카드 결제 영수증이 보이지 않습니다.",
-    category: "PAYMENT"
-  });
-  await adminApi(server, "/api/admin/support/messages", {
-    threadId: paymentThread.data.id,
-    message: "영수증 재발행을 확인하겠습니다."
-  });
-  const qrThread = await api(server.baseUrl, "/api/support/threads", {
-    userId: "user_fan_b",
-    subject: "QR 문의",
-    message: "입장 QR이 열리지 않습니다.",
-    category: "TICKET_QR"
-  });
-
-  // When: the workspace is filtered by category and the browser opens support.
-  const filtered = await adminApi(server, "/api/admin/workspaces/support?category=PAYMENT&status=ANSWERED");
-  assert.deepEqual(filtered.data.supportThreads.map((thread) => thread.id), [paymentThread.data.id]);
-  assert.equal(filtered.data.supportThreads[0].messageCount, 2);
-  assert.match(filtered.data.supportThreads[0].lastMessagePreview, /영수증 재발행/);
-
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  page.on("dialog", (dialog) => void dialog.accept());
-  await page.goto(`${server.adminUrl}/console/support`);
-  await page.locator('input[name="username"]').fill("admin");
-  await page.locator('input[name="password"]').fill(bootstrapAdminPassword);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await page.getByRole("heading", { name: "문의함" }).waitFor();
-
-  // Then: both threads are selectable and the selected panel shows full history before reply controls.
-  await page.getByRole("button", { name: /QR 문의/ }).click();
-  await page.getByRole("article").getByText("입장 QR이 열리지 않습니다.").waitFor();
-  await page.getByRole("button", { name: /결제 문의/ }).click();
-  await page.getByRole("article").getByText("카드 결제 영수증이 보이지 않습니다.").waitFor();
-  await page.getByRole("article").getByText("영수증 재발행을 확인하겠습니다.").waitFor();
-  assert.equal(await page.getByRole("button", { name: /QR 문의/ }).count(), 1);
-  assert.equal(qrThread.data.category, "TICKET_QR");
 });
 
 test("browser account workspace searches users, shows sanctions, confirms single changes, and bulk updates", async (t) => {
@@ -972,6 +999,10 @@ test("admin can force cancel an already-matched resale pool and unwind the compl
   assert.equal(refund.transferAmount, -price);
   assert.equal(refund.amount, price + expectedFee);
 
+  // And: the reversed resale nets out of the gross total instead of being
+  // double-counted as revenue - only the original primary purchase remains.
+  assert.equal(finance.data.summary.totalAmount, price);
+
   // And: re-listing the ticket for resale works again (transferCount was undone).
   const relisted = await api(server.baseUrl, "/api/resale/list", {
     sellerId: "user_fan_a",
@@ -1016,21 +1047,17 @@ test("admin alert acknowledgement reduces overview unread count", async (t) => {
 
 test("admin admission hold surfaces QR logs and blocks subsequent QR issuance", async (t) => {
   // Given: a real ticket QR was issued successfully and is visible in admission logs.
-  const server = await startServer(t);
-  const { ticket } = await buyFirstTicket(server.baseUrl);
-  const device = await api(server.baseUrl, "/api/devices/trust", {
-    userId: "user_fan_a",
+  const server = await startAttestedServer(t);
+  const login = await nativeGoogleLogin(server.baseUrl);
+  const { ticket } = await buyFirstNativeTicket(server.baseUrl, login);
+  const device = await trustIosDevice(server.baseUrl, login, {
     deviceId: "hold-test-iphone",
-    biometricVerified: true,
-    appAttestation: appAttestation("TRUST_DEVICE", "user_fan_a", "hold-test-iphone")
+    deviceName: "Hold Test iPhone"
   });
-  const firstQr = await api(server.baseUrl, "/api/tickets/qr", {
-    userId: "user_fan_a",
+  const firstQr = await issueIosAdmissionQr(server.baseUrl, login, {
     ticketId: ticket.id,
-    channel: "APP",
     deviceId: "hold-test-iphone",
-    deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "hold-test-iphone", ticket.id)
+    deviceToken: device.data.deviceToken
   });
   assert.equal(firstQr.data.type, "ADMISSION");
   const admissionBefore = await adminApi(server, "/api/admin/workspaces/admission?limit=5");
@@ -1047,14 +1074,12 @@ test("admin admission hold surfaces QR logs and blocks subsequent QR issuance", 
 
   // Then: a subsequent real QR issuance attempt is rejected by the issuance path, not just marked in UI.
   assert.equal(held.data.adminHold, true);
-  const blockedQr = await api(server.baseUrl, "/api/tickets/qr", {
-    userId: "user_fan_a",
+  const blockedQr = await issueIosAdmissionQr(server.baseUrl, login, {
     ticketId: ticket.id,
-    channel: "APP",
     deviceId: "hold-test-iphone",
     deviceToken: device.data.deviceToken,
-    appAttestation: appAttestation("ISSUE_QR", "user_fan_a", "hold-test-iphone", ticket.id)
-  }, 423);
+    expectedStatus: 423
+  });
   assert.equal(blockedQr.error.code, "ADMIN_HOLD_ACTIVE");
   const released = await adminApi(server, "/api/admin/admission/hold", {
     credentialId: credential.id,

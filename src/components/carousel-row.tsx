@@ -8,10 +8,14 @@ export function CarouselRow({
   children,
   className,
   step = 880,
+  prevLabel = "이전",
+  nextLabel = "다음",
 }: {
   children: React.ReactNode;
   className?: string;
   step?: number;
+  prevLabel?: string;
+  nextLabel?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -25,14 +29,14 @@ export function CarouselRow({
         {children}
       </div>
       <button
-        aria-label="이전"
+        aria-label={prevLabel}
         onClick={() => scroll(-1)}
         className="absolute -left-5 top-1/2 z-10 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-card text-ink-2 shadow-[0_4px_16px_rgba(0,0,0,0.12)] group-hover/carousel:flex"
       >
         <ChevronLeftIcon className="size-5" />
       </button>
       <button
-        aria-label="다음"
+        aria-label={nextLabel}
         onClick={() => scroll(1)}
         className="absolute -right-5 top-1/2 z-10 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-card text-ink-2 shadow-[0_4px_16px_rgba(0,0,0,0.12)] group-hover/carousel:flex"
       >

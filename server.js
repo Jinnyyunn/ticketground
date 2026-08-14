@@ -7,7 +7,7 @@ import nextEnv from "@next/env";
 import next from "next";
 import { adminDto, permissionCatalog, roleCatalog } from "./backend/admin-acl.js";
 import { createTicketgroundApp } from "./backend/app.js";
-import { publicHomeRoute } from "./backend/public-host-routing.js";
+import { isPublishedSeatChartRead, isSeatChartRoute } from "./backend/seat-chart-routing.js";
 
 const projectDir = path.dirname(fileURLToPath(import.meta.url));
 const { loadEnvConfig } = nextEnv;
@@ -49,11 +49,13 @@ if (!isDev && adminPassword.length < 12) {
 
 const app = await createTicketgroundApp({
   dbPath,
+  businessRegistrationDir: { directory: path.join(path.dirname(dbPath), "group-booking-uploads") },
+  isDev,
   mediaDir: { directory: adminUploadDir, urlPrefix: "/uploads/admin" },
   runtime: {
     appAttestationSecret: process.env.TIG_APP_ATTESTATION_SECRET,
-    gateApiKey: process.env.TIG_GATE_API_KEY,
-    simulatorAttestationSecret: process.env.TIG_SIMULATOR_ATTESTATION_SECRET,
+    appAttestVerifierURL: process.env.TIG_APP_ATTEST_VERIFIER_URL,
+    appAttestVerifierToken: process.env.TIG_APP_ATTEST_VERIFIER_TOKEN,
     nowOverride: process.env.TIG_NOW,
     secret: requiredSecret("TIG_SECRET")
   },
@@ -87,6 +89,9 @@ const adminSessionTtlMs = 1000 * 60 * 60 * 8;
 const adminLoginRateLimitWindowMs = 1000 * 60 * 5;
 const adminLoginRateLimitMaxAttempts = 10;
 const adminLoginAttempts = new Map();
+const groupBookingRateLimitWindowMs = 1000 * 60 * 60;
+const groupBookingRateLimitMaxRequests = 5;
+const groupBookingRateLimitAttempts = new Map();
 const defaultAdminRoles = (process.env.TIG_ADMIN_ROLES || "owner")
   .split(",")
   .map((role) => role.trim())
@@ -101,8 +106,20 @@ const adminLoginRateLimitCleanup = setInterval(() => {
   }
 }, adminLoginRateLimitWindowMs);
 adminLoginRateLimitCleanup.unref?.();
+const groupBookingRateLimitCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of groupBookingRateLimitAttempts) {
+    if (entry.windowExpiresAt <= now) groupBookingRateLimitAttempts.delete(ip);
+  }
+}, groupBookingRateLimitWindowMs);
+groupBookingRateLimitCleanup.unref?.();
 
 const sessionRoutePermissions = [
+  { method: "GET", pattern: /^\/admin\/seat-designer$/, permission: "catalog.manage" },
+  { method: "GET", pattern: /^\/api\/catalog$/, permission: "catalog.manage" },
+  { method: "GET", pattern: /^\/api\/seat-charts(?:\/|$)/, permission: "catalog.manage" },
+  { method: "POST", pattern: /^\/api\/seat-charts(?:\/[^/]+\/publish)?$/, permission: "catalog.manage" },
+  { method: "DELETE", pattern: /^\/api\/seat-charts\/[^/]+$/, permission: "catalog.manage" },
   { method: "POST", pattern: /^\/api\/admin\/logout$/, permission: "admin.dashboard.read" },
   { method: "GET", pattern: /^\/api\/admin\/summary$/, permission: "admin.dashboard.read" },
   { method: "GET", pattern: /^\/api\/admin\/venues$/, permission: "catalog.manage" },
@@ -111,18 +128,30 @@ const sessionRoutePermissions = [
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/finance$/, permission: "finance.read" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/accounts$/, permission: "accounts.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/support$/, permission: "support.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/workspaces\/seller-applications$/, permission: "sellerApplications.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/workspaces\/seller-events$/, permission: "sellerEventReview.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/resale$/, permission: "finance.read" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/group-booking$/, permission: "groupBooking.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/group-booking\/requests\/[^/]+\/business-registration-file$/, permission: "groupBooking.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/admission$/, permission: "admission.manage" },
+  { method: "GET", pattern: /^\/api\/admin\/workspaces\/mobile$/, permission: "mobile.read" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/audit$/, permission: "security.manage" },
   { method: "GET", pattern: /^\/api\/admin\/workspaces\/acl$/, permission: "acl.read" },
   { method: "POST", pattern: /^\/api\/admin\/events\//, permission: "catalog.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/seller-applications\//, permission: "sellerApplications.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/seller-accounts\/issue$/, permission: "sellerAccounts.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/seller-events\//, permission: "sellerEventReview.manage" },
   { method: "POST", pattern: /^\/api\/admin\/admin-accounts(?:\/update)?$/, permission: "acl.manage" },
   { method: "POST", pattern: /^\/api\/admin\/users\/status/, permission: "accounts.manage" },
   { method: "POST", pattern: /^\/api\/admin\/tickets\/statuses?$/, permission: "catalog.manage" },
   { method: "POST", pattern: /^\/api\/admin\/group-booking\//, permission: "groupBooking.manage" },
   { method: "POST", pattern: /^\/api\/admin\/admission\/hold$/, permission: "admission.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/mobile\/(?:release-policy|maintenance)$/, permission: "mobile.release.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/mobile\/push-campaigns$/, permission: "mobile.messaging.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/mobile\/devices\/revoke$/, permission: "mobile.security.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/mobile\/cancellations\/review$/, permission: "mobile.cancellation.manage" },
   { method: "POST", pattern: /^\/api\/admin\/resale\/cancel$/, permission: "security.manage" },
+  { method: "POST", pattern: /^\/api\/admin\/payments\/tosspayments\/cancel$/, permission: "security.manage" },
   { method: "POST", pattern: /^\/api\/admin\/alerts\/ack$/, permission: "security.manage" },
   { method: "POST", pattern: /^\/api\/admin\/support\//, permission: "support.manage" },
   { method: "GET", pattern: /^\/api\/admin\/ledger\/export$/, permission: "security.manage" },
@@ -163,6 +192,21 @@ function recordAdminLoginAttempt(ip) {
   existing.count += 1;
   return {
     limited: existing.count > adminLoginRateLimitMaxAttempts,
+    retryAfterSeconds: Math.ceil((existing.windowExpiresAt - now) / 1000)
+  };
+}
+
+function recordGroupBookingSubmission(ip) {
+  const now = Date.now();
+  const existing = groupBookingRateLimitAttempts.get(ip);
+  if (!existing || existing.windowExpiresAt <= now) {
+    const entry = { count: 1, windowExpiresAt: now + groupBookingRateLimitWindowMs };
+    groupBookingRateLimitAttempts.set(ip, entry);
+    return { limited: false, retryAfterSeconds: Math.ceil((entry.windowExpiresAt - now) / 1000) };
+  }
+  existing.count += 1;
+  return {
+    limited: existing.count > groupBookingRateLimitMaxRequests,
     retryAfterSeconds: Math.ceil((existing.windowExpiresAt - now) / 1000)
   };
 }
@@ -394,9 +438,27 @@ async function servePublic(req, res) {
     return;
   }
   if (await serveAdminUpload(res, pathname)) return;
-  if (pathname === "/console" || pathname.startsWith("/console/")) {
+  if (pathname === "/console" || pathname.startsWith("/console/") || pathname === "/admin/seat-designer") {
     writeNotFound(res);
     return;
+  }
+  if (isPublishedSeatChartRead(req.method, pathname)) {
+    handleNextRequest(req, res).catch((error) => {
+      console.error("Published seat chart request failed", error);
+      if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Internal Server Error");
+    });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/api/group-booking/requests") {
+    const attempt = recordGroupBookingSubmission(requestIp(req));
+    if (attempt.limited) {
+      writeJson(res, 429, {
+        ok: false,
+        error: { code: "RATE_LIMITED", message: "단체/기관 예매 신청이 너무 많습니다. 잠시 후 다시 시도해주세요." }
+      }, { "Retry-After": String(attempt.retryAfterSeconds) });
+      return;
+    }
   }
   if (requestUrl.startsWith("/api/")) {
     app.handleRequest(req, res, app.db, "public");
@@ -420,6 +482,16 @@ function serveAdmin(req, res) {
   if (url.pathname === "/console" || url.pathname.startsWith("/console/")) {
     handleNextRequest(req, res).catch((error) => {
       console.error("Next admin console request failed", error);
+      if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Internal Server Error");
+    });
+    return;
+  }
+  if (url.pathname === "/admin/seat-designer") {
+    const session = requireSessionAdmin(req, res, url.pathname);
+    if (!session) return;
+    handleNextRequest(req, res).catch((error) => {
+      console.error("Seat designer request failed", error);
       if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Internal Server Error");
     });
@@ -456,6 +528,14 @@ function serveAdmin(req, res) {
     : { ...session.admin, bootstrapAdmin };
   if (!tokenAuthorized && url.pathname === "/api/admin/summary") {
     writeJson(res, 200, { ok: true, data: app.admin.adminWorkspace(app.db, "overview") });
+    return;
+  }
+  if (isSeatChartRoute(url.pathname)) {
+    handleNextRequest(req, res).catch((error) => {
+      console.error("Seat chart API request failed", error);
+      if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Internal Server Error");
+    });
     return;
   }
   app.handleRequest(req, res, app.db, "admin");

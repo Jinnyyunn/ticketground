@@ -6,7 +6,16 @@ export const permissionCatalog = [
   { key: "groupBooking.manage", label: "단체/기관 예매 관리", group: "단체/기관" },
   { key: "security.manage", label: "보안 감사 관리", group: "보안" },
   { key: "admission.manage", label: "입장 관리", group: "입장" },
+  { key: "mobile.read", label: "앱 운영 조회", group: "앱 운영" },
+  { key: "mobile.release.manage", label: "앱 버전/점검 관리", group: "앱 운영" },
+  { key: "mobile.messaging.manage", label: "앱 푸시 관리", group: "앱 운영" },
+  { key: "mobile.security.manage", label: "앱 기기 보안 관리", group: "앱 운영" },
+  { key: "mobile.cancellation.manage", label: "앱 취소 요청 관리", group: "앱 운영" },
+  { key: "mobile.finance.read", label: "앱 결제/환불 조회", group: "앱 운영" },
   { key: "finance.read", label: "정산 조회", group: "정산" },
+  { key: "sellerApplications.manage", label: "기업 판매자 신청 관리", group: "기업/판매자" },
+  { key: "sellerAccounts.manage", label: "기업 판매자 계정 관리", group: "기업/판매자" },
+  { key: "sellerEventReview.manage", label: "기업 등록 공연 검토", group: "기업/판매자" },
   { key: "acl.read", label: "ACL", group: "권한" },
   { key: "acl.manage", label: "ACL 관리", group: "권한" }
 ];
@@ -15,13 +24,15 @@ const allPermissions = permissionCatalog.map((item) => item.key);
 
 export const roleCatalog = [
   { key: "owner", name: "소유자", permissions: allPermissions },
-  { key: "admin", name: "운영 관리자", permissions: allPermissions.filter((item) => item !== "finance.read") },
+  { key: "admin", name: "운영 관리자", permissions: allPermissions.filter((item) => !["finance.read", "mobile.finance.read"].includes(item)) },
   { key: "catalog", name: "공연 관리자", permissions: ["admin.dashboard.read", "catalog.manage"] },
   { key: "support", name: "고객 지원", permissions: ["admin.dashboard.read", "support.manage", "accounts.manage"] },
   { key: "groupBooking", name: "단체/기관 예매 담당", permissions: ["admin.dashboard.read", "groupBooking.manage"] },
   { key: "security", name: "보안 감사", permissions: ["admin.dashboard.read", "security.manage", "accounts.manage", "acl.read"] },
   { key: "admission", name: "입장 관리자", permissions: ["admin.dashboard.read", "admission.manage", "security.manage"] },
+  { key: "mobileOperations", name: "앱 운영 관리자", permissions: ["admin.dashboard.read", "mobile.read", "mobile.release.manage", "mobile.messaging.manage", "mobile.security.manage", "mobile.cancellation.manage", "mobile.finance.read"] },
   { key: "finance", name: "정산 조회", permissions: ["admin.dashboard.read", "finance.read"] },
+  { key: "sellerApplications", name: "기업 판매자 신청 담당", permissions: ["admin.dashboard.read", "sellerApplications.manage", "sellerAccounts.manage", "sellerEventReview.manage"] },
   { key: "readonly", name: "조회 전용", permissions: ["admin.dashboard.read", "acl.read"] }
 ];
 

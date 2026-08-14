@@ -3,6 +3,7 @@ export function createEngagementBackend({
   findUser,
   httpError,
   id,
+  idempotentMutation,
   now,
   offsetIso,
   primaryDate,
@@ -17,6 +18,28 @@ export function createEngagementBackend({
         event: db.events.find((event) => event.id === item.eventId) || null,
         notificationJobs: db.notificationJobs.filter((job) => job.watchlistId === item.id)
       }))
+      .sort((a, b) => new Date(a.event?.date || a.createdAt) - new Date(b.event?.date || b.createdAt));
+  }
+
+  function publicWatchlistItem(db, watch) {
+    return {
+      id: watch.id,
+      eventId: watch.eventId,
+      channels: watch.channels,
+      calendarEnabled: watch.calendarEnabled,
+      notificationEnabled: watch.notificationEnabled,
+      createdAt: watch.createdAt,
+      updatedAt: watch.updatedAt,
+      event: db.events.find((event) => event.id === watch.eventId) || null,
+      notificationJobs: db.notificationJobs.filter((job) => job.watchlistId === watch.id)
+    };
+  }
+
+  function userWatchlistForPrincipal(db, userId) {
+    findUser(db, userId);
+    return db.watchlist
+      .filter((item) => item.userId === userId)
+      .map((item) => publicWatchlistItem(db, item))
       .sort((a, b) => new Date(a.event?.date || a.createdAt) - new Date(b.event?.date || b.createdAt));
   }
 
@@ -69,8 +92,10 @@ export function createEngagementBackend({
   function cancelWatchlistNotifications(db, watch) {
     const jobs = db.notificationJobs.filter((job) => job.watchlistId === watch.id);
     for (const job of jobs) {
-      if (job.status !== "SENT") job.status = "CANCELLED";
-      job.updatedAt = now();
+      if (job.status === "SCHEDULED") {
+        job.status = "CANCELED";
+        job.updatedAt = now();
+      }
     }
     return jobs;
   }
@@ -109,9 +134,64 @@ export function createEngagementBackend({
       eventId: event.id,
       channels: cleanChannels,
       calendarEnabled: watch.calendarEnabled,
-      scheduledJobs: jobs.length
+      scheduledJobs: jobs.filter((job) => job.status === "SCHEDULED").length,
+      canceledJobs: jobs.filter((job) => job.status === "CANCELED").length
     });
     return { watchlist: watch, event, notificationJobs: jobs };
+  }
+
+  function upsertWatchlistForPrincipal(db, userId, eventId, preferences, idempotencyKey) {
+    return idempotentMutation(db, {
+      kind: "watchlist-upsert",
+      userId,
+      key: idempotencyKey,
+      payload: { eventId, preferences }
+    }, () => {
+      if (preferences === null || typeof preferences !== "object" || Array.isArray(preferences)) {
+        throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+      }
+      for (const field of ["calendarEnabled", "notificationEnabled"]) {
+        if (Object.hasOwn(preferences, field) && typeof preferences[field] !== "boolean") {
+          throw httpError(400, "INVALID_WATCHLIST_PREFERENCES", "관심공연 설정값을 확인해주세요.");
+        }
+      }
+      let normalizedPreferences = preferences;
+      if (Object.hasOwn(preferences, "channels")) {
+        const supportedChannels = new Set(["APP_PUSH", "EMAIL", "KAKAO", "SMS"]);
+        const channels = preferences.channels;
+        if (!Array.isArray(channels) || channels.length === 0 || channels.some((channel) => (
+          typeof channel !== "string" || !supportedChannels.has(channel.toUpperCase())
+        ))) {
+          throw httpError(400, "INVALID_WATCHLIST_CHANNELS", "관심공연 알림 채널을 확인해주세요.");
+        }
+        normalizedPreferences = {
+          ...preferences,
+          channels: [...new Set(channels.map((channel) => channel.toUpperCase()))]
+        };
+      }
+      const result = upsertWatchlist(db, { ...normalizedPreferences, userId, eventId });
+      return publicWatchlistItem(db, result.watchlist);
+    });
+  }
+
+  function removeWatchlistForPrincipal(db, userId, eventId, idempotencyKey) {
+    return idempotentMutation(db, {
+      kind: "watchlist-delete",
+      userId,
+      key: idempotencyKey,
+      payload: { eventId }
+    }, () => {
+      findUser(db, userId);
+      const index = db.watchlist.findIndex((item) => item.userId === userId && item.eventId === eventId);
+      if (index < 0) return { deleted: true, eventId };
+      const [watch] = db.watchlist.splice(index, 1);
+      cancelWatchlistNotifications(db, watch);
+      appendLedger(db, userId, "WATCHLIST_REMOVED", {
+        watchlistId: watch.id,
+        eventId
+      });
+      return { deleted: true, eventId };
+    });
   }
 
   function notifyWatchlist(db, { watchlistId, userId, eventId, type = "STATUS_CHANGE", dispatchNow = false }) {
@@ -152,16 +232,51 @@ export function createEngagementBackend({
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   }
 
+  function publicSupportContent() {
+    return {
+      version: "1",
+      faqs: [
+        { id: "booking", question: "예매 내역은 어디에서 확인하나요?", answer: "로그인 후 마이페이지의 예매내역에서 확인할 수 있습니다." },
+        { id: "cancel", question: "취소 가능 여부는 어떻게 확인하나요?", answer: "공연별 취소 정책과 예매 상세의 서버 상태를 확인해주세요." },
+        { id: "ticket", question: "모바일 티켓은 언제 표시되나요?", answer: "서버에서 예매가 확정된 뒤 모바일 티켓 상태가 표시됩니다." }
+      ],
+      notices: [
+        { id: "secure-support", title: "안전한 1:1 문의", body: "로그인 세션의 본인 문의만 조회하고 작성할 수 있습니다." },
+        { id: "reply-status", title: "답변 상태 안내", body: "문의 목록에서 답변 상태를 확인하세요." }
+      ]
+    };
+  }
+
+  function publicSupportThread(thread) {
+    return {
+      id: thread.id,
+      subject: thread.subject,
+      status: thread.status,
+      category: thread.category,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+      messages: thread.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        body: message.body,
+        at: message.at
+      }))
+    };
+  }
+
   function createSupportThread(db, { userId, subject, message, category }) {
     const user = findUser(db, userId);
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "문의 내용을 입력해주세요.");
+    if (cleanMessage.length > 1000) throw httpError(422, "SUPPORT_MESSAGE_TOO_LONG", "문의 내용은 1,000자 이하로 입력해주세요.");
     const allowedCategories = ["GENERAL", "PAYMENT", "TICKET_QR", "URGENT"];
     const normalizedCategory = allowedCategories.includes(String(category || "").toUpperCase()) ? String(category).toUpperCase() : "GENERAL";
+    const cleanSubject = String(subject || "1:1 실시간 문의").trim() || "1:1 실시간 문의";
+    if (cleanSubject.length > 80) throw httpError(422, "SUPPORT_SUBJECT_TOO_LONG", "문의 제목은 80자 이하로 입력해주세요.");
     const thread = {
       id: id("support"),
       userId: user.id,
-      subject: String(subject || "1:1 실시간 문의").trim().slice(0, 80) || "1:1 실시간 문의",
+      subject: cleanSubject,
       status: "OPEN",
       priority: "NORMAL",
       category: normalizedCategory,
@@ -172,7 +287,7 @@ export function createEngagementBackend({
           id: id("msg"),
           actorId: user.id,
           role: "CUSTOMER",
-          body: cleanMessage.slice(0, 1000),
+          body: cleanMessage,
           at: now()
         }
       ]
@@ -201,6 +316,7 @@ export function createEngagementBackend({
     if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
     const cleanMessage = String(message || "").trim();
     if (!cleanMessage) throw httpError(400, "EMPTY_SUPPORT_MESSAGE", "메시지를 입력해주세요.");
+    if (cleanMessage.length > 1000) throw httpError(422, "SUPPORT_MESSAGE_TOO_LONG", "메시지는 1,000자 이하로 입력해주세요.");
     const normalizedRole = role === "ADMIN" ? "ADMIN" : "CUSTOMER";
     if (normalizedRole === "CUSTOMER" && actorId !== thread.userId) {
       throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
@@ -210,7 +326,7 @@ export function createEngagementBackend({
       id: id("msg"),
       actorId: normalizedRole === "ADMIN" ? "ADMIN" : actorId,
       role: normalizedRole,
-      body: cleanMessage.slice(0, 1000),
+      body: cleanMessage,
       at: now()
     };
     thread.messages.push(entry);
@@ -247,13 +363,50 @@ export function createEngagementBackend({
     return thread;
   }
 
+  function supportThreadsForPrincipal(db, userId) {
+    return supportThreadForUser(db, userId).map(publicSupportThread);
+  }
+
+  function createSupportThreadForPrincipal(db, userId, body, idempotencyKey) {
+    return idempotentMutation(db, {
+      kind: "support-thread-create",
+      userId,
+      key: idempotencyKey,
+      payload: { subject: body.subject, message: body.message, category: body.category }
+    }, () => publicSupportThread(createSupportThread(db, { ...body, userId })));
+  }
+
+  function addSupportMessageForPrincipal(db, userId, body, idempotencyKey) {
+    const thread = db.supportThreads.find((item) => item.id === body.threadId);
+    if (!thread) throw httpError(404, "SUPPORT_THREAD_NOT_FOUND", "문의 내역을 찾을 수 없습니다.");
+    if (thread.userId !== userId) throw httpError(403, "SUPPORT_FORBIDDEN", "본인 문의에만 메시지를 남길 수 있습니다.");
+    return idempotentMutation(db, {
+      kind: "support-message-create",
+      userId,
+      key: idempotencyKey,
+      payload: { threadId: body.threadId, message: body.message }
+    }, () => publicSupportThread(addSupportMessage(db, {
+      threadId: body.threadId,
+      actorId: userId,
+      role: "CUSTOMER",
+      message: body.message
+    })));
+  }
+
   return {
     addSupportMessage,
+    addSupportMessageForPrincipal,
     createSupportThread,
+    createSupportThreadForPrincipal,
     notifyWatchlist,
+    publicSupportContent,
+    removeWatchlistForPrincipal,
     supportThreadForUser,
+    supportThreadsForPrincipal,
     updateSupportStatus,
     upsertWatchlist,
+    upsertWatchlistForPrincipal,
+    userWatchlistForPrincipal,
     userWatchlist
   };
 }

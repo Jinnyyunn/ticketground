@@ -13,6 +13,7 @@ enum LiveAPIEndpoint: Hashable {
     case regions
     case artist
     case openCalendar
+    case publicSupport
     case seatMap
     case nativeContract
     case profile
@@ -42,6 +43,8 @@ enum LiveAPIEndpoint: Hashable {
     case watchlistMutation
     case watchlistRemoval
     case watchlistNotification
+    case watchlistUpsert
+    case watchlistDelete
     case ticketPurchase
     case googleAuthentication
     case identityStart
@@ -50,6 +53,26 @@ enum LiveAPIEndpoint: Hashable {
     case pushToken
     case ticketQR
     case virtualQR
+    case queueEntryEnter
+    case queueEntryStatus
+    case queueEntryLeave
+    case seatHoldCreate
+    case seatHoldStatus
+    case seatHoldExtend
+    case seatHoldRelease
+    case reservationDraftCreate
+    case reservationDraftStatus
+    case reservationDraftCancel
+    case resalePools
+    case resalePoolList
+    case resalePoolJoin
+    case resalePoolCancel
+    case cancellationRequests
+    case cancellationRequestCreate
+    case trustedDevices
+    case trustedDeviceRevoke
+    case pushTokens
+    case pushTokenRegister
     case unknown(method: APIRequestMethod, path: String)
 
     static let known: [LiveAPIEndpoint] = [
@@ -59,6 +82,7 @@ enum LiveAPIEndpoint: Hashable {
         .regions,
         .artist,
         .openCalendar,
+        .publicSupport,
         .seatMap,
         .nativeContract,
         .profile,
@@ -88,6 +112,8 @@ enum LiveAPIEndpoint: Hashable {
         .watchlistMutation,
         .watchlistRemoval,
         .watchlistNotification,
+        .watchlistUpsert,
+        .watchlistDelete,
         .ticketPurchase,
         .googleAuthentication,
         .identityStart,
@@ -95,28 +121,51 @@ enum LiveAPIEndpoint: Hashable {
         .deviceTrust,
         .pushToken,
         .ticketQR,
-        .virtualQR
+        .virtualQR,
+        .queueEntryEnter,
+        .queueEntryStatus,
+        .queueEntryLeave,
+        .seatHoldCreate,
+        .seatHoldStatus,
+        .seatHoldExtend,
+        .seatHoldRelease,
+        .reservationDraftCreate,
+        .reservationDraftStatus,
+        .reservationDraftCancel,
+        .resalePools,
+        .resalePoolList,
+        .resalePoolJoin,
+        .resalePoolCancel,
+        .cancellationRequests,
+        .cancellationRequestCreate,
+        .trustedDevices,
+        .trustedDeviceRevoke,
+        .pushTokens,
+        .pushTokenRegister
     ]
 
     var method: APIRequestMethod {
         switch self {
-        case .profileMutation:
-            return .patch
-        case .watchlistMutation, .watchlistNotification, .nativePushToken, .notificationSettings:
+        case .watchlistUpsert:
             return .put
-        case .watchlistRemoval, .bookingHoldRelease, .nativeDeviceRevoke:
+        case .watchlistDelete, .queueEntryLeave, .seatHoldRelease, .reservationDraftCancel,
+             .resalePoolCancel, .trustedDeviceRevoke:
             return .delete
-        case .bookingQueue, .bookingHold, .bookingDraft, .deviceChallenge, .nativeDeviceTrust, .testPushPayload, .mobileTicketQR,
-             .supportThreadMutation, .supportMessages, .ticketPurchase, .googleAuthentication,
+        case .supportThreadMutation, .supportMessages, .watchlistMutation,
+             .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
-             .ticketQR, .virtualQR:
+             .ticketQR, .virtualQR, .queueEntryEnter, .seatHoldCreate,
+             .reservationDraftCreate, .resalePoolList, .resalePoolJoin,
+             .cancellationRequestCreate, .pushTokenRegister:
             return .post
+        case .seatHoldExtend:
+            return .patch
         case .unknown(let method, _):
             return method
-        case .health, .state, .catalog, .regions, .artist, .openCalendar, .nativeContract,
-             .supportPublic,
-             .seatMap, .profile, .reservations, .reservationDetail, .bookingSeats, .notificationSettings, .mobileTickets,
-             .session, .tickets, .watchlist, .supportThreads:
+        case .health, .state, .catalog, .regions, .artist, .openCalendar,
+             .publicSupport, .seatMap, .session, .tickets, .watchlist, .supportThreads,
+             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus, .resalePools,
+             .cancellationRequests, .trustedDevices, .pushTokens:
             return .get
         }
     }
@@ -129,57 +178,73 @@ enum LiveAPIEndpoint: Hashable {
         case .regions: return "/api/discovery/v1/regions"
         case .artist: return "/api/discovery/v1/artists/{slug}"
         case .openCalendar: return "/api/discovery/v1/open-calendar"
-        case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
-        case .nativeContract: return "/api/native/v1/contract"
-        case .profile, .profileMutation: return "/api/me/profile"
-        case .reservations: return "/api/me/reservations"
-        case .reservationDetail: return "/api/me/reservations/{ticketId}"
-        case .bookingQueue: return "/api/me/booking/queues"
-        case .bookingSeats: return "/api/me/booking/events/{eventId}/performances/{performanceId}/seats"
-        case .bookingHold: return "/api/me/booking/holds"
-        case .bookingHoldRelease: return "/api/me/booking/holds/{holdId}"
-        case .bookingDraft: return "/api/me/booking/drafts"
-        case .deviceChallenge: return "/api/me/devices/challenges"
-        case .nativeDeviceTrust: return "/api/me/devices/trust"
-        case .nativePushToken: return "/api/me/devices/{deviceId}/push-token"
-        case .nativeDeviceRevoke: return "/api/me/devices/{deviceId}"
-        case .notificationSettings: return "/api/me/notification-settings"
-        case .testPushPayload: return "/api/me/devices/{deviceId}/test-payload"
-        case .mobileTickets: return "/api/me/tickets"
-        case .mobileTicketQR: return "/api/me/tickets/{ticketId}/qr"
-        case .session: return "/api/users/{userId}/session"
-        case .tickets: return "/api/users/{userId}/tickets"
+        case .publicSupport: return "/api/support/public"
+        case .seatMap: return "/api/seat-map?eventId={eventId}"
+        case .session: return "/api/me"
+        case .tickets: return "/api/me/tickets"
         case .watchlist: return "/api/me/watchlist"
-        case .supportPublic: return "/api/support/v1/public"
         case .supportThreads: return "/api/me/support/threads"
         case .supportThreadMutation: return "/api/me/support/threads"
-        case .supportMessages: return "/api/me/support/threads/{threadId}/messages"
-        case .watchlistMutation, .watchlistRemoval: return "/api/me/watchlist/{eventId}"
-        case .watchlistNotification: return "/api/me/watchlist/{eventId}/notification"
+        case .supportMessages: return "/api/me/support/messages"
+        case .watchlistMutation: return "/api/watchlist"
+        case .watchlistNotification: return "/api/watchlist/notify"
+        case .watchlistUpsert: return "/api/me/watchlist/{eventId}"
+        case .watchlistDelete: return "/api/me/watchlist/{eventId}"
         case .ticketPurchase: return "/api/tickets/buy"
         case .googleAuthentication: return "/api/auth/google"
+        // NICE 표준창 연동 (backend/identity.js) - 실제 인증 완료는 브라우저 팝업 콜백에서
+        // 서버가 처리하므로, identityConfirm의 client-submitted phone 방식은 지금은
+        // mock-complete(로컬/QA 전용)에만 대응한다. 실제 iOS UI가 생기면
+        // ASWebAuthenticationSession 기반 팝업 흐름(SocialLoginCoordinator 참고)으로
+        // 다시 설계해야 한다 - 아직 이 액션을 쓰는 화면은 없다.
         case .identityStart: return "/api/identity/nice/start"
         case .identityConfirm: return "/api/identity/nice/mock-complete"
         case .deviceTrust: return "/api/devices/trust"
         case .pushToken: return "/api/devices/push-token"
         case .ticketQR: return "/api/tickets/qr"
         case .virtualQR: return "/api/tickets/virtual-qr"
+        case .queueEntryEnter: return "/api/me/queue-entries"
+        case .queueEntryStatus: return "/api/me/queue-entries/{entryId}"
+        case .queueEntryLeave: return "/api/me/queue-entries/{entryId}"
+        case .seatHoldCreate: return "/api/me/seat-holds"
+        case .seatHoldStatus: return "/api/me/seat-holds/{holdId}"
+        case .seatHoldExtend: return "/api/me/seat-holds/{holdId}/extend"
+        case .seatHoldRelease: return "/api/me/seat-holds/{holdId}"
+        case .reservationDraftCreate: return "/api/me/reservation-drafts"
+        case .reservationDraftStatus: return "/api/me/reservation-drafts/{draftId}"
+        case .reservationDraftCancel: return "/api/me/reservation-drafts/{draftId}"
+        case .resalePools: return "/api/me/resale-pools"
+        case .resalePoolList: return "/api/me/resale-pools"
+        case .resalePoolJoin: return "/api/me/resale-pools/{poolId}/join"
+        case .resalePoolCancel: return "/api/me/resale-pools/{poolId}"
+        case .cancellationRequests: return "/api/me/cancellation-requests"
+        case .cancellationRequestCreate: return "/api/me/cancellation-requests"
+        case .trustedDevices: return "/api/me/devices"
+        case .trustedDeviceRevoke: return "/api/me/devices/{deviceId}"
+        case .pushTokens: return "/api/me/push-tokens"
+        case .pushTokenRegister: return "/api/me/push-tokens"
         case .unknown(_, let path): return path
         }
     }
 
     var access: LiveAPIEndpointAccess {
         switch self {
-        case .health, .state, .catalog, .regions, .artist, .openCalendar, .seatMap, .nativeContract, .supportPublic:
+        case .health, .state, .catalog, .regions, .artist, .openCalendar, .publicSupport, .seatMap:
             return .publicRead
-        case .profile, .reservations, .reservationDetail, .bookingSeats, .notificationSettings, .mobileTickets, .session, .tickets, .watchlist, .supportThreads:
+        case .session, .tickets, .watchlist, .supportThreads,
+             .queueEntryStatus, .seatHoldStatus, .reservationDraftStatus, .resalePools,
+             .cancellationRequests, .trustedDevices, .pushTokens:
             return .authenticatedRead
         case .profileMutation, .bookingQueue, .bookingHold, .bookingHoldRelease, .bookingDraft,
              .deviceChallenge, .nativeDeviceTrust, .nativePushToken, .nativeDeviceRevoke, .testPushPayload, .mobileTicketQR,
              .supportThreadMutation, .supportMessages, .watchlistMutation, .watchlistRemoval,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
-             .ticketQR, .virtualQR:
+             .ticketQR, .virtualQR, .watchlistUpsert, .watchlistDelete,
+             .queueEntryEnter, .queueEntryLeave, .seatHoldCreate, .seatHoldExtend,
+             .seatHoldRelease, .reservationDraftCreate, .reservationDraftCancel,
+             .resalePoolList, .resalePoolJoin, .resalePoolCancel,
+             .cancellationRequestCreate, .trustedDeviceRevoke, .pushTokenRegister:
             return .mutation
         case .unknown:
             return .mutation
@@ -223,6 +288,7 @@ struct LiveAPIHealth: Decodable, Equatable {
     let status: String?
     let time: String?
     let version: String?
+    let capabilities: [String]?
 }
 
 struct LiveNativeContractStatus: Decodable, Equatable {
@@ -245,6 +311,15 @@ struct LiveAPIContractProbe: Equatable {
     let capabilities: LiveCapabilityMap
 }
 
+struct LiveSeatMapAdmission: Equatable {
+    let eventID: String
+    let performanceDateID: String?
+
+    func matches(eventID: String, performanceDateID: String?) -> Bool {
+        self.eventID == eventID && self.performanceDateID == performanceDateID
+    }
+}
+
 struct LiveAPIContract {
     let expectedResponseVersion: String
     let publicHost: URL
@@ -258,16 +333,22 @@ struct LiveAPIContract {
     func capabilityMap(
         for baseURL: URL,
         observedResponseVersion: String?,
+        provenPublicEndpoints: Set<LiveAPIEndpoint> = [],
         validatedStateResponse: Bool = false,
         catalogRouteConfirmed: Bool = false,
-        discoveryRoutesConfirmed: Bool = false,
-        accountRoutesConfirmed: Bool = false,
-        watchlistRoutesConfirmed: Bool = false,
-        bookingRoutesConfirmed: Bool = false,
-        deviceRoutesConfirmed: Bool = false,
-        mobileTicketRoutesConfirmed: Bool = false,
-        supportRoutesConfirmed: Bool = false
+        nativeAccountRoutesConfirmed: Bool = false,
+        nativeSupportRoutesConfirmed: Bool = false,
+        nativeWatchlistRoutesConfirmed: Bool = false,
+        nativeBookingHoldsRoutesConfirmed: Bool = false,
+        nativeLifecycleRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
+        var provenPublicEndpoints = provenPublicEndpoints
+        if validatedStateResponse {
+            provenPublicEndpoints.insert(.state)
+        }
+        if catalogRouteConfirmed {
+            provenPublicEndpoints.insert(.catalog)
+        }
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
             observedResponseVersion: observedResponseVersion
@@ -279,15 +360,12 @@ struct LiveAPIContract {
                     for: endpoint,
                     baseURL: baseURL,
                     diagnostics: diagnostics,
-                    validatedStateResponse: validatedStateResponse,
-                    catalogRouteConfirmed: catalogRouteConfirmed,
-                    discoveryRoutesConfirmed: discoveryRoutesConfirmed,
-                    accountRoutesConfirmed: accountRoutesConfirmed,
-                    watchlistRoutesConfirmed: watchlistRoutesConfirmed,
-                    bookingRoutesConfirmed: bookingRoutesConfirmed,
-                    deviceRoutesConfirmed: deviceRoutesConfirmed,
-                    mobileTicketRoutesConfirmed: mobileTicketRoutesConfirmed,
-                    supportRoutesConfirmed: supportRoutesConfirmed
+                    provenPublicEndpoints: provenPublicEndpoints,
+                    nativeAccountRoutesConfirmed: nativeAccountRoutesConfirmed,
+                    nativeSupportRoutesConfirmed: nativeSupportRoutesConfirmed,
+                    nativeWatchlistRoutesConfirmed: nativeWatchlistRoutesConfirmed,
+                    nativeBookingHoldsRoutesConfirmed: nativeBookingHoldsRoutesConfirmed,
+                    nativeLifecycleRoutesConfirmed: nativeLifecycleRoutesConfirmed
                 )
             )
         })
@@ -298,26 +376,26 @@ struct LiveAPIContract {
         for endpoint: LiveAPIEndpoint,
         baseURL: URL,
         diagnostics: LiveAPIContractDiagnostics,
-        validatedStateResponse: Bool,
-        catalogRouteConfirmed: Bool,
-        discoveryRoutesConfirmed: Bool,
-        accountRoutesConfirmed: Bool,
-        watchlistRoutesConfirmed: Bool,
-        bookingRoutesConfirmed: Bool,
-        deviceRoutesConfirmed: Bool,
-        mobileTicketRoutesConfirmed: Bool,
-        supportRoutesConfirmed: Bool
+        provenPublicEndpoints: Set<LiveAPIEndpoint>,
+        nativeAccountRoutesConfirmed: Bool,
+        nativeSupportRoutesConfirmed: Bool,
+        nativeWatchlistRoutesConfirmed: Bool,
+        nativeBookingHoldsRoutesConfirmed: Bool,
+        nativeLifecycleRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
-            return validatedStateResponse && endpoint == .state ? .available : .unknown
+            return endpoint.access == .publicRead && provenPublicEndpoints.contains(endpoint)
+                ? .available
+                : .unknown
         case .incompatible(let expected, let observed):
             return .incompatible(expected: expected, observed: observed)
         case .compatible:
-            guard endpoint != .catalog || catalogRouteConfirmed else {
+            guard ![.state, .catalog, .seatMap, .regions, .artist, .openCalendar].contains(endpoint)
+                || provenPublicEndpoints.contains(endpoint) else {
                 return .unknown
             }
-            guard ![.regions, .artist, .openCalendar].contains(endpoint) || discoveryRoutesConfirmed else {
+            guard endpoint != .publicSupport || nativeSupportRoutesConfirmed else {
                 return .unknown
             }
             guard ![.supportPublic, .supportThreads, .supportThreadMutation, .supportMessages].contains(endpoint)
@@ -347,34 +425,51 @@ struct LiveAPIContract {
             case .publicRead:
                 return .available
             case .authenticatedRead:
-                guard baseURL.scheme?.lowercased() == "https" else { return .blocked(.requiresHTTPS) }
-                let routeConfirmed = ([.profile, .reservations, .reservationDetail].contains(endpoint) && accountRoutesConfirmed)
-                    || (endpoint == .watchlist && watchlistRoutesConfirmed)
-                    || (endpoint == .bookingSeats && bookingRoutesConfirmed)
-                    || (endpoint == .notificationSettings && deviceRoutesConfirmed)
-                    || (endpoint == .mobileTickets && mobileTicketRoutesConfirmed)
-                    || (endpoint == .supportThreads && supportRoutesConfirmed)
-                return routeConfirmed ? .available : .blocked(.serverAuthorizationUnverified)
+                guard baseURL.scheme?.lowercased() == "https" else {
+                    return .blocked(.requiresHTTPS)
+                }
+                if nativeAccountRoutesConfirmed && [.session, .tickets].contains(endpoint) {
+                    return .available
+                }
+                if nativeWatchlistRoutesConfirmed && endpoint == .watchlist {
+                    return .available
+                }
+                if nativeBookingHoldsRoutesConfirmed
+                    && [.queueEntryStatus, .seatHoldStatus, .reservationDraftStatus].contains(endpoint) {
+                    return .available
+                }
+                if nativeLifecycleRoutesConfirmed && [
+                    .resalePools, .cancellationRequests, .trustedDevices, .pushTokens
+                ].contains(endpoint) {
+                    return .available
+                }
+                return nativeSupportRoutesConfirmed && endpoint == .supportThreads
+                    ? .available
+                    : .blocked(.serverAuthorizationUnverified)
             case .mutation:
-                guard baseURL.scheme?.lowercased() == "https" else { return .blocked(.requiresHTTPS) }
-                return [
-                    .profileMutation,
-                    .watchlistMutation,
-                    .watchlistRemoval,
-                    .watchlistNotification,
-                    .bookingQueue,
-                    .bookingHold,
-                    .bookingHoldRelease,
-                    .bookingDraft,
-                    .deviceChallenge,
-                    .nativeDeviceTrust,
-                    .nativePushToken,
-                    .nativeDeviceRevoke,
-                    .testPushPayload,
-                    .mobileTicketQR,
-                    .supportThreadMutation,
-                    .supportMessages
-                ].contains(endpoint) ? .available : .blocked(.unsupportedMutation)
+                guard baseURL.scheme?.lowercased() == "https" else {
+                    return .blocked(.requiresHTTPS)
+                }
+                if nativeSupportRoutesConfirmed && [.supportThreadMutation, .supportMessages].contains(endpoint) {
+                    return .available
+                }
+                if nativeWatchlistRoutesConfirmed && [.watchlistUpsert, .watchlistDelete].contains(endpoint) {
+                    return .available
+                }
+                if nativeBookingHoldsRoutesConfirmed && [
+                    .queueEntryEnter, .queueEntryLeave, .seatHoldCreate, .seatHoldExtend,
+                    .seatHoldRelease, .reservationDraftCreate, .reservationDraftCancel
+                ].contains(endpoint) {
+                    return .available
+                }
+                if nativeLifecycleRoutesConfirmed && [
+                    .resalePoolList, .resalePoolJoin, .resalePoolCancel,
+                    .cancellationRequestCreate, .trustedDeviceRevoke, .pushTokenRegister,
+                    .deviceTrust, .ticketQR, .virtualQR
+                ].contains(endpoint) {
+                    return .available
+                }
+                return .blocked(.unsupportedMutation)
             }
         }
     }
@@ -438,6 +533,16 @@ struct LiveCatalog: Decodable, Equatable {
     let venues: [LiveCatalogVenue]?
     let nextCursor: String?
     let total: Int?
+}
+
+enum LiveCatalogReadPolicy {
+    static let defaultLimit = 50
+    static let maximumLimit = 100
+    static let maximumPages = 20
+
+    static func accepts(limit: Int) -> Bool {
+        (1...maximumLimit).contains(limit)
+    }
 }
 
 protocol LiveDiscoveryVersioned {
@@ -801,6 +906,8 @@ struct LiveTicket: Decodable, Equatable {
     let maxTransferCount: Int
     let issuedAt: String?
     let virtualQR: LiveVirtualQR?
+    let event: LiveTicketEvent?
+    let payment: LiveTicketPayment?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -817,7 +924,28 @@ struct LiveTicket: Decodable, Equatable {
         case maxTransferCount
         case issuedAt
         case virtualQR = "virtualQr"
+        case event
+        case payment
     }
+}
+
+struct LiveTicketEvent: Decodable, Equatable {
+    let id: String
+    let title: String
+    let venue: String?
+    let performance: LiveTicketPerformance?
+}
+
+struct LiveTicketPerformance: Decodable, Equatable {
+    let id: String
+    let label: String?
+    let startsAt: String
+}
+
+struct LiveTicketPayment: Decodable, Equatable {
+    let amount: Int
+    let method: String
+    let status: String
 }
 
 struct LiveVirtualQR: Decodable, Equatable {
@@ -843,6 +971,193 @@ struct LiveResalePool: Decodable, Equatable {
     let matchedAt: String?
 }
 
+enum LiveLifecycleResalePoolStatus: String, Decodable, Equatable {
+    case open = "OPEN"
+    case matched = "MATCHED"
+    case cancelled = "CANCELED"
+}
+
+struct LiveLifecycleResalePool: Decodable, Equatable {
+    let id: String
+    let eventId: String
+    let performanceDateId: String
+    let zoneId: String
+    let ticketId: String
+    let showSlug: String?
+    let price: Int
+    let buyerFee: Int?
+    let buyerTotal: Int?
+    let sellerSettlement: Int?
+    let buyerCount: Int
+    let status: LiveLifecycleResalePoolStatus
+    let createdAt: String
+    let matchedAt: String?
+}
+
+enum LiveCancellationRequestStatus: String, Decodable, Equatable {
+    case pendingReview = "PENDING_REVIEW"
+}
+
+struct LiveCancellationRequest: Decodable, Equatable {
+    let id: String
+    let ticketId: String
+    let reason: String
+    let refundAcknowledged: Bool
+    let status: LiveCancellationRequestStatus
+    let createdAt: String
+    let updatedAt: String
+}
+
+enum LiveTrustedDeviceStatus: String, Decodable, Equatable {
+    case trusted = "TRUSTED"
+    case revoked = "REVOKED"
+}
+
+struct LiveTrustedDevice: Decodable, Equatable {
+    let id: String
+    let deviceID: String
+    let deviceName: String
+    let platform: String
+    let status: LiveTrustedDeviceStatus
+    let createdAt: String
+    let lastVerifiedAt: String
+    let revokedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case deviceID = "deviceId"
+        case deviceName
+        case platform
+        case status
+        case createdAt
+        case lastVerifiedAt
+        case revokedAt
+        case deviceToken
+        case tokenHash
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard !container.contains(.deviceToken), !container.contains(.tokenHash) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .tokenHash,
+                in: container,
+                debugDescription: "Trusted device responses must not contain secrets."
+            )
+        }
+        id = try container.decode(String.self, forKey: .id)
+        deviceID = try container.decode(String.self, forKey: .deviceID)
+        deviceName = try container.decode(String.self, forKey: .deviceName)
+        platform = try container.decode(String.self, forKey: .platform)
+        status = try container.decode(LiveTrustedDeviceStatus.self, forKey: .status)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        lastVerifiedAt = try container.decode(String.self, forKey: .lastVerifiedAt)
+        revokedAt = try container.decodeIfPresent(String.self, forKey: .revokedAt)
+    }
+}
+
+struct LiveTrustedDeviceRegistration: Decodable, Equatable {
+    let id: String
+    let deviceID: String
+    let deviceName: String
+    let platform: String
+    let status: LiveTrustedDeviceStatus
+    let lastVerifiedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case deviceID = "deviceId"
+        case deviceName
+        case platform
+        case status
+        case lastVerifiedAt
+    }
+}
+
+struct LiveDeviceTrustResult: Decodable, Equatable {
+    let device: LiveTrustedDeviceRegistration
+    let deviceToken: String
+}
+
+struct LiveAppAttestChallenge: Decodable, Equatable {
+    let id: String
+    let challenge: String
+    let expiresAt: String
+}
+
+enum LivePushPlatform: String, Codable, Equatable {
+    case ios
+    case android
+}
+
+enum LivePushTokenStatus: String, Decodable, Equatable {
+    case active = "ACTIVE"
+}
+
+struct LivePushToken: Decodable, Equatable {
+    let platform: LivePushPlatform
+    let status: LivePushTokenStatus
+    let suffix: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case platform
+        case status
+        case suffix
+        case createdAt
+        case updatedAt
+        case token
+        case tokenDigest
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard !container.contains(.token), !container.contains(.tokenDigest) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .tokenDigest,
+                in: container,
+                debugDescription: "Push token responses must not contain secrets."
+            )
+        }
+        platform = try container.decode(LivePushPlatform.self, forKey: .platform)
+        status = try container.decode(LivePushTokenStatus.self, forKey: .status)
+        suffix = try container.decode(String.self, forKey: .suffix)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+    }
+}
+
+struct LiveVirtualTicketQR: Decodable, Equatable {
+    let type: String
+    let ticketId: String
+    let issuedAt: String
+    let eventTitle: String
+    let seatLabel: String
+    let performanceStartsAt: String
+    let qrPreparedAt: String
+    let realQrAvailableAt: String
+    let admissionCredentialStatus: String
+    let admissionChannel: String
+}
+
+struct LiveAdmissionQR: Decodable, Equatable {
+    let type: String
+    let ticketId: String
+    let ownerId: String
+    let expiresAt: String
+    let nonce: String
+    let signature: String
+    let issuedAt: String
+    let performanceStartsAt: String
+    let preparedAt: String
+    let activeAt: String
+    let ttlSeconds: Int
+    let traceCode: String
+    let channel: String
+    let emergencyReason: String?
+}
+
 struct LiveWatchlistItem: Decodable, Equatable {
     let id: String
     let userId: String?
@@ -856,8 +1171,8 @@ struct LiveWatchlistItem: Decodable, Equatable {
     let notificationJobs: [LiveNotificationJob]
 }
 
-struct LiveWatchlistRemoval: Decodable, Equatable {
-    let removed: Bool
+struct LiveWatchlistDeletion: Decodable, Equatable {
+    let deleted: Bool
     let eventId: String
 }
 
@@ -870,6 +1185,84 @@ struct LiveWatchlistEvent: Decodable, Equatable {
     let saleState: String
 }
 
+enum LiveQueueEntryStatus: String, Decodable, Equatable {
+    case waiting = "WAITING"
+    case admitted = "ADMITTED"
+    case expired = "EXPIRED"
+    case left = "LEFT"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
+}
+
+struct LiveQueueEntry: Decodable, Equatable {
+    let id: String
+    let performanceDateId: String
+    let status: LiveQueueEntryStatus
+    let position: Int
+    let admittedAt: String?
+    let admissionExpiresAt: String?
+    let enteredAt: String
+}
+
+struct LiveQueueEntryLeaveResult: Decodable, Equatable {
+    let id: String
+    let status: LiveQueueEntryStatus
+}
+
+enum LiveSeatHoldStatus: String, Decodable, Equatable {
+    case active = "ACTIVE"
+    case expired = "EXPIRED"
+    case released = "RELEASED"
+    case converted = "CONVERTED"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
+}
+
+struct LiveSeatHold: Decodable, Equatable {
+    let id: String
+    let status: LiveSeatHoldStatus
+    let performanceDateId: String
+    let ticketIds: [String]
+    let expiresAt: String
+    let extensionsUsed: Int
+}
+
+enum LiveReservationDraftStatus: String, Decodable, Equatable {
+    case pendingPayment = "PENDING_PAYMENT"
+    case expired = "EXPIRED"
+    case cancelled = "CANCELLED"
+    case confirmed = "CONFIRMED"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .unknown
+    }
+}
+
+struct LiveReservationAmount: Decodable, Equatable {
+    let faceValueTotal: Int
+    let serviceFee: Int
+    let total: Int
+}
+
+struct LiveReservationDraft: Decodable, Equatable {
+    let id: String
+    let status: LiveReservationDraftStatus
+    let performanceDateId: String
+    let ticketIds: [String]
+    let amount: LiveReservationAmount
+    let expiresAt: String
+}
+
 struct LiveNotificationJob: Decodable, Equatable {
     let id: String
     let type: String
@@ -880,28 +1273,22 @@ struct LiveNotificationJob: Decodable, Equatable {
 
 struct LiveSupportThread: Decodable, Equatable {
     let id: String
-    let userId: String
     let subject: String
     let status: LiveSupportStatus
+    let category: String?
+    let createdAt: String?
     let updatedAt: String
     let messages: [LiveSupportMessage]
 }
 
-struct LiveSupportPublicContent: Decodable, Equatable {
+struct LivePublicSupport: Decodable, Equatable {
     let version: String
-    let categories: [LiveSupportCategory]
     let faqs: [LiveSupportFAQ]
     let notices: [LiveSupportNotice]
 }
 
-struct LiveSupportCategory: Decodable, Equatable {
-    let id: String
-    let label: String
-}
-
 struct LiveSupportFAQ: Decodable, Equatable {
     let id: String
-    let category: String
     let question: String
     let answer: String
 }
@@ -926,7 +1313,6 @@ enum LiveSupportStatus: String, Decodable, Equatable {
 
 struct LiveSupportMessage: Decodable, Equatable {
     let id: String
-    let actorId: String
     let role: LiveSupportRole
     let body: String
     let at: String
@@ -995,23 +1381,18 @@ enum LiveAuthenticatedAction: Equatable {
     case ticketPurchase(userID: String, ticketID: String, idempotencyKey: String)
     case identityStart(userID: String, phone: String, idempotencyKey: String)
     case identityConfirm(userID: String, phone: String, verificationID: String, idempotencyKey: String)
-    case trustDevice(userID: String, deviceID: String, attestation: String, idempotencyKey: String)
     case pushToken(userID: String, token: String, idempotencyKey: String)
-    case admissionQR(userID: String, ticketID: String, deviceID: String, attestation: String, idempotencyKey: String)
     case virtualQR(userID: String, ticketID: String, idempotencyKey: String)
 
     var endpoint: LiveAPIEndpoint {
         switch self {
         case .supportThread: return .supportThreadMutation
         case .supportMessage: return .supportMessages
-        case .watchlist: return .watchlistMutation
-        case .watchlistNotification: return .watchlistNotification
+        case .watchlist, .watchlistNotification: return .watchlistUpsert
         case .ticketPurchase: return .ticketPurchase
         case .identityStart: return .identityStart
         case .identityConfirm: return .identityConfirm
-        case .trustDevice: return .deviceTrust
         case .pushToken: return .pushToken
-        case .admissionQR: return .ticketQR
         case .virtualQR: return .virtualQR
         }
     }
@@ -1023,27 +1404,31 @@ enum LiveAuthenticatedAction: Equatable {
         let path: String
         let method: APIRequestMethod
         switch self {
-        case let .supportThread(userID, category, subject, message, key):
-            owner = (userID, nil)
-            body = ["category": category, "subject": subject, "message": message]
+        case let .supportThread(userID, message, key):
+            owner = (userID, "__bearer__")
+            body = ["message": message]
             idempotencyKey = key
             path = endpoint.pathTemplate
             method = .post
         case let .supportMessage(userID, threadID, message, key):
-            owner = (userID, nil)
-            body = ["message": message]
+            owner = (userID, "__bearer__")
+            body = ["threadId": threadID, "message": message]
             idempotencyKey = key
-            path = "/api/me/support/threads/\(threadID)/messages"
-            method = .post
-        case let .watchlist(userID, eventID, key):
-            owner = (userID, nil)
-            body = ["notificationEnabled": true]
+        case let .watchlist(userID, _, key):
+            owner = (userID, "__bearer__")
+            body = [
+                "channels": ["APP_PUSH"],
+                "calendarEnabled": false,
+                "notificationEnabled": true
+            ]
             idempotencyKey = key
-            path = "/api/me/watchlist/\(eventID)"
-            method = .put
-        case let .watchlistNotification(userID, eventID, key):
-            owner = (userID, nil)
-            body = ["enabled": true]
+        case let .watchlistNotification(userID, _, key):
+            owner = (userID, "__bearer__")
+            body = [
+                "channels": ["APP_PUSH"],
+                "calendarEnabled": false,
+                "notificationEnabled": true
+            ]
             idempotencyKey = key
             path = "/api/me/watchlist/\(eventID)/notification"
             method = .put
@@ -1063,26 +1448,10 @@ enum LiveAuthenticatedAction: Equatable {
             owner = (userID, "userId")
             body = ["userId": userID, "phone": phone, "identityVerificationId": verificationID]
             idempotencyKey = key
-            path = endpoint.pathTemplate
-            method = .post
-        case let .trustDevice(userID, deviceID, attestation, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "deviceId": deviceID, "biometricVerified": true, "appAttestation": attestation]
-            idempotencyKey = key
-            path = endpoint.pathTemplate
-            method = .post
         case let .pushToken(userID, token, key):
             owner = (userID, "userId")
             body = ["userId": userID, "platform": "ios", "token": token]
             idempotencyKey = key
-            path = endpoint.pathTemplate
-            method = .post
-        case let .admissionQR(userID, ticketID, deviceID, attestation, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "ticketId": ticketID, "channel": "APP", "deviceId": deviceID, "appAttestation": attestation]
-            idempotencyKey = key
-            path = endpoint.pathTemplate
-            method = .post
         case let .virtualQR(userID, ticketID, key):
             owner = (userID, "userId")
             body = ["userId": userID, "ticketId": ticketID]
@@ -1097,13 +1466,26 @@ enum LiveAuthenticatedAction: Equatable {
               JSONSerialization.isValidJSONObject(body) else {
             throw APIClientError.invalidResponse
         }
+        let path: String
+        switch self {
+        case .watchlist(_, let eventID, _), .watchlistNotification(_, let eventID, _):
+            let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+            guard !eventID.isEmpty,
+                  let encodedEventID = eventID.addingPercentEncoding(withAllowedCharacters: allowed),
+                  !encodedEventID.isEmpty else {
+                throw APIClientError.invalidResponse
+            }
+            path = endpoint.pathTemplate.replacingOccurrences(of: "{eventId}", with: encodedEventID)
+        default:
+            path = endpoint.pathTemplate
+        }
         return APIRequest(
-            method: method,
+            method: endpoint.method,
             path: path,
             body: .json(try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])),
             idempotencyKey: idempotencyKey,
             authentication: .required(userID: owner.id),
-            ownerBinding: owner.field.map(APIRequestOwnerBinding.jsonField) ?? .principal
+            ownerBinding: owner.field == "__bearer__" ? .bearerPrincipal : .jsonField(owner.field)
         )
     }
 }

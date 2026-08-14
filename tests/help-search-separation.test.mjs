@@ -10,6 +10,7 @@ test("help search stays on help page and filters support content only", async (t
 
   await assertHelpSearchResults(browser, baseUrl);
   await assertHelpSearchEmptyState(browser, baseUrl);
+  await assertKakaoContactCard(browser, baseUrl);
   await assertMobileHelpSearchLayout(browser, baseUrl);
 });
 
@@ -52,6 +53,21 @@ async function assertHelpSearchEmptyState(browser, baseUrl) {
   }
 }
 
+async function assertKakaoContactCard(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 1293, height: 1043 }, deviceScaleFactor: 1 });
+  try {
+    await page.goto(`${baseUrl}/help`, { waitUntil: "networkidle" });
+    const contactCards = page.locator('main a[href="https://pf.kakao.com/_xmTniX/chat"]');
+    assert.equal(await contactCards.count(), 1);
+    assert.equal(await page.getByText("전화 상담", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("문의 스레드 열기", { exact: true }).count(), 0);
+    assert.equal(await contactCards.locator('img[alt="Ticketground 카카오톡 채널 로고"]').count(), 1);
+    assert.equal(await contactCards.getAttribute("target"), "_blank");
+  } finally {
+    await page.close();
+  }
+}
+
 async function assertMobileHelpSearchLayout(browser, baseUrl) {
   const page = await browser.newPage({
     viewport: { width: 390, height: 844 },
@@ -67,7 +83,7 @@ async function assertMobileHelpSearchLayout(browser, baseUrl) {
     await page.getByLabel("고객센터 검색어").fill("입장");
     await page.locator("[data-help-search-submit]").tap();
     assert.equal(new URL(page.url()).pathname, "/help");
-    assert.match(await resultCount(page), /총 5개/);
+    assert.match(await resultCount(page), /총 4개/);
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 1, `mobile help search overflows horizontally by ${overflow}px`);

@@ -43,7 +43,7 @@ jobs:
         run: npm run typecheck
 
       - name: Test backend and iOS tooling regressions
-        run: node --test --test-concurrency=1 tests/backend-api-flow.test.mjs tests/backend-persistence.test.mjs tests/booking-single-checkout-flow.test.mjs tests/discovery-api.test.mjs tests/event-id-mapping.test.mjs tests/ios-discovery-contract.test.mjs tests/ios-tooling-regression.test.mjs
+        run: node --test --test-concurrency=1 tests/backend-api-flow.test.mjs tests/backend-persistence.test.mjs tests/booking-single-checkout-flow.test.mjs tests/discovery-api.test.mjs tests/event-id-mapping.test.mjs tests/inquiry-show-context.test.mjs tests/ios-discovery-contract.test.mjs tests/ios-tooling-regression.test.mjs tests/native-support-api.test.mjs tests/native-watchlist-api.test.mjs
 
       - name: Test GitHub bot
         run: node --test tests/ticketground-github-bot.test.mjs
@@ -84,6 +84,8 @@ jobs:
             -only-testing:TicketGroundAppTests/AppEnvironmentTests \
             -only-testing:TicketGroundAppTests/LoadingMediaTests \
             -only-testing:TicketGroundAppTests/TicketGroundAppTests \
+            -only-testing:TicketGroundAppTests/TosspaymentsClientTests \
+            -only-testing:TicketGroundAppUITests/CheckoutTests \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testHomeRankingAndOpenCalendar \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveStateOnlyHomeCanRetryCatalogAdmission \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveCatalogRoutesUseOneUnavailableSurface \
@@ -92,4 +94,11 @@ jobs:
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates \
             -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveMenuOpensCapabilityLedger \
-            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testLiveHamburgerMenuProvidesWebLikeLinksAndLiveAccountEntry \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedSupportProtectsDraftsAndExpiredSessions \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testCreateLogoutDismissesSupportDetail \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testAuthenticatedWatchlistSynchronizesDetailPreferencesAndRollback \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistDetailReconcilesCommittedServerStateAfterResponseLoss \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistPreferenceReconcilesCommittedServerStateAfterResponseLoss \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistPublicProbeUnauthorizedPreservesNativeSession \
+            -only-testing:TicketGroundAppUITests/DiscoveryTests/testWatchlistDetailRetryReloadsServerState

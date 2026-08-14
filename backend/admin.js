@@ -19,7 +19,9 @@ export function createAdminBackend({
   now,
   seatLayoutForVenue,
   stableId,
-  verifyLedger
+  verifyLedger,
+  listSellerApplications,
+  listPendingSellerEvents
 }) {
   const {
     assertInventorySize,
@@ -126,6 +128,22 @@ function normalizePageOptions(options) {
   const page = Math.max(1, Number.parseInt(String(options.page || "1"), 10) || 1);
   const limit = Math.min(100, Math.max(1, Number.parseInt(String(options.limit || "50"), 10) || 50));
   return { page, limit };
+}
+
+function sellerApplicationPrefillDto(application) {
+  return {
+    applicationId: application.id,
+    title: application.proposedEvent.title,
+    category: application.proposedEvent.category,
+    venueName: application.proposedEvent.venueName,
+    period: application.proposedEvent.eventDateRange || "",
+    summary: application.proposedEvent.summaryDraft || "",
+    castNotes: application.proposedEvent.castNotes || "",
+    noticesDraft: application.proposedEvent.noticesDraft || "",
+    posterImageDataUrl: application.proposedEvent.posterImageDataUrl,
+    seatGrades: application.proposedEvent.seatGrades,
+    sessions: application.proposedEvent.sessions
+  };
 }
 
 function withinDateRange(value, { from, to }) {
@@ -253,12 +271,19 @@ function filteredPaymentTransactions(db, options) {
 }
 
 function paymentSummary(transactions) {
-  return transactions.reduce((summary, transaction) => ({
-    count: summary.count + 1,
-    totalAmount: summary.totalAmount + (transaction.amount || 0),
-    totalFees: summary.totalFees + (transaction.platformFee || 0),
-    totalSettlements: summary.totalSettlements + (transaction.transferAmount || 0)
-  }), { count: 0, totalAmount: 0, totalFees: 0, totalSettlements: 0 });
+  return transactions.reduce((summary, transaction) => {
+    // REFUND transactions store amount as a positive magnitude (how much was
+    // refunded), so it must net negatively into the gross total or a
+    // force-canceled matched resale would be double-counted as revenue
+    // instead of reversed.
+    const signedAmount = transaction.type === "REFUND" ? -(transaction.amount || 0) : (transaction.amount || 0);
+    return {
+      count: summary.count + 1,
+      totalAmount: summary.totalAmount + signedAmount,
+      totalFees: summary.totalFees + (transaction.platformFee || 0),
+      totalSettlements: summary.totalSettlements + (transaction.transferAmount || 0)
+    };
+  }, { count: 0, totalAmount: 0, totalFees: 0, totalSettlements: 0 });
 }
 
 function filteredLedgerEntries(db, options) {
@@ -323,6 +348,19 @@ function assertAssignableRoles(actor, roleKeys) {
   }
 }
 
+// assertAssignableRoles only checks the *requested* roles against the
+// actor's permissions - it says nothing about the account currently being
+// modified. Without this, any acl.manage holder could demote, deactivate,
+// or password-reset an account that currently holds more permissions than
+// they do (e.g. an "admin" role demoting or locking out an "owner").
+function assertNotActingOnHigherPrivilegedAccount(actor, account) {
+  const actorPermissions = new Set(adminDto(actor).permissions);
+  const targetPermissions = adminDto(account).permissions;
+  if (targetPermissions.some((permission) => !actorPermissions.has(permission))) {
+    throw httpError(403, "ADMIN_ROLE_ESCALATION", "본인보다 높은 권한을 가진 관리자 계정은 수정할 수 없습니다.");
+  }
+}
+
 async function createEventDraft(db, payload) {
   const input = normalizeAdminEventInput(payload);
   const venue = resolveVenue(db, input.venueId);
@@ -353,6 +391,8 @@ async function createEventDraft(db, payload) {
     checkoutNotice: input.checkoutNotice,
     discountRate: input.discountRate,
     rating: "0.0",
+    sellerAccountId: null,
+    publishStatus: "PUBLISHED",
     ...content
   };
   db.events.push(event);
@@ -365,6 +405,20 @@ async function createEventDraft(db, payload) {
     venueId: venue.id,
     ticketsCreated
   });
+  if (payload.sourceApplicationId) {
+    const application = db.sellerApplications?.find((item) => item.id === payload.sourceApplicationId);
+    if (application && application.status === "APPROVED") {
+      const at = now();
+      application.status = "REGISTERED";
+      application.review.linkedEventId = event.id;
+      application.updatedAt = at;
+      application.review.log.push({ at, by: "ADMIN", action: "REGISTERED", note: `linked to event ${event.id}` });
+      appendLedger(db, "ADMIN", "SELLER_APPLICATION_REGISTERED", {
+        applicationId: application.id,
+        eventId: event.id
+      });
+    }
+  }
   return { event: clone(event), venue, ticketsCreated, seatMap: venueMapForEvent(db, event.id) };
 }
 
@@ -459,6 +513,7 @@ function updateAdminAccount(db, payload, actor) {
   const account = db.adminAccounts.find((item) => item.id === payload.adminId);
   if (!account) throw httpError(404, "ADMIN_ACCOUNT_NOT_FOUND", "관리자 계정을 찾을 수 없습니다.");
   if (account.id === actor.id) throw httpError(403, "ADMIN_SELF_UPDATE_DENIED", "본인 관리자 계정의 역할과 ACL은 다른 관리자에게 요청해주세요.");
+  assertNotActingOnHigherPrivilegedAccount(actor, account);
   const roleKeys = normalizeRoleKeys(payload.roleKeys);
   assertAssignableRoles(actor, roleKeys);
   let ipAllowlist;
@@ -658,10 +713,14 @@ function adminWorkspace(db, workspace, actor, options = {}) {
   }
   if (workspace === "catalog" || workspace === "sales") {
     const event = firstEditableEvent(db, options.eventId);
+    const sourceApplication = workspace === "catalog" && options.sourceApplicationId
+      ? db.sellerApplications?.find((item) => item.id === options.sourceApplicationId && item.status === "APPROVED")
+      : null;
     return {
       eventSummaries: db.events.map((item) => eventPickerSummary(db, item)),
       events: event ? [clone(event)] : [],
-      venues: db.venues.map(adminVenueRecord)
+      venues: db.venues.map(adminVenueRecord),
+      ...(sourceApplication ? { sellerApplicationPrefill: sellerApplicationPrefillDto(sourceApplication) } : {})
     };
   }
   if (workspace === "inventory") {
@@ -741,6 +800,12 @@ function adminWorkspace(db, workspace, actor, options = {}) {
       },
       supportThreads: filteredSupportThreads(db, options)
     };
+  }
+  if (workspace === "seller-applications") {
+    return listSellerApplications(db, options);
+  }
+  if (workspace === "seller-events") {
+    return { events: listPendingSellerEvents(db) };
   }
   if (workspace === "resale") {
     const usersById = new Map(db.users.map((user) => [user.id, user]));
