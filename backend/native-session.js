@@ -43,15 +43,26 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { credential, expiresAt };
   }
 
-  function nativeSession(db, req) {
+  function authenticateNativeSession(db, req) {
     const session = matchingSession(db, bearerCredential(req));
-    return { user: publicSessionUser(findUser(db, session.userId)) };
+    return { session, user: findUser(db, session.userId) };
+  }
+
+  // Bearer 헤더가 아예 없으면 null(익명 취급), 있는데 무효/만료면 그대로 401을 던진다.
+  // 세션이 없다고 조용히 넘어가는 것과 "세션이 있는데 위조됐다"를 구분해야
+  // 잘못된/만료된 토큰으로 익명 취급을 우회할 수 없다.
+  function optionalAuthenticateNativeSession(db, req) {
+    if (!req.headers.authorization) return null;
+    return authenticateNativeSession(db, req);
   }
 
   function nativeSessionPrincipal(db, req) {
-    const session = matchingSession(db, bearerCredential(req));
-    findUser(db, session.userId);
-    return { userId: session.userId };
+    return { userId: authenticateNativeSession(db, req).user.id };
+  }
+
+  function nativeSession(db, req) {
+    const { user } = authenticateNativeSession(db, req);
+    return { user: publicSessionUser(user) };
   }
 
   function nativeLogout(db, req) {
@@ -60,5 +71,13 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { revoked: true };
   }
 
-  return { issueNativeSession, nativeLogout, nativeSession, nativeSessionPrincipal };
+  return {
+    authenticateNativeSession,
+    issueNativeSession,
+    nativeLogout,
+    nativeSession,
+    nativeSessionPrincipal,
+    optionalAuthenticateNativeSession,
+    requireNativePrincipal: nativeSessionPrincipal
+  };
 }

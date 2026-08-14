@@ -100,8 +100,8 @@ test("identity status lookup requires a session and refuses to reveal another ac
   assert.equal(anonymous.error.code, "NATIVE_SESSION_INVALID");
 
   // Given: a different, unrelated logged-in session (google_user_test).
-  const login = await api(baseUrl, "/api/auth/google", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
-  const credential = login.data.credential;
+  const login = await api(baseUrl, "/api/auth/google/native", { credential: GOOGLE_AUTH_TEST_CREDENTIAL });
+  const credential = login.data.session.credential;
 
   // When: that session tries to read user_fan_a's verification status by
   // guessing/knowing their userId (the actual attack #105 flagged).

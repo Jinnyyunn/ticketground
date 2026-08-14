@@ -117,6 +117,13 @@ function requireBody(body, keys) {
   }
 }
 
+function resolvePurchaseUserId(db, req, body) {
+  if (req.headers.authorization) {
+    return requireNativePrincipal(db, req).userId;
+  }
+  return body.userId;
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
 }
@@ -270,7 +277,14 @@ async function handleApi(req, res, db, surface) {
     });
   }
   if (req.method === "GET" && userSessionMatch) return demoSession(db, decodeURIComponent(userSessionMatch[1]));
-  if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
+  if (req.method === "GET" && userIdentityMatch) {
+    const requestedUserId = decodeURIComponent(userIdentityMatch[1]);
+    const sessionUserId = requireNativePrincipal(db, req).userId;
+    if (sessionUserId !== requestedUserId) {
+      throw httpError(403, "NOT_OWNER", "본인의 본인인증 상태만 조회할 수 있습니다.");
+    }
+    return publicIdentityStatus(db, requestedUserId);
+  }
   if (req.method === "GET" && userTicketsMatch) return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
   if (req.method === "GET" && userWatchlistMatch) return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
   if (req.method === "GET" && url.pathname === "/api/me/profile") {
