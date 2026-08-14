@@ -36,3 +36,13 @@ enum TicketgroundRadius {
     static let large: CGFloat = 20
     static let pill: CGFloat = 100
 }
+
+enum TicketgroundLayout {
+    static let minimumTouchTarget: CGFloat = 44
+    static let minimumSeatMarker: CGFloat = 16
+    static let maximumSeatMarker: CGFloat = 60
+    static let seatBookingMaximumWidth: CGFloat = 1_080
+    static let seatBookingSidebarWidth: CGFloat = 300
+    static let stageMaximumWidth: CGFloat = 180
+    static let primaryActionMinimumHeight: CGFloat = 48
+}
