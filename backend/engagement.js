@@ -66,6 +66,15 @@ export function createEngagementBackend({
     return jobs;
   }
 
+  function cancelWatchlistNotifications(db, watch) {
+    const jobs = db.notificationJobs.filter((job) => job.watchlistId === watch.id);
+    for (const job of jobs) {
+      if (job.status !== "SENT") job.status = "CANCELLED";
+      job.updatedAt = now();
+    }
+    return jobs;
+  }
+
   function upsertWatchlist(db, { userId, eventId, channels = ["APP_PUSH"], calendarEnabled = true, notificationEnabled = true }) {
     const user = findUser(db, userId);
     const event = db.events.find((item) => item.id === eventId);
@@ -92,7 +101,9 @@ export function createEngagementBackend({
       watch.notificationEnabled = Boolean(notificationEnabled);
       watch.updatedAt = now();
     }
-    const jobs = watch.notificationEnabled ? scheduleWatchlistNotifications(db, watch) : [];
+    const jobs = watch.notificationEnabled
+      ? scheduleWatchlistNotifications(db, watch)
+      : cancelWatchlistNotifications(db, watch);
     appendLedger(db, user.id, "WATCHLIST_UPSERTED", {
       watchlistId: watch.id,
       eventId: event.id,

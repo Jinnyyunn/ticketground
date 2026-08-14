@@ -7,6 +7,7 @@ import nextEnv from "@next/env";
 import next from "next";
 import { adminDto, permissionCatalog, roleCatalog } from "./backend/admin-acl.js";
 import { createTicketgroundApp } from "./backend/app.js";
+import { publicHomeRoute } from "./backend/public-host-routing.js";
 
 const projectDir = path.dirname(fileURLToPath(import.meta.url));
 const { loadEnvConfig } = nextEnv;
@@ -51,6 +52,8 @@ const app = await createTicketgroundApp({
   mediaDir: { directory: adminUploadDir, urlPrefix: "/uploads/admin" },
   runtime: {
     appAttestationSecret: process.env.TIG_APP_ATTESTATION_SECRET,
+    gateApiKey: process.env.TIG_GATE_API_KEY,
+    simulatorAttestationSecret: process.env.TIG_SIMULATOR_ATTESTATION_SECRET,
     nowOverride: process.env.TIG_NOW,
     secret: requiredSecret("TIG_SECRET")
   },
@@ -384,6 +387,12 @@ async function serveAdminUpload(res, pathname) {
 async function servePublic(req, res) {
   const requestUrl = req.url || "/";
   const { pathname } = new URL(requestUrl, `http://${req.headers.host}`);
+  const homeRoute = publicHomeRoute(req.headers.host, requestUrl);
+  if (homeRoute) {
+    res.writeHead(302, { Location: homeRoute });
+    res.end();
+    return;
+  }
   if (await serveAdminUpload(res, pathname)) return;
   if (pathname === "/console" || pathname.startsWith("/console/")) {
     writeNotFound(res);

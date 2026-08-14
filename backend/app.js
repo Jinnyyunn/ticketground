@@ -1,19 +1,27 @@
 import { createAdmissionBackend } from "./admission.js";
+import { createAccountContract } from "./account-contract.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
 import { createBootpayBackend } from "./bootpay.js";
+import { createBookingSession } from "./booking-session.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
 import { createDtoBackend } from "./dtos.js";
 import { createDiscoveryBackend } from "./discovery.js";
+import { createDeviceRegistration } from "./device-registration.js";
 import { createEngagementBackend } from "./engagement.js";
 import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
+import { createIdempotencyBackend } from "./idempotency.js";
 import { createNativeSessionBackend } from "./native-session.js";
+import { createMobileTicketQr } from "./mobile-ticket-qr.js";
 import { createPersistence } from "./persistence.js";
+import { createRequestPrincipal } from "./request-principal.js";
 import { createRuntime } from "./runtime.js";
 import { createSessionBackend } from "./session.js";
+import { createSupportContract } from "./support-contract.js";
+import { createWatchlistContract } from "./watchlist-contract.js";
 
 export async function createTicketgroundApp(options) {
   const runtime = createRuntime(options.runtime);
@@ -89,6 +97,65 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     randomHex: runtime.randomHex
   });
+  const idempotency = createIdempotencyBackend({
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    now: runtime.now
+  });
+  const requestPrincipal = createRequestPrincipal({
+    httpError: runtime.httpError,
+    nativeSessionPrincipal: nativeSession.nativeSessionPrincipal
+  });
+  const accountContract = createAccountContract({
+    appendLedger: persistence.appendLedger,
+    executeIdempotent: idempotency.executeIdempotent,
+    findUser: runtime.findUser,
+    httpError: runtime.httpError,
+    now: runtime.now
+  });
+  const supportContract = createSupportContract({
+    addSupportMessage: engagement.addSupportMessage,
+    createSupportThread: engagement.createSupportThread,
+    executeIdempotent: idempotency.executeIdempotent,
+    httpError: runtime.httpError,
+    supportThreadForUser: engagement.supportThreadForUser
+  });
+  const watchlistContract = createWatchlistContract({
+    appendLedger: persistence.appendLedger,
+    executeIdempotent: idempotency.executeIdempotent,
+    httpError: runtime.httpError,
+    upsertWatchlist: engagement.upsertWatchlist,
+    userWatchlist: engagement.userWatchlist
+  });
+  const bookingSession = createBookingSession({
+    appendLedger: persistence.appendLedger,
+    currentTimeMs: runtime.currentTimeMs,
+    executeIdempotent: idempotency.executeIdempotent,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
+  const deviceRegistration = createDeviceRegistration({
+    currentTimeMs: runtime.currentTimeMs,
+    executeIdempotent: idempotency.executeIdempotent,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now,
+    randomHex: runtime.randomHex,
+    simulatorSecret: options.runtime.simulatorAttestationSecret
+  });
+  const mobileTicketQr = createMobileTicketQr({
+    appendLedger: persistence.appendLedger,
+    currentTimeMs: runtime.currentTimeMs,
+    executeIdempotent: idempotency.executeIdempotent,
+    gateApiKey: options.runtime.gateApiKey,
+    hash: runtime.hash,
+    hmac: runtime.hmac,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
   const session = createSessionBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
@@ -143,13 +210,21 @@ export async function createTicketgroundApp(options) {
   });
   const apiRouter = createApiRouter({
     ...admin,
+    ...accountContract,
+    ...bookingSession,
     ...commerce,
     ...discovery,
+    ...deviceRegistration,
     ...engagement,
     ...groupBooking,
     ...identity,
+    ...idempotency,
     ...nativeSession,
+    ...mobileTicketQr,
+    ...requestPrincipal,
     ...session,
+    ...supportContract,
+    ...watchlistContract,
     appendLedger: persistence.appendLedger,
     bootpayConfig: bootpay.bootpayConfig,
     buyPrimary: commerce.buyPrimary,

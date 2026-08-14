@@ -48,11 +48,17 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { user: publicSessionUser(findUser(db, session.userId)) };
   }
 
+  function nativeSessionPrincipal(db, req) {
+    const session = matchingSession(db, bearerCredential(req));
+    findUser(db, session.userId);
+    return { userId: session.userId };
+  }
+
   function nativeLogout(db, req) {
     const session = matchingSession(db, bearerCredential(req));
     session.revokedAt = now();
     return { revoked: true };
   }
 
-  return { issueNativeSession, nativeLogout, nativeSession };
+  return { issueNativeSession, nativeLogout, nativeSession, nativeSessionPrincipal };
 }

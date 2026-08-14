@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminApi, api, appAttestation, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { adminApi, api, appAttestation, buyFirstTicket, gateApiKey, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 
 test("backend issues virtual ticket, app-only admission QR, and one-use gate verification", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -44,11 +44,14 @@ test("backend issues virtual ticket, app-only admission QR, and one-use gate ver
   assert.equal(admissionQr.data.ttlSeconds, 20);
   assert.ok(Date.parse(admissionQr.data.expiresAt) - Date.parse(admissionQr.data.issuedAt) <= 20_000);
 
-  const gateAccepted = await api(baseUrl, "/api/gate/verify", admissionQr.data);
+  const unauthorizedGate = await api(baseUrl, "/api/gate/verify", admissionQr.data, 401);
+  assert.equal(unauthorizedGate.error.code, "GATE_UNAUTHORIZED");
+
+  const gateAccepted = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, { "x-tig-gate-key": gateApiKey });
   assert.equal(gateAccepted.data.valid, true);
   assert.equal(gateAccepted.data.credential, undefined);
 
-  const replay = await api(baseUrl, "/api/gate/verify", admissionQr.data);
+  const replay = await api(baseUrl, "/api/gate/verify", admissionQr.data, 200, { "x-tig-gate-key": gateApiKey });
   assert.equal(replay.data.valid, false);
 
   const stateAfterQr = await api(baseUrl, "/api/state");

@@ -3,6 +3,7 @@ import { publicSessionUser } from "./session-user.js";
 
 export function createApiRouter({
   addSupportMessage,
+  addPrincipalSupportMessage,
   adminHoldAdmissionCredential,
   acknowledgeOperatorAlerts,
   adminCancelResalePool,
@@ -10,32 +11,49 @@ export function createApiRouter({
   adminVenues,
   adminWorkspace,
   appendLedger,
+  authorizeGate,
   assertTicketPurchasable,
   bootpayConfig,
+  challenge,
   confirmBootpayPayment,
+  createDraft,
+  createHold,
   createAdminAccount,
   cancelResaleListing,
   createSupportThread,
+  createPrincipalSupportThread,
   createEventDraft,
   demoSession,
+  draft,
   directTransferAttempt,
   drawPool,
+  deleteWatchlist,
   googleSession,
   googleNativeSession,
   httpError,
   confirmPortOneDanalVerification,
   issueQr,
   issueNativeSession,
+  issueMobileQr,
+  joinQueue,
   joinPool,
   listForResale,
+  listMobileTickets,
   notifyWatchlist,
   nativeLogout,
   nativeSession,
   purchaseResale,
+  putPushToken,
+  putSettings,
+  putWatchlist,
+  putWatchlistNotification,
+  profile,
+  queue,
   publicCatalog,
   publicArtist,
   publicOpenCalendar,
   publicRegions,
+  publicSupport,
   publicDirectTransferResult,
   publicPurchaseResult,
   publicResaleDrawResult,
@@ -47,18 +65,34 @@ export function createApiRouter({
   socialAuthPreflight,
   socialAuthSession,
   socialAuthStart,
+  settings,
   approveGroupBookingRequest,
   buyPrimary,
   rejectGroupBookingRequest,
+  reservationDetail,
+  reservations,
+  releaseHold,
+  renewHold,
+  revokeDevice,
+  revokeMobileQr,
+  revokePushToken,
+  requireIdempotencyKey,
+  requireNativePrincipal,
   seatMap,
+  seats,
   startPortOneDanalVerification,
   submitGroupBookingRequest,
   supportThreadForUser,
+  supportThreadDetail,
+  supportThreads,
+  testPayload,
+  trust,
   trustDevice,
   updateEventSale,
   updateEventVenue,
   updateAdminAccount,
   updateDemoProfile,
+  updateProfile,
   updateSupportStatus,
   updateTicketStatus,
   updateTicketStatuses,
@@ -70,7 +104,9 @@ export function createApiRouter({
   verifyAppAttestation,
   verifyLedger,
   verifyQr,
-  virtualQr
+  verifyMobileQrAtGate,
+  virtualQr,
+  watchlist
 }) {
 function requireBody(body, keys) {
   for (const key of keys) {
@@ -108,7 +144,7 @@ async function parseBody(req) {
 
 async function handleApi(req, res, db, surface) {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const body = req.method === "POST" ? await parseBody(req) : {};
+  const body = ["PATCH", "POST", "PUT"].includes(req.method) ? await parseBody(req) : {};
   const seatMapMatch = url.pathname.match(/^\/api\/events\/([^/]+)\/seat-map$/);
   const userSessionMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/session$/);
   const userProfileMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/profile$/);
@@ -117,6 +153,19 @@ async function handleApi(req, res, db, surface) {
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
+  const principalSupportThreadMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)$/);
+  const principalSupportMessageMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)\/messages$/);
+  const principalReservationMatch = url.pathname.match(/^\/api\/me\/reservations\/([^/]+)$/);
+  const principalWatchlistItemMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)$/);
+  const principalWatchlistNotificationMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)\/notification$/);
+  const bookingQueueMatch = url.pathname.match(/^\/api\/me\/booking\/queues\/([^/]+)$/);
+  const bookingSeatsMatch = url.pathname.match(/^\/api\/me\/booking\/events\/([^/]+)\/performances\/([^/]+)\/seats$/);
+  const bookingHoldMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)$/);
+  const bookingHoldRenewMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)\/renew$/);
+  const bookingDraftMatch = url.pathname.match(/^\/api\/me\/booking\/drafts\/([^/]+)$/);
+  const principalDeviceMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)$/);
+  const principalPushTokenMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)\/push-token$/);
+  const principalTestPayloadMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)\/test-payload$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname === "/api/ledger";
 
   if (adminOnly && surface !== "admin") {
@@ -141,6 +190,20 @@ async function handleApi(req, res, db, surface) {
     return {
       version: "1",
       endpoints: ["regions", "artists", "open-calendar"]
+    };
+  }
+  if (req.method === "GET" && url.pathname === "/api/native/v1/contract") {
+    return {
+      version: "1",
+      endpoints: [
+        "profile",
+        "reservations",
+        "watchlist",
+        "support",
+        "booking",
+        "devices",
+        "mobile-ticket-qr"
+      ]
     };
   }
   if (req.method === "GET" && artistDiscoveryMatch) {
@@ -198,6 +261,85 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "GET" && userIdentityMatch) return publicIdentityStatus(db, decodeURIComponent(userIdentityMatch[1]));
   if (req.method === "GET" && userTicketsMatch) return publicTicketsForUser(db, decodeURIComponent(userTicketsMatch[1]));
   if (req.method === "GET" && userWatchlistMatch) return userWatchlist(db, decodeURIComponent(userWatchlistMatch[1]));
+  if (req.method === "GET" && url.pathname === "/api/me/profile") {
+    return profile(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
+    return updateProfile(
+      db,
+      requireNativePrincipal(db, req),
+      requireIdempotencyKey(req),
+      body
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/reservations") {
+    return reservations(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "GET" && principalReservationMatch) {
+    return reservationDetail(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalReservationMatch[1])
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/watchlist") {
+    return watchlist(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "GET" && bookingQueueMatch) {
+    return queue(db, requireNativePrincipal(db, req), decodeURIComponent(bookingQueueMatch[1]));
+  }
+  if (req.method === "GET" && bookingSeatsMatch) {
+    const queueId = url.searchParams.get("queueId");
+    if (!queueId) throw httpError(400, "MISSING_FIELD", "queueId 값이 필요합니다.");
+    return seats(db, requireNativePrincipal(db, req), {
+      eventId: decodeURIComponent(bookingSeatsMatch[1]),
+      performanceId: decodeURIComponent(bookingSeatsMatch[2]),
+      queueId
+    });
+  }
+  if (req.method === "GET" && bookingDraftMatch) {
+    return draft(db, requireNativePrincipal(db, req), decodeURIComponent(bookingDraftMatch[1]));
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/notification-settings") {
+    return settings(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "PUT" && principalWatchlistNotificationMatch) {
+    return putWatchlistNotification(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalWatchlistNotificationMatch[1]),
+      requireIdempotencyKey(req),
+      body
+    );
+  }
+  if (req.method === "PUT" && principalWatchlistItemMatch) {
+    return putWatchlist(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalWatchlistItemMatch[1]),
+      requireIdempotencyKey(req),
+      body
+    );
+  }
+  if (req.method === "DELETE" && principalWatchlistItemMatch) {
+    return deleteWatchlist(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalWatchlistItemMatch[1]),
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "GET" && url.pathname === "/api/support/v1/public") return publicSupport();
+  if (req.method === "GET" && url.pathname === "/api/me/support/threads") {
+    return supportThreads(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "GET" && principalSupportThreadMatch) {
+    return supportThreadDetail(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalSupportThreadMatch[1])
+    );
+  }
   if (req.method === "GET" && url.pathname === "/api/support/threads") {
     const userId = url.searchParams.get("userId");
     if (!userId) throw httpError(400, "MISSING_FIELD", "userId 값이 필요합니다.");
@@ -216,6 +358,85 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "POST" && url.pathname === "/api/support/threads") {
     requireBody(body, ["userId", "message"]);
     return createSupportThread(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/support/threads") {
+    requireBody(body, ["message"]);
+    return createPrincipalSupportThread(
+      db,
+      requireNativePrincipal(db, req),
+      requireIdempotencyKey(req),
+      body
+    );
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/booking/queues") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["eventId", "performanceId"]);
+    return joinQueue(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/devices/challenges") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["deviceId"]);
+    return challenge(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/devices/trust") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["challengeId", "deviceId", "counter", "proof"]);
+    return trust(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "PUT" && principalPushTokenMatch) {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["token"]);
+    return putPushToken(db, principal, decodeURIComponent(principalPushTokenMatch[1]), requireIdempotencyKey(req), body);
+  }
+  if (req.method === "DELETE" && principalPushTokenMatch) {
+    return revokePushToken(db, requireNativePrincipal(db, req), decodeURIComponent(principalPushTokenMatch[1]), requireIdempotencyKey(req));
+  }
+  if (req.method === "DELETE" && principalDeviceMatch) {
+    return revokeDevice(db, requireNativePrincipal(db, req), decodeURIComponent(principalDeviceMatch[1]), requireIdempotencyKey(req));
+  }
+  if (req.method === "PUT" && url.pathname === "/api/me/notification-settings") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["watchlistOpen", "reservationUpdates"]);
+    return putSettings(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && principalTestPayloadMatch) {
+    return testPayload(db, requireNativePrincipal(db, req), decodeURIComponent(principalTestPayloadMatch[1]));
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/booking/holds") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["queueId", "ticketId", "revision"]);
+    return createHold(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && bookingHoldRenewMatch) {
+    return renewHold(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(bookingHoldRenewMatch[1]),
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "DELETE" && bookingHoldMatch) {
+    return releaseHold(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(bookingHoldMatch[1]),
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/booking/drafts") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["holdId"]);
+    return createDraft(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && principalSupportMessageMatch) {
+    requireBody(body, ["message"]);
+    return addPrincipalSupportMessage(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalSupportMessageMatch[1]),
+      requireIdempotencyKey(req),
+      body
+    );
   }
   if (req.method === "POST" && url.pathname === "/api/support/messages") {
     requireBody(body, ["threadId", "actorId", "message"]);
@@ -353,7 +574,22 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "POST" && url.pathname === "/api/gate/verify") {
     requireBody(body, ["ticketId", "ownerId", "expiresAt", "nonce", "signature"]);
+    authorizeGate(req.headers["x-tig-gate-key"]);
     return verifyQr(db, body);
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/tickets") {
+    return listMobileTickets(db, requireNativePrincipal(db, req));
+  }
+  const mobileQrMatch = url.pathname.match(/^\/api\/me\/tickets\/([^/]+)\/qr$/);
+  if (mobileQrMatch && req.method === "POST") {
+    return issueMobileQr(db, requireNativePrincipal(db, req), requireIdempotencyKey(req), decodeURIComponent(mobileQrMatch[1]), body);
+  }
+  if (mobileQrMatch && req.method === "DELETE") {
+    return revokeMobileQr(db, requireNativePrincipal(db, req), requireIdempotencyKey(req), decodeURIComponent(mobileQrMatch[1]));
+  }
+  if (req.method === "POST" && url.pathname === "/api/gate/v1/verify") {
+    requireBody(body, ["token"]);
+    return verifyMobileQrAtGate(db, req.headers["x-tig-gate-key"], body.token);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/venue") {
     requireBody(body, ["eventId", "venueId"]);

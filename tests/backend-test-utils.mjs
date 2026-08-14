@@ -11,6 +11,7 @@ const appAttestationSecret = "backend-test-app-attestation-secret";
 const adminToken = "backend-test-admin-token";
 const adminSessionSecret = "backend-test-admin-session-secret";
 export const bootstrapAdminPassword = "ticketground-test-admin";
+export const gateApiKey = "backend-test-gate-api-key";
 
 export function appAttestation(purpose, ...parts) {
   return crypto
@@ -50,6 +51,7 @@ export async function startServer(t, { now = "2026-09-19T17:00:00+09:00", env = 
       TIG_DB_PATH: resolvedDbPath,
       TIG_NOW: now,
       TIG_APP_ATTESTATION_SECRET: appAttestationSecret,
+      TIG_GATE_API_KEY: gateApiKey,
       TIG_PORTONE_IDENTITY_TEST_MODE: "1",
       TIG_SECRET: "backend-test-runtime-secret",
       ...env

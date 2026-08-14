@@ -31,6 +31,15 @@ function normalizeDb(db) {
   db.groupBookingRequests ||= [];
   db.adminAccounts ||= [];
   db.nativeSessions ||= [];
+  db.idempotencyRecords ||= [];
+  db.bookingQueues ||= [];
+  db.seatHolds ||= [];
+  db.reservationDrafts ||= [];
+  db.bookingInventoryRevision ||= 1;
+  db.deviceChallenges ||= [];
+  db.deviceRegistrations ||= [];
+  db.notificationPreferences ||= [];
+  db.mobileQrTokens ||= [];
   db.ledger ||= [];
 
   if (!db.venues?.length) {
@@ -173,6 +182,14 @@ function seedDb() {
     groupBookingRequests: [],
     adminAccounts: [],
     nativeSessions: [],
+    bookingQueues: [],
+    seatHolds: [],
+    reservationDrafts: [],
+    bookingInventoryRevision: 1,
+    deviceChallenges: [],
+    deviceRegistrations: [],
+    notificationPreferences: [],
+    mobileQrTokens: [],
     ledger: []
   };
   for (const event of db.events) {
