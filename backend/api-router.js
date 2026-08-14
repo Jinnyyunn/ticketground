@@ -117,7 +117,6 @@ export function createApiRouter({
   reservations,
   releaseHold,
   renewHold,
-  revokeDevice,
   revokeMobileQr,
   revokePushToken,
   requireIdempotencyKey,
@@ -309,13 +308,18 @@ async function handleApi(req, res, db, surface) {
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
   const principalWatchlistMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)$/);
+  const principalSupportMessageMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)\/messages$/);
   const queueEntryMatch = url.pathname.match(/^\/api\/me\/queue-entries\/([^/]+)$/);
   const seatHoldMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)$/);
   const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
+  const bookingHoldMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)$/);
+  const bookingHoldRenewMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)\/renew$/);
   const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
   const principalResalePoolMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)$/);
   const principalResaleJoinMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)\/join$/);
   const principalDeviceMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)$/);
+  const principalPushTokenMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)\/push-token$/);
+  const principalTestPayloadMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)\/test-payload$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname.startsWith("/api/ledger");

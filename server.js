@@ -7,6 +7,7 @@ import nextEnv from "@next/env";
 import next from "next";
 import { adminDto, permissionCatalog, roleCatalog } from "./backend/admin-acl.js";
 import { createTicketgroundApp } from "./backend/app.js";
+import { publicHomeRoute } from "./backend/public-host-routing.js";
 import { isPublishedSeatChartRead, isSeatChartRoute } from "./backend/seat-chart-routing.js";
 
 const projectDir = path.dirname(fileURLToPath(import.meta.url));
