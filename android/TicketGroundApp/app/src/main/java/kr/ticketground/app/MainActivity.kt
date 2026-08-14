@@ -25,19 +25,36 @@ import kr.ticketground.app.ui.TypedCustomerRepository
 import kr.ticketground.app.ui.DeviceIdentity
 import android.os.Build
 import android.provider.Settings
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import kr.ticketground.app.gate.GateScannerViewModel
+import kr.ticketground.app.gate.TicketGroundGateApp
 
 class MainActivity : AppCompatActivity() {
+  private lateinit var gateViewModel: GateScannerViewModel
+  private val scannerLauncher = registerForActivityResult(ScanContract()) { result ->
+    if (::gateViewModel.isInitialized && result.contents != null) gateViewModel.verify(gateViewModel.gateToken, result.contents)
+  }
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     window.setFlags(
       WindowManager.LayoutParams.FLAG_SECURE,
       WindowManager.LayoutParams.FLAG_SECURE,
     )
-    val viewModel = ViewModelProvider(this, customerViewModelFactory())[CustomerAppViewModel::class.java]
+    if (BuildConfig.GATE_APP) {
+      gateViewModel = ViewModelProvider(this, gateViewModelFactory())[GateScannerViewModel::class.java]
+    }
     setContent {
       TicketGroundTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-          TicketGroundCustomerApp(viewModel)
+          if (BuildConfig.GATE_APP) {
+            TicketGroundGateApp(gateViewModel) {
+              scannerLauncher.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("고객의 입장 QR을 비춰주세요"))
+            }
+          } else {
+            val viewModel = ViewModelProvider(this@MainActivity, customerViewModelFactory())[CustomerAppViewModel::class.java]
+            TicketGroundCustomerApp(viewModel)
+          }
         }
       }
     }
@@ -72,4 +89,13 @@ class MainActivity : AppCompatActivity() {
       }
     }
   }
+
+  private fun gateViewModelFactory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+      require(modelClass == GateScannerViewModel::class.java)
+      return GateScannerViewModel(TicketGroundApiClient.create(KeystoreSessionVault(applicationContext)).gate()) as T
+    }
+  }
+
 }
