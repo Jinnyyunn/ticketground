@@ -94,70 +94,6 @@ final class TicketGroundAppTests: XCTestCase {
         XCTAssertTrue(String(describing: ContentView.self).contains("ContentView"))
     }
 
-    func testSupportLoadGenerationRejectsCancelledAndExpiredSession() {
-        let generation = LiveSupportLoadGeneration(userID: "user-1", sessionRevision: 7, reloadID: 4)
-
-        XCTAssertTrue(generation.isCurrent(userID: "user-1", sessionRevision: 7, reloadID: 4, isCancelled: false))
-        XCTAssertFalse(generation.isCurrent(userID: nil, sessionRevision: 7, reloadID: 4, isCancelled: false))
-        XCTAssertFalse(generation.isCurrent(userID: "user-1", sessionRevision: 8, reloadID: 4, isCancelled: false))
-        XCTAssertFalse(generation.isCurrent(userID: "user-1", sessionRevision: 7, reloadID: 5, isCancelled: false))
-        XCTAssertFalse(generation.isCurrent(userID: "user-1", sessionRevision: 7, reloadID: 4, isCancelled: true))
-    }
-
-    func testSessionRevisionChangesWhenSameUserLogsOutAndBackIn() {
-        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        sessionStore.saveNativeCredential("first-session", serverUserID: "user-1")
-        let firstRevision = sessionStore.revision
-
-        sessionStore.logout()
-        sessionStore.saveNativeCredential("second-session", serverUserID: "user-1")
-
-        XCTAssertNotEqual(sessionStore.revision, firstRevision)
-    }
-
-    func testSupportSessionBindingRejectsInitialAndReplySessionDrift() {
-        let binding = LiveSupportSessionBinding(userID: "user-1", revision: 7)
-
-        XCTAssertTrue(binding.isCurrent(userID: "user-1", revision: 7, isCancelled: false))
-        XCTAssertFalse(binding.isCurrent(userID: "user-1", revision: 8, isCancelled: false))
-        XCTAssertFalse(binding.isCurrent(userID: "user-2", revision: 7, isCancelled: false))
-        XCTAssertFalse(binding.isCurrent(userID: nil, revision: 7, isCancelled: false))
-        XCTAssertFalse(binding.isCurrent(userID: "user-1", revision: 7, isCancelled: true))
-    }
-
-    func testSupportRequestStageInvalidatesOnlyPrivateUnauthorizedResponse() {
-        XCTAssertFalse(LiveSupportRequestStage.publicProbe.invalidatesSession(status: 401))
-        XCTAssertTrue(LiveSupportRequestStage.privateThreads.invalidatesSession(status: 401))
-        XCTAssertFalse(LiveSupportRequestStage.privateThreads.invalidatesSession(status: 503))
-    }
-
-    func testSupportThreadInsertionPreservesLatestCurrentThreads() {
-        let current = LiveSupportThread(
-            id: "current",
-            subject: "현재 문의",
-            status: .answered,
-            category: nil,
-            createdAt: nil,
-            updatedAt: "2026-08-02T00:03:00Z",
-            messages: []
-        )
-        let created = LiveSupportThread(
-            id: "created",
-            subject: "새 문의",
-            status: .open,
-            category: nil,
-            createdAt: nil,
-            updatedAt: "2026-08-02T00:04:00Z",
-            messages: []
-        )
-
-        let merged = puttingSupportThreadFirst(created, in: [current])
-
-        XCTAssertEqual(merged.map(\.id), ["created", "current"])
-        XCTAssertEqual(merged[1].updatedAt, "2026-08-02T00:03:00Z")
-        XCTAssertEqual(merged[1].status, .answered)
-    }
-
     func testContentSizeOverrideIsLimitedToExplicitUITestValues() {
         XCTAssertNil(TicketGroundApp.requestedSizeCategory(environment: [:]))
         XCTAssertNil(TicketGroundApp.requestedSizeCategory(environment: [
@@ -301,21 +237,6 @@ final class TicketGroundAppTests: XCTestCase {
         await signedIn.signIn()
         XCTAssertEqual(signedIn.state, .signedIn(userName: "Google 사용자"))
         XCTAssertEqual(exchanger.receivedTokens, ["google-id-token"])
-    }
-
-    @MainActor
-    func testGoogleCoordinatorRejectsInsecureBackendBeforeOpeningProvider() async {
-        let identityProvider = CountingGoogleIdentityProvider()
-        let coordinator = GoogleLoginCoordinator(
-            identityProvider: identityProvider,
-            sessionExchanger: StubGoogleSessionExchanger(),
-            isSecureBackend: false
-        )
-
-        await coordinator.signIn()
-
-        XCTAssertEqual(coordinator.state, .failed(message: GoogleLoginError.httpsRequired.localizedDescription))
-        XCTAssertEqual(identityProvider.signInCount, 0)
     }
 
     func testSocialStartURLRequiresHTTPS() throws {
@@ -495,10 +416,6 @@ final class TicketGroundAppTests: XCTestCase {
         }
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
         XCTAssertEqual(payload, ["provider": "kakao", "code": "one-use-code"])
-
-        try await client.logout()
-        XCTAssertNil(sessionStore.current)
-        XCTAssertEqual(apiClient.revokedSessions.count, 1)
     }
 
     func testSocialNativeExchangeMapsProviderMismatchWithoutPersisting() async {
@@ -607,17 +524,6 @@ private final class StubGoogleIdentityProvider: GoogleIdentityProviding {
 
     init(result: Result<String, GoogleLoginError>) { self.result = result }
     func signInIDToken() async throws -> String { try result.get() }
-    func signOut() {}
-}
-
-private final class CountingGoogleIdentityProvider: GoogleIdentityProviding {
-    private(set) var signInCount = 0
-
-    func signInIDToken() async throws -> String {
-        signInCount += 1
-        return "unused"
-    }
-
     func signOut() {}
 }
 

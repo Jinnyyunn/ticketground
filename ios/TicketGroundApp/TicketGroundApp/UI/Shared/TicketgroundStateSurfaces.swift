@@ -2,12 +2,6 @@ import SwiftUI
 
 struct TicketgroundLoadingSurface: View {
     let title: String
-    let identifier: String
-
-    init(title: String, identifier: String = "state-loading") {
-        self.title = title
-        self.identifier = identifier
-    }
 
     var body: some View {
         ZStack {
@@ -19,7 +13,7 @@ struct TicketgroundLoadingSurface: View {
         }
         .frame(maxWidth: .infinity, minHeight: 240, alignment: .center)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(identifier)
+        .accessibilityIdentifier("state-loading")
     }
 }
 

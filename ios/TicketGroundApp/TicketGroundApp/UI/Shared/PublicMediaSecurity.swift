@@ -37,11 +37,6 @@ enum PublicMediaURLValidator {
     }
 }
 
-enum MediaResourceResolution: Equatable {
-    case approved(URL)
-    case fallback
-}
-
 struct MediaResourceResolver {
     private let baseURL: URL?
     private let approvedOrigins: Set<PublicMediaOrigin>
@@ -63,25 +58,18 @@ struct MediaResourceResolver {
     }
 
     func resolve(_ reference: String?) -> URL? {
-        guard case .approved(let url) = resolution(for: reference) else {
-            return nil
-        }
-        return url
-    }
-
-    func resolution(for reference: String?) -> MediaResourceResolution {
-        guard let reference else { return .fallback }
+        guard let reference else { return nil }
         let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
               !trimmed.hasPrefix("//"),
               !trimmed.contains("\\") else {
-            return .fallback
+            return nil
         }
 
         let decodedPath = trimmed.removingPercentEncoding ?? trimmed
         guard !decodedPath.split(separator: "/", omittingEmptySubsequences: false).contains("..") else {
-            return .fallback
+            return nil
         }
 
         let resolvedURL: URL?
@@ -96,9 +84,9 @@ struct MediaResourceResolver {
         guard let resolvedURL,
               let origin = PublicMediaOrigin(url: resolvedURL),
               approvedOrigins.contains(origin) else {
-            return .fallback
+            return nil
         }
-        return .approved(resolvedURL)
+        return resolvedURL
     }
 }
 

@@ -252,8 +252,7 @@ struct DiscoveryFeaturedImage: View {
         TicketgroundMediaImage(
             resource: imageResource,
             role: .featured,
-            accessibilityLabel: title,
-            accessibilitySuffix: "home-featured"
+            accessibilityLabel: title
         )
         .frame(maxWidth: .infinity)
         .frame(height: 420)

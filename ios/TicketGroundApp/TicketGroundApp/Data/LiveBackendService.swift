@@ -6,9 +6,8 @@ final class LiveBackendService {
     private let decoder: JSONDecoder
     private let contract: LiveAPIContract
     private var capabilities: LiveCapabilityMap
-    private var diagnosedState: LiveState?
-    private var seatMapAdmission: LiveSeatMapAdmission?
-    private var diagnosedSeatMap: LiveSeatMap?
+    private var diagnosedVersionlessState: LiveState?
+    private let allowsCapabilityBootstrap: Bool
 
     init(
         apiClient: APIClient,
@@ -23,6 +22,7 @@ final class LiveBackendService {
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: nil
         )
+        self.allowsCapabilityBootstrap = initialCapabilityMap == nil
     }
 
     var capabilityMap: LiveCapabilityMap {
@@ -37,20 +37,13 @@ final class LiveBackendService {
             as: LiveAPIHealth.self
         )
         guard let version = health.version, !version.isEmpty else {
-            capabilities = contract.capabilityMap(
-                for: apiClient.baseURL ?? contract.publicHost,
-                observedResponseVersion: nil
-            )
             return try await diagnoseVersionlessState()
         }
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
-            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
-            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
+            validatedStateResponse: false,
+            catalogRouteConfirmed: false
         )
         guard capabilities.diagnostics.compatibility == .compatible else {
             return LiveAPIContractProbe(
@@ -59,23 +52,32 @@ final class LiveBackendService {
             )
         }
 
-        diagnosedState = await probeState()
-        var provenPublicEndpoints = await probeDiscoveryContract()
-        if diagnosedState != nil {
-            provenPublicEndpoints.insert(.state)
-        }
-        if await probeCatalog() {
-            provenPublicEndpoints.insert(.catalog)
+        _ = try await get(
+            APIRequest(path: "/api/catalog", query: [APIRequestQuery(name: "limit", value: "1")]),
+            endpoint: .catalog,
+            bypassCapability: true,
+            as: LiveCatalog.self
+        )
+        let discoveryRoutesConfirmed = await probeDiscoveryContract()
+        let nativeRoutes = await probeNativeContract()
+        let supportRoutesConfirmed: Bool
+        if nativeRoutes.contains("support") {
+            supportRoutesConfirmed = true
+        } else {
+            supportRoutesConfirmed = await probeSupportContract()
         }
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: version,
-            provenPublicEndpoints: provenPublicEndpoints,
-            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
-            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
+            validatedStateResponse: false,
+            catalogRouteConfirmed: true,
+            discoveryRoutesConfirmed: discoveryRoutesConfirmed,
+            accountRoutesConfirmed: nativeRoutes.contains("profile") && nativeRoutes.contains("reservations"),
+            watchlistRoutesConfirmed: nativeRoutes.contains("watchlist"),
+            bookingRoutesConfirmed: nativeRoutes.contains("booking"),
+            deviceRoutesConfirmed: nativeRoutes.contains("devices"),
+            mobileTicketRoutesConfirmed: nativeRoutes.contains("mobile-ticket-qr"),
+            supportRoutesConfirmed: supportRoutesConfirmed
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -83,150 +85,16 @@ final class LiveBackendService {
         )
     }
 
-    func diagnoseSeatMap(eventID: String, performanceDateID: String? = nil) async throws -> LiveSeatMap {
-        let state = capabilities.state(for: .seatMap)
-        clearSeatMapProof()
-        guard !eventID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw APIClientError.invalidResponse
-        }
-        if case .incompatible = state {
-            throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: state)
-        }
-        let seatMap: LiveSeatMap
-        do {
-            seatMap = try await fetchSeatMap(
-                eventID: eventID,
-                performanceDateID: performanceDateID,
-                bypassCapability: true
-            )
-        } catch {
-            clearSeatMapProof()
-            throw error
-        }
-        var states = capabilities.states
-        states[.seatMap] = .available
-        capabilities = LiveCapabilityMap(
-            diagnostics: capabilities.diagnostics,
-            baseURL: capabilities.baseURL,
-            states: states
-        )
-        seatMapAdmission = LiveSeatMapAdmission(
-            eventID: eventID,
-            performanceDateID: performanceDateID
-        )
-        diagnosedSeatMap = seatMap
-        return seatMap
-    }
-
-    func diagnoseSupportContract() async throws -> LiveAPIContractProbe {
-        let health = try await get(
-            APIRequest(path: contract.bootstrapPath),
-            endpoint: .health,
-            bypassCapability: true,
-            as: LiveAPIHealth.self
-        )
-        capabilities = contract.capabilityMap(
-            for: apiClient.baseURL ?? contract.publicHost,
-            observedResponseVersion: health.version,
-            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
-            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
-        )
-        return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
-    }
-
-    func diagnoseWatchlistContract() async throws -> LiveAPIContractProbe {
-        let health = try await get(
-            APIRequest(path: contract.bootstrapPath),
-            endpoint: .health,
-            bypassCapability: true,
-            as: LiveAPIHealth.self
-        )
-        capabilities = contract.capabilityMap(
-            for: apiClient.baseURL ?? contract.publicHost,
-            observedResponseVersion: health.version,
-            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
-            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
-        )
-        return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
-    }
-
-    func diagnoseBookingHoldsContract() async throws -> LiveAPIContractProbe {
-        let health = try await get(
-            APIRequest(path: contract.bootstrapPath),
-            endpoint: .health,
-            bypassCapability: true,
-            as: LiveAPIHealth.self
-        )
-        capabilities = contract.capabilityMap(
-            for: apiClient.baseURL ?? contract.publicHost,
-            observedResponseVersion: health.version,
-            nativeAccountRoutesConfirmed: health.capabilities?.contains("native-account-v1") == true,
-            nativeSupportRoutesConfirmed: health.capabilities?.contains("native-support-v1") == true,
-            nativeWatchlistRoutesConfirmed: health.capabilities?.contains("native-watchlist-v1") == true,
-            nativeBookingHoldsRoutesConfirmed: health.capabilities?.contains("native-booking-holds-v1") == true,
-            nativeLifecycleRoutesConfirmed: health.capabilities?.contains("native-lifecycle-v1") == true
-        )
-        return LiveAPIContractProbe(diagnostics: capabilities.diagnostics, capabilities: capabilities)
-    }
-
     func getState() async throws -> LiveState {
-        let state = capabilities.state(for: .state)
-        guard state == .available else {
-            diagnosedState = nil
-            throw APIClientError.capabilityUnavailable(endpoint: .state, state: state)
-        }
-        if let diagnosedState {
-            self.diagnosedState = nil
-            return diagnosedState
+        if let diagnosedVersionlessState {
+            self.diagnosedVersionlessState = nil
+            return diagnosedVersionlessState
         }
         return try await get(APIRequest(path: "/api/state"), endpoint: .state, as: LiveState.self)
     }
 
-    func getCatalog(limit: Int = LiveCatalogReadPolicy.defaultLimit) async throws -> LiveCatalog {
-        guard LiveCatalogReadPolicy.accepts(limit: limit) else {
-            throw APIClientError.invalidResponse
-        }
-
-        var events: [LiveBackendCatalogEvent] = []
-        var venues: [LiveCatalogVenue]?
-        var total: Int?
-        var cursor: String?
-        var seenCursors: Set<String> = []
-
-        for pageIndex in 0..<LiveCatalogReadPolicy.maximumPages {
-            var query = [APIRequestQuery(name: "limit", value: String(limit))]
-            if let cursor {
-                query.append(APIRequestQuery(name: "cursor", value: cursor))
-            }
-            let page = try await get(
-                APIRequest(path: "/api/catalog", query: query),
-                endpoint: .catalog,
-                as: LiveCatalog.self
-            )
-            events.append(contentsOf: page.events)
-            if let pageVenues = page.venues {
-                if venues == nil { venues = [] }
-                venues?.append(contentsOf: pageVenues)
-            }
-            if total == nil { total = page.total }
-
-            guard let nextCursor = page.nextCursor else {
-                return LiveCatalog(events: events, venues: venues, nextCursor: nil, total: total)
-            }
-            guard !nextCursor.isEmpty,
-                  seenCursors.insert(nextCursor).inserted,
-                  pageIndex + 1 < LiveCatalogReadPolicy.maximumPages else {
-                throw APIClientError.invalidResponse
-            }
-            cursor = nextCursor
-        }
-        throw APIClientError.invalidResponse
+    func getCatalog() async throws -> LiveCatalog {
+        try await get(APIRequest(path: "/api/catalog"), endpoint: .catalog, as: LiveCatalog.self)
     }
 
     func getRegions() async throws -> LiveRegionDiscovery {
@@ -253,46 +121,27 @@ final class LiveBackendService {
         )
     }
 
-    func getPublicSupport() async throws -> LivePublicSupport {
-        try await get(APIRequest(path: "/api/support/public"), endpoint: .publicSupport, as: LivePublicSupport.self)
+    func getSeatMap(eventID: String, performanceDateID: String) async throws -> LiveSeatMap {
+        try await get(APIRequest(
+            path: "/api/seat-map",
+            query: [
+                APIRequestQuery(name: "eventId", value: eventID),
+                APIRequestQuery(name: "performanceDateId", value: performanceDateID)
+            ]
+        ), endpoint: .seatMap, as: LiveSeatMap.self)
     }
 
-    func getSeatMap(eventID: String, performanceDateID: String? = nil) async throws -> LiveSeatMap {
-        let state = capabilities.state(for: .seatMap)
-        guard state == .available else {
-            seatMapAdmission = nil
-            diagnosedSeatMap = nil
-            throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: state)
-        }
-        guard seatMapAdmission?.matches(
-            eventID: eventID,
-            performanceDateID: performanceDateID
-        ) == true else {
-            throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: unprovedSeatMapState)
-        }
-        if let diagnosedSeatMap {
-            self.diagnosedSeatMap = nil
-            return diagnosedSeatMap
-        }
-        do {
-            return try await fetchSeatMap(
-                eventID: eventID,
-                performanceDateID: performanceDateID,
-                bypassCapability: false
-            )
-        } catch {
-            clearSeatMapProof()
-            throw error
-        }
-    }
-
-    func getVenueSeatMap(eventID _: String) async throws -> LiveVenueSeatMap {
-        throw APIClientError.capabilityUnavailable(endpoint: .seatMap, state: unprovedSeatMapState)
+    func getVenueSeatMap(eventID: String) async throws -> LiveVenueSeatMap {
+        try await get(
+            APIRequest(path: "/api/events/\(pathValue(eventID))/seat-map"),
+            endpoint: .seatMap,
+            as: LiveVenueSeatMap.self
+        )
     }
 
     func getSession(userID: String) async throws -> LiveSession {
         try await get(
-            principalRequest(path: "/api/me", userID: userID),
+            authenticatedRequest(path: "/api/users/\(pathValue(userID))/session", userID: userID),
             endpoint: .session,
             as: LiveSession.self
         )
@@ -300,479 +149,314 @@ final class LiveBackendService {
 
     func getTickets(userID: String) async throws -> [LiveTicket] {
         try await get(
-            principalRequest(path: "/api/me/tickets", userID: userID),
+            authenticatedRequest(path: "/api/users/\(pathValue(userID))/tickets", userID: userID),
             endpoint: .tickets,
             as: [LiveTicket].self
         )
     }
 
-    func getResalePools(userID: String) async throws -> [LiveLifecycleResalePool] {
-        try await get(
-            principalRequest(path: "/api/me/resale-pools", userID: userID),
-            endpoint: .resalePools,
-            as: [LiveLifecycleResalePool].self
-        )
-    }
-
-    func createResalePool(
-        userID: String,
-        ticketID: String,
-        price: Int,
-        showSlug: String?,
-        idempotencyKey: String
-    ) async throws -> LiveLifecycleResalePool {
-        let body = try JSONEncoder().encode(LiveResalePoolRequest(ticketId: ticketID, price: price, showSlug: showSlug))
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/me/resale-pools",
-                body: .json(body),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .resalePoolList,
-            as: LiveLifecycleResalePool.self
-        )
-    }
-
-    func joinResalePool(
-        userID: String,
-        poolID: String,
-        idempotencyKey: String
-    ) async throws -> LiveLifecycleResalePool {
-        try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/me/resale-pools/\(pathValue(poolID))/join",
-                body: .json(Data("{}".utf8)),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .resalePoolJoin,
-            as: LiveLifecycleResalePool.self
-        )
-    }
-
-    func cancelResalePool(userID: String, poolID: String) async throws -> LiveLifecycleResalePool {
-        try await get(
-            APIRequest(
-                method: .delete,
-                path: "/api/me/resale-pools/\(pathValue(poolID))",
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .resalePoolCancel,
-            as: LiveLifecycleResalePool.self
-        )
-    }
-
-    func getCancellationRequests(userID: String) async throws -> [LiveCancellationRequest] {
-        try await get(
-            principalRequest(path: "/api/me/cancellation-requests", userID: userID),
-            endpoint: .cancellationRequests,
-            as: [LiveCancellationRequest].self
-        )
-    }
-
-    func createCancellationRequest(
-        userID: String,
-        ticketID: String,
-        reason: String,
-        refundAcknowledged: Bool,
-        idempotencyKey: String
-    ) async throws -> LiveCancellationRequest {
-        let body = try JSONEncoder().encode(
-            LiveCancellationRequestBody(
-                ticketId: ticketID,
-                reason: reason,
-                refundAcknowledged: refundAcknowledged
-            )
-        )
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/me/cancellation-requests",
-                body: .json(body),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .cancellationRequestCreate,
-            as: LiveCancellationRequest.self
-        )
-    }
-
-    func getTrustedDevices(userID: String) async throws -> [LiveTrustedDevice] {
-        try await get(
-            principalRequest(path: "/api/me/devices", userID: userID),
-            endpoint: .trustedDevices,
-            as: [LiveTrustedDevice].self
-        )
-    }
-
-    func revokeTrustedDevice(userID: String, deviceID: String) async throws -> LiveTrustedDevice {
-        try await get(
-            APIRequest(
-                method: .delete,
-                path: "/api/me/devices/\(pathValue(deviceID))",
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .trustedDeviceRevoke,
-            as: LiveTrustedDevice.self
-        )
-    }
-
-    func getPushTokens(userID: String) async throws -> [LivePushToken] {
-        try await get(
-            principalRequest(path: "/api/me/push-tokens", userID: userID),
-            endpoint: .pushTokens,
-            as: [LivePushToken].self
-        )
-    }
-
-    func registerPushToken(
-        userID: String,
-        platform: LivePushPlatform,
-        token: String,
-        idempotencyKey: String
-    ) async throws -> LivePushToken {
-        let body = try JSONEncoder().encode(LivePushTokenRequest(platform: platform, token: token))
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/me/push-tokens",
-                body: .json(body),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .pushTokenRegister,
-            as: LivePushToken.self
-        )
-    }
-
-    func trustDevice(
-        userID: String,
-        deviceID: String,
-        deviceName: String,
-        platform: String,
-        proof: LifecycleAttestationProof
-    ) async throws -> LiveDeviceTrustResult {
-        let body = try JSONEncoder().encode(
-            LiveDeviceTrustRequest(
-                deviceId: deviceID,
-                deviceName: deviceName,
-                platform: platform,
-                biometricVerified: true,
-                challengeId: proof.challengeID,
-                keyId: proof.keyID,
-                attestationObject: proof.attestationObject
-            )
-        )
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/devices/trust",
-                body: .json(body),
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .deviceTrust,
-            as: LiveDeviceTrustResult.self
-        )
-    }
-
-    func appAttestChallenge(
-        userID: String,
-        purpose: String,
-        deviceID: String,
-        ticketID: String? = nil
-    ) async throws -> LiveAppAttestChallenge {
-        let body = try JSONEncoder().encode(
-            LiveAppAttestChallengeRequest(purpose: purpose, deviceId: deviceID, ticketId: ticketID)
-        )
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/me/device-attestation/challenges",
-                body: .json(body),
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .deviceTrust,
-            as: LiveAppAttestChallenge.self
-        )
-    }
-
-    func getVirtualTicketQR(userID: String, ticketID: String) async throws -> LiveVirtualTicketQR {
-        let body = try JSONEncoder().encode(LiveTicketQRRequest(ticketId: ticketID))
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/tickets/virtual-qr",
-                body: .json(body),
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .virtualQR,
-            as: LiveVirtualTicketQR.self
-        )
-    }
-
-    func issueAdmissionQR(
-        userID: String,
-        ticketID: String,
-        deviceID: String,
-        deviceToken: String,
-        proof: LifecycleAssertionProof
-    ) async throws -> LiveAdmissionQR {
-        let body = try JSONEncoder().encode(
-            LiveAdmissionQRRequest(
-                ticketId: ticketID,
-                channel: "APP",
-                deviceId: deviceID,
-                deviceToken: deviceToken,
-                challengeId: proof.challengeID,
-                keyId: proof.keyID,
-                assertion: proof.assertion
-            )
-        )
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/tickets/qr",
-                body: .json(body),
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .ticketQR,
-            as: LiveAdmissionQR.self
-        )
-    }
-
-    func updateProfile(userID: String, name: String) async throws -> LiveSession {
-        let body = try JSONEncoder().encode(["name": name])
-        return try await get(
-            APIRequest(
-                method: .patch,
-                path: "/api/me/profile",
-                body: .json(body),
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .session,
-            as: LiveSession.self
-        )
-    }
-
     func getWatchlist(userID: String) async throws -> [LiveWatchlistItem] {
         try await get(
-            principalRequest(path: "/api/me/watchlist", userID: userID),
+            APIRequest(
+                path: "/api/me/watchlist",
+                authentication: .required(userID: userID),
+                ownerBinding: .principal
+            ),
             endpoint: .watchlist,
             as: [LiveWatchlistItem].self
         )
     }
 
-    func upsertWatchlist(
+    func getProfile(userID: String) async throws -> LiveAccountProfile {
+        try await get(
+            principalRequest(path: "/api/me/profile", userID: userID),
+            endpoint: .profile,
+            as: LiveAccountProfile.self
+        )
+    }
+
+    func updateProfile(
+        userID: String,
+        name: String,
+        idempotencyKey: String
+    ) async throws -> LiveAccountProfile {
+        try await get(
+            try principalJSONRequest(
+                method: .patch,
+                path: "/api/me/profile",
+                userID: userID,
+                body: ["name": name],
+                idempotencyKey: idempotencyKey
+            ),
+            endpoint: .profileMutation,
+            as: LiveAccountProfile.self
+        )
+    }
+
+    func getReservations(userID: String) async throws -> [LiveReservation] {
+        try await get(
+            principalRequest(path: "/api/me/reservations", userID: userID),
+            endpoint: .reservations,
+            as: [LiveReservation].self
+        )
+    }
+
+    func getReservation(userID: String, ticketID: String) async throws -> LiveReservation {
+        try await get(
+            principalRequest(path: "/api/me/reservations/\(pathValue(ticketID))", userID: userID),
+            endpoint: .reservationDetail,
+            as: LiveReservation.self
+        )
+    }
+
+    func putWatchlist(
         userID: String,
         eventID: String,
-        channels: [String],
-        calendarEnabled: Bool,
-        notificationEnabled: Bool
+        idempotencyKey: String
     ) async throws -> LiveWatchlistItem {
-        let body = try JSONEncoder().encode(LiveWatchlistPreferences(
-            channels: channels,
-            calendarEnabled: calendarEnabled,
-            notificationEnabled: notificationEnabled
-        ))
-        return try await get(
-            APIRequest(
+        try await get(
+            try principalJSONRequest(
                 method: .put,
                 path: "/api/me/watchlist/\(pathValue(eventID))",
-                body: .json(body),
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+                userID: userID,
+                body: ["notificationEnabled": true],
+                idempotencyKey: idempotencyKey
             ),
-            endpoint: .watchlistUpsert,
+            endpoint: .watchlistMutation,
             as: LiveWatchlistItem.self
         )
     }
 
-    func deleteWatchlist(userID: String, eventID: String) async throws -> LiveWatchlistDeletion {
+    func removeWatchlist(
+        userID: String,
+        eventID: String,
+        idempotencyKey: String
+    ) async throws -> LiveWatchlistRemoval {
         try await get(
             APIRequest(
                 method: .delete,
                 path: "/api/me/watchlist/\(pathValue(eventID))",
+                idempotencyKey: idempotencyKey,
                 authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+                ownerBinding: .principal
             ),
-            endpoint: .watchlistDelete,
-            as: LiveWatchlistDeletion.self
+            endpoint: .watchlistRemoval,
+            as: LiveWatchlistRemoval.self
         )
     }
 
-    func enterQueue(userID: String, performanceDateID: String) async throws -> LiveQueueEntry {
-        let body = try JSONEncoder().encode(["performanceDateId": performanceDateID])
-        return try await get(
-            APIRequest(
+    func setWatchlistNotification(
+        userID: String,
+        eventID: String,
+        enabled: Bool,
+        idempotencyKey: String
+    ) async throws -> LiveWatchlistItem {
+        try await get(
+            try principalJSONRequest(
+                method: .put,
+                path: "/api/me/watchlist/\(pathValue(eventID))/notification",
+                userID: userID,
+                body: ["enabled": enabled],
+                idempotencyKey: idempotencyKey
+            ),
+            endpoint: .watchlistNotification,
+            as: LiveWatchlistItem.self
+        )
+    }
+
+    func joinBookingQueue(
+        userID: String,
+        eventID: String,
+        performanceID: String,
+        idempotencyKey: String
+    ) async throws -> LiveBookingQueue {
+        try await get(
+            try principalJSONRequest(
                 method: .post,
-                path: "/api/me/queue-entries",
-                body: .json(body),
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+                path: "/api/me/booking/queues",
+                userID: userID,
+                body: ["eventId": eventID, "performanceId": performanceID],
+                idempotencyKey: idempotencyKey
             ),
-            endpoint: .queueEntryEnter,
-            as: LiveQueueEntry.self
+            endpoint: .bookingQueue,
+            as: LiveBookingQueue.self
         )
     }
 
-    func getQueueEntry(userID: String, entryID: String) async throws -> LiveQueueEntry {
-        try await get(
-            principalRequest(path: "/api/me/queue-entries/\(pathValue(entryID))", userID: userID),
-            endpoint: .queueEntryStatus,
-            as: LiveQueueEntry.self
-        )
-    }
-
-    func leaveQueue(userID: String, entryID: String) async throws -> LiveQueueEntryLeaveResult {
+    func getBookingSeats(
+        userID: String,
+        eventID: String,
+        performanceID: String,
+        queueID: String
+    ) async throws -> LiveBookingSeatSnapshot {
         try await get(
             APIRequest(
-                method: .delete,
-                path: "/api/me/queue-entries/\(pathValue(entryID))",
+                path: "/api/me/booking/events/\(pathValue(eventID))/performances/\(pathValue(performanceID))/seats",
+                query: [APIRequestQuery(name: "queueId", value: queueID)],
                 authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+                ownerBinding: .principal
             ),
-            endpoint: .queueEntryLeave,
-            as: LiveQueueEntryLeaveResult.self
+            endpoint: .bookingSeats,
+            as: LiveBookingSeatSnapshot.self
         )
     }
 
     func createSeatHold(
         userID: String,
-        performanceDateID: String,
-        ticketIDs: [String],
+        queueID: String,
+        ticketID: String,
+        revision: Int,
         idempotencyKey: String
     ) async throws -> LiveSeatHold {
-        let body = try JSONEncoder().encode(LiveSeatHoldRequest(performanceDateId: performanceDateID, ticketIds: ticketIDs))
-        return try await get(
-            APIRequest(
+        try await get(
+            try principalJSONRequest(
                 method: .post,
-                path: "/api/me/seat-holds",
-                body: .json(body),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+                path: "/api/me/booking/holds",
+                userID: userID,
+                body: ["queueId": queueID, "ticketId": ticketID, "revision": revision],
+                idempotencyKey: idempotencyKey
             ),
-            endpoint: .seatHoldCreate,
+            endpoint: .bookingHold,
             as: LiveSeatHold.self
         )
     }
 
-    func getSeatHold(userID: String, holdID: String) async throws -> LiveSeatHold {
-        try await get(
-            principalRequest(path: "/api/me/seat-holds/\(pathValue(holdID))", userID: userID),
-            endpoint: .seatHoldStatus,
-            as: LiveSeatHold.self
-        )
-    }
-
-    func extendSeatHold(userID: String, holdID: String) async throws -> LiveSeatHold {
-        try await get(
-            APIRequest(
-                method: .patch,
-                path: "/api/me/seat-holds/\(pathValue(holdID))/extend",
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .seatHoldExtend,
-            as: LiveSeatHold.self
-        )
-    }
-
-    func releaseSeatHold(userID: String, holdID: String) async throws -> LiveSeatHold {
+    func releaseSeatHold(userID: String, holdID: String, idempotencyKey: String) async throws -> LiveSeatHold {
         try await get(
             APIRequest(
                 method: .delete,
-                path: "/api/me/seat-holds/\(pathValue(holdID))",
+                path: "/api/me/booking/holds/\(pathValue(holdID))",
+                idempotencyKey: idempotencyKey,
                 authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+                ownerBinding: .principal
             ),
-            endpoint: .seatHoldRelease,
+            endpoint: .bookingHoldRelease,
             as: LiveSeatHold.self
         )
     }
 
-    func createReservationDraft(
-        userID: String,
-        holdID: String,
-        idempotencyKey: String
-    ) async throws -> LiveReservationDraft {
-        let body = try JSONEncoder().encode(["holdId": holdID])
-        return try await get(
-            APIRequest(
+    func createReservationDraft(userID: String, holdID: String, idempotencyKey: String) async throws -> LiveReservationDraft {
+        try await get(
+            try principalJSONRequest(
                 method: .post,
-                path: "/api/me/reservation-drafts",
-                body: .json(body),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+                path: "/api/me/booking/drafts",
+                userID: userID,
+                body: ["holdId": holdID],
+                idempotencyKey: idempotencyKey
             ),
-            endpoint: .reservationDraftCreate,
+            endpoint: .bookingDraft,
             as: LiveReservationDraft.self
         )
     }
 
-    func getReservationDraft(userID: String, draftID: String) async throws -> LiveReservationDraft {
+    func createDeviceChallenge(userID: String, deviceID: String, idempotencyKey: String) async throws -> LiveDeviceChallenge {
         try await get(
-            principalRequest(path: "/api/me/reservation-drafts/\(pathValue(draftID))", userID: userID),
-            endpoint: .reservationDraftStatus,
-            as: LiveReservationDraft.self
+            try principalJSONRequest(method: .post, path: "/api/me/devices/challenges", userID: userID, body: ["deviceId": deviceID], idempotencyKey: idempotencyKey),
+            endpoint: .deviceChallenge,
+            as: LiveDeviceChallenge.self
         )
     }
 
-    func cancelReservationDraft(userID: String, draftID: String) async throws -> LiveReservationDraft {
+    func trustSimulatorDevice(userID: String, challengeID: String, deviceID: String, counter: Int, proof: String, idempotencyKey: String) async throws -> LiveRegisteredDevice {
         try await get(
-            APIRequest(
-                method: .delete,
-                path: "/api/me/reservation-drafts/\(pathValue(draftID))",
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
+            try principalJSONRequest(
+                method: .post,
+                path: "/api/me/devices/trust",
+                userID: userID,
+                body: ["challengeId": challengeID, "deviceId": deviceID, "counter": counter, "proof": proof],
+                idempotencyKey: idempotencyKey
             ),
-            endpoint: .reservationDraftCancel,
-            as: LiveReservationDraft.self
+            endpoint: .nativeDeviceTrust,
+            as: LiveRegisteredDevice.self
+        )
+    }
+
+    func registerPushToken(userID: String, deviceID: String, token: String, idempotencyKey: String) async throws -> LiveRegisteredDevice {
+        try await get(
+            try principalJSONRequest(method: .put, path: "/api/me/devices/\(pathValue(deviceID))/push-token", userID: userID, body: ["token": token, "environment": "simulator"], idempotencyKey: idempotencyKey),
+            endpoint: .nativePushToken,
+            as: LiveRegisteredDevice.self
+        )
+    }
+
+    func revokeDevice(userID: String, deviceID: String, idempotencyKey: String) async throws -> LiveRegisteredDevice {
+        try await get(
+            APIRequest(method: .delete, path: "/api/me/devices/\(pathValue(deviceID))", idempotencyKey: idempotencyKey, authentication: .required(userID: userID), ownerBinding: .principal),
+            endpoint: .nativeDeviceRevoke,
+            as: LiveRegisteredDevice.self
+        )
+    }
+
+    func getNotificationSettings(userID: String) async throws -> LiveNotificationSettings {
+        try await get(
+            principalRequest(path: "/api/me/notification-settings", userID: userID),
+            endpoint: .notificationSettings,
+            as: LiveNotificationSettings.self
+        )
+    }
+
+    func updateNotificationSettings(userID: String, watchlistOpen: Bool, reservationUpdates: Bool, idempotencyKey: String) async throws -> LiveNotificationSettings {
+        try await get(
+            try principalJSONRequest(
+                method: .put,
+                path: "/api/me/notification-settings",
+                userID: userID,
+                body: ["watchlistOpen": watchlistOpen, "reservationUpdates": reservationUpdates],
+                idempotencyKey: idempotencyKey
+            ),
+            endpoint: .notificationSettings,
+            as: LiveNotificationSettings.self
+        )
+    }
+
+    func getMobileTickets(userID: String) async throws -> [LiveMobileTicket] {
+        try await get(principalRequest(path: "/api/me/tickets", userID: userID), endpoint: .mobileTickets, as: [LiveMobileTicket].self)
+    }
+
+    func issueMobileTicketQR(userID: String, ticketID: String, deviceID: String, idempotencyKey: String) async throws -> LiveMobileTicketQR {
+        try await get(
+            try principalJSONRequest(method: .post, path: "/api/me/tickets/\(pathValue(ticketID))/qr", userID: userID, body: ["deviceId": deviceID], idempotencyKey: idempotencyKey),
+            endpoint: .mobileTicketQR,
+            as: LiveMobileTicketQR.self
         )
     }
 
     func getSupportThreads(userID: String) async throws -> [LiveSupportThread] {
-        try await get(
-            principalRequest(path: "/api/me/support/threads", userID: userID),
-            endpoint: .supportThreads,
-            as: [LiveSupportThread].self
+        try await get(APIRequest(
+            path: "/api/me/support/threads",
+            authentication: .required(userID: userID),
+            ownerBinding: .principal
+        ), endpoint: .supportThreads, as: [LiveSupportThread].self)
+    }
+
+    func getSupportPublicContent() async throws -> LiveSupportPublicContent {
+        let content = try await get(
+            APIRequest(path: "/api/support/v1/public"),
+            endpoint: .supportPublic,
+            bypassCapability: true,
+            as: LiveSupportPublicContent.self
         )
+        guard content.version == Self.discoveryVersion else {
+            throw APIClientError.invalidResponse
+        }
+        return content
     }
 
     func createSupportThread(
         userID: String,
+        category: String,
         subject: String,
         message: String,
         idempotencyKey: String
     ) async throws -> LiveSupportThread {
-        let body = try JSONEncoder().encode(["subject": subject, "message": message])
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/me/support/threads",
-                body: .json(body),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .supportThreadMutation,
-            as: LiveSupportThread.self
+        let action = LiveAuthenticatedAction.supportThread(
+            userID: userID,
+            category: category,
+            subject: subject,
+            message: message,
+            idempotencyKey: idempotencyKey
         )
+        return try await get(action.request(), endpoint: action.endpoint, as: LiveSupportThread.self)
     }
 
     func addSupportMessage(
@@ -781,19 +465,13 @@ final class LiveBackendService {
         message: String,
         idempotencyKey: String
     ) async throws -> LiveSupportThread {
-        let body = try JSONEncoder().encode(["threadId": threadID, "message": message])
-        return try await get(
-            APIRequest(
-                method: .post,
-                path: "/api/me/support/messages",
-                body: .json(body),
-                idempotencyKey: idempotencyKey,
-                authentication: .required(userID: userID),
-                ownerBinding: .bearerPrincipal
-            ),
-            endpoint: .supportMessages,
-            as: LiveSupportThread.self
+        let action = LiveAuthenticatedAction.supportMessage(
+            userID: userID,
+            threadID: threadID,
+            message: message,
+            idempotencyKey: idempotencyKey
         )
+        return try await get(action.request(), endpoint: action.endpoint, as: LiveSupportThread.self)
     }
 
     func perform(_ action: LiveAuthenticatedAction) async throws -> LiveMutationReceipt {
@@ -826,7 +504,7 @@ final class LiveBackendService {
         return response
     }
 
-    private func probeDiscoveryContract() async -> Set<LiveAPIEndpoint> {
+    private func probeDiscoveryContract() async -> Bool {
         do {
             let response = try await get(
                 APIRequest(path: "/api/discovery/v1/contract"),
@@ -834,63 +512,41 @@ final class LiveBackendService {
                 bypassCapability: true,
                 as: LiveDiscoveryContractStatus.self
             )
-            guard response.version == Self.discoveryVersion else { return [] }
-            let endpoints = Set(response.endpoints)
-            var proven: Set<LiveAPIEndpoint> = []
-            if endpoints.contains("regions") { proven.insert(.regions) }
-            if endpoints.contains("artists") { proven.insert(.artist) }
-            if endpoints.contains("open-calendar") { proven.insert(.openCalendar) }
-            return proven
-        } catch {
-            return []
-        }
-    }
-
-    private func probeState() async -> LiveState? {
-        try? await get(
-            APIRequest(path: "/api/state"),
-            endpoint: .state,
-            bypassCapability: true,
-            as: LiveState.self
-        )
-    }
-
-    private func probeCatalog() async -> Bool {
-        do {
-            _ = try await get(
-                APIRequest(path: "/api/catalog", query: [APIRequestQuery(name: "limit", value: "1")]),
-                endpoint: .catalog,
-                bypassCapability: true,
-                as: LiveCatalog.self
-            )
-            return true
+            let requiredEndpoints = Set(["regions", "artists", "open-calendar"])
+            return response.version == Self.discoveryVersion
+                && requiredEndpoints.isSubset(of: Set(response.endpoints))
         } catch {
             return false
         }
     }
 
-    private func fetchSeatMap(
-        eventID: String,
-        performanceDateID: String?,
-        bypassCapability: Bool
-    ) async throws -> LiveSeatMap {
-        var query = [APIRequestQuery(name: "eventId", value: eventID)]
-        if let performanceDateID {
-            query.append(APIRequestQuery(name: "performanceDateId", value: performanceDateID))
+    private func probeSupportContract() async -> Bool {
+        do {
+            let response = try await get(
+                APIRequest(path: "/api/support/v1/public"),
+                endpoint: .supportPublic,
+                bypassCapability: true,
+                as: LiveSupportPublicContent.self
+            )
+            return response.version == Self.discoveryVersion
+        } catch {
+            return false
         }
-        let seatMap = try await get(
-            APIRequest(
-                path: "/api/seat-map",
-                query: query
-            ),
-            endpoint: .seatMap,
-            bypassCapability: bypassCapability,
-            as: LiveSeatMap.self
-        )
-        guard !seatMap.event.id.isEmpty, seatMap.event.id == eventID else {
-            throw APIClientError.invalidResponse
+    }
+
+    private func probeNativeContract() async -> Set<String> {
+        do {
+            let response = try await get(
+                APIRequest(path: "/api/native/v1/contract"),
+                endpoint: .nativeContract,
+                bypassCapability: true,
+                as: LiveNativeContractStatus.self
+            )
+            guard response.version == Self.discoveryVersion else { return [] }
+            return Set(response.endpoints)
+        } catch {
+            return []
         }
-        return seatMap
     }
 
     private func data(
@@ -905,7 +561,7 @@ final class LiveBackendService {
     }
 
     private func diagnoseVersionlessState() async throws -> LiveAPIContractProbe {
-        diagnosedState = try await get(
+        diagnosedVersionlessState = try await get(
             APIRequest(path: "/api/state"),
             endpoint: .state,
             bypassCapability: true,
@@ -914,7 +570,8 @@ final class LiveBackendService {
         capabilities = contract.capabilityMap(
             for: apiClient.baseURL ?? contract.publicHost,
             observedResponseVersion: nil,
-            provenPublicEndpoints: [.state]
+            validatedStateResponse: true,
+            catalogRouteConfirmed: false
         )
         return LiveAPIContractProbe(
             diagnostics: capabilities.diagnostics,
@@ -923,33 +580,14 @@ final class LiveBackendService {
     }
 
     private func ensureCapability(_ endpoint: LiveAPIEndpoint) async throws {
-        let state = capabilities.state(for: endpoint)
+        var state = capabilities.state(for: endpoint)
+        if case .unknown = state, allowsCapabilityBootstrap {
+            _ = try await diagnosePublicContract()
+            state = capabilities.state(for: endpoint)
+        }
         guard state == .available else {
             throw APIClientError.capabilityUnavailable(endpoint: endpoint, state: state)
         }
-    }
-
-    private var unprovedSeatMapState: LiveCapabilityState {
-        let state = capabilities.state(for: .seatMap)
-        if case .incompatible = state {
-            return state
-        }
-        return .unknown
-    }
-
-    private func clearSeatMapProof() {
-        seatMapAdmission = nil
-        diagnosedSeatMap = nil
-        var states = capabilities.states
-        if case .incompatible = states[.seatMap] {
-            return
-        }
-        states[.seatMap] = .unknown
-        capabilities = LiveCapabilityMap(
-            diagnostics: capabilities.diagnostics,
-            baseURL: capabilities.baseURL,
-            states: states
-        )
     }
 
     private func pathValue(_ value: String) -> String {
@@ -957,69 +595,37 @@ final class LiveBackendService {
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
+    private func authenticatedRequest(path: String, userID: String) -> APIRequest {
+        APIRequest(path: path, authentication: .required(userID: userID))
+    }
+
     private func principalRequest(path: String, userID: String) -> APIRequest {
         APIRequest(
             path: path,
             authentication: .required(userID: userID),
-            ownerBinding: .bearerPrincipal
+            ownerBinding: .principal
         )
     }
-}
 
-private struct LiveWatchlistPreferences: Encodable {
-    let channels: [String]
-    let calendarEnabled: Bool
-    let notificationEnabled: Bool
-}
-
-private struct LiveSeatHoldRequest: Encodable {
-    let performanceDateId: String
-    let ticketIds: [String]
-}
-
-private struct LiveResalePoolRequest: Encodable {
-    let ticketId: String
-    let price: Int
-    let showSlug: String?
-}
-
-private struct LiveCancellationRequestBody: Encodable {
-    let ticketId: String
-    let reason: String
-    let refundAcknowledged: Bool
-}
-
-private struct LivePushTokenRequest: Encodable {
-    let platform: LivePushPlatform
-    let token: String
-}
-
-private struct LiveDeviceTrustRequest: Encodable {
-    let deviceId: String
-    let deviceName: String
-    let platform: String
-    let biometricVerified: Bool
-    let challengeId: String
-    let keyId: String
-    let attestationObject: String
-}
-
-private struct LiveAppAttestChallengeRequest: Encodable {
-    let purpose: String
-    let deviceId: String
-    let ticketId: String?
-}
-
-private struct LiveTicketQRRequest: Encodable {
-    let ticketId: String
-}
-
-private struct LiveAdmissionQRRequest: Encodable {
-    let ticketId: String
-    let channel: String
-    let deviceId: String
-    let deviceToken: String
-    let challengeId: String
-    let keyId: String
-    let assertion: String
+    private func principalJSONRequest(
+        method: APIRequestMethod,
+        path: String,
+        userID: String,
+        body: [String: Any],
+        idempotencyKey: String
+    ) throws -> APIRequest {
+        guard !userID.isEmpty,
+              !idempotencyKey.isEmpty,
+              JSONSerialization.isValidJSONObject(body) else {
+            throw APIClientError.invalidResponse
+        }
+        return APIRequest(
+            method: method,
+            path: path,
+            body: .json(try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])),
+            idempotencyKey: idempotencyKey,
+            authentication: .required(userID: userID),
+            ownerBinding: .principal
+        )
+    }
 }

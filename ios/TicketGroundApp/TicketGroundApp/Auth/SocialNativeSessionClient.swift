@@ -136,12 +136,6 @@ final class SocialNativeSessionClient {
         return response.user
     }
 
-    func logout() async throws {
-        guard let current = sessionStore.current else { return }
-        defer { sessionStore.logout() }
-        try await apiClient.revokeNativeSession(current)
-    }
-
     private func map(_ error: APIClientError) -> SocialLoginError {
         switch error {
         case .insecureCredentialTransport: return .httpsRequired

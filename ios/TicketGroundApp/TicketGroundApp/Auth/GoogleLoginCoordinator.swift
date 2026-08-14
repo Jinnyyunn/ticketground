@@ -27,24 +27,17 @@ enum GoogleLoginState: Equatable {
 final class GoogleLoginCoordinator {
     private let identityProvider: GoogleIdentityProviding
     private let sessionExchanger: GoogleSessionExchanging
-    private let isSecureBackend: Bool
     private(set) var state: GoogleLoginState = .idle
 
     init(
         identityProvider: GoogleIdentityProviding,
-        sessionExchanger: GoogleSessionExchanging,
-        isSecureBackend: Bool = true
+        sessionExchanger: GoogleSessionExchanging
     ) {
         self.identityProvider = identityProvider
         self.sessionExchanger = sessionExchanger
-        self.isSecureBackend = isSecureBackend
     }
 
     func signIn() async {
-        guard isSecureBackend else {
-            state = .failed(message: GoogleLoginError.httpsRequired.localizedDescription)
-            return
-        }
         state = .loading
         do {
             let idToken = try await identityProvider.signInIDToken()

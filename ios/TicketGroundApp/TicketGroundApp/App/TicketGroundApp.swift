@@ -2,14 +2,13 @@ import SwiftUI
 
 @main
 struct TicketGroundApp: App {
-    @UIApplicationDelegateAdaptor(TicketGroundAppDelegate.self) private var appDelegate
     @State private var container = AppContainer.configured()
 
     var body: some Scene {
         WindowGroup {
             configuredContent
                 .onOpenURL { url in
-                    Self.handleOpenURL(url, container: container, googleHandler: GoogleSignInProvider.handle)
+                    _ = GoogleSignInProvider.handle(url)
                 }
                 .task {
                     await GoogleNativeSessionClient(
@@ -38,14 +37,5 @@ struct TicketGroundApp: App {
         case "accessibilityExtraExtraLarge": return .accessibilityExtraExtraLarge
         default: return nil
         }
-    }
-
-    static func handleOpenURL(
-        _ url: URL,
-        container: AppContainer,
-        googleHandler: (URL) -> Bool
-    ) {
-        guard !googleHandler(url) else { return }
-        container.applyPublicURL(url)
     }
 }

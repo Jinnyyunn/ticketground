@@ -120,36 +120,6 @@ final class LoadingMediaTests: XCTestCase {
         )
     }
 
-    func testRelativeSeatMapWithoutApprovedMediaOriginUsesFallback() {
-        let resolver = MediaResourceResolver()
-
-        XCTAssertEqual(
-            resolver.resolution(for: "/assets/jamsil-olympic-main-stadium.svg"),
-            .fallback
-        )
-        XCTAssertNil(resolver.resolve("/assets/jamsil-olympic-main-stadium.svg"))
-    }
-
-    func testHTTPAndUnapprovedAbsoluteMediaUseFallbackWithoutSessionWeakening() {
-        let resolver = MediaResourceResolver(
-            baseURL: URL(string: "http://132.145.109.87:4174/")!
-        )
-
-        for reference in [
-            "/images/real-posters/iu-world-tour.jpg",
-            "http://132.145.109.87:4174/assets/jamsil-olympic-main-stadium.svg",
-            "https://unapproved.ticketground.test/poster.jpg"
-        ] {
-            XCTAssertEqual(resolver.resolution(for: reference), .fallback)
-            XCTAssertNil(resolver.resolve(reference))
-        }
-
-        let configuration = PublicMediaSessionConfiguration.make()
-        XCTAssertNil(configuration.httpCookieStorage)
-        XCTAssertNil(configuration.urlCredentialStorage)
-        XCTAssertFalse(configuration.httpShouldSetCookies)
-    }
-
     func testMediaResolverRejectsMissingUnsafeAndEscapingReferences() throws {
         let resolver = MediaResourceResolver(
             baseURL: URL(string: "https://media.ticketground.test/assets/")!

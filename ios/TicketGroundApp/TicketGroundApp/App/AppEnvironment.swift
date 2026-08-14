@@ -18,10 +18,9 @@ enum AppRoute: Hashable, Codable {
     case place(slug: String?)
     case artist(slug: String)
     case goods(slug: String)
-    case seatMap(slug: String)
     case queue(slug: String)
     case booking(slug: String)
-    case checkout(ticketId: String)
+    case checkout(slug: String)
     case reservation(id: String)
     case login
     case signup
@@ -47,10 +46,9 @@ enum AppRoute: Hashable, Codable {
         case .place(let slug): return "place:\(slug ?? "index")"
         case .artist(let slug): return "artist:\(slug)"
         case .goods(let slug): return "goods:\(slug)"
-        case .seatMap(let slug): return "seat-map:\(slug)"
         case .queue(let slug): return "queue:\(slug)"
         case .booking(let slug): return "booking:\(slug)"
-        case .checkout(let ticketId): return "checkout:\(ticketId)"
+        case .checkout(let slug): return "checkout:\(slug)"
         case .reservation(let id): return "reservation:\(id)"
         case .login: return "login"
         case .signup: return "signup"
@@ -82,18 +80,14 @@ extension AppRoute {
     var classification: AppRouteClassification {
         switch self {
         case .home, .search, .ranking, .genre, .event, .place, .goods,
-             .seatMap, .menu, .capabilityLedger:
+             .queue, .booking, .menu, .capabilityLedger:
             return AppRouteClassification(connectivity: .publicRead, reason: "공개 공연 및 좌석 조회 계약")
         case .region, .artist, .open:
             return AppRouteClassification(connectivity: .publicRead, reason: "버전 1 공개 탐색 계약")
         case .login, .signup, .mypage, .watchlist, .help, .inquiry:
             return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 인증 제공자 또는 사용자 세션")
-        case .queue, .booking, .checkout, .reservation:
-            return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 사용자 세션, 토스페이먼츠 결제 승인")
-        case .cancel, .resale:
-            return AppRouteClassification(connectivity: .externalGate, reason: "HTTPS와 사용자 세션, native lifecycle 계약")
-        case .transfer:
-            return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "고객 거래 계약이 아직 연결되지 않음")
+        case .checkout, .reservation, .cancel, .resale, .transfer:
+            return AppRouteClassification(connectivity: .intentionallyUnsupported, reason: "거래별 HTTPS·인증·결제 계약 필요")
         }
     }
 }
@@ -133,10 +127,9 @@ struct RouteResolver {
         case "place": return .place(slug: value)
         case "artist": return .artist(slug: value)
         case "goods": return .goods(slug: value)
-        case "seat-map": return .seatMap(slug: value)
         case "queue": return .queue(slug: value)
         case "booking": return .booking(slug: value)
-        case "checkout": return .checkout(ticketId: value)
+        case "checkout": return .checkout(slug: value)
         case "reservation": return .reservation(id: value)
         default: return nil
         }
@@ -175,7 +168,6 @@ enum APIRequestOwnerBinding: Equatable {
     case principal
     case url
     case jsonField(String)
-    case bearerPrincipal
 }
 
 struct APIRequest: Equatable {
@@ -783,8 +775,6 @@ final class LiveAPIClient: APIClient {
                 return false
             }
             return !owner.isEmpty && owner == userID
-        case .bearerPrincipal:
-            return true
         }
     }
 
@@ -901,7 +891,6 @@ final class SessionStore {
     private let credentialStore: CredentialStore
     private(set) var current: NativeSession?
     private(set) var restoredSessionPendingValidation: NativeSession?
-    private(set) var revision = 0
 
     init(credentialStore: CredentialStore) {
         self.credentialStore = credentialStore
@@ -909,7 +898,6 @@ final class SessionStore {
     }
 
     func restore() {
-        revision &+= 1
         guard let storedCredential = credentialStore.read(),
               !storedCredential.credential.isEmpty,
               !storedCredential.serverUserID.isEmpty else {
@@ -926,13 +914,11 @@ final class SessionStore {
 
     func confirmRestoredSession(_ session: NativeSession) {
         guard restoredSessionPendingValidation == session else { return }
-        revision &+= 1
         current = session
         restoredSessionPendingValidation = nil
     }
 
     func discardRestoredSession() {
-        revision &+= 1
         credentialStore.delete()
         restoredSessionPendingValidation = nil
         current = nil
@@ -940,7 +926,6 @@ final class SessionStore {
 
     func saveNativeCredential(_ credential: String, serverUserID: String) {
         guard !credential.isEmpty, !serverUserID.isEmpty else { return }
-        revision &+= 1
         credentialStore.save(StoredCredential(
             credential: credential,
             serverUserID: serverUserID
@@ -951,13 +936,11 @@ final class SessionStore {
 
     func setFixtureUser(_ userID: String) {
         guard !userID.isEmpty else { return }
-        revision &+= 1
         current = NativeSession(userID: userID, credential: nil)
         restoredSessionPendingValidation = nil
     }
 
     func logout() {
-        revision &+= 1
         credentialStore.delete()
         current = nil
         restoredSessionPendingValidation = nil
@@ -981,11 +964,6 @@ final class AppContainer {
 
     func completeLoginNavigation() {
         navigationPath.removeAll()
-    }
-
-    func applyPublicURL(_ url: URL) {
-        guard let route = RouteResolver.resolve(url) else { return }
-        navigationPath = route == .home ? [] : [route]
     }
 
     static func fixture(credentialStore: CredentialStore = InMemoryCredentialStore()) -> AppContainer {
@@ -1018,14 +996,8 @@ final class AppContainer {
         if FixtureScenario.isFixtureMode {
             return fixture()
         }
-        if let configuration = RuntimeConfiguration.liveLifecycleTestConfiguration {
-            return liveLifecycleTest(configuration)
-        }
         if let scenario = RuntimeConfiguration.liveHomeTestScenario {
             return liveHomeTest(scenario)
-        }
-        if let scenario = RuntimeConfiguration.liveCheckoutTestScenario {
-            return liveCheckoutTest(scenario)
         }
         guard let apiURL = RuntimeConfiguration.apiBaseURL else {
             let credentialStore = KeychainCredentialStore()
@@ -1038,52 +1010,11 @@ final class AppContainer {
         return live(baseURL: apiURL, assetBaseURL: RuntimeConfiguration.assetBaseURL)
     }
 
-    private static func liveLifecycleTest(_ configuration: UITestLifecycleConfiguration) -> AppContainer {
-        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        if configuration.scenario != .signedOut {
-            sessionStore.saveNativeCredential("ui-lifecycle-credential", serverUserID: "ui-user")
-        }
-        let container = AppContainer(environment: AppEnvironment(
-            mode: .live,
-            apiClient: UITestLifecycleAPIClient(scenario: configuration.scenario),
-            sessionStore: sessionStore
-        ))
-        container.navigationPath = [configuration.route]
-        return container
-    }
-
-    // Drives LiveCheckoutRouteView against an in-process scripted client
-    // (UITestCheckoutAPIClient), the same way liveHomeTest() drives other live
-    // routes with UITestLiveHomeAPIClient - the app's own HTTPS-only gate
-    // makes pointing "live" networking at a real, unencrypted local dev
-    // backend impossible, so success/failure paths are scripted here instead
-    // of hitting a real server. There is no native seat/ticket selection flow
-    // yet to reach .checkout(ticketId:) through, so this scenario also seeds
-    // navigationPath directly rather than tapping through Discovery UI.
-    private static func liveCheckoutTest(_ scenario: UITestCheckoutScenario) -> AppContainer {
-        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        if scenario != .loggedOut {
-            sessionStore.saveNativeCredential("ui-test-checkout-credential", serverUserID: "ui-test-checkout-user")
-        }
-        let container = AppContainer(environment: AppEnvironment(
-            mode: .live,
-            apiClient: UITestCheckoutAPIClient(scenario: scenario),
-            sessionStore: sessionStore
-        ))
-        container.navigationPath = [.checkout(ticketId: UITestCheckoutAPIClient.fixtureTicketId)]
-        return container
-    }
-
     private static func liveHomeTest(_ scenario: UITestLiveHomeScenario) -> AppContainer {
-        let sessionStore = SessionStore(credentialStore: InMemoryCredentialStore())
-        if scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistRetry || scenario == .watchlistCommittedResponseLost || scenario == .watchlistCTALost || scenario == .watchlistProbeUnauthorized || scenario == .routeLoading || scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry {
-            let suffix = scenario == .supportAuthenticated ? "support" : scenario == .routeLoading ? "route-loading" : scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry ? "booking" : "watchlist"
-            sessionStore.saveNativeCredential("ui-test-\(suffix)-credential", serverUserID: "ui-test-\(suffix)-user")
-        }
-        return AppContainer(environment: AppEnvironment(
+        AppContainer(environment: AppEnvironment(
             mode: .live,
             apiClient: UITestLiveHomeAPIClient(scenario: scenario),
-            sessionStore: sessionStore
+            sessionStore: SessionStore(credentialStore: InMemoryCredentialStore())
         ))
     }
 }
@@ -1168,19 +1099,6 @@ enum RuntimeConfiguration {
             return nil
         }
         return UITestLiveHomeScenario(rawValue: arguments[index + 1])
-    }
-
-    // UITest-only hook that lets a test land directly on the checkout screen
-    // for a fixed, scripted ticket without needing a native seat/ticket
-    // selection flow (which does not exist yet) to get there.
-    fileprivate static var liveCheckoutTestScenario: UITestCheckoutScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
-        guard arguments.contains("-ui-testing"),
-              let index = arguments.firstIndex(of: "-live-checkout-scenario"),
-              arguments.indices.contains(index + 1) else {
-            return nil
-        }
-        return UITestCheckoutScenario(rawValue: arguments[index + 1])
     }
 
     static var liveAccountCapabilityTestState: LiveAccountCapabilityState? {
@@ -1282,17 +1200,6 @@ enum LiveSupportTestScenario: String {
 
 private enum UITestLiveHomeScenario: String {
     case catalog
-    case catalogMediaFallback
-    case support
-    case supportAuthenticated
-    case watchlistAuthenticated
-    case watchlistCTALost
-    case watchlistCommittedResponseLost
-    case watchlistProbeUnauthorized
-    case watchlistRetry
-    case bookingAuthenticated
-    case bookingExpiredRetry
-    case routeLoading
     case empty
     case offline
     case rateLimited
@@ -1306,28 +1213,12 @@ private enum UITestLiveHomeScenario: String {
 
 private final class UITestLiveHomeAPIClient: APIClient {
     let mode: APIDataMode = .live
-    var baseURL: URL? {
-        URL(string: scenario == .support || scenario == .supportAuthenticated || scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistProbeUnauthorized || scenario == .watchlistRetry || scenario == .routeLoading || scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry
-            ? "https://ui-test.ticketground.invalid/"
-            : "http://ui-test.ticketground.invalid/")
-    }
+    let baseURL: URL? = URL(string: "http://ui-test.ticketground.invalid/")
     private let scenario: UITestLiveHomeScenario
     private var healthRequestCount = 0
-    private var supportMessageRequestCount = 0
-    private var publicSupportRequestCount = 0
-    private var watchlistMutationRequestCount = 0
-    private var watchlistReadRequestCount = 0
-    private var watchlistPresent = false
-    private var watchlistNotificationEnabled = true
-    private var watchlistCalendarEnabled = false
-    private var bookingHeldTicketID: String?
-    private var bookingHoldRequestCount = 0
 
     init(scenario: UITestLiveHomeScenario) {
         self.scenario = scenario
-        if scenario == .watchlistCommittedResponseLost {
-            watchlistPresent = true
-        }
     }
 
     func data(for request: APIRequest) async throws -> Data {
@@ -1340,86 +1231,10 @@ private final class UITestLiveHomeAPIClient: APIClient {
         switch (request.path, request.query) {
         case ("/api/health", _):
             healthRequestCount += 1
-            if scenario == .routeLoading {
-                try await Task.sleep(for: .seconds(15))
-                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-account-v1\",\"native-support-v1\",\"native-watchlist-v1\"]}")
-            }
-            if scenario == .watchlistProbeUnauthorized && healthRequestCount > 2 {
-                throw APIClientError.server(status: 401, code: "GATEWAY_UNAUTHORIZED", message: "gateway rejected public probe")
-            }
             if scenario == .unavailable || (scenario == .recovering && healthRequestCount == 1) {
                 return json("{\"status\":\"ok\",\"version\":null}")
             }
-            if scenario == .support || scenario == .supportAuthenticated {
-                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-support-v1\"]}")
-            }
-            if scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost || scenario == .watchlistRetry {
-                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-watchlist-v1\"]}")
-            }
-            if scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry {
-                return json("{\"status\":\"ok\",\"version\":\"78b3c7c\",\"capabilities\":[\"native-booking-holds-v1\"]}")
-            }
             return json("{\"status\":\"ok\",\"version\":\"\(scenario == .incompatible ? "future-contract" : "78b3c7c")\"}")
-        case ("/api/support/public", _) where scenario == .support || scenario == .supportAuthenticated:
-            publicSupportRequestCount += 1
-            if scenario == .supportAuthenticated && publicSupportRequestCount > 1 {
-                try await Task.sleep(for: .seconds(15))
-            }
-            return json("{\"version\":\"1\",\"faqs\":[{\"id\":\"booking\",\"question\":\"예매 내역은 어디에서 확인하나요?\",\"answer\":\"로그인 후 마이페이지에서 확인할 수 있습니다.\"}],\"notices\":[{\"id\":\"secure\",\"title\":\"안전한 1:1 문의\",\"body\":\"로그인 세션의 본인 문의만 확인할 수 있습니다.\"}]}")
-        case ("/api/me/support/threads", _) where scenario == .supportAuthenticated && request.method == .get:
-            if supportMessageRequestCount > 0 {
-                return json("[{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:03:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:03:00Z\"}]},{\"id\":\"support-newer\",\"subject\":\"좌석 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:02:00Z\",\"updatedAt\":\"2026-08-02T00:02:00Z\",\"messages\":[{\"id\":\"message-newer\",\"role\":\"CUSTOMER\",\"body\":\"좌석 확인\",\"at\":\"2026-08-02T00:02:00Z\"}]}]")
-            }
-            return json("[{\"id\":\"support-newer\",\"subject\":\"좌석 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:02:00Z\",\"updatedAt\":\"2026-08-02T00:02:00Z\",\"messages\":[{\"id\":\"message-newer\",\"role\":\"CUSTOMER\",\"body\":\"좌석 확인\",\"at\":\"2026-08-02T00:02:00Z\"}]},{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:00:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"}]}]")
-        case ("/api/me/support/threads", _) where scenario == .supportAuthenticated && request.method == .post:
-            try await Task.sleep(for: .seconds(5))
-            throw APIClientError.server(status: 401, code: "NATIVE_SESSION_INVALID", message: "session expired")
-        case ("/api/me/support/messages", _) where scenario == .supportAuthenticated:
-            supportMessageRequestCount += 1
-            if supportMessageRequestCount == 1 {
-                return json("{\"id\":\"support-ui\",\"subject\":\"배송 문의\",\"status\":\"OPEN\",\"category\":\"GENERAL\",\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:03:00Z\",\"messages\":[{\"id\":\"message-ui\",\"role\":\"MODERATOR\",\"body\":\"확인 중입니다.\",\"at\":\"2026-08-02T00:00:00Z\"},{\"id\":\"message-reply\",\"role\":\"CUSTOMER\",\"body\":\"추가 문의\",\"at\":\"2026-08-02T00:03:00Z\"}]}")
-            }
-            throw APIClientError.server(status: 401, code: "NATIVE_SESSION_INVALID", message: "session expired")
-        case ("/api/me/watchlist", _) where scenario == .watchlistRetry && request.method == .get:
-            watchlistReadRequestCount += 1
-            if watchlistReadRequestCount == 1 {
-                throw APIClientError.server(status: 503, code: "WATCHLIST_UNAVAILABLE", message: "temporary failure")
-            }
-            return json("[]")
-        case ("/api/me/watchlist", _) where (scenario == .watchlistAuthenticated || scenario == .watchlistCTALost || scenario == .watchlistCommittedResponseLost) && request.method == .get:
-            return json(watchlistPresent ? "[\(watchlistItem)]" : "[]")
-        case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCTALost && request.method == .put:
-            let body = jsonBody(request)
-            watchlistPresent = true
-            watchlistNotificationEnabled = body["notificationEnabled"] as? Bool ?? true
-            watchlistCalendarEnabled = body["calendarEnabled"] as? Bool ?? false
-            throw APIClientError.server(status: 503, code: "WATCHLIST_RESPONSE_LOST", message: "response lost after commit")
-        case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCommittedResponseLost && request.method == .put:
-            let body = jsonBody(request)
-            watchlistPresent = true
-            watchlistNotificationEnabled = body["notificationEnabled"] as? Bool ?? true
-            watchlistCalendarEnabled = body["calendarEnabled"] as? Bool ?? false
-            throw APIClientError.server(status: 503, code: "WATCHLIST_RESPONSE_LOST", message: "response lost after commit")
-        case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistAuthenticated && request.method == .put:
-            watchlistMutationRequestCount += 1
-            if watchlistMutationRequestCount == 2 {
-                try await Task.sleep(for: .milliseconds(500))
-                throw APIClientError.server(status: 503, code: "WATCHLIST_UNAVAILABLE", message: "temporary failure")
-            }
-            let body = jsonBody(request)
-            watchlistPresent = true
-            watchlistNotificationEnabled = body["notificationEnabled"] as? Bool ?? true
-            watchlistCalendarEnabled = body["calendarEnabled"] as? Bool ?? false
-            return json(watchlistItem)
-        case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistAuthenticated && request.method == .delete:
-            watchlistPresent = false
-            return json("{\"deleted\":true,\"eventId\":\"live-neon\"}")
-        case ("/api/me/watchlist/live-neon", _) where scenario == .watchlistCommittedResponseLost && request.method == .delete:
-            watchlistPresent = false
-            throw APIClientError.server(status: 503, code: "WATCHLIST_RESPONSE_LOST", message: "response lost after commit")
-        case ("/api/state", _) where scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry:
-            let ticketID = bookingHeldTicketID ?? "R-1"
-            return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[{\"id\":\"\(ticketID)\",\"eventId\":\"live-neon\",\"performanceDateId\":\"live-neon-first\",\"zoneId\":\"R\",\"seatLabel\":\"\(ticketID)\",\"status\":\"HELD\",\"available\":false,\"faceValue\":88000,\"minPrice\":88000,\"maxPrice\":88000,\"transferCount\":0,\"maxTransferCount\":3}],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":1},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/state", _):
             return json("{\"events\":[],\"venues\":[],\"users\":[],\"tickets\":[],\"resalePools\":[],\"backendSummary\":{\"events\":1,\"tickets\":0},\"ledger\":{\"verified\":true,\"totalEntries\":1}}")
         case ("/api/catalog", let query) where query.contains(APIRequestQuery(name: "limit", value: "1")):
@@ -1428,31 +1243,8 @@ private final class UITestLiveHomeAPIClient: APIClient {
             return scenario == .empty ? catalog(events: "[]") : catalog(events: "[\(event)]")
         case ("/api/discovery/v1/contract", _):
             return json("{\"version\":\"1\",\"endpoints\":[\"regions\",\"artists\",\"open-calendar\"]}")
-        case ("/api/seat-map", let query) where query == [
-            APIRequestQuery(name: "eventId", value: "live-neon"),
-            APIRequestQuery(name: "performanceDateId", value: "live-neon-first")
-        ]:
-            let image = scenario == .catalogMediaFallback ? "https://127.0.0.1:1/seat-map.svg" : ""
-            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\(image)\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":4}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":35,\"y\":42,\"width\":4,\"height\":4,\"rotate\":0,\"shape\":\"circle\"}},{\"id\":\"R-2\",\"label\":\"R-2\",\"displayCode\":\"R-2\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":50,\"y\":55,\"width\":7,\"height\":4,\"rotate\":12,\"shape\":\"rectangle\"}},{\"id\":\"R-3\",\"label\":\"R-3\",\"displayCode\":\"R-3\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":65,\"y\":68,\"width\":6,\"height\":5,\"rotate\":0,\"shape\":\"rounded-rectangle\"}},{\"id\":\"R-4\",\"label\":\"R-4\",\"displayCode\":\"R-4\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true,\"mapPosition\":{\"x\":92,\"y\":82,\"width\":4,\"height\":4,\"rotate\":0,\"shape\":\"circle\"}}]}")
-        case ("/api/me/queue-entries", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .post:
-            return json("{\"id\":\"queue-booking-ui\",\"performanceDateId\":\"live-neon-first\",\"status\":\"ADMITTED\",\"position\":0,\"admittedAt\":\"2026-08-12T09:00:00Z\",\"admissionExpiresAt\":\"2026-08-12T09:10:00Z\",\"enteredAt\":\"2026-08-12T09:00:00Z\"}")
-        case ("/api/me/seat-holds", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .post:
-            let ticketIDs = jsonBody(request)["ticketIds"] as? [String] ?? []
-            guard let ticketID = ticketIDs.first else { throw APIClientError.invalidResponse }
-            bookingHoldRequestCount += 1
-            if scenario == .bookingExpiredRetry && bookingHoldRequestCount == 1 {
-                return json("{\"id\":\"hold-booking-expired\",\"status\":\"EXPIRED\",\"performanceDateId\":\"live-neon-first\",\"ticketIds\":[\"\(ticketID)\"],\"expiresAt\":\"2026-08-12T08:59:00Z\",\"extensionsUsed\":0}")
-            }
-            if let bookingHeldTicketID, bookingHeldTicketID != ticketID {
-                throw APIClientError.server(status: 409, code: "SEAT_ALREADY_HELD", message: "previous hold was not released")
-            }
-            bookingHeldTicketID = ticketID
-            return json("{\"id\":\"hold-booking-ui\",\"status\":\"ACTIVE\",\"performanceDateId\":\"live-neon-first\",\"ticketIds\":[\"\(ticketID)\"],\"expiresAt\":\"2026-08-12T09:05:00Z\",\"extensionsUsed\":0}")
-        case ("/api/me/seat-holds/hold-booking-ui", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .delete:
-            bookingHeldTicketID = nil
-            return json("{\"id\":\"hold-booking-ui\",\"status\":\"RELEASED\",\"performanceDateId\":\"live-neon-first\",\"ticketIds\":[\"R-1\"],\"expiresAt\":\"2026-08-12T09:05:00Z\",\"extensionsUsed\":0}")
-        case ("/api/payments/tosspayments/config", _) where (scenario == .bookingAuthenticated || scenario == .bookingExpiredRetry) && request.method == .get:
-            return json("{\"configured\":true,\"clientKey\":\"test_gck_ui_test_fake_key\"}")
+        case ("/api/seat-map", _):
+            return json("{\"category\":\"concert\",\"date\":\"2026-08-01\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venueId\":\"live-hall\",\"venue\":\"Live Hall\"},\"map\":{\"id\":\"live-hall-map\",\"venue\":\"Live Hall\",\"title\":\"Live Hall 좌석도\",\"image\":\"\",\"description\":\"공개 좌석 현황\"},\"zones\":[{\"id\":\"R\",\"name\":\"R석\",\"price\":88000,\"available\":12}],\"seats\":[{\"id\":\"R-1\",\"label\":\"R-1\",\"displayCode\":\"R-1\",\"zoneId\":\"R\",\"zoneName\":\"R석\",\"price\":88000,\"status\":\"available\",\"available\":true}]}")
         case ("/api/discovery/v1/regions", _):
             if scenario == .discoveryRouteNotFound {
                 throw APIClientError.server(status: 404, code: "ROUTE_NOT_FOUND", message: "route not found")
@@ -1487,100 +1279,12 @@ private final class UITestLiveHomeAPIClient: APIClient {
     }
 
     private var event: String {
-        let image = scenario == .catalogMediaFallback
-            ? ",\"image\":\"https://127.0.0.1:1/catalog-poster.png\""
-            : ",\"image\":\"GoogleG\""
-        return "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}]\(image),\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
+        "{\"id\":\"live-neon\",\"slug\":\"neon-stage\",\"category\":\"concert\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"date\":\"2026-08-01T19:00:00\",\"dates\":[{\"id\":\"live-neon-first\",\"label\":\"8월 1일 19:00\",\"startsAt\":\"2026-08-01T19:00:00\"},{\"id\":\"live-neon-second\",\"label\":\"8월 2일 19:00\",\"startsAt\":\"2026-08-02T19:00:00\"}],\"artistSlug\":\"neon-artist\",\"casts\":[\"Neon Artist\"],\"soldCount\":42,\"sale\":{\"state\":\"open\",\"label\":\"예매중\",\"note\":\"일반예매\"}}"
     }
 
     private func catalog(events: String) -> Data {
         json("{\"events\":\(events),\"venues\":[],\"total\":1}")
     }
-
-    private var watchlistItem: String {
-        "{\"id\":\"watch-live-neon\",\"eventId\":\"live-neon\",\"channels\":[\"APP_PUSH\"],\"calendarEnabled\":\(watchlistCalendarEnabled),\"notificationEnabled\":\(watchlistNotificationEnabled),\"createdAt\":\"2026-08-02T00:00:00Z\",\"updatedAt\":\"2026-08-02T00:00:00Z\",\"event\":{\"id\":\"live-neon\",\"title\":\"Neon Stage\",\"venue\":\"Live Hall\",\"venueId\":\"live-hall\",\"category\":\"concert\",\"saleState\":\"ON_SALE\"},\"notificationJobs\":[]}"
-    }
-
-    private func jsonBody(_ request: APIRequest) -> [String: Any] {
-        guard case .json(let data) = request.body,
-              let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return [:]
-        }
-        return body
-    }
-
-    private func json(_ value: String) -> Data {
-        Data(value.utf8)
-    }
-}
-
-// Scripted client for LiveCheckoutRouteView UITests. Kept separate from
-// UITestLiveHomeAPIClient (rather than adding more branches to that already
-// large scripted client) since checkout has its own small, self-contained
-// set of endpoints. Like UITestLiveHomeAPIClient, this never touches the
-// network - the fake HTTPS host only exists to satisfy the app's own
-// HTTPS-only gate before any request is scripted here.
-private enum UITestCheckoutScenario: String {
-    case ready
-    case loggedOut
-    case httpsRequired
-    case notConfigured
-    case ticketNotFound
-    case purchaseFails
-}
-
-private final class UITestCheckoutAPIClient: APIClient {
-    static let fixtureTicketId = "ui-test-checkout-ticket"
-
-    let mode: APIDataMode = .live
-    var baseURL: URL? {
-        URL(string: scenario == .httpsRequired ? "http://ui-test.ticketground.invalid/" : "https://ui-test.ticketground.invalid/")
-    }
-    private let scenario: UITestCheckoutScenario
-
-    init(scenario: UITestCheckoutScenario) {
-        self.scenario = scenario
-    }
-
-    // Matches LiveAPIClient's own contract: data(for:) returns the already
-    // unwrapped `data` payload, not the raw {"ok":...,"data":...} envelope -
-    // LiveAPIClient does that unwrapping itself before returning.
-    func data(for request: APIRequest) async throws -> Data {
-        switch (request.method, request.path) {
-        case (.get, "/api/state"):
-            if scenario == .ticketNotFound {
-                return json(#"{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}"#)
-            }
-            return json("""
-            {"events":[],"venues":[],"users":[],"tickets":[
-              {"id":"\(Self.fixtureTicketId)","eventId":"ui-test-event","performanceDateId":"ui-test-perf",
-               "zoneId":"ui-test-zone","seatLabel":"VIP A1","status":"ON_SALE","available":true,
-               "faceValue":120000,"minPrice":120000,"maxPrice":120000,"transferCount":0,"maxTransferCount":3}
-            ],"resalePools":[],"backendSummary":{"events":1,"tickets":1},"ledger":{"verified":true,"totalEntries":0}}
-            """)
-        case (.get, "/api/payments/tosspayments/config"):
-            if scenario == .notConfigured {
-                return json(#"{"configured":false,"clientKey":""}"#)
-            }
-            return json(#"{"configured":true,"clientKey":"test_gck_ui_test_fake_key"}"#)
-        case (.post, "/api/payments/tosspayments/purchase"):
-            if scenario == .purchaseFails {
-                throw APIClientError.server(status: 402, code: "TOSSPAYMENTS_PAYMENT_NOT_CONFIRMED", message: "토스페이먼츠 결제 승인 상태를 확인할 수 없습니다.")
-            }
-            return json("""
-            {
-              "ticket":{"id":"\(Self.fixtureTicketId)","seatLabel":"VIP A1"},
-              "event":{"id":"ui-test-event","title":"UI 테스트 공연","venue":"테스트홀"},
-              "performanceDate":{},"payment":{},"admission":{},
-              "tosspayments":{"tossPaymentKey":"toss_ui_test_key","method":"카드","mock":true}
-            }
-            """)
-        default:
-            throw APIClientError.requestFailed(code: 404)
-        }
-    }
-
-    func resolveResource(_ reference: String?) -> String? { nil }
 
     private func json(_ value: String) -> Data {
         Data(value.utf8)

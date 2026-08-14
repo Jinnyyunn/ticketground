@@ -1,5 +1,4 @@
 import SwiftUI
-import TossPayments
 
 struct DiscoveryRouteView: View {
     @Environment(AppContainer.self) private var container
@@ -297,8 +296,7 @@ struct DiscoveryLoginView: View {
             sessionExchanger: GoogleNativeSessionClient(
                 apiClient: container.environment.apiClient,
                 sessionStore: container.environment.sessionStore
-            ),
-            isSecureBackend: container.environment.apiClient.baseURL?.scheme?.lowercased() == "https"
+            )
         )
         Task {
             await coordinator.signIn()
@@ -489,15 +487,7 @@ struct DiscoveryMenuView: View {
                             }
                             Spacer(minLength: TicketgroundSpacing.sm)
                             Button("로그아웃") {
-                                // 로그인 제공자(Google/Kakao/Naver)와 무관하게 서버 세션부터
-                                // 무효화한 뒤 로컬 자격증명을 지운다 — 기기 탈취·유출 시
-                                // credential이 만료 전까지 계속 유효한 채로 남지 않도록 한다.
-                                let sessionStore = container.environment.sessionStore
-                                let apiClient = container.environment.apiClient
-                                Task {
-                                    try? await apiClient.revokeNativeSession(session)
-                                    sessionStore.logout()
-                                }
+                                container.environment.sessionStore.logout()
                             }
                             .font(.caption.weight(.bold))
                             .foregroundStyle(TicketgroundColor.ink)
@@ -532,16 +522,6 @@ struct DiscoveryMenuView: View {
                 menuSection(title: "고객센터", detail: "도움이 필요할 때 이용하세요") {
                     menuLink(title: "고객센터", icon: "questionmark.circle", route: .help, identifier: "menu-help")
                     menuLink(title: "1:1 문의", icon: "bubble.left", route: .inquiry, identifier: "menu-inquiry")
-                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
-                        menuRow(title: "카카오톡 채널 문의", icon: "bubble.left.and.bubble.right")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("menu-kakao-channel")
-                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
-                        menuRow(title: "카카오톡 채널 추가", icon: "person.crop.circle.badge.plus")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("menu-kakao-channel-add")
                     menuLink(title: "공지사항", icon: "megaphone", route: .open, identifier: "menu-notice")
                 }
 
@@ -842,7 +822,7 @@ private struct LiveDiscoveryRouteView: View {
             CapabilityLedgerView()
         case .search, .ranking, .genre, .place, .event, .goods:
             catalogBody
-        case .seatMap, .queue, .booking:
+        case .queue:
             LiveSeatMapRouteView(route: route)
         case .booking(let slug):
             LiveBookingSessionView(slug: slug)
@@ -852,15 +832,7 @@ private struct LiveDiscoveryRouteView: View {
             LiveSupportRouteView(route: route)
         case .region, .artist, .open:
             LiveDiscoveryContractView(route: route)
-        case .checkout(let ticketId):
-            LiveCheckoutRouteView(ticketId: ticketId)
-        case .reservation(let id):
-            LiveTicketLifecycleRouteView(destination: .reservation(id: id))
-        case .cancel:
-            LiveTicketLifecycleRouteView(destination: .cancellation)
-        case .resale:
-            LiveTicketLifecycleRouteView(destination: .resale)
-        case .signup, .transfer:
+        case .signup, .resale, .transfer, .cancel, .checkout, .reservation:
             LiveUnsupportedRouteView(route: route)
         default:
             LiveUnsupportedRouteView(route: route)
@@ -970,11 +942,7 @@ private struct LiveDiscoveryRouteView: View {
     private func loadCatalog() async {
         guard case .loading = state else { return }
         do {
-            let service = LiveBackendService(apiClient: container.environment.apiClient)
-            _ = try await service.diagnosePublicContract()
-            state = .loaded(try await service.getCatalog())
-        } catch is CancellationError {
-            return
+            state = .loaded(try await LiveBackendService(apiClient: container.environment.apiClient).getCatalog())
         } catch {
             if error as? APIClientError == .capabilityUnavailable(endpoint: .catalog, state: .unknown) {
                 state = .unavailable
@@ -1127,7 +1095,7 @@ private struct LiveCatalogUnavailableRouteView: View {
         case .place: return "공연장별 공연"
         case .event: return "공연 상세"
         case .goods: return "상품 상세"
-        case .seatMap, .queue, .booking: return "좌석 현황"
+        case .queue, .booking: return "좌석 현황"
         default: return "공연 정보"
         }
     }
@@ -1187,12 +1155,13 @@ private struct LiveMenuRouteView: View {
 
                 menuSection(title: "계정", detail: "로그인과 관심공연을 관리하세요") {
                     liveMenuLink(title: "로그인", icon: "person", route: .login, identifier: "live-menu-login")
-                    liveMenuLink(
-                        title: "마이페이지",
-                        icon: "person.crop.circle",
-                        route: .mypage,
-                        identifier: "live-menu-account"
-                    )
+                    NavigationLink {
+                        LiveAccountRouteView()
+                    } label: {
+                        liveMenuRow(title: "마이페이지", icon: "person.crop.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("live-menu-account")
                     liveMenuLink(title: "관심공연", icon: "heart", route: .watchlist, identifier: "live-menu-watchlist")
                 }
 
@@ -1215,16 +1184,6 @@ private struct LiveMenuRouteView: View {
                 menuSection(title: "고객센터", detail: "도움이 필요할 때 이용하세요") {
                     liveMenuLink(title: "고객센터", icon: "questionmark.circle", route: .help, identifier: "live-menu-help")
                     liveMenuLink(title: "1:1 문의", icon: "bubble.left", route: .inquiry, identifier: "live-menu-inquiry")
-                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
-                        liveMenuRow(title: "카카오톡 채널 문의", icon: "bubble.left.and.bubble.right")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("live-menu-kakao-channel")
-                    Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
-                        liveMenuRow(title: "카카오톡 채널 추가", icon: "person.crop.circle.badge.plus")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("live-menu-kakao-channel-add")
                 }
 
                 menuSection(title: "서비스 안내", detail: "현재 연결 상태를 확인하세요") {
@@ -1393,8 +1352,7 @@ private struct LiveCatalogDetailView: View {
             TicketgroundMediaImage(
                 resource: container.environment.apiClient.resolveResource(event.image),
                 role: .poster,
-                accessibilityLabel: "\(event.title) 포스터",
-                accessibilitySuffix: "live-detail"
+                accessibilityLabel: "\(event.title) 포스터"
             )
             .frame(maxWidth: .infinity)
             .frame(height: 320)
@@ -1425,9 +1383,7 @@ private struct LiveCatalogDetailView: View {
             .background(TicketgroundColor.surfaceMuted)
             .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
 
-            LiveWatchlistCTA(event: event)
-
-            NavigationLink(value: AppRoute.seatMap(slug: event.slug ?? event.id)) {
+            NavigationLink(value: AppRoute.queue(slug: event.slug ?? event.id)) {
                 Label("좌석 현황 조회", systemImage: "square.grid.2x2")
                     .font(.headline.weight(.bold))
                     .frame(maxWidth: .infinity, minHeight: 48)
@@ -1489,30 +1445,11 @@ private struct LiveCatalogEventRow: View {
     }
 }
 
-enum LiveSeatMapFailurePresentation: Equatable {
-    case unavailable
-    case retry(PublicReadPresentation)
-
-    static func resolve(_ error: Error) -> LiveSeatMapFailurePresentation {
-        guard let apiError = error as? APIClientError else {
-            return .retry(PublicReadPresentation.resolve(error))
-        }
-        switch apiError {
-        case .capabilityUnavailable(endpoint: .seatMap, state: _):
-            return .unavailable
-        case .server(let status, _, _) where [404, 405, 501].contains(status):
-            return .unavailable
-        default:
-            return .retry(PublicReadPresentation.resolve(apiError))
-        }
-    }
-}
-
 private enum LiveSeatMapRouteState {
     case loading
-    case loaded(LiveSeatMap, performanceDateID: String)
-    case unavailable
-    case failed(PublicReadPresentation)
+    case awaitingPerformance
+    case loaded(LiveSeatMap)
+    case failed(String)
 }
 
 private struct LiveSeatMapRouteView: View {
@@ -1520,6 +1457,8 @@ private struct LiveSeatMapRouteView: View {
     @Environment(AppContainer.self) private var container
     @State private var catalogState: LiveCatalogRouteState = .loading
     @State private var seatMapState: LiveSeatMapRouteState = .loading
+    @State private var selectedPerformanceDateID: String?
+    @State private var admittedService: LiveBackendService?
     @State private var reloadID = 0
 
     var body: some View {
@@ -1553,22 +1492,41 @@ private struct LiveSeatMapRouteView: View {
     private func seatMapBody(for catalog: LiveCatalog) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text(routeTitle(for: catalog))
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                    .accessibilityIdentifier("live-route-state")
                 switch seatMapState {
                 case .loading:
                     TicketgroundLoadingSurface(title: "좌석 현황 불러오는 중")
                         .accessibilityIdentifier("live-seat-map-loading")
-                case .unavailable:
-                    LiveSeatMapUnavailableView()
-                case .failed(let presentation):
+                case .awaitingPerformance:
+                    if let event = event(in: catalog) {
+                        performanceSelector(for: event)
+                    }
+                case .failed(let message):
                     TicketgroundErrorSurface(
-                        title: presentation.title,
-                        message: presentation.message,
+                        title: "좌석 현황을 표시할 수 없습니다",
+                        message: message,
                         actionTitle: "다시 시도",
                         action: retry
                     )
                     .accessibilityIdentifier("live-seat-map-error")
-                case .loaded(let seatMap, let performanceDateID):
-                    LiveSeatMapContent(seatMap: seatMap, performanceDateID: performanceDateID)
+                case .loaded(let seatMap):
+                    if let event = event(in: catalog), performanceOptions(for: event).count > 1 {
+                        performanceSelector(for: event)
+                    }
+                    LiveSeatMapContent(seatMap: seatMap)
+                    if let routeSlug, selectedPerformanceDateID != nil {
+                        NavigationLink(value: AppRoute.booking(slug: routeSlug)) {
+                            Label("이 회차 좌석 선택하기", systemImage: "checkmark.circle")
+                                .font(.headline.weight(.bold))
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(TicketgroundColor.accent)
+                        .accessibilityIdentifier("live-booking-start")
+                    }
                 }
             }
             .padding(TicketgroundSpacing.xl)
@@ -1585,38 +1543,27 @@ private struct LiveSeatMapRouteView: View {
         guard case .loading = catalogState else { return }
         do {
             let service = LiveBackendService(apiClient: container.environment.apiClient)
-            _ = try await service.diagnosePublicContract()
             let catalog = try await service.getCatalog()
-            guard !Task.isCancelled else { return }
+            admittedService = service
             catalogState = .loaded(catalog)
             guard let event = event(in: catalog) else {
-                seatMapState = .unavailable
+                seatMapState = .failed("요청한 공연이 GET /api/catalog 결과에 없습니다.")
                 return
             }
-            guard let performanceDateID = (event.dates ?? event.schedules)?.first?.id else {
-                seatMapState = .unavailable
+            let options = performanceOptions(for: event)
+            guard !options.isEmpty else {
+                seatMapState = .failed("좌석 현황을 조회할 공연 회차 정보가 없습니다.")
                 return
             }
-            _ = try await service.diagnoseSeatMap(
-                eventID: event.id,
-                performanceDateID: performanceDateID
-            )
-            let seatMap = try await service.getSeatMap(
-                eventID: event.id,
-                performanceDateID: performanceDateID
-            )
-            guard !Task.isCancelled else { return }
-            seatMapState = .loaded(seatMap, performanceDateID: performanceDateID)
-        } catch is CancellationError {
-            return
+            guard options.count == 1, let performanceDateID = options.first?.id else {
+                seatMapState = .awaitingPerformance
+                return
+            }
+            selectedPerformanceDateID = performanceDateID
+            await loadSeatMap(eventID: event.id, performanceDateID: performanceDateID)
         } catch {
             if case .loaded = catalogState {
-                switch LiveSeatMapFailurePresentation.resolve(error) {
-                case .unavailable:
-                    seatMapState = .unavailable
-                case .retry(let presentation):
-                    seatMapState = .failed(presentation)
-                }
+                seatMapState = .failed("GET /api/seat-map?eventId=... 요청에 실패했습니다: \(error.localizedDescription)")
             } else if error as? APIClientError == .capabilityUnavailable(endpoint: .catalog, state: .unknown) {
                 catalogState = .unavailable
             } else {
@@ -1625,57 +1572,168 @@ private struct LiveSeatMapRouteView: View {
         }
     }
 
+    private func loadSeatMap(eventID: String, performanceDateID: String) async {
+        guard selectedPerformanceDateID == performanceDateID, !Task.isCancelled else { return }
+        guard let admittedService else {
+            seatMapState = .failed("좌석 조회 서비스를 준비하지 못했습니다. 다시 시도해 주세요.")
+            return
+        }
+        do {
+            seatMapState = .loading
+            let seatMap = try await admittedService.getSeatMap(
+                eventID: eventID,
+                performanceDateID: performanceDateID
+            )
+            guard selectedPerformanceDateID == performanceDateID, !Task.isCancelled else { return }
+            seatMapState = .loaded(seatMap)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard selectedPerformanceDateID == performanceDateID, !Task.isCancelled else { return }
+            seatMapState = .failed(
+                "GET /api/seat-map?eventId=...&performanceDateId=... 요청에 실패했습니다: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func performanceSelector(for event: LiveBackendCatalogEvent) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text("관람 회차")
+                .font(.headline.weight(.black))
+                .accessibilityIdentifier("live-seat-performance-selector")
+            Text("좌석 현황을 확인할 회차를 선택해주세요.")
+                .font(.subheadline)
+                .foregroundStyle(TicketgroundColor.inkMuted)
+            ForEach(performanceOptions(for: event), id: \.id) { option in
+                Button(option.label) {
+                    selectedPerformanceDateID = option.id
+                    Task {
+                        await loadSeatMap(eventID: event.id, performanceDateID: option.id)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(
+                    selectedPerformanceDateID == option.id
+                        ? TicketgroundColor.accent
+                        : TicketgroundColor.inkMuted
+                )
+                .accessibilityIdentifier("live-seat-performance-\(option.id)")
+            }
+        }
+    }
+
+    private func performanceOptions(
+        for event: LiveBackendCatalogEvent
+    ) -> [(id: String, label: String)] {
+        (event.dates ?? []).compactMap { performance in
+            guard let id = performance.id else { return nil }
+            return (
+                id: id,
+                label: performance.label
+                    ?? performance.startsAt
+                    ?? performance.date
+                    ?? id
+            )
+        }
+    }
+
     private func retry() {
+        admittedService = nil
         catalogState = .loading
         seatMapState = .loading
+        selectedPerformanceDateID = nil
         reloadID += 1
     }
 
     private var routeSlug: String? {
         switch route {
-        case .seatMap(let slug), .queue(let slug), .booking(let slug): return slug
+        case .queue(let slug), .booking(let slug): return slug
         default: return nil
         }
     }
 
-}
-
-private struct LiveSeatMapUnavailableView: View {
-    @Environment(AppContainer.self) private var container
-
-    var body: some View {
-        TicketgroundSurface {
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
-                Label("좌석 현황을 제공하지 않습니다", systemImage: "square.grid.3x3")
-                    .font(.headline.weight(.black))
-                Text("이 공연의 공개 좌석 조회 계약이 확인되지 않았습니다.")
-                    .font(.body)
-                    .foregroundStyle(TicketgroundColor.inkSecondary)
-
-                Button("홈으로") {
-                    container.navigationPath.removeAll()
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("live-seat-map-unavailable-home")
-
-                NavigationLink(value: AppRoute.capabilityLedger) {
-                    Label("서비스 연결 현황 확인", systemImage: "checklist")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(TicketgroundColor.accent)
-                .accessibilityIdentifier("live-seat-map-unavailable-capability-ledger")
-            }
-        }
-        .accessibilityIdentifier("live-seat-map-unavailable")
+    private func routeTitle(for catalog: LiveCatalog) -> String {
+        event(in: catalog)?.title ?? "LIVE 좌석 현황"
     }
 }
 
 private struct LiveSeatMapContent: View {
     let seatMap: LiveSeatMap
-    let performanceDateID: String
+    @Environment(AppContainer.self) private var container
 
     var body: some View {
-        LiveSeatBookingView(seatMap: seatMap, performanceDateID: performanceDateID)
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                Text(seatMap.event.title)
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(TicketgroundColor.ink)
+                Text(seatMap.event.venue)
+                    .font(.subheadline)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+                Text(seatMap.map.description)
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkSecondary)
+            }
+
+            TicketgroundMediaImage(
+                resource: container.environment.apiClient.resolveResource(seatMap.map.image),
+                role: .seatMap,
+                accessibilityLabel: "\(seatMap.map.title) 좌석 배치도",
+                contentMode: .fit
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 260)
+            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                Text("좌석 구역 및 잔여 수량")
+                    .font(.headline.weight(.black))
+                    .accessibilityIdentifier("live-seat-map-zones")
+                ForEach(seatMap.zones, id: \.id) { zone in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(zone.name)
+                            .font(.subheadline.weight(.bold))
+                            .accessibilityIdentifier("live-seat-zone")
+                        Spacer()
+                        Text("\(zone.available)석 가능")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(zone.available > 0 ? TicketgroundColor.success : TicketgroundColor.inkMuted)
+                        Text(formatPrice(zone.price))
+                            .font(.caption)
+                            .foregroundStyle(TicketgroundColor.inkMuted)
+                    }
+                    .padding(TicketgroundSpacing.md)
+                    .background(TicketgroundColor.surfaceMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+                }
+            }
+
+            LazyVStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                Text("좌석별 상태")
+                    .font(.headline.weight(.black))
+                ForEach(seatMap.seats, id: \.id) { seat in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                            Text(seat.displayCode.isEmpty ? seat.label : seat.displayCode)
+                                .font(.subheadline.weight(.bold))
+                            Text(seat.zoneName)
+                                .font(.caption)
+                                .foregroundStyle(TicketgroundColor.inkMuted)
+                        }
+                        Spacer()
+                        Text(seat.available ? "선택 가능" : "\(seat.status) · 선택 불가")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(seat.available ? TicketgroundColor.success : TicketgroundColor.inkMuted)
+                    }
+                    .padding(.vertical, TicketgroundSpacing.xs)
+                }
+            }
+        }
+    }
+
+    private func formatPrice(_ price: Int) -> String {
+        "\(price.formatted())원"
     }
 }
 
@@ -1705,1780 +1763,13 @@ struct LiveAccountCapabilitySurface: View {
     }
 }
 
-@Observable
-private final class CheckoutViewModel: NSObject, TossPaymentsDelegate {
-    var successResult: TossPaymentsResult.Success?
-    var failResult: TossPaymentsResult.Fail?
-
-    func handleSuccessResult(_ success: TossPaymentsResult.Success) {
-        successResult = success
-    }
-
-    func handleFailResult(_ fail: TossPaymentsResult.Fail) {
-        failResult = fail
-    }
-}
-
-private enum LiveCheckoutLoadState: Equatable {
-    case loading
-    case ready(ticket: LiveTicket, config: TosspaymentsConfig)
-    case notConfigured
-    case failed(String)
-}
-
-private struct LiveCheckoutRouteView: View {
-    let ticketId: String
-    @Environment(AppContainer.self) private var container
-    @State private var gate: LiveAccountCapabilityState = .loginRequired
-    @State private var loadState: LiveCheckoutLoadState = .loading
-    @State private var widget: PaymentWidget?
-    @State private var model = CheckoutViewModel()
-    @State private var submitting = false
-    @State private var purchaseError: String?
-    @State private var purchasedTicket: TosspaymentsPurchaseResult.Ticket?
-
-    var body: some View {
-        Group {
-            if case .available(let userID) = gate {
-                content(userID: userID)
-            } else {
-                LiveAccountCapabilitySurface(
-                    state: gate,
-                    title: "결제하기",
-                    loginMessage: "결제는 로그인 후 진행할 수 있습니다.",
-                    identifier: "live-checkout",
-                    retry: { resolveGate() }
-                )
-            }
-        }
-        .navigationTitle("결제하기")
-        .navigationBarTitleDisplayMode(.inline)
-        .task(id: container.environment.sessionStore.current?.userID ?? "") {
-            resolveGate()
-        }
-        .onChange(of: model.successResult) { _, result in
-            guard let result else { return }
-            Task { await confirmPurchase(tossPaymentKey: result.paymentKey) }
-        }
-        .onChange(of: model.failResult) { _, result in
-            guard let result else { return }
-            purchaseError = result.errorMessage
-        }
-    }
-
-    private func resolveGate() {
-        let baseURL = container.environment.apiClient.baseURL
-        if let baseURL, baseURL.scheme?.lowercased() != "https" {
-            gate = .httpsRequired
-            return
-        }
-        guard let session = container.environment.sessionStore.current,
-              !session.userID.isEmpty,
-              let credential = session.credential,
-              !credential.isEmpty else {
-            gate = .loginRequired
-            return
-        }
-        gate = .available(userID: session.userID)
-        Task { await load() }
-    }
-
-    @ViewBuilder
-    private func content(userID: String) -> some View {
-        if let purchasedTicket {
-            successView(ticket: purchasedTicket)
-        } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                    Text("결제 · LIVE")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(TicketgroundColor.accent)
-                        .accessibilityIdentifier("live-checkout")
-                    loadStateBody(userID: userID)
-                }
-                .padding(TicketgroundSpacing.xl)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func loadStateBody(userID: String) -> some View {
-        switch loadState {
-        case .loading:
-            TicketgroundLoadingSurface(title: "결제 준비 중", identifier: "live-checkout-loading")
-        case .notConfigured:
-            TicketgroundErrorSurface(title: "결제하기", message: "토스페이먼츠가 아직 설정되어 있지 않습니다.", actionTitle: "다시 시도", action: { Task { await load() } })
-                .accessibilityIdentifier("live-checkout-not-configured")
-        case .failed(let message):
-            TicketgroundErrorSurface(title: "결제하기", message: message, actionTitle: "다시 시도", action: { Task { await load() } })
-                .accessibilityIdentifier("live-checkout-error")
-        case .ready(let ticket, let config):
-            readyBody(userID: userID, ticket: ticket, config: config)
-        }
-    }
-
-    @ViewBuilder
-    private func readyBody(userID: String, ticket: LiveTicket, config: TosspaymentsConfig) -> some View {
-        if let widget {
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
-                Text("좌석 \(ticket.seatLabel) · \(ticket.faceValue)원")
-                    .font(.subheadline.weight(.bold))
-                    .accessibilityIdentifier("live-checkout-amount")
-                PaymentMethodWidgetView(widget: widget, amount: PaymentMethodWidget.Amount(value: Double(ticket.faceValue)))
-                    .accessibilityIdentifier("live-checkout-payment-method")
-                AgreementWidgetView(widget: widget)
-                    .accessibilityIdentifier("live-checkout-agreement")
-                if let purchaseError {
-                    Text(purchaseError)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                        .accessibilityIdentifier("live-checkout-failure")
-                }
-                Button(submitting ? "결제 처리 중" : "결제하기") {
-                    requestPayment(ticket: ticket)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(TicketgroundColor.accent)
-                .disabled(submitting)
-                .frame(maxWidth: .infinity, minHeight: 46)
-                .accessibilityIdentifier("live-checkout-pay")
-            }
-        } else {
-            TicketgroundLoadingSurface(title: "결제 위젯 불러오는 중", identifier: "live-checkout-widget-loading")
-        }
-    }
-
-    private func successView(ticket: TosspaymentsPurchaseResult.Ticket) -> some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
-            Text("결제 완료")
-                .font(.headline.weight(.black))
-                .accessibilityIdentifier("live-checkout-success")
-            Text("좌석 \(ticket.seatLabel)의 결제가 완료되었습니다.")
-                .font(.body)
-                .foregroundStyle(TicketgroundColor.inkSecondary)
-        }
-        .padding(TicketgroundSpacing.xl)
-    }
-
-    private func load() async {
-        loadState = .loading
-        widget = nil
-        let client = TosspaymentsClient(apiClient: container.environment.apiClient, sessionStore: container.environment.sessionStore)
-        do {
-            async let ticketTask = client.fetchTicket(ticketID: ticketId)
-            async let configTask = client.fetchConfig()
-            let (ticket, config) = try await (ticketTask, configTask)
-            guard config.configured else {
-                loadState = .notConfigured
-                return
-            }
-            loadState = .ready(ticket: ticket, config: config)
-            let createdWidget = PaymentWidget(clientKey: config.clientKey, customerKey: tossCustomerKey())
-            createdWidget.delegate = model
-            widget = createdWidget
-        } catch {
-            loadState = .failed((error as? LocalizedError)?.errorDescription ?? "결제 정보를 불러오지 못했습니다.")
-        }
-    }
-
-    private func requestPayment(ticket: LiveTicket) {
-        guard let widget else { return }
-        purchaseError = nil
-        submitting = true
-        widget.requestPayment(info: DefaultWidgetPaymentInfo(orderId: ticket.id, orderName: ticket.seatLabel))
-    }
-
-    private func confirmPurchase(tossPaymentKey: String) async {
-        let client = TosspaymentsClient(apiClient: container.environment.apiClient, sessionStore: container.environment.sessionStore)
-        do {
-            let result = try await client.confirmPurchase(
-                ticketID: ticketId,
-                paymentMethod: "CREDIT_CARD",
-                tossPaymentKey: tossPaymentKey,
-                idempotencyKey: tossPaymentKey
-            )
-            submitting = false
-            purchasedTicket = result.ticket
-        } catch {
-            submitting = false
-            purchaseError = (error as? LocalizedError)?.errorDescription ?? "결제 승인 처리에 실패했습니다."
-        }
-    }
-}
-
-// TossPayments requires an unpredictable customerKey (never the raw account
-// userID) - a random id generated once per install and reused after that.
-private func tossCustomerKey() -> String {
-    let key = "ticketground.tosspayments.customerKey"
-    if let existing = UserDefaults.standard.string(forKey: key) {
-        return existing
-    }
-    let generated = UUID().uuidString
-    UserDefaults.standard.set(generated, forKey: key)
-    return generated
-}
-
-private struct LiveAccountRouteView: View {
-    @Environment(AppContainer.self) private var container
-    @State private var state: LiveAccountState = .loading
-    @State private var reloadID = 0
-    @State private var profileName = ""
-    @State private var isSavingProfile = false
-    @State private var profileSaveError: String?
-    @State private var admittedAccountCapabilityMap: LiveCapabilityMap?
-
-    var body: some View {
-        Group {
-            if case .loading = state {
-                TicketgroundLoadingSurface(title: "계정 불러오는 중", identifier: "live-account-loading")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                        Text("마이페이지 · LIVE")
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(TicketgroundColor.accent)
-                            .accessibilityIdentifier("live-account")
-                        accountBody
-                        VStack(spacing: TicketgroundSpacing.sm) {
-                            NavigationLink {
-                                LiveWatchlistRouteView()
-                            } label: {
-                                Label("관심공연", systemImage: "heart")
-                                    .frame(maxWidth: .infinity, minHeight: 46)
-                            }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("live-mypage-watchlist")
-                            NavigationLink {
-                                LiveSupportRouteView(route: .help)
-                            } label: {
-                                Label("고객센터 문의", systemImage: "questionmark.circle")
-                                    .frame(maxWidth: .infinity, minHeight: 46)
-                            }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("live-mypage-support")
-                            Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
-                                Label("카카오톡 채널 1:1 문의", systemImage: "bubble.left.and.bubble.right")
-                                    .frame(maxWidth: .infinity, minHeight: 46)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(Color(red: 254 / 255, green: 229 / 255, blue: 0))
-                            .foregroundStyle(Color.black)
-                            .accessibilityIdentifier("live-mypage-kakao-channel")
-                            Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
-                                Label("카카오톡 채널 추가", systemImage: "person.crop.circle.badge.plus")
-                                    .frame(maxWidth: .infinity, minHeight: 46)
-                            }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("live-mypage-kakao-channel-add")
-                        }
-                    }
-                    .padding(TicketgroundSpacing.xl)
-                }
-            }
-        }
-        .navigationTitle("마이페이지")
-        .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
-            if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
-                state = .capability(testState)
-                return
-            }
-            let apiClient = container.environment.apiClient
-            let capabilityMap = LiveAPIContract.deployed.capabilityMap(
-                for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
-                observedResponseVersion: nil
-            )
-            let initialState = LiveAccountCapabilityState.resolve(
-                for: .account,
-                capabilityMap: capabilityMap,
-                session: container.environment.sessionStore.current,
-                baseURL: apiClient.baseURL
-            )
-            guard initialState == .retry else {
-                state = .capability(initialState)
-                return
-            }
-
-            let service = LiveBackendService(apiClient: apiClient)
-            do {
-                let probe = try await service.diagnosePublicContract()
-                let resolvedState = LiveAccountCapabilityState.resolve(
-                    for: .account,
-                    capabilityMap: probe.capabilities,
-                    session: container.environment.sessionStore.current,
-                    baseURL: apiClient.baseURL
-                )
-                guard case .available(let userID) = resolvedState else {
-                    state = .capability(resolvedState)
-                    return
-                }
-                admittedAccountCapabilityMap = probe.capabilities
-                async let profile = service.getSession(userID: userID)
-                async let tickets = service.getTickets(userID: userID)
-                let loadedProfile = try await profile
-                profileName = loadedProfile.name
-                state = .loaded(loadedProfile, try await tickets)
-            } catch let error as APIClientError {
-                let resolvedState = LiveAccountCapabilityState.resolve(
-                    for: .account,
-                    capabilityMap: capabilityMap,
-                    session: container.environment.sessionStore.current,
-                    baseURL: apiClient.baseURL,
-                    requestError: error
-                )
-                if resolvedState == .loginRequired {
-                    container.environment.sessionStore.logout()
-                }
-                state = .capability(resolvedState)
-            } catch {
-                state = .capability(.retry)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var accountBody: some View {
-        switch state {
-        case .loading:
-            TicketgroundLoadingSurface(title: "계정 불러오는 중", identifier: "live-account-loading")
-        case .capability(let capability):
-            LiveAccountCapabilitySurface(
-                state: capability,
-                title: "계정 정보를 표시할 수 없습니다",
-                loginMessage: "마이페이지를 보려면 실제 로그인 세션이 필요합니다.",
-                identifier: "live-account",
-                retry: { reloadID += 1 }
-            )
-        case .loaded(let session, let tickets):
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                TextField("닉네임", text: $profileName)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
-                    .accessibilityIdentifier("live-account-profile-name")
-                Button {
-                    Task { await saveProfile(tickets: tickets) }
-                } label: {
-                    Text(isSavingProfile ? "저장 중" : "프로필 저장")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSavingProfile || profileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("live-account-profile-save")
-                if let profileSaveError {
-                    Text(profileSaveError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .accessibilityIdentifier("live-account-profile-error")
-                }
-                Text(LiveAccountDisplay.statusText(for: session))
-                    .font(.subheadline)
-                    .foregroundStyle(TicketgroundColor.inkMuted)
-                Text("보유 티켓 \(tickets.count)장 · 신뢰 점수 \(session.trustScore)")
-                    .font(.subheadline.weight(.semibold))
-                if tickets.isEmpty {
-                    Text("예매내역이 없습니다.")
-                        .font(.subheadline)
-                        .foregroundStyle(TicketgroundColor.inkMuted)
-                        .accessibilityIdentifier("live-account-empty-tickets")
-                } else {
-                    ForEach(tickets, id: \.id) { ticket in
-                        NavigationLink(value: AppRoute.reservation(id: ticket.id)) {
-                            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                                Text(ticket.event?.title ?? "예매 티켓")
-                                    .font(.headline)
-                                Text("\(ticket.seatLabel) · \(ticket.status)")
-                                    .font(.subheadline)
-                                    .foregroundStyle(TicketgroundColor.inkMuted)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .accessibilityIdentifier("live-account-ticket-\(ticket.id)")
-                    }
-                }
-            }
-            .padding(TicketgroundSpacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TicketgroundColor.surfaceMuted)
-            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-            .accessibilityIdentifier("live-account-data")
-        }
-    }
-
-    @MainActor
-    private func saveProfile(tickets: [LiveTicket]) async {
-        guard let userID = container.environment.sessionStore.current?.userID else {
-            state = .capability(.loginRequired)
-            return
-        }
-        isSavingProfile = true
-        profileSaveError = nil
-        defer { isSavingProfile = false }
-        do {
-            guard let admittedAccountCapabilityMap else {
-                profileSaveError = "기능 상태를 다시 확인해 주세요."
-                return
-            }
-            let service = LiveBackendService(
-                apiClient: container.environment.apiClient,
-                initialCapabilityMap: admittedAccountCapabilityMap
-            )
-            let updated = try await service.updateProfile(userID: userID, name: profileName)
-            profileName = updated.name
-            state = .loaded(updated, tickets)
-        } catch let error as APIClientError {
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                state = .capability(.loginRequired)
-            } else {
-                profileSaveError = error.localizedDescription
-            }
-        } catch {
-            profileSaveError = "프로필을 저장하지 못했습니다. 다시 시도해 주세요."
-        }
-    }
-
-}
-
-private struct LiveTicketDetailView: View {
-    let ticket: LiveTicket
-
-    var body: some View {
-        List {
-            LabeledContent("공연", value: ticket.event?.title ?? ticket.eventId)
-            LabeledContent("공연장", value: ticket.event?.venue ?? "확인 중")
-            LabeledContent("공연 회차", value: ticket.event?.performance?.label ?? "확인 중")
-            LabeledContent("공연 일시", value: ticket.event?.performance?.startsAt ?? "확인 중")
-            LabeledContent("좌석", value: ticket.seatLabel)
-            LabeledContent("티켓 상태", value: ticket.status)
-            LabeledContent("결제 상태", value: ticket.payment?.status ?? "확인 중")
-            LabeledContent("결제 수단", value: ticket.payment?.method ?? "확인 중")
-            LabeledContent("결제 금액", value: ticket.payment?.amount.formatted(.currency(code: "KRW")) ?? "확인 중")
-        }
-        .navigationTitle("예매 상세")
-        .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("live-ticket-detail")
-    }
-}
-
-private enum LiveAccountState {
-    case loading
-    case capability(LiveAccountCapabilityState)
-    case loaded(LiveSession, [LiveTicket])
-}
-
 enum LiveAccountDisplay {
     static func statusText(for session: LiveSession) -> String {
         "계정 상태 \(session.status)"
     }
 }
 
-private struct LiveWatchlistCTA: View {
-    let event: LiveBackendCatalogEvent
-    @Environment(AppContainer.self) private var container
-    @State private var capability: LiveAccountCapabilityState?
-    @State private var admittedCapabilityMap: LiveCapabilityMap?
-    @State private var isWatched = false
-    @State private var isLoading = true
-    @State private var isMutating = false
-    @State private var errorMessage: String?
-    @State private var reloadID = 0
-
-    var body: some View {
-        Group {
-            if isLoading {
-                ProgressView("관심공연 상태 확인 중")
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .accessibilityIdentifier("live-watchlist-cta-loading")
-            } else if let capability {
-                LiveAccountCapabilitySurface(
-                    state: capability,
-                    title: "관심공연을 변경할 수 없습니다",
-                    loginMessage: "로그인하면 이 공연을 관심공연에 저장할 수 있습니다.",
-                    identifier: "live-watchlist-cta",
-                    retry: { reloadID += 1 }
-                )
-            } else {
-                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                    Button {
-                        Task { await toggleWatchlist() }
-                    } label: {
-                        Label(isWatched ? "관심공연 해제" : "관심공연 추가", systemImage: isWatched ? "heart.fill" : "heart")
-                            .font(.headline.weight(.bold))
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(TicketgroundColor.accent)
-                    .disabled(isMutating)
-                    .accessibilityIdentifier("live-watchlist-cta-toggle")
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.red)
-                            .accessibilityIdentifier("live-watchlist-cta-error")
-                    }
-                }
-            }
-        }
-        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
-            await loadWatchlistState()
-        }
-    }
-
-    @MainActor
-    private func loadWatchlistState() async {
-        isLoading = true
-        errorMessage = nil
-        admittedCapabilityMap = nil
-        let generation = LiveWatchlistGeneration(
-            userID: container.environment.sessionStore.current?.userID,
-            sessionRevision: container.environment.sessionStore.revision,
-            reloadID: reloadID
-        )
-        let apiClient = container.environment.apiClient
-        let initialMap = LiveAPIContract.deployed.capabilityMap(
-            for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
-            observedResponseVersion: nil
-        )
-        let initialState = LiveAccountCapabilityState.resolve(
-            for: .watchlist,
-            capabilityMap: initialMap,
-            session: container.environment.sessionStore.current,
-            baseURL: apiClient.baseURL
-        )
-        guard initialState == .retry else {
-            capability = initialState
-            isLoading = false
-            return
-        }
-        let service = LiveBackendService(apiClient: apiClient)
-        let probe: LiveAPIContractProbe
-        do {
-            probe = try await service.diagnoseWatchlistContract()
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            capability = .retry
-            isLoading = false
-            return
-        }
-        let resolved = LiveAccountCapabilityState.resolve(
-            for: .watchlist,
-            capabilityMap: probe.capabilities,
-            session: container.environment.sessionStore.current,
-            baseURL: apiClient.baseURL
-        )
-        guard case .available(let userID) = resolved else {
-            capability = resolved
-            isLoading = false
-            return
-        }
-        do {
-            let items = try await service.getWatchlist(userID: userID)
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            admittedCapabilityMap = probe.capabilities
-            isWatched = items.contains { $0.eventId == event.id }
-            capability = nil
-            isLoading = false
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            applyWatchlistError(error, capabilityMap: probe.capabilities)
-            isLoading = false
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            capability = .retry
-            isLoading = false
-        }
-    }
-
-    @MainActor
-    private func toggleWatchlist() async {
-        guard !isMutating,
-              let userID = container.environment.sessionStore.current?.userID,
-              let admittedCapabilityMap else { return }
-        let generation = LiveWatchlistGeneration(
-            userID: userID,
-            sessionRevision: container.environment.sessionStore.revision,
-            reloadID: reloadID
-        )
-        isWatched.toggle()
-        isMutating = true
-        errorMessage = nil
-        defer { isMutating = false }
-        let service = LiveBackendService(
-            apiClient: container.environment.apiClient,
-            initialCapabilityMap: admittedCapabilityMap
-        )
-        do {
-            if isWatched {
-                _ = try await service.upsertWatchlist(
-                    userID: userID,
-                    eventID: event.id,
-                    channels: ["APP_PUSH"],
-                    calendarEnabled: false,
-                    notificationEnabled: true
-                )
-            } else {
-                _ = try await service.deleteWatchlist(userID: userID, eventID: event.id)
-            }
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                capability = .loginRequired
-            } else {
-                await reconcileWatchlistState(using: service, userID: userID, generation: generation)
-            }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            await reconcileWatchlistState(using: service, userID: userID, generation: generation)
-        }
-    }
-
-    @MainActor
-    private func reconcileWatchlistState(
-        using service: LiveBackendService,
-        userID: String,
-        generation: LiveWatchlistGeneration
-    ) async {
-        do {
-            let items = try await service.getWatchlist(userID: userID)
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            isWatched = items.contains { $0.eventId == event.id }
-            errorMessage = "변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                capability = .loginRequired
-            } else {
-                capability = .retry
-            }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            capability = .retry
-        }
-    }
-
-    @MainActor
-    private func applyWatchlistError(_ error: APIClientError, capabilityMap: LiveCapabilityMap) {
-        let resolved = LiveAccountCapabilityState.resolve(
-            for: .watchlist,
-            capabilityMap: capabilityMap,
-            session: container.environment.sessionStore.current,
-            baseURL: container.environment.apiClient.baseURL,
-            requestError: error
-        )
-        if case .server(status: 401, _, _) = error {
-            container.environment.sessionStore.logout()
-        }
-        capability = resolved
-    }
-}
-
-private struct LiveWatchlistRouteView: View {
-    @Environment(AppContainer.self) private var container
-    @State private var state: LiveWatchlistState = .loading
-    @State private var reloadID = 0
-    @State private var admittedCapabilityMap: LiveCapabilityMap?
-    @State private var inFlightEventIDs: Set<String> = []
-    @State private var mutationError: String?
-
-    var body: some View {
-        Group {
-            if case .loading = state {
-                TicketgroundLoadingSurface(title: "관심공연 불러오는 중", identifier: "live-watchlist-loading")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                        Text("관심공연 · LIVE")
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(TicketgroundColor.accent)
-                            .accessibilityIdentifier("live-watchlist")
-                        switch state {
-                        case .loading:
-                            EmptyView()
-                        case .capability(let capability):
-                            LiveAccountCapabilitySurface(
-                                state: capability,
-                                title: "관심공연을 표시할 수 없습니다",
-                                loginMessage: "관심공연은 실제 로그인 세션이 필요합니다.",
-                                identifier: "live-watchlist",
-                                retry: { reloadID += 1 }
-                            )
-                        case .loaded(let items):
-                            if items.isEmpty {
-                                LiveRouteMessageView(title: "관심공연이 없습니다", message: "공연 상세에서 관심공연을 추가하면 여기에 표시됩니다.", identifier: "live-watchlist-empty")
-                            } else {
-                                VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                                    Text("관심공연 \(items.count)개")
-                                        .font(.title2.weight(.black))
-                                        .accessibilityIdentifier("live-watchlist-items")
-                                    ForEach(items, id: \.id) { item in
-                                        watchlistCard(item)
-                                    }
-                                }
-                            }
-                        }
-                        if let mutationError {
-                            Text(mutationError)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.red)
-                                .accessibilityIdentifier("live-watchlist-mutation-error")
-                        }
-                    }
-                    .padding(TicketgroundSpacing.xl)
-                }
-            }
-        }
-        .navigationTitle("관심공연")
-        .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
-            await loadWatchlist()
-        }
-    }
-
-    @ViewBuilder
-    private func watchlistCard(_ item: LiveWatchlistItem) -> some View {
-        let isInFlight = inFlightEventIDs.contains(item.eventId)
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-            Text(item.event?.title ?? item.eventId)
-                .font(.headline.weight(.bold))
-                .accessibilityIdentifier("live-watchlist-item-\(item.id)")
-            Text(item.event?.venue ?? "공연장 정보 없음")
-                .font(.subheadline)
-                .foregroundStyle(TicketgroundColor.inkMuted)
-            HStack(spacing: TicketgroundSpacing.sm) {
-                Button(item.notificationEnabled ? "오픈 알림 끄기" : "오픈 알림 켜기") {
-                    Task { await setPreferences(item, notificationEnabled: !item.notificationEnabled) }
-                }
-                .buttonStyle(.bordered)
-                .disabled(isInFlight)
-                .accessibilityIdentifier("live-watchlist-notification-\(item.eventId)")
-                Button(item.calendarEnabled ? "캘린더 해제" : "캘린더 연동") {
-                    Task { await setPreferences(item, calendarEnabled: !item.calendarEnabled) }
-                }
-                .buttonStyle(.bordered)
-                .disabled(isInFlight)
-                .accessibilityIdentifier("live-watchlist-calendar-\(item.eventId)")
-            }
-            Button("관심공연 삭제", role: .destructive) {
-                Task { await deleteItem(item) }
-            }
-            .disabled(isInFlight)
-            .accessibilityIdentifier("live-watchlist-delete-\(item.eventId)")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TicketgroundSpacing.md)
-        .background(TicketgroundColor.surfaceMuted)
-        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-    }
-
-    @MainActor
-    private func loadWatchlist() async {
-        state = .loading
-        admittedCapabilityMap = nil
-        inFlightEventIDs.removeAll()
-        mutationError = nil
-        let generation = LiveWatchlistGeneration(
-            userID: container.environment.sessionStore.current?.userID,
-            sessionRevision: container.environment.sessionStore.revision,
-            reloadID: reloadID
-        )
-        if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
-            state = .capability(testState)
-            return
-        }
-        let apiClient = container.environment.apiClient
-        let initialMap = LiveAPIContract.deployed.capabilityMap(
-            for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
-            observedResponseVersion: nil
-        )
-        let initialState = LiveAccountCapabilityState.resolve(
-            for: .watchlist,
-            capabilityMap: initialMap,
-            session: container.environment.sessionStore.current,
-            baseURL: apiClient.baseURL
-        )
-        guard initialState == .retry else {
-            state = .capability(initialState)
-            return
-        }
-        let service = LiveBackendService(apiClient: apiClient)
-        let probe: LiveAPIContractProbe
-        do {
-            probe = try await service.diagnoseWatchlistContract()
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            state = .capability(.retry)
-            return
-        }
-        let resolved = LiveAccountCapabilityState.resolve(
-            for: .watchlist,
-            capabilityMap: probe.capabilities,
-            session: container.environment.sessionStore.current,
-            baseURL: apiClient.baseURL
-        )
-        guard case .available(let userID) = resolved else {
-            state = .capability(resolved)
-            return
-        }
-        do {
-            let items = try await service.getWatchlist(userID: userID)
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            admittedCapabilityMap = probe.capabilities
-            state = .loaded(items)
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            applyLoadError(error, capabilityMap: probe.capabilities)
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            state = .capability(.retry)
-        }
-    }
-
-    @MainActor
-    private func setPreferences(
-        _ item: LiveWatchlistItem,
-        notificationEnabled: Bool? = nil,
-        calendarEnabled: Bool? = nil
-    ) async {
-        guard !inFlightEventIDs.contains(item.eventId),
-              let userID = container.environment.sessionStore.current?.userID,
-              let admittedCapabilityMap,
-              case .loaded(let currentItems) = state else { return }
-        let generation = LiveWatchlistGeneration(
-            userID: userID,
-            sessionRevision: container.environment.sessionStore.revision,
-            reloadID: reloadID
-        )
-        let optimistic = copyingWatchlistItem(
-            item,
-            notificationEnabled: notificationEnabled ?? item.notificationEnabled,
-            calendarEnabled: calendarEnabled ?? item.calendarEnabled
-        )
-        state = .loaded(replacingWatchlistItem(optimistic, in: currentItems))
-        inFlightEventIDs.insert(item.eventId)
-        mutationError = nil
-        defer { inFlightEventIDs.remove(item.eventId) }
-        let service = LiveBackendService(
-            apiClient: container.environment.apiClient,
-            initialCapabilityMap: admittedCapabilityMap
-        )
-        do {
-            let updated = try await service.upsertWatchlist(
-                userID: userID,
-                eventID: item.eventId,
-                channels: item.channels,
-                calendarEnabled: optimistic.calendarEnabled,
-                notificationEnabled: optimistic.notificationEnabled
-            )
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ), case .loaded(let latestItems) = state else { return }
-            state = .loaded(replacingWatchlistItem(updated, in: latestItems))
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                state = .capability(.loginRequired)
-            } else {
-                await reconcileItems(
-                    using: service,
-                    userID: userID,
-                    generation: generation,
-                    message: "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
-                )
-            }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            await reconcileItems(
-                using: service,
-                userID: userID,
-                generation: generation,
-                message: "설정 변경 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
-            )
-        }
-    }
-
-    @MainActor
-    private func reconcileItems(
-        using service: LiveBackendService,
-        userID: String,
-        generation: LiveWatchlistGeneration,
-        message: String
-    ) async {
-        do {
-            let items = try await service.getWatchlist(userID: userID)
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            state = .loaded(items)
-            mutationError = message
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                state = .capability(.loginRequired)
-            } else {
-                state = .capability(.retry)
-            }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            state = .capability(.retry)
-        }
-    }
-
-    @MainActor
-    private func deleteItem(_ item: LiveWatchlistItem) async {
-        guard !inFlightEventIDs.contains(item.eventId),
-              let userID = container.environment.sessionStore.current?.userID,
-              let admittedCapabilityMap,
-              case .loaded(let currentItems) = state,
-              currentItems.contains(where: { $0.id == item.id }) else { return }
-        let generation = LiveWatchlistGeneration(
-            userID: userID,
-            sessionRevision: container.environment.sessionStore.revision,
-            reloadID: reloadID
-        )
-        state = .loaded(currentItems.filter { $0.id != item.id })
-        inFlightEventIDs.insert(item.eventId)
-        mutationError = nil
-        defer { inFlightEventIDs.remove(item.eventId) }
-        let service = LiveBackendService(
-            apiClient: container.environment.apiClient,
-            initialCapabilityMap: admittedCapabilityMap
-        )
-        do {
-            _ = try await service.deleteWatchlist(userID: userID, eventID: item.eventId)
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                state = .capability(.loginRequired)
-            } else {
-                await reconcileItems(
-                    using: service,
-                    userID: userID,
-                    generation: generation,
-                    message: "삭제 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
-                )
-            }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            await reconcileItems(
-                using: service,
-                userID: userID,
-                generation: generation,
-                message: "삭제 응답을 확인하지 못해 서버 상태를 다시 불러왔습니다."
-            )
-        }
-    }
-
-    @MainActor
-    private func applyLoadError(_ error: APIClientError, capabilityMap: LiveCapabilityMap) {
-        let resolved = LiveAccountCapabilityState.resolve(
-            for: .watchlist,
-            capabilityMap: capabilityMap,
-            session: container.environment.sessionStore.current,
-            baseURL: container.environment.apiClient.baseURL,
-            requestError: error
-        )
-        if case .server(status: 401, _, _) = error {
-            container.environment.sessionStore.logout()
-        }
-        state = .capability(resolved)
-    }
-}
-
-private enum LiveWatchlistState {
-    case loading
-    case capability(LiveAccountCapabilityState)
-    case loaded([LiveWatchlistItem])
-}
-
-private struct LiveWatchlistGeneration {
-    let userID: String?
-    let sessionRevision: Int
-    let reloadID: Int
-
-    func isCurrent(userID: String?, sessionRevision: Int, reloadID: Int, isCancelled: Bool) -> Bool {
-        !isCancelled
-            && self.userID == userID
-            && self.sessionRevision == sessionRevision
-            && self.reloadID == reloadID
-    }
-}
-
-private func copyingWatchlistItem(
-    _ item: LiveWatchlistItem,
-    notificationEnabled: Bool,
-    calendarEnabled: Bool
-) -> LiveWatchlistItem {
-    LiveWatchlistItem(
-        id: item.id,
-        userId: item.userId,
-        eventId: item.eventId,
-        channels: item.channels,
-        calendarEnabled: calendarEnabled,
-        notificationEnabled: notificationEnabled,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        event: item.event,
-        notificationJobs: item.notificationJobs
-    )
-}
-
-private func replacingWatchlistItem(_ replacement: LiveWatchlistItem, in items: [LiveWatchlistItem]) -> [LiveWatchlistItem] {
-    items.map { $0.id == replacement.id ? replacement : $0 }
-}
-
-private struct LiveSupportRouteView: View {
-    let route: AppRoute
-    @Environment(AppContainer.self) private var container
-    @State private var state: LiveSupportState = .loading
-    @State private var reloadID = 0
-    @State private var publicSupport: LivePublicSupport?
-    @State private var admittedCapabilityMap: LiveCapabilityMap?
-    @State private var subject = ""
-    @State private var message = ""
-    @State private var submissionKey = UUID().uuidString
-    @State private var isSubmitting = false
-    @State private var submissionError: String?
-
-    var body: some View {
-        Group {
-            if case .loading = state {
-                TicketgroundLoadingSurface(title: "\(routeTitle) 불러오는 중", identifier: "live-support-loading")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                        Text(routeTitle)
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(TicketgroundColor.accent)
-                            .accessibilityIdentifier("live-support")
-                        if let publicSupport {
-                            publicSupportContent(publicSupport)
-                        }
-                        switch state {
-                        case .loading:
-                            EmptyView()
-                        case .capability(let capability):
-                            LiveAccountCapabilitySurface(
-                                state: capability,
-                                title: routeTitle,
-                                loginMessage: "1:1 문의 작성과 내역 확인에는 로그인이 필요합니다.",
-                                identifier: "live-support",
-                                retry: { reloadID += 1 }
-                            )
-                        case .loaded(let threads):
-                            supportComposer()
-                            if threads.isEmpty {
-                                LiveRouteMessageView(title: "문의 내역이 없습니다", message: "새 문의를 작성하면 이곳에서 답변 상태를 확인할 수 있습니다.", identifier: "live-support-empty")
-                            } else {
-                                VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                                    ForEach(threads, id: \.id) { thread in
-                                        Group {
-                                            if let admittedCapabilityMap {
-                                                NavigationLink {
-                                                    LiveSupportThreadDetailView(
-                                                        initialThread: thread,
-                                                        capabilityMap: admittedCapabilityMap,
-                                                        sessionBinding: LiveSupportSessionBinding(
-                                                            userID: container.environment.sessionStore.current?.userID,
-                                                            revision: container.environment.sessionStore.revision
-                                                        ),
-                                                        onThreadUpdated: updateSupportThread
-                                                    )
-                                                } label: {
-                                                    supportThreadRow(thread)
-                                                }
-                                            } else {
-                                                supportThreadRow(thread)
-                                            }
-                                        }
-                                        .accessibilityIdentifier("live-support-thread-\(thread.id)")
-                                    }
-                                }
-                            }
-                        }
-                        Link(destination: URL(string: "https://pf.kakao.com/_xmTniX/chat")!) {
-                            Label("카카오톡 채널 1:1 문의", systemImage: "bubble.left.and.bubble.right")
-                                .frame(maxWidth: .infinity, minHeight: 46)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color(red: 254 / 255, green: 229 / 255, blue: 0))
-                        .foregroundStyle(Color.black)
-                        .accessibilityIdentifier("live-support-kakao-channel")
-                        Link(destination: URL(string: "https://pf.kakao.com/_xmTniX")!) {
-                            Label("카카오톡 채널 추가", systemImage: "person.crop.circle.badge.plus")
-                                .frame(maxWidth: .infinity, minHeight: 46)
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("live-support-kakao-channel-add")
-                    }
-                    .padding(TicketgroundSpacing.xl)
-                }
-            }
-        }
-        .scrollDismissesKeyboard(.immediately)
-        .navigationTitle(routeTitle)
-        .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
-            if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
-                state = .capability(testState)
-                return
-            }
-            let generation = LiveSupportLoadGeneration(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID
-            )
-            let apiClient = container.environment.apiClient
-            let capabilityMap = LiveAPIContract.deployed.capabilityMap(
-                for: apiClient.baseURL ?? LiveAPIContract.deployed.publicHost,
-                observedResponseVersion: nil
-            )
-            let initialState = LiveAccountCapabilityState.resolve(
-                for: .support,
-                capabilityMap: capabilityMap,
-                session: container.environment.sessionStore.current,
-                baseURL: apiClient.baseURL
-            )
-            guard initialState != .httpsRequired else {
-                state = .capability(initialState)
-                return
-            }
-
-            if container.environment.sessionStore.current == nil {
-                admittedCapabilityMap = nil
-                state = .capability(.loginRequired)
-            }
-
-            let service = LiveBackendService(apiClient: apiClient)
-            let probe: LiveAPIContractProbe
-            let loadedPublicSupport: LivePublicSupport
-            do {
-                probe = try await service.diagnoseSupportContract()
-                guard generation.isCurrent(
-                    userID: container.environment.sessionStore.current?.userID,
-                    sessionRevision: container.environment.sessionStore.revision,
-                    reloadID: reloadID,
-                    isCancelled: Task.isCancelled
-                ) else { return }
-                loadedPublicSupport = try await service.getPublicSupport()
-                guard generation.isCurrent(
-                    userID: container.environment.sessionStore.current?.userID,
-                    sessionRevision: container.environment.sessionStore.revision,
-                    reloadID: reloadID,
-                    isCancelled: Task.isCancelled
-                ) else { return }
-            } catch let error as APIClientError {
-                applySupportLoadError(
-                    error,
-                    stage: .publicProbe,
-                    generation: generation,
-                    capabilityMap: capabilityMap
-                )
-                return
-            } catch {
-                guard generation.isCurrent(
-                    userID: container.environment.sessionStore.current?.userID,
-                    sessionRevision: container.environment.sessionStore.revision,
-                    reloadID: reloadID,
-                    isCancelled: Task.isCancelled
-                ) else { return }
-                state = .capability(.retry)
-                return
-            }
-
-            publicSupport = loadedPublicSupport
-            admittedCapabilityMap = probe.capabilities
-            let resolvedState = LiveAccountCapabilityState.resolve(
-                for: .support,
-                capabilityMap: probe.capabilities,
-                session: container.environment.sessionStore.current,
-                baseURL: apiClient.baseURL
-            )
-            guard case .available(let userID) = resolvedState else {
-                state = .capability(resolvedState)
-                return
-            }
-            do {
-                let loadedThreads = try await service.getSupportThreads(userID: userID)
-                guard generation.isCurrent(
-                    userID: container.environment.sessionStore.current?.userID,
-                    sessionRevision: container.environment.sessionStore.revision,
-                    reloadID: reloadID,
-                    isCancelled: Task.isCancelled
-                ) else { return }
-                state = .loaded(loadedThreads)
-            } catch let error as APIClientError {
-                applySupportLoadError(
-                    error,
-                    stage: .privateThreads,
-                    generation: generation,
-                    capabilityMap: probe.capabilities
-                )
-            } catch {
-                guard generation.isCurrent(
-                    userID: container.environment.sessionStore.current?.userID,
-                    sessionRevision: container.environment.sessionStore.revision,
-                    reloadID: reloadID,
-                    isCancelled: Task.isCancelled
-                ) else { return }
-                state = .capability(.retry)
-            }
-        }
-        .onChange(of: subject) { _, _ in
-            if !isSubmitting { submissionKey = UUID().uuidString }
-        }
-        .onChange(of: message) { _, _ in
-            if !isSubmitting { submissionKey = UUID().uuidString }
-        }
-    }
-
-    @ViewBuilder
-    private func publicSupportContent(_ content: LivePublicSupport) -> some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-            Text("자주 묻는 질문")
-                .font(.headline.weight(.black))
-            ForEach(content.faqs, id: \.id) { faq in
-                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                    Text(faq.question).font(.subheadline.weight(.bold))
-                    Text(faq.answer).font(.caption).foregroundStyle(TicketgroundColor.inkMuted)
-                }
-            }
-            Text("공지사항")
-                .font(.headline.weight(.black))
-            ForEach(content.notices, id: \.id) { notice in
-                VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                    HStack(spacing: TicketgroundSpacing.xs) {
-                        Text("공지")
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(TicketgroundColor.accent)
-                        Text(notice.title).font(.subheadline.weight(.bold))
-                    }
-                    Text(notice.body).font(.caption).foregroundStyle(TicketgroundColor.inkMuted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(TicketgroundSpacing.sm)
-                .background(TicketgroundColor.surface)
-                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
-            }
-        }
-        .padding(TicketgroundSpacing.lg)
-        .background(TicketgroundColor.surfaceMuted)
-        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-        .accessibilityIdentifier("live-support-public")
-    }
-
-    @ViewBuilder
-    private func supportComposer() -> some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-            Text("새 1:1 문의").font(.headline.weight(.black))
-            TextField("문의 제목", text: $subject)
-                .textFieldStyle(.roundedBorder)
-                .disabled(isSubmitting)
-                .accessibilityIdentifier("live-support-subject")
-            TextField("문의 내용", text: $message, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(3...6)
-                .disabled(isSubmitting)
-                .accessibilityIdentifier("live-support-message")
-            if subject.utf16.count > 80 {
-                Text("문의 제목은 80자 이하로 입력해주세요.")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("live-support-subject-limit")
-            }
-            if message.utf16.count > 1000 {
-                Text("문의 내용은 1,000자 이하로 입력해주세요.")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
-            }
-            Text("제목 \(subject.utf16.count)/80 · 내용 \(message.utf16.count)/1,000")
-                .font(.caption)
-                .foregroundStyle(subject.utf16.count > 80 || message.utf16.count > 1000 ? .red : TicketgroundColor.inkMuted)
-            Button {
-                Task { await submitThread() }
-            } label: {
-                Text(isSubmitting ? "전송 중" : "문의 보내기")
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(
-                isSubmitting
-                    || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || subject.utf16.count > 80
-                    || message.utf16.count > 1000
-            )
-            .accessibilityIdentifier("live-support-submit")
-            if let submissionError {
-                Text(submissionError).font(.caption).foregroundStyle(.red)
-            }
-        }
-    }
-
-    private func supportThreadRow(_ thread: LiveSupportThread) -> some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-            Text(thread.subject).font(.headline.weight(.bold))
-            Text(supportStatus(thread.status))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(TicketgroundColor.accent)
-            if let latestMessage = thread.messages.last {
-                Text(latestMessage.body)
-                    .font(.subheadline)
-                    .foregroundStyle(TicketgroundColor.inkSecondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TicketgroundSpacing.md)
-        .background(TicketgroundColor.surfaceMuted)
-        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-    }
-
-    private func updateSupportThread(_ updatedThread: LiveSupportThread) {
-        guard case .loaded(let threads) = state else { return }
-        state = .loaded(puttingSupportThreadFirst(updatedThread, in: threads))
-    }
-
-    @MainActor
-    private func submitThread() async {
-        guard let userID = container.environment.sessionStore.current?.userID,
-              let admittedCapabilityMap else {
-            state = .capability(.loginRequired)
-            return
-        }
-        let generation = LiveSupportLoadGeneration(
-            userID: userID,
-            sessionRevision: container.environment.sessionStore.revision,
-            reloadID: reloadID
-        )
-        isSubmitting = true
-        submissionError = nil
-        defer { isSubmitting = false }
-        do {
-            let service = LiveBackendService(
-                apiClient: container.environment.apiClient,
-                initialCapabilityMap: admittedCapabilityMap
-            )
-            let created = try await service.createSupportThread(
-                userID: userID,
-                subject: subject,
-                message: message,
-                idempotencyKey: submissionKey
-            )
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ), case .loaded(let currentThreads) = state else { return }
-            state = .loaded(puttingSupportThreadFirst(created, in: currentThreads))
-            subject = ""
-            message = ""
-            submissionKey = UUID().uuidString
-        } catch let error as APIClientError {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                state = .capability(.loginRequired)
-            } else {
-                submissionError = error.localizedDescription
-            }
-        } catch {
-            guard generation.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                sessionRevision: container.environment.sessionStore.revision,
-                reloadID: reloadID,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            submissionError = "문의를 전송하지 못했습니다. 다시 시도해 주세요."
-        }
-    }
-
-    private var routeTitle: String {
-        route == .inquiry ? "1:1 문의 · LIVE" : "고객센터 · LIVE"
-    }
-
-    @MainActor
-    private func applySupportLoadError(
-        _ error: APIClientError,
-        stage: LiveSupportRequestStage,
-        generation: LiveSupportLoadGeneration,
-        capabilityMap: LiveCapabilityMap
-    ) {
-        guard generation.isCurrent(
-            userID: container.environment.sessionStore.current?.userID,
-            sessionRevision: container.environment.sessionStore.revision,
-            reloadID: reloadID,
-            isCancelled: Task.isCancelled
-        ) else { return }
-        let resolvedState = LiveAccountCapabilityState.resolve(
-            for: .support,
-            capabilityMap: capabilityMap,
-            session: container.environment.sessionStore.current,
-            baseURL: container.environment.apiClient.baseURL,
-            requestError: error
-        )
-        if case .server(let status, _, _) = error {
-            if stage.invalidatesSession(status: status) {
-                container.environment.sessionStore.logout()
-            }
-            state = .capability(stage == .publicProbe && status == 401 ? .retry : resolvedState)
-            return
-        }
-        state = .capability(resolvedState)
-    }
-
-    private func supportStatus(_ status: LiveSupportStatus) -> String {
-        switch status {
-        case .open: return "답변 대기"
-        case .answered: return "답변 완료"
-        case .closed: return "종료"
-        case .unknown: return "상태 확인 중"
-        }
-    }
-}
-
-private struct LiveSupportThreadDetailView: View {
-    @Environment(AppContainer.self) private var container
-    @Environment(\.dismiss) private var dismiss
-    @State private var thread: LiveSupportThread
-    @State private var reply = ""
-    @State private var replyKey = UUID().uuidString
-    @State private var isSending = false
-    @State private var errorMessage: String?
-    let capabilityMap: LiveCapabilityMap
-    let sessionBinding: LiveSupportSessionBinding
-    let onThreadUpdated: (LiveSupportThread) -> Void
-
-    init(
-        initialThread: LiveSupportThread,
-        capabilityMap: LiveCapabilityMap,
-        sessionBinding: LiveSupportSessionBinding,
-        onThreadUpdated: @escaping (LiveSupportThread) -> Void
-    ) {
-        _thread = State(initialValue: initialThread)
-        self.capabilityMap = capabilityMap
-        self.sessionBinding = sessionBinding
-        self.onThreadUpdated = onThreadUpdated
-    }
-
-    var body: some View {
-        List {
-            Section("문의") {
-                LabeledContent("제목", value: thread.subject)
-                LabeledContent("상태", value: statusText)
-            }
-            Section("대화") {
-                ForEach(thread.messages, id: \.id) { message in
-                    VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                        Text(roleLabel(message.role))
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(TicketgroundColor.accent)
-                        Text(message.body)
-                    }
-                }
-            }
-            Section("답글") {
-                TextField("추가 문의 내용", text: $reply, axis: .vertical)
-                    .lineLimit(3...6)
-                    .disabled(isSending)
-                    .accessibilityIdentifier("live-support-reply")
-                Text("\(reply.utf16.count)/1,000")
-                    .font(.caption)
-                    .foregroundStyle(reply.utf16.count > 1000 ? .red : TicketgroundColor.inkMuted)
-                Button(isSending ? "전송 중" : "답글 보내기") {
-                    Task { await sendReply() }
-                }
-                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reply.utf16.count > 1000)
-                .accessibilityIdentifier("live-support-reply-submit")
-                if let errorMessage {
-                    Text(errorMessage).foregroundStyle(.red)
-                }
-            }
-        }
-        .navigationTitle("문의 상세")
-        .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("live-support-detail")
-        .onAppear {
-            dismissIfSessionChanged()
-        }
-        .onChange(of: container.environment.sessionStore.revision) { _, _ in
-            dismissIfSessionChanged()
-        }
-        .onChange(of: reply) { _, _ in
-            if !isSending { replyKey = UUID().uuidString }
-        }
-    }
-
-    @MainActor
-    private func sendReply() async {
-        guard let userID = sessionBinding.userID,
-              sessionBinding.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                revision: container.environment.sessionStore.revision,
-                isCancelled: Task.isCancelled
-              ) else {
-            errorMessage = "로그인이 필요합니다."
-            dismiss()
-            return
-        }
-        isSending = true
-        errorMessage = nil
-        defer { isSending = false }
-        do {
-            let service = LiveBackendService(
-                apiClient: container.environment.apiClient,
-                initialCapabilityMap: capabilityMap
-            )
-            let updatedThread = try await service.addSupportMessage(
-                userID: userID,
-                threadID: thread.id,
-                message: reply,
-                idempotencyKey: replyKey
-            )
-            guard sessionBinding.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                revision: container.environment.sessionStore.revision,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            thread = updatedThread
-            onThreadUpdated(thread)
-            reply = ""
-            replyKey = UUID().uuidString
-        } catch let error as APIClientError {
-            guard sessionBinding.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                revision: container.environment.sessionStore.revision,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            if case .server(status: 401, _, _) = error {
-                container.environment.sessionStore.logout()
-                dismiss()
-            } else {
-                errorMessage = error.localizedDescription
-            }
-        } catch {
-            guard sessionBinding.isCurrent(
-                userID: container.environment.sessionStore.current?.userID,
-                revision: container.environment.sessionStore.revision,
-                isCancelled: Task.isCancelled
-            ) else { return }
-            errorMessage = "답글을 전송하지 못했습니다. 다시 시도해 주세요."
-        }
-    }
-
-    private func dismissIfSessionChanged() {
-        if !sessionBinding.isCurrent(
-            userID: container.environment.sessionStore.current?.userID,
-            revision: container.environment.sessionStore.revision,
-            isCancelled: false
-        ) {
-            dismiss()
-        }
-    }
-
-    private var statusText: String {
-        switch thread.status {
-        case .open: return "답변 대기"
-        case .answered: return "답변 완료"
-        case .closed: return "종료"
-        case .unknown: return "상태 확인 중"
-        }
-    }
-
-    private func roleLabel(_ role: LiveSupportRole) -> String {
-        switch role {
-        case .customer: return "나"
-        case .admin: return "고객센터"
-        case .unknown: return "발신자 확인 중"
-        }
-    }
-}
-
-struct LiveSupportLoadGeneration: Equatable {
-    let userID: String?
-    let sessionRevision: Int
-    let reloadID: Int
-
-    func isCurrent(userID: String?, sessionRevision: Int, reloadID: Int, isCancelled: Bool) -> Bool {
-        !isCancelled
-            && self.userID == userID
-            && self.sessionRevision == sessionRevision
-            && self.reloadID == reloadID
-    }
-}
-
-struct LiveSupportSessionBinding: Equatable {
-    let userID: String?
-    let revision: Int
-
-    func isCurrent(userID: String?, revision: Int, isCancelled: Bool) -> Bool {
-        !isCancelled
-            && self.userID != nil
-            && self.userID == userID
-            && self.revision == revision
-    }
-}
-
-enum LiveSupportRequestStage: Equatable {
-    case publicProbe
-    case privateThreads
-
-    func invalidatesSession(status: Int) -> Bool {
-        self == .privateThreads && status == 401
-    }
-}
-
-func puttingSupportThreadFirst(
-    _ thread: LiveSupportThread,
-    in currentThreads: [LiveSupportThread]
-) -> [LiveSupportThread] {
-    [thread] + currentThreads.filter { $0.id != thread.id }
-}
-
-private enum LiveSupportState {
-    case loading
-    case capability(LiveAccountCapabilityState)
-    case loaded([LiveSupportThread])
-}
-
 private struct LiveUnsupportedRouteView: View {
-    @Environment(AppContainer.self) private var container
     let route: AppRoute
 
     var body: some View {
@@ -3500,20 +1791,6 @@ private struct LiveUnsupportedRouteView: View {
                     .background(TicketgroundColor.surfaceMuted)
                     .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
                     .accessibilityIdentifier("live-unsupported-route")
-
-                Button("홈으로") {
-                    container.navigationPath.removeAll()
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("live-unsupported-home")
-
-                NavigationLink(value: AppRoute.capabilityLedger) {
-                    Label("서비스 연결 현황 확인", systemImage: "checklist")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(TicketgroundColor.accent)
-                .accessibilityIdentifier("live-unsupported-capability-ledger")
             }
             .padding(TicketgroundSpacing.xl)
         }
@@ -3527,8 +1804,7 @@ private struct LiveUnsupportedRouteView: View {
         case .resale: return "티켓 양도 · 지원 보류"
         case .transfer: return "티켓 전송 · 지원 보류"
         case .cancel: return "예매 취소 · 지원 보류"
-        case .queue: return "대기열 · 지원 보류"
-        case .booking: return "예매 · 지원 보류"
+        case .checkout: return "결제 · 지원 보류"
         case .reservation: return "예약 · 지원 보류"
         case .artist: return "아티스트 · 지원 보류"
         case .region: return "지역별 공연 · 지원 보류"
@@ -3541,7 +1817,7 @@ private struct LiveUnsupportedRouteView: View {
         switch route {
         case .signup:
             return "회원가입 POST endpoint가 LiveBackendService에 없어 계정을 만들지 않습니다."
-        case .queue, .booking, .resale, .transfer, .cancel, .reservation:
+        case .resale, .transfer, .cancel, .checkout, .reservation:
             return "해당 거래/예약 mutation 또는 조회 endpoint가 현재 공개 backend contract에 없어 작업을 실행하지 않습니다."
         case .artist:
             return "아티스트 전용 공개 GET endpoint가 현재 확인되지 않아 catalog에 포함된 공연만 표시할 수 있습니다."
