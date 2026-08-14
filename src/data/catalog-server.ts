@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { cache } from "react";
 import type { TicketShow, TicketPrice } from "@/types";
+import { resolveCatalogBaseUrl } from "./catalog-origin.js";
 import { categoryEnToKo } from "./show-categories";
 
 interface ApiCatalogEvent {
@@ -58,7 +59,7 @@ async function catalogBaseUrl(): Promise<string> {
   const list = await headers();
   const host = list.get("host") ?? "localhost:4173";
   const proto = list.get("x-forwarded-proto") ?? "http";
-  return `${proto}://${host}`;
+  return resolveCatalogBaseUrl({ host, internalBaseUrl: process.env.TIG_INTERNAL_API_BASE_URL, proto });
 }
 
 function toTicketShow(event: ApiCatalogEvent): TicketShow {

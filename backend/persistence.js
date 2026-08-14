@@ -35,14 +35,17 @@ export function createPersistence({
     if (!existsSync(dbPath)) {
       const db = seedDb();
       db.nativeAuthHandoffs ||= [];
+      db.idempotencyRecords ||= [];
       await saveDb(db);
       return db;
     }
     const db = JSON.parse(await readFile(dbPath, "utf8"));
     const normalized = normalizeDb(db);
     const handoffsMissing = !Array.isArray(db.nativeAuthHandoffs);
+    const idempotencyMissing = !Array.isArray(db.idempotencyRecords);
     if (handoffsMissing) db.nativeAuthHandoffs = [];
-    if (normalized || handoffsMissing) await saveDb(db);
+    if (idempotencyMissing) db.idempotencyRecords = [];
+    if (normalized || handoffsMissing || idempotencyMissing) await saveDb(db);
     return db;
   }
 

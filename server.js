@@ -7,6 +7,7 @@ import nextEnv from "@next/env";
 import next from "next";
 import { adminDto, permissionCatalog, roleCatalog } from "./backend/admin-acl.js";
 import { createTicketgroundApp } from "./backend/app.js";
+import { publicHomeRoute } from "./backend/public-host-routing.js";
 import { isPublishedSeatChartRead, isSeatChartRoute } from "./backend/seat-chart-routing.js";
 
 const projectDir = path.dirname(fileURLToPath(import.meta.url));
@@ -431,6 +432,12 @@ async function serveAdminUpload(res, pathname) {
 async function servePublic(req, res) {
   const requestUrl = req.url || "/";
   const { pathname } = new URL(requestUrl, `http://${req.headers.host}`);
+  const homeRoute = publicHomeRoute(req.headers.host, requestUrl);
+  if (homeRoute) {
+    res.writeHead(302, { Location: homeRoute });
+    res.end();
+    return;
+  }
   if (await serveAdminUpload(res, pathname)) return;
   if (pathname === "/console" || pathname.startsWith("/console/") || pathname === "/admin/seat-designer") {
     writeNotFound(res);

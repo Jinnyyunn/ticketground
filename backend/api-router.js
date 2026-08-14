@@ -20,6 +20,7 @@ export function createApiRouter({
   adminVenues,
   adminWorkspace,
   appendLedger,
+  authorizeGate,
   assertTicketPurchasable,
   authenticateSellerAccount,
   changeSellerPassword,
@@ -40,6 +41,7 @@ export function createApiRouter({
   createSellerEvent,
   currentTimeMs,
   demoSession,
+  draft,
   directTransferAttempt,
   drawPool,
   enterQueue,
@@ -86,6 +88,7 @@ export function createApiRouter({
   publicArtist,
   publicOpenCalendar,
   publicRegions,
+  publicSupport,
   publicDirectTransferResult,
   publicPurchaseResult,
   publicResaleDrawResult,
@@ -106,9 +109,18 @@ export function createApiRouter({
   socialAuthPreflight,
   socialAuthSession,
   socialAuthStart,
+  settings,
   approveGroupBookingRequest,
   buyPrimary,
   rejectGroupBookingRequest,
+  reservationDetail,
+  reservations,
+  releaseHold,
+  renewHold,
+  revokeMobileQr,
+  revokePushToken,
+  requireIdempotencyKey,
+  requireNativePrincipal,
   seatMap,
   startNiceVerification,
   submitGroupBookingRequest,
@@ -140,7 +152,9 @@ export function createApiRouter({
   verifyAppAttestProof,
   verifyLedger,
   verifyQr,
-  virtualQr
+  verifyMobileQrAtGate,
+  virtualQr,
+  watchlist
 }) {
 function isSecureRequest(req) {
   const protoHeader = req.headers["x-forwarded-proto"];
@@ -294,13 +308,18 @@ async function handleApi(req, res, db, surface) {
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
   const principalWatchlistMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)$/);
+  const principalSupportMessageMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)\/messages$/);
   const queueEntryMatch = url.pathname.match(/^\/api\/me\/queue-entries\/([^/]+)$/);
   const seatHoldMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)$/);
   const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
+  const bookingHoldMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)$/);
+  const bookingHoldRenewMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)\/renew$/);
   const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
   const principalResalePoolMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)$/);
   const principalResaleJoinMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)\/join$/);
   const principalDeviceMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)$/);
+  const principalPushTokenMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)\/push-token$/);
+  const principalTestPayloadMatch = url.pathname.match(/^\/api\/me\/devices\/([^/]+)\/test-payload$/);
   const artistDiscoveryMatch = url.pathname.match(/^\/api\/discovery\/v1\/artists\/([^/]+)$/);
   const adminWorkspaceMatch = url.pathname.match(/^\/api\/admin\/workspaces\/([^/]+)$/);
   const adminOnly = url.pathname.startsWith("/api/admin/") || url.pathname === "/api/admin/summary" || url.pathname.startsWith("/api/ledger");
@@ -336,6 +355,20 @@ async function handleApi(req, res, db, surface) {
     return {
       version: "1",
       endpoints: ["regions", "artists", "open-calendar"]
+    };
+  }
+  if (req.method === "GET" && url.pathname === "/api/native/v1/contract") {
+    return {
+      version: "1",
+      endpoints: [
+        "profile",
+        "reservations",
+        "watchlist",
+        "support",
+        "booking",
+        "devices",
+        "mobile-ticket-qr"
+      ]
     };
   }
   if (req.method === "GET" && artistDiscoveryMatch) {
@@ -641,6 +674,85 @@ async function handleApi(req, res, db, surface) {
     requireDemoSupportAPI();
     requireBody(body, ["userId", "message"]);
     return createSupportThread(db, body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/support/threads") {
+    requireBody(body, ["message"]);
+    return createPrincipalSupportThread(
+      db,
+      requireNativePrincipal(db, req),
+      requireIdempotencyKey(req),
+      body
+    );
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/booking/queues") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["eventId", "performanceId"]);
+    return joinQueue(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/devices/challenges") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["deviceId"]);
+    return challenge(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/devices/trust") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["challengeId", "deviceId", "counter", "proof"]);
+    return trust(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "PUT" && principalPushTokenMatch) {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["token"]);
+    return putPushToken(db, principal, decodeURIComponent(principalPushTokenMatch[1]), requireIdempotencyKey(req), body);
+  }
+  if (req.method === "DELETE" && principalPushTokenMatch) {
+    return revokePushToken(db, requireNativePrincipal(db, req), decodeURIComponent(principalPushTokenMatch[1]), requireIdempotencyKey(req));
+  }
+  if (req.method === "DELETE" && principalDeviceMatch) {
+    return revokeDevice(db, requireNativePrincipal(db, req), decodeURIComponent(principalDeviceMatch[1]), requireIdempotencyKey(req));
+  }
+  if (req.method === "PUT" && url.pathname === "/api/me/notification-settings") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["watchlistOpen", "reservationUpdates"]);
+    return putSettings(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && principalTestPayloadMatch) {
+    return testPayload(db, requireNativePrincipal(db, req), decodeURIComponent(principalTestPayloadMatch[1]));
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/booking/holds") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["queueId", "ticketId", "revision"]);
+    return createHold(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && bookingHoldRenewMatch) {
+    return renewHold(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(bookingHoldRenewMatch[1]),
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "DELETE" && bookingHoldMatch) {
+    return releaseHold(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(bookingHoldMatch[1]),
+      requireIdempotencyKey(req)
+    );
+  }
+  if (req.method === "POST" && url.pathname === "/api/me/booking/drafts") {
+    const principal = requireNativePrincipal(db, req);
+    requireBody(body, ["holdId"]);
+    return createDraft(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "POST" && principalSupportMessageMatch) {
+    requireBody(body, ["message"]);
+    return addPrincipalSupportMessage(
+      db,
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalSupportMessageMatch[1]),
+      requireIdempotencyKey(req),
+      body
+    );
   }
   if (req.method === "POST" && url.pathname === "/api/support/messages") {
     requireDemoSupportAPI();
@@ -951,6 +1063,20 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["ticketId", "ownerId", "expiresAt", "nonce", "signature"]);
     const gate = requireGateSession(db, req);
     return verifyQr(db, { ...body, gateId: gate.id, gateEventId: gate.eventId });
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/tickets") {
+    return listMobileTickets(db, requireNativePrincipal(db, req));
+  }
+  const mobileQrMatch = url.pathname.match(/^\/api\/me\/tickets\/([^/]+)\/qr$/);
+  if (mobileQrMatch && req.method === "POST") {
+    return issueMobileQr(db, requireNativePrincipal(db, req), requireIdempotencyKey(req), decodeURIComponent(mobileQrMatch[1]), body);
+  }
+  if (mobileQrMatch && req.method === "DELETE") {
+    return revokeMobileQr(db, requireNativePrincipal(db, req), requireIdempotencyKey(req), decodeURIComponent(mobileQrMatch[1]));
+  }
+  if (req.method === "POST" && url.pathname === "/api/gate/v1/verify") {
+    requireBody(body, ["token"]);
+    return verifyMobileQrAtGate(db, req.headers["x-tig-gate-key"], body.token);
   }
   if (req.method === "POST" && url.pathname === "/api/admin/events/venue") {
     requireBody(body, ["eventId", "venueId"]);

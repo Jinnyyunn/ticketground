@@ -43,6 +43,15 @@ function normalizeDb(db) {
   db.sellerAccounts ||= [];
   db.adminAccounts ||= [];
   db.nativeSessions ||= [];
+  db.idempotencyRecords ||= [];
+  db.bookingQueues ||= [];
+  db.seatHolds ||= [];
+  db.reservationDrafts ||= [];
+  db.bookingInventoryRevision ||= 1;
+  db.deviceChallenges ||= [];
+  db.deviceRegistrations ||= [];
+  db.notificationPreferences ||= [];
+  db.mobileQrTokens ||= [];
   db.ledger ||= [];
   db.queueEntries ||= [];
   db.seatHolds ||= [];
