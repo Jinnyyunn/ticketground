@@ -145,6 +145,11 @@ struct ContentView: View {
                 selectedTab = rootTab
             }
         }
+        .onAppear {
+            if RuntimeConfiguration.liveBookingTestScenario != nil, container.navigationPath.isEmpty {
+                container.navigationPath = [.booking(slug: "ui-event")]
+            }
+        }
     }
 
     private func tab(for route: AppRoute) -> TicketgroundTab? {

@@ -425,11 +425,19 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account").waitForExistence(timeout: 20))
         XCTAssertTrue(app.buttons["live-mypage-watchlist"].exists)
+        XCTAssertTrue(app.buttons["live-mypage-notifications"].exists)
         XCTAssertTrue(app.buttons["live-mypage-support"].exists)
 
         app.buttons["live-mypage-support"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-support").waitForExistence(timeout: 20))
-        XCTAssertTrue(anyElement(app, identifier: "live-login-required").exists
+        XCTAssertTrue(anyElement(app, identifier: "live-support-login-required").exists
+                      || anyElement(app, identifier: "live-support-https-required").exists
+                      || anyElement(app, identifier: "live-support-public-loading").exists
+                      || anyElement(app, identifier: "live-support-public").exists
+                      || anyElement(app, identifier: "live-support-public-error").exists
+                      || anyElement(app, identifier: "live-support-retry").exists
+                      || anyElement(app, identifier: "live-support-unsupported").exists
+                      || anyElement(app, identifier: "live-support-help").exists
                       || anyElementWithIdentifierPrefix(app, prefix: "live-support-thread-").exists
                       || anyElement(app, identifier: "live-support-empty").exists
                       || anyElement(app, identifier: "live-support-error").exists)
@@ -443,7 +451,178 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(watchlistApp.buttons["live-mypage-watchlist"].waitForExistence(timeout: 20))
         watchlistApp.buttons["live-mypage-watchlist"].tap()
         XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist").waitForExistence(timeout: 20))
-        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-login-required").exists || anyElement(watchlistApp, identifier: "live-watchlist-items").exists)
+        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist-login-required").exists
+                      || anyElement(watchlistApp, identifier: "live-watchlist-https-required").exists
+                      || anyElement(watchlistApp, identifier: "live-watchlist-loading").exists
+                      || anyElement(watchlistApp, identifier: "live-watchlist-retry").exists
+                      || anyElement(watchlistApp, identifier: "live-watchlist-unsupported").exists
+                      || anyElement(watchlistApp, identifier: "live-watchlist-help").exists
+                      || anyElement(watchlistApp, identifier: "live-watchlist-empty").exists
+                      || anyElement(watchlistApp, identifier: "live-watchlist-items").exists)
+    }
+
+    func testLiveAccountShowsProfileReservationAndEmptyState() {
+        let loadedApp = liveApp(accountScenario: "loaded")
+        loadedApp.launch()
+        loadedApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(loadedApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        loadedApp.buttons["live-menu-account"].tap()
+        XCTAssertTrue(loadedApp.staticTexts["live-account-name"].waitForExistence(timeout: 10))
+        XCTAssertEqual(loadedApp.staticTexts["live-account-name"].label, "김민서")
+        XCTAssertTrue(anyElement(loadedApp, identifier: "live-account-reservation-ticket-1").exists)
+        attachScreenshot(loadedApp, name: "account-loaded")
+
+        let emptyApp = liveApp(accountScenario: "empty")
+        emptyApp.launch()
+        emptyApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(emptyApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        emptyApp.buttons["live-menu-account"].tap()
+        XCTAssertTrue(anyElement(emptyApp, identifier: "live-account-reservations-empty").waitForExistence(timeout: 10))
+        attachScreenshot(emptyApp, name: "account-empty")
+    }
+
+    func testLiveAccountSaveFailurePreservesDraft() {
+        let app = liveApp(accountScenario: "save-failure")
+        app.launch()
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(app.buttons["live-account-edit"].waitForExistence(timeout: 10))
+        app.buttons["live-account-edit"].tap()
+        let input = app.textFields["live-account-name-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        input.tap()
+        input.typeText("박하늘")
+        app.buttons["live-account-save"].tap()
+        XCTAssertTrue(app.staticTexts["live-account-save-error"].waitForExistence(timeout: 10))
+        XCTAssertEqual(input.value as? String, "김민서박하늘")
+        attachScreenshot(app, name: "account-save-failure")
+    }
+
+    func testLiveWatchlistOptimisticFailureRollsBackAndEmptyStateRenders() {
+        let failureApp = liveApp(watchlistScenario: "mutation-failure")
+        failureApp.launch()
+        failureApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(failureApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        failureApp.buttons["live-menu-watchlist"].tap()
+        let notification = failureApp.buttons["live-watchlist-notification-event-1"]
+        XCTAssertTrue(notification.waitForExistence(timeout: 10))
+        XCTAssertEqual(notification.label, "알림 켜짐")
+        notification.tap()
+        XCTAssertTrue(failureApp.staticTexts["live-watchlist-mutation-error"].waitForExistence(timeout: 10))
+        XCTAssertEqual(notification.label, "알림 켜짐")
+        failureApp.buttons["live-watchlist-remove-event-1"].tap()
+        XCTAssertTrue(anyElement(failureApp, identifier: "live-watchlist-item-watch-1").waitForExistence(timeout: 10))
+        attachScreenshot(failureApp, name: "watchlist-rollback")
+
+        let emptyApp = liveApp(watchlistScenario: "empty")
+        emptyApp.launch()
+        emptyApp.buttons["header-mypage"].tap()
+        XCTAssertTrue(emptyApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        emptyApp.buttons["live-menu-watchlist"].tap()
+        XCTAssertTrue(anyElement(emptyApp, identifier: "live-watchlist-empty").waitForExistence(timeout: 10))
+        attachScreenshot(emptyApp, name: "watchlist-empty")
+    }
+
+    func testLiveBookingCreatesOnlyAPrePaymentDraft() {
+        let app = liveApp(bookingScenario: "loaded")
+        app.launch()
+        XCTAssertTrue(anyElement(app, identifier: "live-booking").waitForExistence(timeout: 10))
+        let seat = app.buttons["live-booking-seat-ticket-1"]
+        XCTAssertTrue(seat.waitForExistence(timeout: 10))
+        seat.tap()
+        XCTAssertTrue(app.buttons["live-booking-create-draft"].waitForExistence(timeout: 10))
+        app.buttons["live-booking-create-draft"].tap()
+        XCTAssertTrue(app.staticTexts["live-booking-draft"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["결제 완료"].exists)
+        attachScreenshot(app, name: "booking-prepayment-draft")
+    }
+
+    func testLiveBookingConflictExpiryAndReconnectStates() {
+        let conflictApp = liveApp(bookingScenario: "conflict")
+        conflictApp.launch()
+        let seat = conflictApp.buttons["live-booking-seat-ticket-1"]
+        XCTAssertTrue(seat.waitForExistence(timeout: 10))
+        seat.tap()
+        XCTAssertTrue(conflictApp.staticTexts["live-booking-conflict"].waitForExistence(timeout: 10))
+        attachScreenshot(conflictApp, name: "booking-conflict")
+
+        let expiredApp = liveApp(bookingScenario: "expired")
+        expiredApp.launch()
+        XCTAssertTrue(anyElement(expiredApp, identifier: "live-booking-expired").waitForExistence(timeout: 10))
+        attachScreenshot(expiredApp, name: "booking-expired")
+
+        let reconnectApp = liveApp(bookingScenario: "reconnect")
+        reconnectApp.launch()
+        XCTAssertTrue(reconnectApp.staticTexts["live-booking-reconnected"].waitForExistence(timeout: 10))
+        attachScreenshot(reconnectApp, name: "booking-reconnect")
+    }
+
+    func testLiveNotificationDeviceRegistrationAndRevocation() {
+        let app = liveApp(accountScenario: "loaded", notificationScenario: "allowed")
+        app.launch()
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(app.buttons["live-mypage-notifications"].waitForExistence(timeout: 10))
+        app.buttons["live-mypage-notifications"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-notifications-no-device").waitForExistence(timeout: 10))
+        app.buttons["live-notifications-register"].tap()
+        XCTAssertTrue(app.staticTexts["live-notifications-ready"].waitForExistence(timeout: 10))
+        attachScreenshot(app, name: "notifications-device-ready")
+        app.buttons["live-notifications-revoke"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-notifications-no-device").waitForExistence(timeout: 10))
+    }
+
+    func testLiveNotificationPermissionAndRegistrationFailuresAreDistinct() {
+        let denied = liveApp(accountScenario: "loaded", notificationScenario: "denied")
+        denied.launch()
+        denied.buttons["header-mypage"].tap()
+        XCTAssertTrue(denied.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        denied.buttons["live-menu-account"].tap()
+        denied.buttons["live-mypage-notifications"].tap()
+        XCTAssertTrue(anyElement(denied, identifier: "live-notifications-denied").waitForExistence(timeout: 10))
+
+        let failed = liveApp(accountScenario: "loaded", notificationScenario: "registration-failure")
+        failed.launch()
+        failed.buttons["header-mypage"].tap()
+        XCTAssertTrue(failed.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        failed.buttons["live-menu-account"].tap()
+        failed.buttons["live-mypage-notifications"].tap()
+        failed.buttons["live-notifications-register"].tap()
+        XCTAssertTrue(anyElement(failed, identifier: "live-notifications-registration-error").waitForExistence(timeout: 10))
+        attachScreenshot(failed, name: "notifications-registration-failure")
+    }
+
+    func testLiveMobileTicketShowsShortLivedPrivateQR() {
+        let app = liveApp(accountScenario: "loaded", mobileTicketScenario: "valid")
+        app.launch()
+        app.buttons["header-mypage"].tap()
+        XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-account"].tap()
+        XCTAssertTrue(app.buttons["live-account-mobile-ticket"].waitForExistence(timeout: 10))
+        app.buttons["live-account-mobile-ticket"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-mobile-ticket-qr").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["live-mobile-ticket-valid"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "token")).firstMatch.exists)
+        attachScreenshot(app, name: "mobile-ticket-valid")
+    }
+
+    func testLiveMobileTicketDistinguishesExpiredUsedCanceledAndOffline() {
+        for (scenario, identifier) in [
+            ("expired", "live-mobile-ticket-expired"),
+            ("used", "live-mobile-ticket-used"),
+            ("canceled", "live-mobile-ticket-canceled"),
+            ("offline", "live-mobile-ticket-offline")
+        ] {
+            let app = liveApp(accountScenario: "loaded", mobileTicketScenario: scenario)
+            app.launch()
+            app.buttons["header-mypage"].tap()
+            XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
+            app.buttons["live-menu-account"].tap()
+            app.buttons["live-account-mobile-ticket"].tap()
+            XCTAssertTrue(anyElement(app, identifier: identifier).waitForExistence(timeout: 10), scenario)
+        }
     }
 
     func testLiveAccountRoutesBlockHTTPBeforeProtectedRequests() {
@@ -470,9 +649,140 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(supportApp.buttons["header-mypage"].waitForExistence(timeout: 10))
         supportApp.buttons["header-mypage"].tap()
         XCTAssertTrue(supportApp.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
-        supportApp.buttons["live-menu-help"].tap()
+        supportApp.buttons["live-menu-inquiry"].tap()
         XCTAssertTrue(anyElement(supportApp, identifier: "live-support-https-required").waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(supportApp, identifier: "live-support-error").exists)
+    }
+
+    func testLiveSupportShowsPublicHelpAndCreatesAnInquiry() {
+        let helpApp = liveApp(supportScenario: "loaded")
+        helpApp.launch()
+        XCTAssertTrue(helpApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        helpApp.buttons["header-mypage"].tap()
+        helpApp.buttons["live-menu-help"].tap()
+
+        XCTAssertTrue(anyElement(helpApp, identifier: "live-support-public").waitForExistence(timeout: 10))
+        XCTAssertTrue(helpApp.staticTexts["예매내역은 어디에서 확인하나요?"].exists)
+        XCTAssertTrue(helpApp.staticTexts["고객센터 운영시간 안내"].exists)
+        attachScreenshot(helpApp, name: "support-help")
+
+        let inquiryApp = liveApp(supportScenario: "loaded")
+        inquiryApp.launch()
+        XCTAssertTrue(inquiryApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        inquiryApp.buttons["header-mypage"].tap()
+        inquiryApp.buttons["live-menu-inquiry"].tap()
+
+        XCTAssertTrue(anyElement(inquiryApp, identifier: "live-support-composer").waitForExistence(timeout: 10))
+        inquiryApp.textFields["문의 제목"].tap()
+        inquiryApp.textFields["문의 제목"].typeText("좌석 확인 문의")
+        let inquiryMessage = anyElement(inquiryApp, identifier: "live-support-message")
+        inquiryMessage.tap()
+        inquiryMessage.typeText("예매 좌석을 확인해 주세요.")
+        inquiryApp.buttons["live-support-submit"].tap()
+
+        XCTAssertTrue(anyElement(inquiryApp, identifier: "live-support-submit-success").waitForExistence(timeout: 10))
+        XCTAssertTrue(inquiryApp.staticTexts["좌석 확인 문의"].exists)
+        attachScreenshot(inquiryApp, name: "support-inquiry-success")
+    }
+
+    func testLiveSupportSubmissionFailureKeepsTheDraft() {
+        let app = liveApp(supportScenario: "submission-failure")
+        app.launch()
+        XCTAssertTrue(app.buttons["header-mypage"].waitForExistence(timeout: 10))
+        app.buttons["header-mypage"].tap()
+        app.buttons["live-menu-inquiry"].tap()
+        XCTAssertTrue(anyElement(app, identifier: "live-support-composer").waitForExistence(timeout: 10))
+
+        app.textFields["문의 제목"].tap()
+        app.textFields["문의 제목"].typeText("재시도 문의")
+        let message = anyElement(app, identifier: "live-support-message")
+        message.tap()
+        message.typeText("작성 내용 유지")
+        app.buttons["live-support-submit"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "live-support-submit-error").waitForExistence(timeout: 10))
+        XCTAssertEqual(app.textFields["문의 제목"].value as? String, "재시도 문의")
+        XCTAssertEqual(message.value as? String, "작성 내용 유지")
+        attachScreenshot(app, name: "support-inquiry-failure")
+    }
+
+    func testLiveSupportReplySuccessAndFailurePreserveDraft() {
+        let successApp = liveApp(supportScenario: "loaded")
+        successApp.launch()
+        XCTAssertTrue(successApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        successApp.buttons["header-mypage"].tap()
+        successApp.buttons["live-menu-inquiry"].tap()
+        let successField = anyElementWithIdentifierPrefix(successApp, prefix: "live-support-reply-")
+        XCTAssertTrue(successField.waitForExistence(timeout: 10))
+        successField.tap()
+        successField.typeText("추가 확인 부탁드립니다.")
+        anyElementWithIdentifierPrefix(successApp, prefix: "live-support-reply-submit-").tap()
+        XCTAssertTrue(anyElementWithIdentifierPrefix(successApp, prefix: "live-support-reply-success-").waitForExistence(timeout: 10))
+        XCTAssertTrue(successApp.staticTexts["추가 확인 부탁드립니다."].exists)
+        attachScreenshot(successApp, name: "support-reply-success")
+
+        let failureApp = liveApp(supportScenario: "reply-failure")
+        failureApp.launch()
+        XCTAssertTrue(failureApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        failureApp.buttons["header-mypage"].tap()
+        failureApp.buttons["live-menu-inquiry"].tap()
+        let failureField = anyElementWithIdentifierPrefix(failureApp, prefix: "live-support-reply-")
+        XCTAssertTrue(failureField.waitForExistence(timeout: 10))
+        failureField.tap()
+        failureField.typeText("초안 유지 확인")
+        anyElementWithIdentifierPrefix(failureApp, prefix: "live-support-reply-submit-").tap()
+        XCTAssertTrue(anyElementWithIdentifierPrefix(failureApp, prefix: "live-support-reply-error-").waitForExistence(timeout: 10))
+        XCTAssertEqual(failureField.value as? String, "초안 유지 확인")
+        attachScreenshot(failureApp, name: "support-reply-failure")
+    }
+
+    func testLiveSupportLoadingStatesAreVisibleAndAccessible() {
+        let publicLoadingApp = liveApp(supportScenario: "public-loading")
+        publicLoadingApp.launch()
+        XCTAssertTrue(publicLoadingApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        publicLoadingApp.buttons["header-mypage"].tap()
+        publicLoadingApp.buttons["live-menu-help"].tap()
+        XCTAssertTrue(anyElement(publicLoadingApp, identifier: "live-support-public-loading").waitForExistence(timeout: 10))
+        attachScreenshot(publicLoadingApp, name: "support-public-loading")
+
+        let inquiryLoadingApp = liveApp(supportScenario: "inquiry-loading")
+        inquiryLoadingApp.launch()
+        XCTAssertTrue(inquiryLoadingApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        inquiryLoadingApp.buttons["header-mypage"].tap()
+        inquiryLoadingApp.buttons["live-menu-inquiry"].tap()
+        XCTAssertTrue(anyElement(inquiryLoadingApp, identifier: "live-support-public").waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(inquiryLoadingApp, identifier: "live-support-inquiry-loading").exists)
+        attachScreenshot(inquiryLoadingApp, name: "support-inquiry-loading")
+
+        let submissionApp = liveApp(supportScenario: "submission-loading")
+        submissionApp.launch()
+        XCTAssertTrue(submissionApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        submissionApp.buttons["header-mypage"].tap()
+        submissionApp.buttons["live-menu-inquiry"].tap()
+        XCTAssertTrue(anyElement(submissionApp, identifier: "live-support-composer").waitForExistence(timeout: 10))
+        submissionApp.textFields["문의 제목"].tap()
+        submissionApp.textFields["문의 제목"].typeText("전송 중 확인")
+        let submissionMessage = anyElement(submissionApp, identifier: "live-support-message")
+        submissionMessage.tap()
+        submissionMessage.typeText("문의 전송 상태")
+        submissionApp.buttons["live-support-submit"].tap()
+        XCTAssertTrue(submissionApp.buttons["전송 중"].waitForExistence(timeout: 10))
+        XCTAssertFalse(submissionApp.buttons["전송 중"].isEnabled)
+        attachScreenshot(submissionApp, name: "support-submission-loading")
+
+        let replyApp = liveApp(supportScenario: "reply-loading")
+        replyApp.launch()
+        XCTAssertTrue(replyApp.buttons["header-mypage"].waitForExistence(timeout: 10))
+        replyApp.buttons["header-mypage"].tap()
+        replyApp.buttons["live-menu-inquiry"].tap()
+        let replyField = anyElementWithIdentifierPrefix(replyApp, prefix: "live-support-reply-")
+        XCTAssertTrue(replyField.waitForExistence(timeout: 10))
+        replyField.tap()
+        replyField.typeText("답글 전송 상태")
+        anyElementWithIdentifierPrefix(replyApp, prefix: "live-support-reply-submit-").tap()
+        XCTAssertTrue(replyApp.buttons["전송 중"].waitForExistence(timeout: 10))
+        XCTAssertFalse(replyApp.buttons["전송 중"].isEnabled)
+        attachScreenshot(replyApp, name: "support-reply-loading")
     }
 
     func testLiveAccountCapabilityRendersLoginRequiredSurface() {
@@ -596,7 +906,16 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["live-menu-screen-title"].exists)
     }
 
-    private func liveApp(capabilityState: String? = nil, homeScenario: String? = nil) -> XCUIApplication {
+    private func liveApp(
+        capabilityState: String? = nil,
+        homeScenario: String? = nil,
+        supportScenario: String? = nil,
+        accountScenario: String? = nil,
+        watchlistScenario: String? = nil,
+        bookingScenario: String? = nil,
+        notificationScenario: String? = nil,
+        mobileTicketScenario: String? = nil
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-api-mode", "live"]
         if let capabilityState {
@@ -604,6 +923,24 @@ final class DiscoveryTests: XCTestCase {
         }
         if let homeScenario {
             app.launchArguments += ["-live-home-scenario", homeScenario]
+        }
+        if let supportScenario {
+            app.launchArguments += ["-live-support-scenario", supportScenario]
+        }
+        if let accountScenario {
+            app.launchArguments += ["-live-account-scenario", accountScenario]
+        }
+        if let watchlistScenario {
+            app.launchArguments += ["-live-watchlist-scenario", watchlistScenario]
+        }
+        if let bookingScenario {
+            app.launchArguments += ["-live-booking-scenario", bookingScenario]
+        }
+        if let notificationScenario {
+            app.launchArguments += ["-live-notification-scenario", notificationScenario]
+        }
+        if let mobileTicketScenario {
+            app.launchArguments += ["-live-mobile-ticket-scenario", mobileTicketScenario]
         }
         return app
     }
@@ -614,6 +951,13 @@ final class DiscoveryTests: XCTestCase {
 
     private func anyElementWithIdentifierPrefix(_ app: XCUIApplication, prefix: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
+    }
+
+    private func attachScreenshot(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func assertDiscoverable(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {

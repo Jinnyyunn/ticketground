@@ -165,6 +165,7 @@ enum APIRequestAuthentication: Equatable {
 }
 
 enum APIRequestOwnerBinding: Equatable {
+    case principal
     case url
     case jsonField(String)
 }
@@ -287,12 +288,18 @@ struct PublicReadPresentation: Equatable {
 
 enum LiveAccountCapability {
     case account
+    case booking
+    case notifications
+    case mobileTickets
     case watchlist
     case support
 
     fileprivate var endpoints: [LiveAPIEndpoint] {
         switch self {
-        case .account: return [.session, .tickets]
+        case .account: return [.profile, .reservations]
+        case .booking: return [.bookingQueue, .bookingSeats, .bookingHold, .bookingDraft]
+        case .notifications: return [.notificationSettings, .deviceChallenge, .nativeDeviceTrust, .nativePushToken]
+        case .mobileTickets: return [.mobileTickets, .mobileTicketQR]
         case .watchlist: return [.watchlist]
         case .support: return [.supportThreads]
         }
@@ -509,8 +516,10 @@ final class AuthenticatedRedirectDelegate: NSObject, URLSessionTaskDelegate {
               originalURL.scheme?.caseInsensitiveCompare(redirectURL.scheme ?? "") == .orderedSame,
               originalURL.host?.caseInsensitiveCompare(redirectURL.host ?? "") == .orderedSame,
               effectivePort(for: originalURL) == effectivePort(for: redirectURL),
-              ownerBinding == .url,
-              AuthenticatedRequestOwnerValidator.matches(userID, url: redirectURL) else {
+              (ownerBinding == .principal || (
+                ownerBinding == .url
+                && AuthenticatedRequestOwnerValidator.matches(userID, url: redirectURL)
+              )) else {
             completionHandler(nil)
             return
         }
@@ -720,7 +729,7 @@ final class LiveAPIClient: APIClient {
             request.httpBody = data
         }
         if let idempotencyKey = apiRequest.idempotencyKey, !idempotencyKey.isEmpty {
-            request.setValue(idempotencyKey, forHTTPHeaderField: "X-Idempotency-Key")
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
         }
         switch apiRequest.authentication {
         case .none:
@@ -755,6 +764,8 @@ final class LiveAPIClient: APIClient {
         url: URL
     ) -> Bool {
         switch request.ownerBinding {
+        case .principal:
+            return !userID.isEmpty
         case .url:
             return AuthenticatedRequestOwnerValidator.matches(userID, url: url)
         case .jsonField(let name):
@@ -1008,7 +1019,78 @@ final class AppContainer {
     }
 }
 
+enum LiveAccountTestScenario: String {
+    case loaded
+    case empty
+    case loading
+    case saveFailure = "save-failure"
+}
+
+enum LiveWatchlistTestScenario: String {
+    case loaded
+    case empty
+    case loading
+    case mutationFailure = "mutation-failure"
+}
+
+enum LiveBookingTestScenario: String {
+    case loaded
+    case conflict
+    case expired
+    case reconnect
+    case loading
+}
+
+enum LiveNotificationTestScenario: String {
+    case allowed
+    case denied
+    case registrationFailure = "registration-failure"
+    case revoked
+}
+
+enum LiveMobileTicketTestScenario: String {
+    case valid
+    case expired
+    case used
+    case canceled
+    case offline
+}
+
 enum RuntimeConfiguration {
+    static var liveAccountTestScenario: LiveAccountTestScenario? {
+        testScenario(argument: "-live-account-scenario", as: LiveAccountTestScenario.self)
+    }
+
+    static var liveWatchlistTestScenario: LiveWatchlistTestScenario? {
+        testScenario(argument: "-live-watchlist-scenario", as: LiveWatchlistTestScenario.self)
+    }
+
+    static var liveBookingTestScenario: LiveBookingTestScenario? {
+        testScenario(argument: "-live-booking-scenario", as: LiveBookingTestScenario.self)
+    }
+
+    static var liveNotificationTestScenario: LiveNotificationTestScenario? {
+        testScenario(argument: "-live-notification-scenario", as: LiveNotificationTestScenario.self)
+    }
+
+    static var liveMobileTicketTestScenario: LiveMobileTicketTestScenario? {
+        testScenario(argument: "-live-mobile-ticket-scenario", as: LiveMobileTicketTestScenario.self)
+    }
+
+    static var simulatorAttestationSecret: String? {
+        value(for: "TIG_SIMULATOR_ATTESTATION_SECRET")
+    }
+
+    static var liveSupportTestScenario: LiveSupportTestScenario? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ui-testing"),
+              let index = arguments.firstIndex(of: "-live-support-scenario"),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return LiveSupportTestScenario(rawValue: arguments[index + 1])
+    }
+
     fileprivate static var liveHomeTestScenario: UITestLiveHomeScenario? {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("-ui-testing"),
@@ -1034,6 +1116,19 @@ enum RuntimeConfiguration {
         case "help": return .help
         default: return nil
         }
+    }
+
+    private static func testScenario<Scenario: RawRepresentable>(
+        argument: String,
+        as type: Scenario.Type
+    ) -> Scenario? where Scenario.RawValue == String {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ui-testing"),
+              let index = arguments.firstIndex(of: argument),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return Scenario(rawValue: arguments[index + 1])
     }
 
     static var apiBaseURL: URL? {
@@ -1091,6 +1186,16 @@ enum RuntimeConfiguration {
             bundledValue: bundledValue
         )
     }
+}
+
+enum LiveSupportTestScenario: String {
+    case loaded
+    case publicLoading = "public-loading"
+    case inquiryLoading = "inquiry-loading"
+    case submissionFailure = "submission-failure"
+    case submissionLoading = "submission-loading"
+    case replyFailure = "reply-failure"
+    case replyLoading = "reply-loading"
 }
 
 private enum UITestLiveHomeScenario: String {

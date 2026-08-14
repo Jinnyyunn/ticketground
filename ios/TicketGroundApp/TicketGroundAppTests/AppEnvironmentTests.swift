@@ -361,7 +361,7 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(emitted.httpMethod, "POST")
         XCTAssertEqual(queryItems, [URLQueryItem(name: "source", value: "mobile app")])
         XCTAssertEqual(emitted.value(forHTTPHeaderField: "X-Trace"), "trace-1")
-        XCTAssertEqual(emitted.value(forHTTPHeaderField: "X-Idempotency-Key"), "idempotency-1")
+        XCTAssertEqual(emitted.value(forHTTPHeaderField: "Idempotency-Key"), "idempotency-1")
         XCTAssertEqual(emitted.httpBody, body)
     }
 
@@ -832,6 +832,10 @@ final class AppEnvironmentTests: XCTestCase {
             ),
             baseURL: URL(string: "https://ticketground.test/")!,
             states: [
+                .profile: state,
+                .profileMutation: state,
+                .reservations: state,
+                .reservationDetail: state,
                 .session: state,
                 .tickets: state,
                 .watchlist: state,

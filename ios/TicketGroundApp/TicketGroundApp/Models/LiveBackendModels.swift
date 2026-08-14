@@ -14,13 +14,33 @@ enum LiveAPIEndpoint: Hashable {
     case artist
     case openCalendar
     case seatMap
+    case nativeContract
+    case profile
+    case profileMutation
+    case reservations
+    case reservationDetail
+    case bookingQueue
+    case bookingSeats
+    case bookingHold
+    case bookingHoldRelease
+    case bookingDraft
+    case deviceChallenge
+    case nativeDeviceTrust
+    case nativePushToken
+    case nativeDeviceRevoke
+    case notificationSettings
+    case testPushPayload
+    case mobileTickets
+    case mobileTicketQR
     case session
     case tickets
     case watchlist
+    case supportPublic
     case supportThreads
     case supportThreadMutation
     case supportMessages
     case watchlistMutation
+    case watchlistRemoval
     case watchlistNotification
     case ticketPurchase
     case googleAuthentication
@@ -40,13 +60,33 @@ enum LiveAPIEndpoint: Hashable {
         .artist,
         .openCalendar,
         .seatMap,
+        .nativeContract,
+        .profile,
+        .profileMutation,
+        .reservations,
+        .reservationDetail,
+        .bookingQueue,
+        .bookingSeats,
+        .bookingHold,
+        .bookingHoldRelease,
+        .bookingDraft,
+        .deviceChallenge,
+        .nativeDeviceTrust,
+        .nativePushToken,
+        .nativeDeviceRevoke,
+        .notificationSettings,
+        .testPushPayload,
+        .mobileTickets,
+        .mobileTicketQR,
         .session,
         .tickets,
         .watchlist,
+        .supportPublic,
         .supportThreads,
         .supportThreadMutation,
         .supportMessages,
         .watchlistMutation,
+        .watchlistRemoval,
         .watchlistNotification,
         .ticketPurchase,
         .googleAuthentication,
@@ -60,15 +100,23 @@ enum LiveAPIEndpoint: Hashable {
 
     var method: APIRequestMethod {
         switch self {
-        case .supportThreadMutation, .supportMessages, .watchlistMutation,
-             .watchlistNotification, .ticketPurchase, .googleAuthentication,
+        case .profileMutation:
+            return .patch
+        case .watchlistMutation, .watchlistNotification, .nativePushToken, .notificationSettings:
+            return .put
+        case .watchlistRemoval, .bookingHoldRelease, .nativeDeviceRevoke:
+            return .delete
+        case .bookingQueue, .bookingHold, .bookingDraft, .deviceChallenge, .nativeDeviceTrust, .testPushPayload, .mobileTicketQR,
+             .supportThreadMutation, .supportMessages, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
              .ticketQR, .virtualQR:
             return .post
         case .unknown(let method, _):
             return method
-        case .health, .state, .catalog, .regions, .artist, .openCalendar,
-             .seatMap, .session, .tickets, .watchlist, .supportThreads:
+        case .health, .state, .catalog, .regions, .artist, .openCalendar, .nativeContract,
+             .supportPublic,
+             .seatMap, .profile, .reservations, .reservationDetail, .bookingSeats, .notificationSettings, .mobileTickets,
+             .session, .tickets, .watchlist, .supportThreads:
             return .get
         }
     }
@@ -82,14 +130,32 @@ enum LiveAPIEndpoint: Hashable {
         case .artist: return "/api/discovery/v1/artists/{slug}"
         case .openCalendar: return "/api/discovery/v1/open-calendar"
         case .seatMap: return "/api/seat-map?eventId={eventId}&performanceDateId={performanceDateId}"
+        case .nativeContract: return "/api/native/v1/contract"
+        case .profile, .profileMutation: return "/api/me/profile"
+        case .reservations: return "/api/me/reservations"
+        case .reservationDetail: return "/api/me/reservations/{ticketId}"
+        case .bookingQueue: return "/api/me/booking/queues"
+        case .bookingSeats: return "/api/me/booking/events/{eventId}/performances/{performanceId}/seats"
+        case .bookingHold: return "/api/me/booking/holds"
+        case .bookingHoldRelease: return "/api/me/booking/holds/{holdId}"
+        case .bookingDraft: return "/api/me/booking/drafts"
+        case .deviceChallenge: return "/api/me/devices/challenges"
+        case .nativeDeviceTrust: return "/api/me/devices/trust"
+        case .nativePushToken: return "/api/me/devices/{deviceId}/push-token"
+        case .nativeDeviceRevoke: return "/api/me/devices/{deviceId}"
+        case .notificationSettings: return "/api/me/notification-settings"
+        case .testPushPayload: return "/api/me/devices/{deviceId}/test-payload"
+        case .mobileTickets: return "/api/me/tickets"
+        case .mobileTicketQR: return "/api/me/tickets/{ticketId}/qr"
         case .session: return "/api/users/{userId}/session"
         case .tickets: return "/api/users/{userId}/tickets"
-        case .watchlist: return "/api/users/{userId}/watchlist"
-        case .supportThreads: return "/api/support/threads?userId={userId}"
-        case .supportThreadMutation: return "/api/support/threads"
-        case .supportMessages: return "/api/support/messages"
-        case .watchlistMutation: return "/api/watchlist"
-        case .watchlistNotification: return "/api/watchlist/notify"
+        case .watchlist: return "/api/me/watchlist"
+        case .supportPublic: return "/api/support/v1/public"
+        case .supportThreads: return "/api/me/support/threads"
+        case .supportThreadMutation: return "/api/me/support/threads"
+        case .supportMessages: return "/api/me/support/threads/{threadId}/messages"
+        case .watchlistMutation, .watchlistRemoval: return "/api/me/watchlist/{eventId}"
+        case .watchlistNotification: return "/api/me/watchlist/{eventId}/notification"
         case .ticketPurchase: return "/api/tickets/buy"
         case .googleAuthentication: return "/api/auth/google"
         case .identityStart: return "/api/identity/portone-danal/start"
@@ -104,11 +170,13 @@ enum LiveAPIEndpoint: Hashable {
 
     var access: LiveAPIEndpointAccess {
         switch self {
-        case .health, .state, .catalog, .regions, .artist, .openCalendar, .seatMap:
+        case .health, .state, .catalog, .regions, .artist, .openCalendar, .seatMap, .nativeContract, .supportPublic:
             return .publicRead
-        case .session, .tickets, .watchlist, .supportThreads:
+        case .profile, .reservations, .reservationDetail, .bookingSeats, .notificationSettings, .mobileTickets, .session, .tickets, .watchlist, .supportThreads:
             return .authenticatedRead
-        case .supportThreadMutation, .supportMessages, .watchlistMutation,
+        case .profileMutation, .bookingQueue, .bookingHold, .bookingHoldRelease, .bookingDraft,
+             .deviceChallenge, .nativeDeviceTrust, .nativePushToken, .nativeDeviceRevoke, .testPushPayload, .mobileTicketQR,
+             .supportThreadMutation, .supportMessages, .watchlistMutation, .watchlistRemoval,
              .watchlistNotification, .ticketPurchase, .googleAuthentication,
              .identityStart, .identityConfirm, .deviceTrust, .pushToken,
              .ticketQR, .virtualQR:
@@ -157,6 +225,11 @@ struct LiveAPIHealth: Decodable, Equatable {
     let version: String?
 }
 
+struct LiveNativeContractStatus: Decodable, Equatable {
+    let version: String
+    let endpoints: [String]
+}
+
 struct LiveCapabilityMap: Equatable {
     let diagnostics: LiveAPIContractDiagnostics
     let baseURL: URL
@@ -187,7 +260,13 @@ struct LiveAPIContract {
         observedResponseVersion: String?,
         validatedStateResponse: Bool = false,
         catalogRouteConfirmed: Bool = false,
-        discoveryRoutesConfirmed: Bool = false
+        discoveryRoutesConfirmed: Bool = false,
+        accountRoutesConfirmed: Bool = false,
+        watchlistRoutesConfirmed: Bool = false,
+        bookingRoutesConfirmed: Bool = false,
+        deviceRoutesConfirmed: Bool = false,
+        mobileTicketRoutesConfirmed: Bool = false,
+        supportRoutesConfirmed: Bool = false
     ) -> LiveCapabilityMap {
         let diagnostics = LiveAPIContractDiagnostics(
             expectedResponseVersion: expectedResponseVersion,
@@ -202,7 +281,13 @@ struct LiveAPIContract {
                     diagnostics: diagnostics,
                     validatedStateResponse: validatedStateResponse,
                     catalogRouteConfirmed: catalogRouteConfirmed,
-                    discoveryRoutesConfirmed: discoveryRoutesConfirmed
+                    discoveryRoutesConfirmed: discoveryRoutesConfirmed,
+                    accountRoutesConfirmed: accountRoutesConfirmed,
+                    watchlistRoutesConfirmed: watchlistRoutesConfirmed,
+                    bookingRoutesConfirmed: bookingRoutesConfirmed,
+                    deviceRoutesConfirmed: deviceRoutesConfirmed,
+                    mobileTicketRoutesConfirmed: mobileTicketRoutesConfirmed,
+                    supportRoutesConfirmed: supportRoutesConfirmed
                 )
             )
         })
@@ -215,7 +300,13 @@ struct LiveAPIContract {
         diagnostics: LiveAPIContractDiagnostics,
         validatedStateResponse: Bool,
         catalogRouteConfirmed: Bool,
-        discoveryRoutesConfirmed: Bool
+        discoveryRoutesConfirmed: Bool,
+        accountRoutesConfirmed: Bool,
+        watchlistRoutesConfirmed: Bool,
+        bookingRoutesConfirmed: Bool,
+        deviceRoutesConfirmed: Bool,
+        mobileTicketRoutesConfirmed: Bool,
+        supportRoutesConfirmed: Bool
     ) -> LiveCapabilityState {
         switch diagnostics.compatibility {
         case .unknown:
@@ -229,15 +320,61 @@ struct LiveAPIContract {
             guard ![.regions, .artist, .openCalendar].contains(endpoint) || discoveryRoutesConfirmed else {
                 return .unknown
             }
+            guard ![.supportPublic, .supportThreads, .supportThreadMutation, .supportMessages].contains(endpoint)
+                    || supportRoutesConfirmed else {
+                return .unknown
+            }
+            guard ![.profile, .profileMutation, .reservations, .reservationDetail].contains(endpoint)
+                    || accountRoutesConfirmed else {
+                return .unknown
+            }
+            guard ![.watchlist, .watchlistMutation, .watchlistRemoval, .watchlistNotification].contains(endpoint)
+                    || watchlistRoutesConfirmed else {
+                return .unknown
+            }
+            guard ![.bookingQueue, .bookingSeats, .bookingHold, .bookingHoldRelease, .bookingDraft].contains(endpoint)
+                    || bookingRoutesConfirmed else {
+                return .unknown
+            }
+            guard ![.deviceChallenge, .nativeDeviceTrust, .nativePushToken, .nativeDeviceRevoke, .notificationSettings, .testPushPayload].contains(endpoint)
+                    || deviceRoutesConfirmed else {
+                return .unknown
+            }
+            guard ![.mobileTickets, .mobileTicketQR].contains(endpoint) || mobileTicketRoutesConfirmed else {
+                return .unknown
+            }
             switch endpoint.access {
             case .publicRead:
                 return .available
             case .authenticatedRead:
-                return baseURL.scheme?.lowercased() == "https"
-                    ? .blocked(.serverAuthorizationUnverified)
-                    : .blocked(.requiresHTTPS)
+                guard baseURL.scheme?.lowercased() == "https" else { return .blocked(.requiresHTTPS) }
+                let routeConfirmed = ([.profile, .reservations, .reservationDetail].contains(endpoint) && accountRoutesConfirmed)
+                    || (endpoint == .watchlist && watchlistRoutesConfirmed)
+                    || (endpoint == .bookingSeats && bookingRoutesConfirmed)
+                    || (endpoint == .notificationSettings && deviceRoutesConfirmed)
+                    || (endpoint == .mobileTickets && mobileTicketRoutesConfirmed)
+                    || (endpoint == .supportThreads && supportRoutesConfirmed)
+                return routeConfirmed ? .available : .blocked(.serverAuthorizationUnverified)
             case .mutation:
-                return baseURL.scheme?.lowercased() == "https" ? .blocked(.unsupportedMutation) : .blocked(.requiresHTTPS)
+                guard baseURL.scheme?.lowercased() == "https" else { return .blocked(.requiresHTTPS) }
+                return [
+                    .profileMutation,
+                    .watchlistMutation,
+                    .watchlistRemoval,
+                    .watchlistNotification,
+                    .bookingQueue,
+                    .bookingHold,
+                    .bookingHoldRelease,
+                    .bookingDraft,
+                    .deviceChallenge,
+                    .nativeDeviceTrust,
+                    .nativePushToken,
+                    .nativeDeviceRevoke,
+                    .testPushPayload,
+                    .mobileTicketQR,
+                    .supportThreadMutation,
+                    .supportMessages
+                ].contains(endpoint) ? .available : .blocked(.unsupportedMutation)
             }
         }
     }
@@ -513,6 +650,142 @@ struct LiveSession: Decodable, Equatable {
     let trustScore: Int
 }
 
+struct LiveAccountProfile: Decodable, Equatable {
+    let id: String
+    let name: String
+    let status: String
+    let trustScore: Int
+    let profileConfirmed: Bool
+}
+
+struct LiveReservation: Decodable, Equatable {
+    let ticketId: String
+    let ticketStatus: String
+    let event: LiveReservationEvent
+    let performance: LiveReservationPerformance
+    let seat: LiveReservationSeat
+    let faceValue: Int
+    let issuedAt: String?
+}
+
+struct LiveReservationEvent: Decodable, Equatable {
+    let id: String
+    let title: String
+    let venue: String?
+}
+
+struct LiveReservationPerformance: Decodable, Equatable {
+    let id: String
+    let label: String?
+    let startsAt: String?
+}
+
+struct LiveReservationSeat: Decodable, Equatable {
+    let zoneId: String
+    let label: String
+}
+
+struct LiveBookingQueue: Decodable, Equatable {
+    let id: String
+    let eventId: String
+    let performanceId: String
+    let status: String
+    let position: Int
+    let expiresAt: String
+    let updatedAt: String
+}
+
+struct LiveBookingSeatSnapshot: Decodable, Equatable {
+    let event: LiveReservationEvent
+    let performanceId: String
+    let queue: LiveBookingQueue
+    let revision: Int
+    let seats: [LiveBookingSeat]
+}
+
+struct LiveBookingSeat: Decodable, Equatable {
+    let ticketId: String
+    let zoneId: String
+    let label: String
+    let price: Int
+    let state: String
+    let holdExpiresAt: String?
+}
+
+struct LiveSeatHold: Decodable, Equatable {
+    let id: String
+    let queueId: String
+    let ticketId: String
+    let status: String
+    let expiresAt: String
+    let revision: Int
+    let updatedAt: String
+}
+
+struct LiveReservationDraft: Decodable, Equatable {
+    let id: String
+    let holdId: String
+    let ticketId: String
+    let eventId: String
+    let performanceId: String
+    let seat: LiveReservationSeat
+    let amount: Int
+    let status: String
+    let expiresAt: String
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct LiveDeviceChallenge: Decodable, Equatable {
+    let id: String
+    let nonce: String
+    let expiresAt: String
+    let provider: String
+}
+
+struct LiveRegisteredDevice: Decodable, Equatable {
+    let id: String
+    let deviceId: String
+    let platform: String
+    let status: String
+    let counter: Int
+    let deliveryStatus: String
+    let updatedAt: String
+}
+
+struct LiveNotificationSettings: Decodable, Equatable {
+    let preferences: LiveNotificationPreferences
+    let delivery: LiveNotificationDelivery
+}
+
+struct LiveNotificationPreferences: Decodable, Equatable {
+    let reservationUpdates: Bool
+    let watchlistOpen: Bool
+}
+
+struct LiveNotificationDelivery: Decodable, Equatable {
+    let available: Bool
+    let devices: [LiveRegisteredDevice]
+}
+
+struct LiveMobileTicket: Decodable, Equatable {
+    let id: String
+    let event: LiveReservationEvent
+    let performance: LiveReservationPerformance
+    let seat: LiveReservationSeat
+    let status: String
+    let admissionStatus: String
+}
+
+struct LiveMobileTicketQR: Decodable, Equatable {
+    let token: String
+    let status: String
+    let issuedAt: String
+    let expiresAt: String
+    let ttlSeconds: Int
+    let ticket: LiveMobileTicket
+}
+
 struct LiveTicket: Decodable, Equatable {
     let id: String
     let eventId: String
@@ -583,6 +856,11 @@ struct LiveWatchlistItem: Decodable, Equatable {
     let notificationJobs: [LiveNotificationJob]
 }
 
+struct LiveWatchlistRemoval: Decodable, Equatable {
+    let removed: Bool
+    let eventId: String
+}
+
 struct LiveWatchlistEvent: Decodable, Equatable {
     let id: String
     let title: String
@@ -607,6 +885,31 @@ struct LiveSupportThread: Decodable, Equatable {
     let status: LiveSupportStatus
     let updatedAt: String
     let messages: [LiveSupportMessage]
+}
+
+struct LiveSupportPublicContent: Decodable, Equatable {
+    let version: String
+    let categories: [LiveSupportCategory]
+    let faqs: [LiveSupportFAQ]
+    let notices: [LiveSupportNotice]
+}
+
+struct LiveSupportCategory: Decodable, Equatable {
+    let id: String
+    let label: String
+}
+
+struct LiveSupportFAQ: Decodable, Equatable {
+    let id: String
+    let category: String
+    let question: String
+    let answer: String
+}
+
+struct LiveSupportNotice: Decodable, Equatable {
+    let id: String
+    let title: String
+    let body: String
 }
 
 enum LiveSupportStatus: String, Decodable, Equatable {
@@ -685,7 +988,7 @@ struct LiveMutationReceipt: Decodable, Equatable {
 }
 
 enum LiveAuthenticatedAction: Equatable {
-    case supportThread(userID: String, message: String, idempotencyKey: String)
+    case supportThread(userID: String, category: String, subject: String, message: String, idempotencyKey: String)
     case supportMessage(userID: String, threadID: String, message: String, idempotencyKey: String)
     case watchlist(userID: String, eventID: String, idempotencyKey: String)
     case watchlistNotification(userID: String, eventID: String, idempotencyKey: String)
@@ -714,68 +1017,93 @@ enum LiveAuthenticatedAction: Equatable {
     }
 
     func request() throws -> APIRequest {
-        let owner: (id: String, field: String)
+        let owner: (id: String, field: String?)
         let body: [String: Any]
         let idempotencyKey: String
+        let path: String
+        let method: APIRequestMethod
         switch self {
-        case let .supportThread(userID, message, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "message": message]
+        case let .supportThread(userID, category, subject, message, key):
+            owner = (userID, nil)
+            body = ["category": category, "subject": subject, "message": message]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         case let .supportMessage(userID, threadID, message, key):
-            owner = (userID, "actorId")
-            body = ["threadId": threadID, "actorId": userID, "message": message]
+            owner = (userID, nil)
+            body = ["message": message]
             idempotencyKey = key
+            path = "/api/me/support/threads/\(threadID)/messages"
+            method = .post
         case let .watchlist(userID, eventID, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "eventId": eventID]
+            owner = (userID, nil)
+            body = ["notificationEnabled": true]
             idempotencyKey = key
+            path = "/api/me/watchlist/\(eventID)"
+            method = .put
         case let .watchlistNotification(userID, eventID, key):
-            owner = (userID, "userId")
-            body = ["userId": userID, "eventId": eventID]
+            owner = (userID, nil)
+            body = ["enabled": true]
             idempotencyKey = key
+            path = "/api/me/watchlist/\(eventID)/notification"
+            method = .put
         case let .ticketPurchase(userID, ticketID, key):
             owner = (userID, "userId")
             body = ["userId": userID, "ticketId": ticketID]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         case let .identityStart(userID, phone, key):
             owner = (userID, "userId")
             body = ["userId": userID, "phone": phone]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         case let .identityConfirm(userID, phone, verificationID, key):
             owner = (userID, "userId")
             body = ["userId": userID, "phone": phone, "identityVerificationId": verificationID]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         case let .trustDevice(userID, deviceID, attestation, key):
             owner = (userID, "userId")
             body = ["userId": userID, "deviceId": deviceID, "biometricVerified": true, "appAttestation": attestation]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         case let .pushToken(userID, token, key):
             owner = (userID, "userId")
             body = ["userId": userID, "platform": "ios", "token": token]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         case let .admissionQR(userID, ticketID, deviceID, attestation, key):
             owner = (userID, "userId")
             body = ["userId": userID, "ticketId": ticketID, "channel": "APP", "deviceId": deviceID, "appAttestation": attestation]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         case let .virtualQR(userID, ticketID, key):
             owner = (userID, "userId")
             body = ["userId": userID, "ticketId": ticketID]
             idempotencyKey = key
+            path = endpoint.pathTemplate
+            method = .post
         }
         guard !owner.id.isEmpty,
               !idempotencyKey.isEmpty,
+              !path.hasSuffix("/"),
               body.values.allSatisfy({ !($0 as? String == "") }),
               JSONSerialization.isValidJSONObject(body) else {
             throw APIClientError.invalidResponse
         }
         return APIRequest(
-            method: .post,
-            path: endpoint.pathTemplate,
+            method: method,
+            path: path,
             body: .json(try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])),
             idempotencyKey: idempotencyKey,
             authentication: .required(userID: owner.id),
-            ownerBinding: .jsonField(owner.field)
+            ownerBinding: owner.field.map(APIRequestOwnerBinding.jsonField) ?? .principal
         )
     }
 }

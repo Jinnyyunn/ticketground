@@ -52,8 +52,8 @@ final class LiveBackendServiceTests: XCTestCase {
             "/api/seat-map?eventId=event-1&performanceDateId=date-1": Data(#"{"ok":true,"data":{"event":{"id":"event-1","title":"Neon Stage","venueId":"venue-1","venue":"Arena"},"map":{"title":"Arena map","image":"/assets/map.svg","description":"Seat map"},"zones":[{"id":"zone-vip","name":"VIP","price":99000,"available":2}],"seats":[{"id":"seat-1","label":"A-01","displayCode":"A-01","zoneId":"zone-vip","zoneName":"VIP","price":99000,"status":"ON_SALE","available":true}]}}"#.utf8),
             "/api/users/user-1/session": Data(#"{"ok":true,"data":{"id":"user-1","name":"Tester","status":"ACTIVE","trustScore":90}}"#.utf8),
             "/api/users/user-1/tickets": Data(#"{"ok":true,"data":[{"id":"ticket-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","seatLabel":"A-01","status":"OWNED","available":false,"faceValue":99000,"minPrice":49500,"maxPrice":106920,"transferCount":0,"maxTransferCount":1,"issuedAt":"2026-09-19T19:00:00+09:00","virtualQr":{"type":"virtual","issuedAt":"2026-09-19T18:00:00+09:00"}}]}"#.utf8),
-            "/api/users/user-1/watchlist": Data(#"{"ok":true,"data":[{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[{"id":"job-1","type":"BOOKING_D3","title":"예매 오픈 D-3 알림","status":"SCHEDULED","scheduledAt":"2026-08-19T19:00:00+09:00"}]}]}"#.utf8),
-            "/api/support/threads?userId=user-1": Data(#"{"ok":true,"data":[{"id":"thread-1","userId":"user-1","subject":"문의","status":"OPEN","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","actorId":"user-1","role":"CUSTOMER","body":"도와주세요","at":"2026-07-15T00:00:00Z"}]}]}"#.utf8)
+            "/api/me/watchlist": Data(#"{"ok":true,"data":[{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[{"id":"job-1","type":"BOOKING_D3","title":"예매 오픈 D-3 알림","status":"SCHEDULED","scheduledAt":"2026-08-19T19:00:00+09:00"}]}]}"#.utf8),
+            "/api/me/support/threads": Data(#"{"ok":true,"data":[{"id":"thread-1","userId":"user-1","subject":"문의","status":"OPEN","updatedAt":"2026-07-15T00:00:00Z","messages":[{"id":"message-1","actorId":"user-1","role":"CUSTOMER","body":"도와주세요","at":"2026-07-15T00:00:00Z"}]}]}"#.utf8)
         ]
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -281,6 +281,37 @@ final class LiveBackendServiceTests: XCTestCase {
         XCTAssertEqual(thread.messages.first?.role, .unknown)
     }
 
+    func testSupportPublicContentAndPrincipalOwnedRequestsUseVersionedContract() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/support/v1/public": Data(#"{"ok":true,"data":{"version":"1","categories":[{"id":"GENERAL","label":"일반"}],"faqs":[{"id":"faq-1","category":"GENERAL","question":"문의 방법","answer":"1:1 문의를 이용해 주세요."}],"notices":[{"id":"notice-1","title":"운영시간","body":"평일 운영"}]}}"#.utf8),
+            "/api/me/support/threads": Data(#"{"ok":true,"data":[]}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let service = compatibleService(for: client, authenticatedReads: true)
+
+        let publicContent = try await service.getSupportPublicContent()
+        let threads = try await service.getSupportThreads(userID: "user-1")
+
+        XCTAssertEqual(publicContent.version, "1")
+        XCTAssertEqual(publicContent.faqs.first?.question, "문의 방법")
+        XCTAssertTrue(threads.isEmpty)
+        let publicRequest = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
+        XCTAssertNil(publicRequest.value(forHTTPHeaderField: "Authorization"))
+        let threadRequest = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.last)
+        XCTAssertEqual(threadRequest.url?.path, "/api/me/support/threads")
+        XCTAssertNil(threadRequest.url?.query)
+        XCTAssertEqual(threadRequest.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
+    }
+
     func testPublicHTTPReadSendsNoAuthorizationAndExcludesAdminPort() async throws {
         LiveBackendServiceURLProtocol.responses["/api/state"] = Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8)
 
@@ -365,8 +396,10 @@ final class LiveBackendServiceTests: XCTestCase {
 
         XCTAssertEqual(map.state(for: .session), .blocked(.serverAuthorizationUnverified))
         XCTAssertEqual(map.state(for: .tickets), .blocked(.serverAuthorizationUnverified))
-        XCTAssertEqual(map.state(for: .watchlist), .blocked(.serverAuthorizationUnverified))
-        XCTAssertEqual(map.state(for: .supportThreads), .blocked(.serverAuthorizationUnverified))
+        XCTAssertEqual(map.state(for: .profile), .unknown)
+        XCTAssertEqual(map.state(for: .reservations), .unknown)
+        XCTAssertEqual(map.state(for: .watchlist), .unknown)
+        XCTAssertEqual(map.state(for: .supportThreads), .unknown)
     }
 
     func testCatalogAdmissionUsesHealthThenBoundedCatalogProbe() async throws {
@@ -394,7 +427,7 @@ final class LiveBackendServiceTests: XCTestCase {
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
+            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/native/v1/contract", "/api/support/v1/public", "/api/catalog"]
         )
         XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
             $0.value(forHTTPHeaderField: "Authorization") == nil
@@ -521,7 +554,7 @@ final class LiveBackendServiceTests: XCTestCase {
             LiveBackendServiceURLProtocol.requests.compactMap { request in
                 request.url.map { $0.path + ($0.query.map { "?\($0)" } ?? "") }
             },
-            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/catalog"]
+            ["/api/health", "/api/catalog?limit=1", "/api/discovery/v1/contract", "/api/native/v1/contract", "/api/support/v1/public", "/api/catalog"]
         )
     }
 
@@ -709,15 +742,62 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testMutationContractMatchesDeployedRouterPaths() {
         XCTAssertEqual(LiveAPIEndpoint.supportMessages.method, .post)
-        XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/support/messages")
-        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.method, .post)
-        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.pathTemplate, "/api/watchlist")
+        XCTAssertEqual(LiveAPIEndpoint.supportMessages.pathTemplate, "/api/me/support/threads/{threadId}/messages")
+        XCTAssertEqual(LiveAPIEndpoint.profileMutation.method, .patch)
+        XCTAssertEqual(LiveAPIEndpoint.profileMutation.pathTemplate, "/api/me/profile")
+        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.method, .put)
+        XCTAssertEqual(LiveAPIEndpoint.watchlistMutation.pathTemplate, "/api/me/watchlist/{eventId}")
+        XCTAssertEqual(LiveAPIEndpoint.watchlistRemoval.method, .delete)
+        XCTAssertEqual(LiveAPIEndpoint.watchlistNotification.method, .put)
         XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.method, .post)
         XCTAssertEqual(LiveAPIEndpoint.ticketPurchase.pathTemplate, "/api/tickets/buy")
     }
 
+    func testPrincipalAccountAndWatchlistContractDispatchesTypedRequests() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/me/profile": Data(#"{"ok":true,"data":{"id":"user-1","name":"민서","status":"ACTIVE","trustScore":92,"profileConfirmed":true}}"#.utf8),
+            "/api/me/reservations": Data(#"{"ok":true,"data":[{"ticketId":"ticket-1","ticketStatus":"OWNED","event":{"id":"event-1","title":"Neon Stage","venue":"Arena"},"performance":{"id":"date-1","label":"9월 19일 19:00","startsAt":"2026-09-19T19:00:00+09:00"},"seat":{"zoneId":"vip","label":"A-01"},"faceValue":99000,"issuedAt":"2026-08-01T00:00:00Z"}]}"#.utf8),
+            "/api/me/reservations/ticket-1": Data(#"{"ok":true,"data":{"ticketId":"ticket-1","ticketStatus":"OWNED","event":{"id":"event-1","title":"Neon Stage","venue":"Arena"},"performance":{"id":"date-1","label":"9월 19일 19:00","startsAt":"2026-09-19T19:00:00+09:00"},"seat":{"zoneId":"vip","label":"A-01"},"faceValue":99000,"issuedAt":"2026-08-01T00:00:00Z"}}"#.utf8),
+            "/api/me/watchlist": Data(#"{"ok":true,"data":[{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[]}]}"#.utf8),
+            "/api/me/watchlist/event-1": Data(#"{"ok":true,"data":{"removed":true,"eventId":"event-1"}}"#.utf8),
+            "/api/me/watchlist/event-1/notification": Data(#"{"ok":true,"data":{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":false,"event":{"id":"event-1","title":"Neon Stage","venue":"Arena","venueId":"venue-1","category":"concert","saleState":"ON_SALE"},"notificationJobs":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let service = nativeContractReadyService(for: client)
+
+        let profile = try await service.getProfile(userID: "user-1")
+        let reservations = try await service.getReservations(userID: "user-1")
+        let reservation = try await service.getReservation(userID: "user-1", ticketID: "ticket-1")
+        let watchlist = try await service.getWatchlist(userID: "user-1")
+        let removal = try await service.removeWatchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "remove-1")
+        let updated = try await service.setWatchlistNotification(userID: "user-1", eventID: "event-1", enabled: false, idempotencyKey: "notify-1")
+
+        XCTAssertEqual(profile.name, "민서")
+        XCTAssertEqual(reservations.first?.seat.label, "A-01")
+        XCTAssertEqual(reservation.event.title, "Neon Stage")
+        XCTAssertEqual(watchlist.first?.event?.title, "Neon Stage")
+        XCTAssertEqual(removal, LiveWatchlistRemoval(removed: true, eventId: "event-1"))
+        XCTAssertFalse(updated.notificationEnabled)
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.suffix(2).map(\.httpMethod), ["DELETE", "PUT"])
+        XCTAssertEqual(LiveBackendServiceURLProtocol.requests.suffix(2).compactMap {
+            $0.value(forHTTPHeaderField: "Idempotency-Key")
+        }, ["remove-1", "notify-1"])
+    }
+
     func testAuthenticatedActionSendsOwnerBoundJSONAndIdempotencyKeyOverHTTPS() async throws {
-        LiveBackendServiceURLProtocol.responses["/api/watchlist"] = Data(#"{"ok":true,"data":{"watchlist":{"id":"watch-1","userId":"user-1","eventId":"event-1"}}}"#.utf8)
+        LiveBackendServiceURLProtocol.responses["/api/me/watchlist/event-1"] = Data(#"{"ok":true,"data":{"id":"watch-1","eventId":"event-1","channels":["APP_PUSH"],"calendarEnabled":true,"notificationEnabled":true,"notificationJobs":[]}}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
         let credentials = InMemoryCredentialStore()
@@ -741,17 +821,20 @@ final class LiveBackendServiceTests: XCTestCase {
         let receipt = try await mutationReadyService(for: client).perform(action)
         let request = try XCTUnwrap(LiveBackendServiceURLProtocol.requests.first)
 
-        XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(request.url?.path, "/api/watchlist")
-        XCTAssertEqual(emittedBody["eventId"] as? String, "event-1")
-        XCTAssertEqual(emittedBody["userId"] as? String, "user-1")
+        XCTAssertEqual(request.httpMethod, "PUT")
+        XCTAssertEqual(request.url?.path, "/api/me/watchlist/event-1")
+        XCTAssertEqual(emittedBody["notificationEnabled"] as? Bool, true)
+        XCTAssertNil(emittedBody["userId"])
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer native-credential")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Idempotency-Key"), "watchlist-1")
-        XCTAssertEqual(receipt.payload, .object(["watchlist": .object([
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), "watchlist-1")
+        XCTAssertEqual(receipt.payload, .object([
             "id": .string("watch-1"),
-            "userId": .string("user-1"),
-            "eventId": .string("event-1")
-        ])]))
+            "eventId": .string("event-1"),
+            "channels": .array([.string("APP_PUSH")]),
+            "calendarEnabled": .bool(true),
+            "notificationEnabled": .bool(true),
+            "notificationJobs": .array([])
+        ]))
     }
 
     func testAuthenticatedActionRejectsMissingIdentityAndHTTPBeforeDispatch() async {
@@ -811,8 +894,8 @@ final class LiveBackendServiceTests: XCTestCase {
         for status in [401, 403, 409, 422, 429] {
             let code = "ACTION_\(status)"
             let message = "Mutation rejected: \(status)"
-            LiveBackendServiceURLProtocol.responses["/api/support/messages"] = Data(#"{"ok":false,"error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8)
-            LiveBackendServiceURLProtocol.statusCodes["/api/support/messages"] = status
+            LiveBackendServiceURLProtocol.responses["/api/me/support/threads/thread-1/messages"] = Data(#"{"ok":false,"error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8)
+            LiveBackendServiceURLProtocol.statusCodes["/api/me/support/threads/thread-1/messages"] = status
 
             do {
                 _ = try await mutationReadyService(for: client).perform(.supportMessage(
@@ -840,10 +923,10 @@ final class LiveBackendServiceTests: XCTestCase {
 
     func testAuthenticatedActionDefinitionsMatchDocumentedPathsAndOwners() throws {
         let actions: [(LiveAuthenticatedAction, String, String)] = [
-            (.supportThread(userID: "user-1", message: "문의", idempotencyKey: "thread"), "/api/support/threads", "userId"),
-            (.supportMessage(userID: "user-1", threadID: "thread-1", message: "답변", idempotencyKey: "message"), "/api/support/messages", "actorId"),
-            (.watchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "watch"), "/api/watchlist", "userId"),
-            (.watchlistNotification(userID: "user-1", eventID: "event-1", idempotencyKey: "notify"), "/api/watchlist/notify", "userId"),
+            (.supportThread(userID: "user-1", category: "GENERAL", subject: "문의 제목", message: "문의", idempotencyKey: "thread"), "/api/me/support/threads", "principal"),
+            (.supportMessage(userID: "user-1", threadID: "thread-1", message: "답변", idempotencyKey: "message"), "/api/me/support/threads/thread-1/messages", "principal"),
+            (.watchlist(userID: "user-1", eventID: "event-1", idempotencyKey: "watch"), "/api/me/watchlist/event-1", "principal"),
+            (.watchlistNotification(userID: "user-1", eventID: "event-1", idempotencyKey: "notify"), "/api/me/watchlist/event-1/notification", "principal"),
             (.ticketPurchase(userID: "user-1", ticketID: "ticket-1", idempotencyKey: "purchase"), "/api/tickets/buy", "userId"),
             (.identityStart(userID: "user-1", phone: "01012345678", idempotencyKey: "identity-start"), "/api/identity/portone-danal/start", "userId"),
             (.identityConfirm(userID: "user-1", phone: "01012345678", verificationID: "identity-1", idempotencyKey: "identity-confirm"), "/api/identity/portone-danal/confirm", "userId"),
@@ -856,12 +939,137 @@ final class LiveBackendServiceTests: XCTestCase {
         for (action, path, ownerField) in actions {
             let request = try action.request()
             let body = try XCTUnwrap(request.body.jsonObject)
-            XCTAssertEqual(request.method, .post)
+            let expectedMethod: APIRequestMethod = action.endpoint == .watchlistMutation || action.endpoint == .watchlistNotification ? .put : .post
+            XCTAssertEqual(request.method, expectedMethod)
             XCTAssertEqual(request.path, path)
             XCTAssertEqual(request.idempotencyKey?.isEmpty, false)
             XCTAssertEqual(request.authentication, .required(userID: "user-1"))
-            XCTAssertEqual(request.ownerBinding, .jsonField(ownerField))
-            XCTAssertEqual(body[ownerField] as? String, "user-1")
+            if ownerField == "principal" {
+                XCTAssertEqual(request.ownerBinding, .principal)
+                XCTAssertNil(body["userId"])
+                XCTAssertNil(body["actorId"])
+            } else {
+                XCTAssertEqual(request.ownerBinding, .jsonField(ownerField))
+                XCTAssertEqual(body[ownerField] as? String, "user-1")
+            }
+        }
+    }
+
+    func testNativeLifecycleUsesBearerPrincipalForTypedRoutesAndDecodesSafeResponses() async throws {
+        LiveBackendServiceURLProtocol.responses = [
+            "GET /api/me/resale-pools": Data(#"{"ok":true,"data":[{"id":"pool-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-1","showSlug":"neon-stage","price":99000,"buyerFee":1000,"buyerTotal":100000,"sellerSettlement":98000,"buyerCount":1,"status":"OPEN","createdAt":"2026-08-12T09:00:00Z","matchedAt":null}]}"#.utf8),
+            "POST /api/me/resale-pools": Data(#"{"ok":true,"data":{"id":"pool-2","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-2","showSlug":null,"price":88000,"buyerFee":1000,"buyerTotal":89000,"sellerSettlement":87000,"buyerCount":0,"status":"OPEN","createdAt":"2026-08-12T09:01:00Z","matchedAt":null}}"#.utf8),
+            "POST /api/me/resale-pools/pool-1/join": Data(#"{"ok":true,"data":{"id":"pool-1","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-1","showSlug":"neon-stage","price":99000,"buyerFee":1000,"buyerTotal":100000,"sellerSettlement":98000,"buyerCount":1,"status":"MATCHED","createdAt":"2026-08-12T09:00:00Z","matchedAt":"2026-08-12T09:02:00Z"}}"#.utf8),
+            "DELETE /api/me/resale-pools/pool-2": Data(#"{"ok":true,"data":{"id":"pool-2","eventId":"event-1","performanceDateId":"date-1","zoneId":"zone-vip","ticketId":"ticket-2","showSlug":null,"price":88000,"buyerFee":1000,"buyerTotal":89000,"sellerSettlement":87000,"buyerCount":0,"status":"CANCELED","createdAt":"2026-08-12T09:01:00Z","matchedAt":null}}"#.utf8),
+            "GET /api/me/cancellation-requests": Data(#"{"ok":true,"data":[{"id":"cancel-1","ticketId":"ticket-1","reason":"일정 변경","refundAcknowledged":true,"status":"PENDING_REVIEW","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}]}"#.utf8),
+            "POST /api/me/cancellation-requests": Data(#"{"ok":true,"data":{"id":"cancel-2","ticketId":"ticket-2","reason":"공연 취소","refundAcknowledged":true,"status":"PENDING_REVIEW","createdAt":"2026-08-12T09:03:00Z","updatedAt":"2026-08-12T09:03:00Z"}}"#.utf8),
+            "GET /api/me/devices": Data(#"{"ok":true,"data":[{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"TRUSTED","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":null}]}"#.utf8),
+            "DELETE /api/me/devices/device-1": Data(#"{"ok":true,"data":{"id":"device-1","deviceId":"iphone-1","deviceName":"테스터 iPhone","platform":"iOS","status":"REVOKED","createdAt":"2026-08-12T09:00:00Z","lastVerifiedAt":"2026-08-12T09:00:00Z","revokedAt":"2026-08-12T09:04:00Z"}}"#.utf8),
+            "GET /api/me/push-tokens": Data(#"{"ok":true,"data":[{"platform":"ios","status":"ACTIVE","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:00:00Z"}]}"#.utf8),
+            "POST /api/me/push-tokens": Data(#"{"ok":true,"data":{"platform":"ios","status":"ACTIVE","suffix":"cdef","createdAt":"2026-08-12T09:00:00Z","updatedAt":"2026-08-12T09:05:00Z"}}"#.utf8),
+            "POST /api/devices/trust": Data(#"{"ok":true,"data":{"device":{"id":"device-2","userId":"user-1","deviceId":"iphone-2","deviceName":"새 iPhone","platform":"iOS","status":"TRUSTED","lastVerifiedAt":"2026-08-12T09:06:00Z"},"deviceToken":"trusted-device-token"}}"#.utf8),
+            "POST /api/tickets/virtual-qr": Data(#"{"ok":true,"data":{"type":"VIRTUAL_TICKET","ticketId":"ticket-1","issuedAt":"2026-08-12T09:07:00Z","eventTitle":"Neon Stage","seatLabel":"A-01","performanceStartsAt":"2026-09-19T19:00:00Z","qrPreparedAt":"2026-09-18T19:00:00Z","realQrAvailableAt":"2026-09-19T16:00:00Z","admissionCredentialStatus":"VIRTUAL_READY","admissionChannel":"APP_ONLY"}}"#.utf8),
+            "POST /api/tickets/qr": Data(#"{"ok":true,"data":{"type":"ADMISSION","ticketId":"ticket-1","ownerId":"user-1","expiresAt":"2026-08-12T09:08:20Z","nonce":"nonce-1","signature":"signature-1","issuedAt":"2026-08-12T09:08:00Z","performanceStartsAt":"2026-09-19T19:00:00Z","preparedAt":"2026-09-18T19:00:00Z","activeAt":"2026-09-19T16:00:00Z","ttlSeconds":20,"traceCode":"TRACE123","channel":"APP","emergencyReason":null}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(
+            baseURL: URL(string: "https://ticketground.test/")!,
+            assetBaseURL: nil,
+            credentialStore: credentials,
+            session: URLSession(configuration: configuration)
+        )
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: URL(string: "https://ticketground.test/")!,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            nativeLifecycleRoutesConfirmed: true
+        )
+        let service = LiveBackendService(apiClient: client, initialCapabilityMap: map)
+
+        let pools = try await service.getResalePools(userID: "user-1")
+        let listed = try await service.createResalePool(userID: "user-1", ticketID: "ticket-2", price: 88_000, showSlug: nil, idempotencyKey: "list-key")
+        let joined = try await service.joinResalePool(userID: "user-1", poolID: "pool-1", idempotencyKey: "join-key")
+        let cancelledPool = try await service.cancelResalePool(userID: "user-1", poolID: "pool-2")
+        let cancellations = try await service.getCancellationRequests(userID: "user-1")
+        let requestedCancellation = try await service.createCancellationRequest(userID: "user-1", ticketID: "ticket-2", reason: "공연 취소", refundAcknowledged: true, idempotencyKey: "cancel-key")
+        let devices = try await service.getTrustedDevices(userID: "user-1")
+        let revoked = try await service.revokeTrustedDevice(userID: "user-1", deviceID: "device-1")
+        let tokens = try await service.getPushTokens(userID: "user-1")
+        let registeredToken = try await service.registerPushToken(userID: "user-1", platform: .ios, token: "apns-token-cdef", idempotencyKey: "push-key")
+        let trust = try await service.trustDevice(userID: "user-1", deviceID: "iphone-2", deviceName: "새 iPhone", platform: "iOS", attestation: "attestation")
+        let virtualTicket = try await service.getVirtualTicketQR(userID: "user-1", ticketID: "ticket-1")
+        let admission = try await service.issueAdmissionQR(userID: "user-1", ticketID: "ticket-1", deviceID: "iphone-2", deviceToken: trust.deviceToken, attestation: "attestation")
+
+        XCTAssertEqual(pools.first?.id, "pool-1")
+        XCTAssertEqual(listed.status, .open)
+        XCTAssertEqual(joined.status, .matched)
+        XCTAssertEqual(cancelledPool.status, .cancelled)
+        XCTAssertEqual(cancellations.first?.status, .pendingReview)
+        XCTAssertEqual(requestedCancellation.refundAcknowledged, true)
+        XCTAssertEqual(devices.first?.status, .trusted)
+        XCTAssertEqual(revoked.status, .revoked)
+        XCTAssertEqual(tokens.first?.suffix, "cdef")
+        XCTAssertEqual(registeredToken.platform, .ios)
+        XCTAssertEqual(trust.device.deviceID, "iphone-2")
+        XCTAssertEqual(virtualTicket.admissionChannel, "APP_ONLY")
+        XCTAssertEqual(admission.ttlSeconds, 20)
+
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer native-credential"
+        })
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.allSatisfy { request in
+            request.url?.query == nil
+        })
+        for index in [1, 2, 5, 9] {
+            XCTAssertNotNil(LiveBackendServiceURLProtocol.requests[index].value(forHTTPHeaderField: "X-Idempotency-Key"))
+        }
+        for index in [1, 2, 5, 9, 10, 11, 12] {
+            let body = try XCTUnwrap(LiveBackendServiceURLProtocol.requestBodies[index])
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertNil(json["userId"])
+            XCTAssertNil(json["ownerId"])
+        }
+    }
+
+    func testNativeLifecycleCapabilityFailsClosedAndMapsServerError() async throws {
+        let baseURL = URL(string: "https://ticketground.test/")!
+        let absent = LiveAPIContract.deployed.capabilityMap(
+            for: baseURL,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion
+        )
+        XCTAssertEqual(absent.state(for: .resalePools), .blocked(.serverAuthorizationUnverified))
+        XCTAssertEqual(absent.state(for: .resalePoolList), .blocked(.unsupportedMutation))
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let credentials = InMemoryCredentialStore()
+        credentials.save(StoredCredential(credential: "native-credential", serverUserID: "user-1"))
+        let client = LiveAPIClient(baseURL: baseURL, assetBaseURL: nil, credentialStore: credentials, session: URLSession(configuration: configuration))
+        let unavailable = LiveBackendService(apiClient: client, initialCapabilityMap: absent)
+        do {
+            _ = try await unavailable.getResalePools(userID: "user-1")
+            XCTFail("Expected native lifecycle capability rejection")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .capabilityUnavailable(endpoint: .resalePools, state: .blocked(.serverAuthorizationUnverified)))
+        }
+        XCTAssertTrue(LiveBackendServiceURLProtocol.requests.isEmpty)
+
+        LiveBackendServiceURLProtocol.responses = [
+            "GET /api/health": Data(#"{"ok":true,"data":{"status":"UP","version":"78b3c7c","capabilities":["native-lifecycle-v1"]}}"#.utf8),
+            "GET /api/me/resale-pools": Data(#"{"ok":false,"error":{"code":"NOT_OWNER","message":"ownership required"}}"#.utf8)
+        ]
+        LiveBackendServiceURLProtocol.statusCodes["/api/me/resale-pools"] = 403
+        let service = LiveBackendService(apiClient: client)
+        _ = try await service.diagnosePublicContract()
+        XCTAssertEqual(service.capabilityMap.state(for: .resalePools), .available)
+
+        do {
+            _ = try await service.getResalePools(userID: "user-1")
+            XCTFail("Expected mapped lifecycle server error")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error, .server(status: 403, code: "NOT_OWNER", message: "ownership required"))
         }
     }
 
@@ -1103,6 +1311,17 @@ final class LiveBackendServiceTests: XCTestCase {
                 states: states
             )
         )
+    }
+
+    private func nativeContractReadyService(for client: LiveAPIClient) -> LiveBackendService {
+        let map = LiveAPIContract.deployed.capabilityMap(
+            for: client.baseURL ?? LiveAPIContract.deployed.publicHost,
+            observedResponseVersion: LiveAPIContract.deployed.expectedResponseVersion,
+            catalogRouteConfirmed: true,
+            accountRoutesConfirmed: true,
+            watchlistRoutesConfirmed: true
+        )
+        return LiveBackendService(apiClient: client, initialCapabilityMap: map)
     }
 }
 
