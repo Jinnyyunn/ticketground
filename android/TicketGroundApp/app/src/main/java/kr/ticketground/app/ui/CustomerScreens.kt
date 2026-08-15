@@ -195,6 +195,7 @@ fun HomeScreen(
         HomeHeader(onLogin, onMenu)
         HomeSearchButton(onSearch)
       }
+      item { CategoryShortcuts(onHome = {}, onCategory = onCategory) }
       item {
         content.events.firstOrNull()?.let { event ->
           HeroEventCard(event, onEvent)
@@ -292,6 +293,7 @@ fun ExpandedHomeScreen(
         Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
           HomeHeader(onLogin, onMenu)
           HomeSearchButton(onSearch)
+          CategoryShortcuts(onHome = {}, onCategory = onCategory)
           content.events.firstOrNull()?.let { event -> HeroEventCard(event, onEvent) }
         }
       },
