@@ -1,6 +1,8 @@
 package kr.ticketground.app
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -31,6 +33,7 @@ import kr.ticketground.app.gate.GateScannerViewModel
 import kr.ticketground.app.gate.TicketGroundGateApp
 
 class MainActivity : AppCompatActivity() {
+  private var customerViewModel: CustomerAppViewModel? = null
   private lateinit var gateViewModel: GateScannerViewModel
   private val scannerLauncher = registerForActivityResult(ScanContract()) { result ->
     if (::gateViewModel.isInitialized && result.contents != null) gateViewModel.verify(gateViewModel.gateToken, result.contents)
@@ -44,6 +47,9 @@ class MainActivity : AppCompatActivity() {
     if (BuildConfig.GATE_APP) {
       gateViewModel = ViewModelProvider(this, gateViewModelFactory())[GateScannerViewModel::class.java]
     }
+    if (!BuildConfig.GATE_APP) {
+      customerViewModel = ViewModelProvider(this, customerViewModelFactory())[CustomerAppViewModel::class.java]
+    }
     setContent {
       TicketGroundTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -52,12 +58,44 @@ class MainActivity : AppCompatActivity() {
               scannerLauncher.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("고객의 입장 QR을 비춰주세요"))
             }
           } else {
-            val viewModel = ViewModelProvider(this@MainActivity, customerViewModelFactory())[CustomerAppViewModel::class.java]
-            TicketGroundCustomerApp(viewModel)
+            val viewModel = requireNotNull(customerViewModel)
+            TicketGroundCustomerApp(viewModel, ::startSocialLogin)
           }
         }
       }
     }
+    handleNativeCallback(intent)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleNativeCallback(intent)
+  }
+
+  private fun startSocialLogin(provider: String) {
+    val uri = Uri.parse("${BuildConfig.API_BASE_URL.trimEnd('/')}/api/auth/$provider/start?client=ios")
+    startActivity(Intent(Intent.ACTION_VIEW, uri))
+  }
+
+  private fun handleNativeCallback(intent: Intent?) {
+    val data = intent?.data ?: return
+    if (data.scheme != "ticketground" || data.host != "auth" || data.path != "/social/callback") return
+    val provider = data.getQueryParameter("provider") ?: return
+    val code = data.getQueryParameter("code")
+    val error = data.getQueryParameter("error")
+    if (code.isNullOrBlank()) {
+      customerViewModel?.nativeLoginFailed(
+        when (error) {
+          "denied" -> "로그인을 취소했습니다."
+          "not_configured" -> "로그인 서비스를 사용할 수 없습니다."
+          "state_invalid" -> "로그인 연결 정보가 만료되었습니다. 다시 시도해 주세요."
+          else -> "로그인에 실패했습니다. 다시 시도해 주세요."
+        },
+      )
+      return
+    }
+    customerViewModel?.completeNativeLogin(provider, code)
   }
 
   private fun customerViewModelFactory(): ViewModelProvider.Factory {
