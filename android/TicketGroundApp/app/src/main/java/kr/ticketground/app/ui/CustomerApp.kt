@@ -258,6 +258,7 @@ fun TicketGroundCustomerApp(
   onStartLogin: (String) -> Unit = {},
 ) {
   var showLoginChoices by remember { mutableStateOf(false) }
+  var showMenu by remember { mutableStateOf(false) }
   val openLogin = { showLoginChoices = true }
   val destination by viewModel.destination.collectAsStateWithLifecycle()
   val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -277,9 +278,9 @@ fun TicketGroundCustomerApp(
       when (val current = route) {
         CustomerRoute.Tab -> when (destination) {
           AppDestination.Home -> if (maxWidth >= TicketGroundLayout.expandedBreakpoint) {
-            ExpandedHomeScreen(home, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin)
+            ExpandedHomeScreen(home, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin) { showMenu = true }
           } else {
-            HomeScreen(home, false, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin)
+            HomeScreen(home, false, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin) { showMenu = true }
           }
           AppDestination.Search -> AsyncSurface(home, viewModel::loadHome) { SearchScreen(it.events, viewModel::openEvent, searchQuery) }
           AppDestination.Watchlist -> WatchlistScreen(watchlist, viewModel::loadWatchlist)
@@ -340,6 +341,21 @@ fun TicketGroundCustomerApp(
           TextButton(onClick = { showLoginChoices = false }) { androidx.compose.material3.Text("취소") }
         }
       },
+    )
+  }
+  if (showMenu) {
+    AlertDialog(
+      onDismissRequest = { showMenu = false },
+      title = { androidx.compose.material3.Text("전체 메뉴") },
+      text = {
+        androidx.compose.foundation.layout.Column {
+          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.Home) }, modifier = androidx.compose.ui.Modifier.testTag("menu-home")) { androidx.compose.material3.Text("홈") }
+          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.Search) }, modifier = androidx.compose.ui.Modifier.testTag("menu-search")) { androidx.compose.material3.Text("공연 검색") }
+          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.Watchlist) }, modifier = androidx.compose.ui.Modifier.testTag("menu-watchlist")) { androidx.compose.material3.Text("관심공연") }
+          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.MyPage) }, modifier = androidx.compose.ui.Modifier.testTag("menu-mypage")) { androidx.compose.material3.Text("마이페이지") }
+        }
+      },
+      confirmButton = { TextButton(onClick = { showMenu = false }) { androidx.compose.material3.Text("닫기") } },
     )
   }
 }

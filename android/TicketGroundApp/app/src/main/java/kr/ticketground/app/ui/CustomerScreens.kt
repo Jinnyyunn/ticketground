@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -41,6 +43,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.LocalActivity
 import androidx.compose.material.icons.filled.Museum
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.TheaterComedy
@@ -180,6 +183,7 @@ fun HomeScreen(
   onCategory: (String) -> Unit,
   onSupport: () -> Unit,
   onLogin: () -> Unit,
+  onMenu: () -> Unit = {},
 ) {
   AsyncSurface(state, onRetry) { content ->
     LazyColumn(
@@ -188,20 +192,16 @@ fun HomeScreen(
       verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.lg),
     ) {
       item {
-        HomeHeader(onLogin)
-        Text("공연을 찾고 좌석도에서 바로 예매하세요", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedButton(onClick = onSearch, modifier = Modifier.fillMaxWidth().testTag("home-search")) { Text("공연, 아티스트 또는 공연장 검색") }
-      }
-      item {
-        CategoryShortcuts(onHome = {}, onCategory = onCategory)
+        HomeHeader(onLogin, onMenu)
+        HomeSearchButton(onSearch)
       }
       item {
         content.events.firstOrNull()?.let { event ->
           HeroEventCard(event, onEvent)
         }
       }
-      item { SectionTitle("티켓 랭킹") }
-      items(content.events.take(if (expanded) 8 else 5), key = { it.id }) { EventCard(it, onEvent) }
+      item { RankingSection(content.events, onEvent, onSearch) }
+      item { ShortcutSection(onSearch, onSupport) }
       item { SectionTitle("오픈 캘린더") }
       if (content.calendar.isEmpty()) item { Text("예매 오픈 일정이 없습니다.") }
       items(content.calendar, key = { it.opensAt + it.event.id }) { entry ->
@@ -226,6 +226,8 @@ fun EventListScreen(
   onEvent: (CatalogEvent) -> Unit,
   beforeList: @Composable () -> Unit = {},
   afterList: @Composable () -> Unit = {},
+  ranking: Boolean = false,
+  onRankingMore: () -> Unit = {},
 ) {
   AsyncSurface(state, onRetry) { events ->
     if (events.isEmpty()) {
@@ -234,8 +236,12 @@ fun EventListScreen(
       Row(Modifier.fillMaxSize().testTag("event-list-two-pane")) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(TicketGroundSpacing.lg)) {
           item { beforeList() }
-          item { SectionTitle(title) }
-          items(events, key = { it.id }) { EventCard(it, onEvent) }
+          if (ranking) {
+            item { RankingSection(events, onEvent, onRankingMore) }
+          } else {
+            item { SectionTitle(title) }
+            items(events, key = { it.id }) { EventCard(it, onEvent) }
+          }
           item { afterList() }
         }
         Box(Modifier.width(TicketGroundLayout.detailPaneWidth).padding(TicketGroundSpacing.lg)) {
@@ -252,8 +258,12 @@ fun EventListScreen(
     } else {
       LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
         item { beforeList() }
-        item { SectionTitle(title) }
-        items(events, key = { it.id }) { EventCard(it, onEvent) }
+        if (ranking) {
+          item { RankingSection(events, onEvent, onRankingMore) }
+        } else {
+          item { SectionTitle(title) }
+          items(events, key = { it.id }) { EventCard(it, onEvent) }
+        }
         item { afterList() }
       }
     }
@@ -269,22 +279,19 @@ fun ExpandedHomeScreen(
   onCategory: (String) -> Unit,
   onSupport: () -> Unit,
   onLogin: () -> Unit,
+  onMenu: () -> Unit = {},
 ) {
   AsyncSurface(state, onRetry) { content ->
     EventListScreen(
-      title = "티켓 랭킹",
+      title = "실시간 예매 랭킹 TOP10",
       state = AsyncContent.Ready(content.events),
       expanded = true,
       onRetry = onRetry,
       onEvent = onEvent,
       beforeList = {
         Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
-          HomeHeader(onLogin)
-          Text("공연을 찾고 좌석도에서 바로 예매하세요", color = MaterialTheme.colorScheme.onSurfaceVariant)
-          OutlinedButton(onClick = onSearch, modifier = Modifier.fillMaxWidth().testTag("home-search")) {
-            Text("공연, 아티스트 또는 공연장 검색")
-          }
-          CategoryShortcuts(onHome = {}, onCategory = onCategory)
+          HomeHeader(onLogin, onMenu)
+          HomeSearchButton(onSearch)
           content.events.firstOrNull()?.let { event -> HeroEventCard(event, onEvent) }
         }
       },
@@ -306,24 +313,42 @@ fun ExpandedHomeScreen(
           }
         }
       },
+      ranking = true,
+      onRankingMore = onSearch,
     )
   }
 }
 
 @Composable
-private fun HomeHeader(onLogin: () -> Unit) {
+private fun HomeHeader(onLogin: () -> Unit, onMenu: () -> Unit) {
   Row(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Column {
+    Row(verticalAlignment = Alignment.CenterVertically) {
       Text("Ticketground", style = MaterialTheme.typography.headlineMedium)
-      Text("공식 예매와 모바일 티켓", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text("•", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineMedium)
     }
-    OutlinedButton(onClick = onLogin, modifier = Modifier.testTag("home-login")) {
-      Text("로그인")
+    Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+      OutlinedButton(onClick = onLogin, modifier = Modifier.testTag("home-login")) { Text("로그인") }
+      androidx.compose.material3.IconButton(onClick = onMenu, modifier = Modifier.testTag("home-menu")) {
+        Icon(Icons.Default.Menu, contentDescription = "전체 메뉴")
+      }
     }
+  }
+}
+
+@Composable
+private fun HomeSearchButton(onSearch: () -> Unit) {
+  OutlinedButton(
+    onClick = onSearch,
+    modifier = Modifier.fillMaxWidth().testTag("home-search"),
+    shape = RoundedCornerShape(28.dp),
+    contentPadding = PaddingValues(horizontal = TicketGroundSpacing.lg, vertical = TicketGroundSpacing.sm),
+  ) {
+    Icon(Icons.Default.Search, contentDescription = null)
+    Text("공연, 아티스트 또는 공연장 검색", modifier = Modifier.padding(start = TicketGroundSpacing.sm))
   }
 }
 
@@ -370,7 +395,7 @@ private fun HeroEventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) 
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
   ) {
     val imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) }
-    Box(Modifier.fillMaxWidth().height(300.dp).clip(shape)) {
+    Box(Modifier.fillMaxWidth().height(420.dp).clip(shape)) {
       if (imageUrl != null) {
         AsyncImage(
           model = imageUrl,
@@ -391,15 +416,106 @@ private fun HeroEventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) 
       ) {
         Text("오늘의 추천", style = MaterialTheme.typography.labelLarge, color = if (imageUrl != null) Color.White else MaterialTheme.colorScheme.primary)
         Text(event.title, style = MaterialTheme.typography.headlineSmall, color = if (imageUrl != null) Color.White else MaterialTheme.colorScheme.onSurface)
-        Text(
-          event.summary ?: "공연 일정과 좌석 현황을 확인해 보세요.",
-          color = if (imageUrl != null) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 2,
-        )
-        Text("자세히 보기 〉", style = MaterialTheme.typography.labelLarge, color = if (imageUrl != null) Color.White else MaterialTheme.colorScheme.primary)
+        Text(event.venue, style = MaterialTheme.typography.titleMedium, color = if (imageUrl != null) Color.White.copy(alpha = 0.92f) else MaterialTheme.colorScheme.onSurface)
+        Text(event.period ?: displayEventDate(event), color = if (imageUrl != null) Color.White.copy(alpha = 0.82f) else MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(
+          shape = RoundedCornerShape(TicketGroundRadius.small),
+          color = if (imageUrl != null) Color.White else MaterialTheme.colorScheme.primary,
+          modifier = Modifier.clickable { onEvent(event) },
+        ) {
+          Text(
+            "공연 상세 보기  →",
+            modifier = Modifier.padding(horizontal = TicketGroundSpacing.md, vertical = TicketGroundSpacing.sm),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (imageUrl != null) MaterialTheme.colorScheme.onSurface else Color.White,
+          )
+        }
       }
     }
   }
+}
+
+@Composable
+private fun RankingSection(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit, onMore: () -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
+    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+      Column(Modifier.weight(1f)) {
+        Text("실시간 예매 랭킹 TOP10", style = MaterialTheme.typography.headlineSmall)
+        Text("지금 가장 빠르게 움직이는 공연입니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      Text(
+        "더보기",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.clickable(onClick = onMore).testTag("home-ranking-more"),
+      )
+    }
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+      val ranked = events.sortedWith(compareBy<CatalogEvent> { it.pinnedRank ?: Int.MAX_VALUE }.thenByDescending { it.soldCount }).take(10)
+      items(ranked, key = { it.id }) { event -> RankingCard(event, ranked.indexOf(event) + 1, onEvent) }
+    }
+  }
+}
+
+@Composable
+private fun RankingCard(event: CatalogEvent, rank: Int, onEvent: (CatalogEvent) -> Unit) {
+  Column(Modifier.width(156.dp).clickable { onEvent(event) }.testTag("home-ranking-$rank"), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
+    Box(Modifier.fillMaxWidth().height(202.dp).clip(RoundedCornerShape(TicketGroundRadius.medium))) {
+      val imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) }
+      if (imageUrl != null) {
+        AsyncImage(model = imageUrl, imageLoader = seatMapImageLoader(LocalContext.current), contentDescription = "${event.title} 포스터", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+      } else {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
+      }
+      Text("$rank", style = MaterialTheme.typography.headlineSmall, color = Color.White, modifier = Modifier.padding(TicketGroundSpacing.sm).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(TicketGroundRadius.small)).padding(horizontal = TicketGroundSpacing.sm, vertical = TicketGroundSpacing.xs))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+      Text(displayCategory(event.category), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+      Text("— —", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
+    }
+    Text(event.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+    Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+    Text(displayEventDate(event), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+  }
+}
+
+@Composable
+private fun ShortcutSection(onSearch: () -> Unit, onSupport: () -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+    Text("바로가기", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+      ShortcutCard("오픈캘린더", "D-3 알림", onSupport, Modifier.weight(1f))
+      ShortcutCard("공연 검색", "공연을 찾아보세요", onSearch, Modifier.weight(1f))
+    }
+  }
+}
+
+@Composable
+private fun ShortcutCard(title: String, helper: String, onClick: () -> Unit, modifier: Modifier) {
+  Surface(modifier = modifier.clickable { onClick() }, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(TicketGroundRadius.medium)) {
+    Column(Modifier.padding(TicketGroundSpacing.md), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
+      Text(title, style = MaterialTheme.typography.titleMedium)
+      Text(helper, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+    }
+  }
+}
+
+private fun displayCategory(category: String?): String = when (category?.lowercase()) {
+  "concert" -> "콘서트"
+  "musical" -> "뮤지컬"
+  "play", "theater" -> "연극"
+  "classic" -> "클래식"
+  "exhibition" -> "전시"
+  "child", "children", "family" -> "아동"
+  "sports" -> "스포츠"
+  else -> category ?: "공연"
+}
+
+private fun displayEventDate(event: CatalogEvent): String {
+  val raw = event.date ?: return "일정 미정"
+  val date = raw.substringBefore('T').replace('-', '.')
+  val time = raw.substringAfter('T', "").take(5)
+  return if (time.isBlank()) date else "$date $time"
 }
 
 @Composable
