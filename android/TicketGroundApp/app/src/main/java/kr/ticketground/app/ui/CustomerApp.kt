@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -20,6 +21,7 @@ import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
 import kr.ticketground.app.data.AdmissionQr
+import kr.ticketground.app.BuildConfig
 
 sealed interface CustomerRoute {
   data object Tab : CustomerRoute
@@ -32,6 +34,8 @@ sealed interface CustomerRoute {
 class CustomerAppViewModel(private val repository: CustomerRepository) : ViewModel() {
   private val mutableDestination = MutableStateFlow(AppDestination.Home)
   val destination = mutableDestination.asStateFlow()
+  private val mutableSearchQuery = MutableStateFlow("")
+  val searchQuery = mutableSearchQuery.asStateFlow()
   private val mutableRoute = MutableStateFlow<CustomerRoute>(CustomerRoute.Tab)
   val route = mutableRoute.asStateFlow()
   private val mutableHome = MutableStateFlow<AsyncContent<HomeContent>>(AsyncContent.Loading)
@@ -63,6 +67,11 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
       AppDestination.Watchlist -> loadWatchlist()
       AppDestination.MyPage -> loadAccount()
     }
+  }
+
+  fun openCategory(category: String) {
+    mutableSearchQuery.value = category
+    navigate(AppDestination.Search)
   }
 
   fun loadHome() = viewModelScope.launch {
@@ -225,7 +234,10 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
 
 @Composable
 fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
+  val uriHandler = LocalUriHandler.current
+  val openLogin = { uriHandler.openUri(BuildConfig.API_BASE_URL.trimEnd('/') + "/login") }
   val destination by viewModel.destination.collectAsStateWithLifecycle()
+  val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
   val route by viewModel.route.collectAsStateWithLifecycle()
   val home by viewModel.home.collectAsStateWithLifecycle()
   val seatMap by viewModel.seatMap.collectAsStateWithLifecycle()
@@ -242,11 +254,11 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
       when (val current = route) {
         CustomerRoute.Tab -> when (destination) {
           AppDestination.Home -> if (maxWidth >= TicketGroundLayout.expandedBreakpoint) {
-            ExpandedHomeScreen(home, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openSupport)
+            ExpandedHomeScreen(home, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin)
           } else {
-            HomeScreen(home, false, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openSupport)
+            HomeScreen(home, false, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin)
           }
-          AppDestination.Search -> AsyncSurface(home, viewModel::loadHome) { SearchScreen(it.events, viewModel::openEvent) }
+          AppDestination.Search -> AsyncSurface(home, viewModel::loadHome) { SearchScreen(it.events, viewModel::openEvent, searchQuery) }
           AppDestination.Watchlist -> WatchlistScreen(watchlist, viewModel::loadWatchlist)
           AppDestination.MyPage -> LifecycleOverviewScreen(
             state = account,
@@ -260,6 +272,7 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
             onQr = viewModel::issueAdmissionQr,
             onTicketSelected = viewModel::selectOwnedTicket,
             admissionQr = admissionQr,
+            onLogin = openLogin,
           )
         }
         is CustomerRoute.Event -> EventDetailScreen(
