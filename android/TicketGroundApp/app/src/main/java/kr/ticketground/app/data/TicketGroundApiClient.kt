@@ -11,6 +11,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -20,6 +21,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import kr.ticketground.app.BuildConfig
 import kr.ticketground.app.foundation.ApiBaseUrl
 import kr.ticketground.app.foundation.SessionVault
+import kr.ticketground.app.foundation.BearerSession
 
 sealed class ApiError(message: String, cause: Throwable? = null) : Exception(message, cause) {
   class Transport(cause: Throwable) : ApiError("API transport failed", cause)
@@ -81,6 +83,22 @@ class TicketGroundApiClient private constructor(
   internal suspend fun requireAccountPrerequisites() {
     if (!baseUrl.isHttps) throw ApiError.InsecureOrigin()
     if (sessionVault.read()?.accessToken.isNullOrBlank()) throw ApiError.MissingCredential()
+  }
+
+  internal suspend fun completeNativeLogin(provider: String, code: String): AccountSession {
+    require(provider == "kakao" || provider == "naver")
+    require(code.isNotBlank())
+    if (!baseUrl.isHttps) throw ApiError.InsecureOrigin()
+    val response = execute(
+      ApiRequest(
+        method = "POST",
+        path = "/api/auth/native/handoff",
+        body = JSON.encodeToString(NativeHandoffBody(provider, code)),
+      ),
+      NativeHandoffResponse.serializer(),
+    )
+    sessionVault.store(BearerSession(response.session.credential))
+    return response.user
   }
 
   internal suspend fun <T> execute(request: ApiRequest, serializer: KSerializer<T>): T {
@@ -178,6 +196,18 @@ class TicketGroundApiClient private constructor(
     internal inline fun <reified T> decodeForTesting(body: String): T = JSON.decodeFromString(body)
   }
 }
+
+@Serializable
+private data class NativeHandoffBody(val provider: String, val code: String)
+
+@Serializable
+private data class NativeHandoffResponse(
+  val user: AccountSession,
+  val session: NativeSession,
+)
+
+@Serializable
+private data class NativeSession(val credential: String, val expiresAt: String)
 
 internal data class ApiRequest(
   val method: String = "GET",

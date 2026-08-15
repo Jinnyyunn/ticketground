@@ -2,6 +2,7 @@ package kr.ticketground.app.ui
 
 import java.util.UUID
 import kr.ticketground.app.data.AccountApi
+import kr.ticketground.app.data.AccountSession
 import kr.ticketground.app.data.ApiError
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.LifecycleApi
@@ -93,6 +94,8 @@ interface CustomerRepository {
   suspend fun trustThisDevice(): Unit = throw ExternalProviderError.PlayIntegrityUnavailable
   suspend fun registerPush(): Unit = throw ExternalProviderError.PushUnavailable
   suspend fun issueAdmissionQr(ticketId: String): AdmissionQr = throw ExternalProviderError.PlayIntegrityUnavailable
+  suspend fun completeNativeLogin(provider: String, code: String): AccountSession =
+    throw ApiError.Transport(IllegalStateException("Native login is unavailable"))
 }
 
 class TypedCustomerRepository(
@@ -108,6 +111,9 @@ class TypedCustomerRepository(
   private val ownerAuthenticator: DeviceOwnerAuthenticator? = null,
 ) : CustomerRepository {
   private val checkout = TossCheckoutCoordinator(client.payments(), checkoutRetryStore)
+
+  override suspend fun completeNativeLogin(provider: String, code: String): AccountSession =
+    client.completeNativeLogin(provider, code)
   override suspend fun home(): HomeContent {
     val catalog = publicApi.catalog()
     val calendar = publicApi.openCalendar()

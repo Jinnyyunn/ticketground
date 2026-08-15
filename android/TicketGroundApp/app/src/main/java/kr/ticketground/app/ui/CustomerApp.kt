@@ -5,8 +5,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -21,7 +26,6 @@ import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
 import kr.ticketground.app.data.AdmissionQr
-import kr.ticketground.app.BuildConfig
 
 sealed interface CustomerRoute {
   data object Tab : CustomerRoute
@@ -230,12 +234,31 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun openSupport() { mutableRoute.value = CustomerRoute.Support }
+
+  fun completeNativeLogin(provider: String, code: String) = viewModelScope.launch {
+    mutableBookingPending.value = true
+    mutableActionMessage.value = null
+    runCatching { repository.completeNativeLogin(provider, code) }
+      .onSuccess {
+        mutableActionMessage.value = "로그인되었습니다."
+        loadAccount()
+      }
+      .onFailure { mutableActionMessage.value = safeUiMessage(it) }
+    mutableBookingPending.value = false
+  }
+
+  fun nativeLoginFailed(message: String) {
+    mutableActionMessage.value = message
+  }
 }
 
 @Composable
-fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
-  val uriHandler = LocalUriHandler.current
-  val openLogin = { uriHandler.openUri(BuildConfig.API_BASE_URL.trimEnd('/') + "/login") }
+fun TicketGroundCustomerApp(
+  viewModel: CustomerAppViewModel,
+  onStartLogin: (String) -> Unit = {},
+) {
+  var showLoginChoices by remember { mutableStateOf(false) }
+  val openLogin = { showLoginChoices = true }
   val destination by viewModel.destination.collectAsStateWithLifecycle()
   val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
   val route by viewModel.route.collectAsStateWithLifecycle()
@@ -302,6 +325,22 @@ fun TicketGroundCustomerApp(viewModel: CustomerAppViewModel) {
         CustomerRoute.Support -> AsyncSurface(home, viewModel::loadHome) { SupportScreen(it) }
       }
     }
+  }
+  if (showLoginChoices) {
+    AlertDialog(
+      onDismissRequest = { showLoginChoices = false },
+      title = { androidx.compose.material3.Text("로그인") },
+      text = { androidx.compose.material3.Text("로그인할 서비스를 선택해 주세요.") },
+      confirmButton = {
+        TextButton(onClick = { showLoginChoices = false; onStartLogin("kakao") }, modifier = androidx.compose.ui.Modifier.testTag("login-kakao")) { androidx.compose.material3.Text("카카오톡") }
+      },
+      dismissButton = {
+        androidx.compose.foundation.layout.Row {
+          TextButton(onClick = { showLoginChoices = false; onStartLogin("naver") }, modifier = androidx.compose.ui.Modifier.testTag("login-naver")) { androidx.compose.material3.Text("네이버") }
+          TextButton(onClick = { showLoginChoices = false }) { androidx.compose.material3.Text("취소") }
+        }
+      },
+    )
   }
 }
 
