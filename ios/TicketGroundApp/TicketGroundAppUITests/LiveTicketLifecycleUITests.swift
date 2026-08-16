@@ -10,28 +10,36 @@ final class LiveTicketLifecycleUITests: XCTestCase {
         XCTAssertGreaterThan(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "VIP A1")).count, 0)
         XCTAssertTrue(app.buttons["lifecycle-open-cancel"].isHittable)
         XCTAssertTrue(app.buttons["lifecycle-open-resale"].isHittable)
-        XCTAssertTrue(app.buttons["lifecycle-issue-qr"].exists)
+        XCTAssertTrue(app.buttons["lifecycle-open-trusted-device"].exists)
+        XCTAssertTrue(app.buttons["lifecycle-open-push-notifications"].exists)
+        XCTAssertTrue(app.buttons["lifecycle-open-admission-qr"].exists)
     }
 
     func testTrustedDeviceExposesCanonicalStateSurface() {
-        let app = lifecycleApp(scenario: "happy", route: "reservation")
+        let app = lifecycleApp(scenario: "happy", route: "trusted-device")
         app.launch()
 
-        XCTAssertTrue(app.descendants(matching: .any)["trusted-device"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.descendants(matching: .any)["live-lifecycle-trusted-device"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["lifecycle-revoke-device"].isHittable)
+        XCTAssertFalse(app.buttons["lifecycle-open-cancel"].exists)
     }
 
     func testPushNotificationsExposeCanonicalStateSurface() {
-        let app = lifecycleApp(scenario: "happy", route: "reservation")
+        let app = lifecycleApp(scenario: "happy", route: "push-notifications")
         app.launch()
 
-        XCTAssertTrue(app.descendants(matching: .any)["push-notifications"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.descendants(matching: .any)["live-lifecycle-push-notifications"].waitForExistence(timeout: 20))
+        XCTAssertGreaterThan(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "APNs 등록됨")).count, 0)
+        XCTAssertFalse(app.buttons["lifecycle-open-cancel"].exists)
     }
 
     func testAdmissionQrExposesCanonicalStateSurface() {
-        let app = lifecycleApp(scenario: "happy", route: "reservation")
+        let app = lifecycleApp(scenario: "happy", route: "admission-qr")
         app.launch()
 
-        XCTAssertTrue(app.descendants(matching: .any)["admission-qr"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.descendants(matching: .any)["live-lifecycle-admission-qr"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["lifecycle-issue-qr"].isHittable)
+        XCTAssertFalse(app.buttons["lifecycle-open-cancel"].exists)
     }
 
     func testSignedOutLifecycleFailsClosed() {
@@ -51,7 +59,7 @@ final class LiveTicketLifecycleUITests: XCTestCase {
     }
 
     func testExpiredAdmissionQRIsNeverRendered() {
-        let app = lifecycleApp(scenario: "expired-qr", route: "reservation")
+        let app = lifecycleApp(scenario: "expired-qr", route: "admission-qr")
         app.launch()
 
         let issueButton = app.buttons["lifecycle-issue-qr"]

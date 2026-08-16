@@ -986,7 +986,9 @@ private struct LiveDiscoveryRouteView: View {
         case .checkout(let ticketId):
             LiveCheckoutRouteView(ticketId: ticketId)
         case .reservation(let id):
-            LiveTicketLifecycleRouteView(destination: .reservation(id: id))
+            LiveTicketLifecycleRouteView(
+                destination: RuntimeConfiguration.liveLifecycleTestConfiguration?.destination ?? .reservation(id: id)
+            )
         case .cancel:
             LiveTicketLifecycleRouteView(destination: .cancellation)
         case .resale:

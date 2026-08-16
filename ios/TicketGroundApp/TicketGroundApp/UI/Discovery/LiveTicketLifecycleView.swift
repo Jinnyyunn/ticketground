@@ -20,12 +20,18 @@ enum LiveLifecycleDestination: Equatable {
     case reservation(id: String)
     case cancellation
     case resale
+    case trustedDevice
+    case pushNotifications
+    case admissionQR(ticketID: String)
 
     var title: String {
         switch self {
         case .reservation: return "예매 상세"
         case .cancellation: return "예매 취소"
         case .resale: return "공식 재판매"
+        case .trustedDevice: return "신뢰 기기"
+        case .pushNotifications: return "푸시 알림"
+        case .admissionQR: return "입장 QR"
         }
     }
 }
@@ -129,6 +135,12 @@ struct LiveTicketLifecycleRouteView: View {
                     cancellationBody
                 case .resale:
                     resaleBody
+                case .trustedDevice:
+                    trustedDeviceBody
+                case .pushNotifications:
+                    pushNotificationsBody
+                case .admissionQR(let ticketID):
+                    admissionQRBody(ticketID: ticketID)
                 }
             }
             .padding(TicketgroundSpacing.xl)
@@ -185,7 +197,21 @@ struct LiveTicketLifecycleRouteView: View {
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("lifecycle-open-resale")
                 }
-                deviceAndPushBody(ticket: ticket)
+                HStack(spacing: TicketgroundSpacing.sm) {
+                    NavigationLink(destination: LiveTicketLifecycleRouteView(destination: .trustedDevice)) {
+                        Label("신뢰 기기", systemImage: "iphone.gen3")
+                    }
+                    .accessibilityIdentifier("lifecycle-open-trusted-device")
+                    NavigationLink(destination: LiveTicketLifecycleRouteView(destination: .pushNotifications)) {
+                        Label("푸시 알림", systemImage: "bell")
+                    }
+                    .accessibilityIdentifier("lifecycle-open-push-notifications")
+                    NavigationLink(destination: LiveTicketLifecycleRouteView(destination: .admissionQR(ticketID: ticket.id))) {
+                        Label("입장 QR", systemImage: "qrcode")
+                    }
+                    .accessibilityIdentifier("lifecycle-open-admission-qr")
+                }
+                .buttonStyle(.bordered)
             } else {
                 TicketgroundAlert(title: "현재 사용할 수 없는 티켓입니다", message: "최신 티켓 상태를 다시 확인한 뒤 취소, 재판매 또는 입장 QR을 이용해 주세요.")
                     .accessibilityIdentifier("lifecycle-ticket-ineligible")
@@ -280,9 +306,8 @@ struct LiveTicketLifecycleRouteView: View {
         }
     }
 
-    private func deviceAndPushBody(ticket: LiveTicket) -> some View {
-        VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-            formSurface(title: "신뢰 기기", identifier: "trusted-device") {
+    private var trustedDeviceBody: some View {
+        formSurface(title: "신뢰 기기", identifier: "trusted-device") {
                 if devices.isEmpty {
                     Text("등록된 신뢰 기기가 없습니다. App Attest와 생체 확인이 가능한 실제 기기에서 등록해 주세요.")
                         .foregroundStyle(TicketgroundColor.inkSecondary)
@@ -308,9 +333,11 @@ struct LiveTicketLifecycleRouteView: View {
                     .buttonStyle(.bordered)
                     .frame(minHeight: TicketgroundLayout.minimumTouchTarget)
                     .accessibilityIdentifier("lifecycle-register-device")
-            }
+        }
+    }
 
-            formSurface(title: "푸시 등록", identifier: "push-notifications") {
+    private var pushNotificationsBody: some View {
+        formSurface(title: "푸시 등록", identifier: "push-notifications") {
                 if let token = pushTokens.first {
                     Label("APNs 등록됨 · 끝자리 \(token.suffix)", systemImage: "bell.badge.fill")
                         .foregroundStyle(TicketgroundColor.success)
@@ -322,8 +349,12 @@ struct LiveTicketLifecycleRouteView: View {
                         .frame(minHeight: TicketgroundLayout.minimumTouchTarget)
                         .accessibilityIdentifier("lifecycle-request-push")
                 }
-            }
+        }
+    }
 
+    @ViewBuilder
+    private func admissionQRBody(ticketID: String) -> some View {
+        if let ticket = tickets.first(where: { $0.id == ticketID }) {
             formSurface(title: "입장 QR", identifier: "admission-qr") {
                 if qrExpired {
                     TicketgroundAlert(title: "QR이 만료되었습니다", message: "만료된 입장 정보는 표시하지 않습니다. 새 QR을 발급해 주세요.")
@@ -345,6 +376,14 @@ struct LiveTicketLifecycleRouteView: View {
                     .disabled(isMutating || trustedCurrentDevice == nil)
                     .accessibilityIdentifier("lifecycle-issue-qr")
             }
+        } else {
+            TicketgroundErrorSurface(
+                title: "입장 티켓을 찾을 수 없습니다",
+                message: "현재 로그인 계정이 소유한 티켓인지 확인해 주세요.",
+                actionTitle: "마이페이지",
+                action: { container.navigationPath = [.mypage] }
+            )
+            .accessibilityIdentifier("live-lifecycle-invalid-admission-ticket")
         }
     }
 
@@ -419,21 +458,35 @@ struct LiveTicketLifecycleRouteView: View {
         do {
             let bootstrap = LiveBackendService(apiClient: container.environment.apiClient)
             let probe = try await bootstrap.diagnosePublicContract()
-            let required: [LiveAPIEndpoint] = [.tickets, .resalePools, .cancellationRequests, .trustedDevices, .pushTokens]
+            let required: [LiveAPIEndpoint] = switch destination {
+            case .reservation: [.tickets]
+            case .cancellation: [.tickets, .cancellationRequests]
+            case .resale: [.tickets, .resalePools]
+            case .trustedDevice: [.trustedDevices]
+            case .pushNotifications: [.pushTokens]
+            case .admissionQR: [.tickets, .trustedDevices]
+            }
             guard required.allSatisfy({ probe.capabilities.state(for: $0) == .available }) else {
                 phase = .unavailable
                 return
             }
             let service = LiveBackendService(apiClient: container.environment.apiClient, initialCapabilityMap: probe.capabilities)
-            tickets = try await service.getTickets(userID: session.userID)
             switch destination {
             case .reservation:
+                tickets = try await service.getTickets(userID: session.userID)
+            case .trustedDevice:
                 devices = try await service.getTrustedDevices(userID: session.userID)
+            case .pushNotifications:
                 pushTokens = try await service.getPushTokens(userID: session.userID)
             case .cancellation:
+                tickets = try await service.getTickets(userID: session.userID)
                 cancellations = try await service.getCancellationRequests(userID: session.userID)
             case .resale:
+                tickets = try await service.getTickets(userID: session.userID)
                 pools = try await service.getResalePools(userID: session.userID)
+            case .admissionQR:
+                tickets = try await service.getTickets(userID: session.userID)
+                devices = try await service.getTrustedDevices(userID: session.userID)
             }
             selectedTicketID = selectedTicketID.isEmpty ? eligibleTickets.first?.id ?? "" : selectedTicketID
             localDeviceToken = RuntimeConfiguration.lifecycleDeviceCredential?.token
@@ -616,6 +669,9 @@ struct LiveTicketLifecycleRouteView: View {
         case .reservation: return "live-lifecycle-reservation"
         case .cancellation: return "live-lifecycle-cancellation"
         case .resale: return "live-lifecycle-resale"
+        case .trustedDevice: return "live-lifecycle-trusted-device"
+        case .pushNotifications: return "live-lifecycle-push-notifications"
+        case .admissionQR: return "live-lifecycle-admission-qr"
         }
     }
     private enum Phase { case loading, loginRequired, unavailable, failed, ready }
