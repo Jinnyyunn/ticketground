@@ -49,20 +49,20 @@ The non-home audit is recorded in `.superpowers/sdd/2026-08-16-mobile-web-parity
 
 | Surface | iOS repository status | Android repository status | Task 7 evidence |
 | --- | --- | --- | --- |
-| Ranking | implemented | implemented | Android `CustomerRoute.Ranking`; focused VM and Compose destination checks |
-| Region | implemented | implemented | canonical `discovery-region-*`; Android `CustomerRoute.Region` |
-| Venue | implemented | implemented | typed venue controls/destinations on both platforms |
-| Artist | implemented | implemented | typed artist controls/destinations on both platforms |
-| Queue, hold, and draft | implemented | implemented | Android `CustomerRoute.Booking` exposes waiting and server-confirmed hold/draft without a success claim |
-| Reservation detail | implemented | implemented | Android `reservation-detail` typed principal route and signed-out state |
-| Cancellation request | implemented | implemented | Android `cancellation-request`; UI continues to say `요청` |
-| Official resale lifecycle | implemented | implemented | Android account lifecycle is separated from the public resale pool |
-| Trusted device | implemented | implemented | canonical visible state surface and typed Android route; real attestation externally blocked |
-| Push | implemented | implemented | canonical visible state surface and typed Android route; real delivery externally blocked |
-| Admission QR | implemented | implemented | canonical iOS state surface with legacy compatibility; real consume externally blocked |
+| Ranking | implemented | implemented | Android repository-backed `CustomerRoute.Ranking`; loading/ready/empty/error/retry behavior checks |
+| Region | implemented | implemented | canonical `discovery-region-*`; Android region API-backed `CustomerRoute.Region` with retry |
+| Venue | implemented | implemented | typed venue destinations on both platforms; Android repository filtering and async states |
+| Artist | implemented | implemented | typed artist destinations on both platforms; Android artist API boundary and async states |
+| Queue, hold, and draft | implemented | implemented | Android `CustomerRoute.Booking` exposes waiting, server-confirmed hold/draft, expired, conflict, error, and retry without an optimistic success claim |
+| Reservation detail | implemented | implemented | Android independent `reservation-detail` principal surface with authenticated and signed-out behavior |
+| Cancellation request | implemented | implemented | Android independent `cancellation-request`; UI continues to say `요청` until terminal server state |
+| Official resale lifecycle | implemented | implemented | Android independent account lifecycle surface remains separate from the public resale pool |
+| Trusted device | implemented | implemented | independent typed surfaces on both platforms; real attestation externally blocked |
+| Push | implemented | implemented | independent typed surfaces on both platforms; real delivery externally blocked |
+| Admission QR | implemented | implemented | independent iOS typed subdestination with legacy mutation identifiers; real consume externally blocked |
 | Inquiry | implemented | implemented | Android native signed-out/history/form/error route; Kakao availability externally blocked |
 
-Task 7 verification on the final source: iOS unit 177/177 and UI 86 executed with 2 skipped and 0 failures; Android JVM 80/80 and customer Compose 30/30; source architecture contract 3/3. Manual Android evidence directly covers five feasible action families, while six account/fixture-constrained destinations are qualified only by the real-emulator Compose suite and are not represented as direct manual success.
+Task 7 verification on the final source: the correctly provisioned iOS unit boundary is 178/178 across the ordinary suite plus its separately provisioned live wrapper, the iOS UI suite executed 86 tests with 2 skipped and 0 failures, and the three corrected lifecycle subdestinations also passed 3/3 on a fresh iPad Simulator. Android JVM is 81/81, customer Compose is 34/34, the installed tablet fixture/capture suite is 21/21, and the source architecture contract is 3/3. Real controls captured phone error-to-retry-to-ready, ranking, detail, Back, and signed-out behavior plus tablet search, detail, Back, and signed-out behavior; fixture-installed phone/tablet surfaces cover the authenticated lifecycle states without claiming external provider success.
 
 ## External-provider qualification gates
 
@@ -99,11 +99,11 @@ Signed-out parity uses the existing login entry only. No parity task may modify 
 For every row above, record the evidence against the same build and commit:
 
 - [ ] Web control and resulting destination/state rechecked.
-- [ ] iOS automated route/state checks pass.
-- [ ] iPhone and iPad actions tapped; loading, empty, error, authentication, and unavailable-provider states captured as applicable.
-- [ ] Android automated route/state checks pass.
-- [ ] Android phone and tablet actions tapped with the same state coverage.
+- [x] iOS automated route/state checks pass.
+- [x] iPhone and iPad installed fixture actions cover the corrected typed lifecycle destinations; provider-dependent outcomes remain explicitly unavailable.
+- [x] Android automated route/state checks pass.
+- [x] Android phone and tablet actions tapped, with authenticated lifecycle states exercised through installed fixture surfaces and external-provider results left unqualified.
 - [ ] Touch targets meet 44 points on iOS and 48 dp on Android; Korean copy is not clipped.
-- [ ] No WebView substitution, secret, session credential, personal data, payment key, push token, or QR payload appears in evidence.
-- [ ] External-provider gates remain explicitly unqualified until real credential/device/hardware evidence exists.
-- [ ] Local checks, Simulator/Emulator qualification, GitHub CI/review/merge, and production/provider qualification are reported as separate completion levels.
+- [x] No WebView substitution, secret, session credential, personal data, payment key, push token, or QR payload appears in evidence.
+- [x] External-provider gates remain explicitly unqualified until real credential/device/hardware evidence exists.
+- [x] Local checks and Simulator/Emulator qualification are reported separately from unperformed GitHub delivery and production/provider qualification.

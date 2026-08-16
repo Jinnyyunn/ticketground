@@ -184,3 +184,49 @@ Final directory: `/tmp/ticketground-mobile-parity/task7/android-manual-fix2-fina
 
 - The diff remains limited to the Android event-notice layout, its rendered regression, and this report. No WebView, iOS, protected auth UI/config/OAuth/session/test/env, provider-console, directed-transfer, payment-success, refund-success, device-success, push-success, QR-success, or admission-success behavior changed.
 - Final cleanup stopped the Android emulator and Gradle daemon. No Task 7 backend, development server, or port was started.
+
+## Fix round 3 — 2026-08-17
+
+### Five-finding disposition and TDD
+
+All five Important findings in `task-7-review.md` were reproduced against the reviewed baseline before production edits.
+
+| Finding | RED | GREEN / final behavior |
+| --- | --- | --- |
+| Android queue/hold/draft flattened terminal failures | The focused JVM characterization failed to compile because `BookingProgress.Expired`, `.Conflict`, `.Error`, and `retryBooking` did not exist. | Server statuses now map to waiting, held/draft, expired, conflict, or error. A repository exception remains inside the typed booking destination, and retry reissues the remembered booking attempt. Compose verifies expired/conflict/error copy, retry, and absence of an inferred success. |
+| Android discovery routes were precomputed Ready-only lists | The focused JVM characterization failed on the absent `discovery`, `retryDiscovery`, repository `ranking/region/venue/artist` boundaries, and the old list-carrying `CustomerRoute.Ranking`. | Each typed route now starts loading and calls the repository/API boundary. Empty and error states are observable and retry calls the repository again; region, venue, artist, and ranking no longer reuse a precomputed Ready-only route list. |
+| Android account routes were outer-tag aliases | The authenticated Compose characterization showed the same lifecycle overview beneath all five route tags. | Reservation, cancellation request, account resale, trusted device, and push now render separate typed bodies and state tags. Focused authenticated assertions verify distinct content; the existing five signed-out route checks still fail closed to the existing login entry. |
+| iOS lifecycle routes were headings on reservation | Three focused XCUITests failed 7 assertions because `trustedDevice`, `pushNotifications`, and `admissionQR` all launched the reservation aggregate and exposed the cancellation action. | `LiveLifecycleDestination` now has three independent cases. Each subdestination loads only its required state, has a unique root, and preserves the legacy lifecycle mutation identifiers. Focused iPhone GREEN was 5/5; fresh iPad destination coverage was 3/3. |
+| Totals/form-factor evidence were overstated | The matrix said Compose 30/30 while the accepted receipt was 32/32, and direct phone/tablet state evidence was absent. | Final totals below are generated from the current results. Actual phone and tablet windows were controlled, with installed fixture surfaces used for authenticated states that cannot be reached from a signed-out local principal. |
+
+The first Android attempts without an explicit JDK/SDK failed at environment discovery and are not counted as product RED. The product RED was the subsequent compile failure after `JAVA_HOME` and the Android SDK were supplied. No implementation was added for an API-name-only claim.
+
+### Final verification
+
+- iOS focused iPhone routes: 5/5 passed. The ordinary full command executed 178 unit tests with one expected failure only because the live backend environment file was intentionally absent; its other 177 unit tests passed. The separately provisioned live wrapper then passed 1/1, so the correctly invoked unit boundary is 178/178. The full UI suite executed 86 tests, skipped 2, and failed 0.
+- iOS fresh iPad Pro 11-inch Simulator: trusted device, push, and admission QR 3/3 passed in 18.937s; `task7-fix3-ios-ipad/simulator.log` records `device-cleanup=complete`.
+- Android focused behavior GREEN was followed by JVM `:app:testDevCustomerDebugUnitTest`: 81/81, 0 failures/errors/skips.
+- Android API 36 phone `TicketGroundAppShellTest`: 34/34, 0 failures/skips. An earlier interrupted process and a stale uninstall failure were discarded; the accepted run used a wiped emulator and a fresh install.
+- Android API 36 tablet `VisualCaptureTest`: 21/21, 0 failures/skips, build successful in 1m13s.
+- `node --test tests/mobile-home-parity.test.mjs`: 3/3 passed.
+- `:app:assembleDevCustomerDebug`: successful. The final rerun wrapper initially used the Android project as cwd and omitted `ANDROID_HOME`; that environment-only failure was corrected by invoking from the repository root with explicit JDK/SDK paths.
+
+### Phone/tablet action and rendered evidence
+
+Heavy runs were serialized. The Android tablet was stopped before the phone started, the phone was stopped before the final focused iPad run, and no two Simulator/Emulator builds overlapped.
+
+| Form factor | Direct action sequence | Result / evidence |
+| --- | --- | --- |
+| Android phone, real installed app | Home error → tap Retry → Ready home → tap Ranking → Back to Home → tap Search → tap event → Event detail → tap My Page | Seven chronological ScreenCaptureKit frames plus UI hierarchy XML under `task7-fix3-manual-phone`. Retry reached Ready, ranking used the repository-backed destination, Back restored Home, event detail rendered, and My Page failed closed with `로그인이 필요합니다`. |
+| Android tablet, real installed app | Home → tap Search → tap event → Event detail → Back to Search → tap My Page | Five chronological ScreenCaptureKit frames plus hierarchy XML under `task7-fix3-manual-tablet`. Back restored the prior search/result state and signed-out account remained protected. |
+| Android phone/tablet installed fixture surfaces | Reservation, cancellation, account resale, trusted device, push, and booking conflict; plus the prior public customer states | Phone changed-state images were regenerated after the last source edit. The fresh tablet collection `TicketGroundVisualQA-1786909975226` contains 21/21 states, including changed images `16`–`21`. This is installed-app fixture evidence, not external-provider qualification. |
+| iPhone/iPad installed fixture surfaces | Independent trusted-device, push, and admission-QR destinations | Fresh iPhone focused/full XCUITest and fresh iPad 3/3 action/state receipts. No QR payload was captured. |
+
+The tablet collection contains 19 images at `780x1440` and two expanded-layout images at `2240x1440`; all 21 SHA-256 digests are unique. The phone ScreenCaptureKit frames are `822x1902`; the tablet desktop captures are `2560x1656`. Every changed image was opened directly. Korean text is intact, touch controls are unobscured, compositing is complete, and there is no clipping, tofu/mojibake, overlay, QR payload, PII, session credential, payment key, push token, or provider secret. The two dimensions in the tablet fixture set reflect the deliberately constrained phone-state viewport and the expanded tablet viewport rather than stale or partial frames.
+
+### Boundaries, scope, and cleanup
+
+- Toss merchant approval/webhook/settlement/refund, App Attest/Play Integrity real-device proof, APNs/FCM delivery, gate scanner/consume, and Kakao channel qualification remain externally blocked by those exact dependencies. None is inferred from a fixture or client state.
+- Cancellation continues to say `요청`/review until terminal server state. Public resale and authenticated resale lifecycle remain distinct. No directed transfer or destination/page WebView was added.
+- The round-3 product diff is limited to iOS lifecycle destinations/tests and Android customer UI/data/tests. `git diff d4b5ab9 --name-only` contains no protected simple-login path; Google/Kakao/Naver UI, config, OAuth, session, tests, environment, and provider consoles remained read-only.
+- Cleanup: both Android emulators were killed and `adb devices` returned empty. The fresh iPad simulator was deleted by the wrapper (`device-cleanup=complete`); no Task 7 simulator, emulator, backend, listener, or xcodebuild process remains.
