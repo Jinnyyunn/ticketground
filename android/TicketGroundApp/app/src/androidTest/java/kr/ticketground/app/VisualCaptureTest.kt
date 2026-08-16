@@ -55,6 +55,7 @@ import kr.ticketground.app.ui.TicketGroundTheme
 import kotlinx.coroutines.awaitCancellation
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assume.assumeTrue
 
 class VisualCaptureTest {
   @get:Rule val composeRule = createComposeRule()
@@ -139,6 +140,8 @@ class VisualCaptureTest {
 
   @Test
   fun capture09_tabletExpandedHome() {
+    val smallestWidthDp = InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration.smallestScreenWidthDp
+    assumeTrue("capture09_tabletExpandedHome requires a tablet form factor", smallestWidthDp >= 600)
     val viewModel = CustomerAppViewModel(VisualFixtureRepository())
     setCapture(TabletWidth, TabletHeight) {
       TicketGroundCustomerApp(viewModel)
