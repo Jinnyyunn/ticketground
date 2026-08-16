@@ -961,16 +961,25 @@ private struct LiveDiscoveryRouteView: View {
             LiveAccountRouteView()
         case .capabilityLedger:
             CapabilityLedgerView()
-        case .search, .ranking, .genre, .place, .event, .goods:
+        case .search, .ranking, .place, .goods:
             catalogBody
+        case .genre(let name):
+            catalogBody
+                .accessibilityIdentifier("route-genre-\(name)")
+        case .event(let slug):
+            catalogBody
+                .accessibilityIdentifier("route-event-\(slug)")
         case .seatMap, .queue, .booking:
             LiveSeatMapRouteView(route: route)
         case .watchlist:
             LiveWatchlistRouteView()
         case .help, .inquiry:
             LiveSupportRouteView(route: route)
-        case .region, .artist, .open:
+        case .region, .artist:
             LiveDiscoveryContractView(route: route)
+        case .open:
+            LiveDiscoveryContractView(route: route)
+                .accessibilityIdentifier("route-open")
         case .checkout(let ticketId):
             LiveCheckoutRouteView(ticketId: ticketId)
         case .reservation(let id):
@@ -978,12 +987,27 @@ private struct LiveDiscoveryRouteView: View {
         case .cancel:
             LiveTicketLifecycleRouteView(destination: .cancellation)
         case .resale:
-            LiveTicketLifecycleRouteView(destination: .resale)
+            if isLifecycleResaleRoute {
+                LiveTicketLifecycleRouteView(destination: .resale)
+            } else {
+                DiscoveryPublicResaleView()
+            }
         case .signup, .transfer:
             LiveUnsupportedRouteView(route: route)
         default:
             LiveUnsupportedRouteView(route: route)
         }
+    }
+
+    private var isLifecycleResaleRoute: Bool {
+        if RuntimeConfiguration.liveLifecycleTestConfiguration != nil {
+            return true
+        }
+        guard container.navigationPath.count >= 2 else { return false }
+        if case .reservation = container.navigationPath[container.navigationPath.count - 2] {
+            return true
+        }
+        return false
     }
 
     @ViewBuilder

@@ -83,6 +83,52 @@ final class DiscoveryTests: XCTestCase {
         }
     }
 
+    func testLiveHomeParityDestinationsExposePublicStableRoots() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        let destinations = [
+            (control: "discovery-resale-pool", destination: "route-resale"),
+            (control: "discovery-open-more", destination: "route-open"),
+            (control: "discovery-genre-concert", destination: "route-genre-concert"),
+            (control: "discovery-editorial-1", destination: "route-event-ticketground-day")
+        ]
+
+        for destination in destinations {
+            let control = app.buttons[destination.control]
+            assertDiscoverable(control)
+            control.tap()
+            assertDiscoverable(anyElement(app, identifier: destination.destination))
+            assertDiscoverable(app.buttons["BackButton"])
+
+            if destination.destination == "route-resale" {
+                XCTAssertTrue(app.staticTexts["공개 양도 티켓을 확인하는 화면입니다."].exists)
+                XCTAssertFalse(app.staticTexts["로그인이 필요합니다"].exists)
+                XCTAssertFalse(anyElement(app, identifier: "live-lifecycle-resale").exists)
+                XCTAssertFalse(app.buttons["lifecycle-submit-resale"].exists)
+            }
+
+            app.buttons["BackButton"].tap()
+        }
+    }
+
+    func testAuthenticatedLifecycleResaleActionRemainsOnLifecycleRoute() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-api-mode", "live",
+            "-live-lifecycle-scenario", "happy",
+            "-live-lifecycle-route", "reservation"
+        ]
+        app.launch()
+
+        let resale = app.buttons["lifecycle-open-resale"]
+        assertDiscoverable(resale)
+        resale.tap()
+        assertDiscoverable(anyElement(app, identifier: "live-lifecycle-resale"))
+        XCTAssertFalse(anyElement(app, identifier: "route-resale").exists)
+    }
+
     func testHomeParitySectionsFitTabletWidth() throws {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
