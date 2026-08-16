@@ -38,6 +38,15 @@ final class DiscoveryTests: XCTestCase {
         assertDiscoverable(app.buttons["discovery-ranking-more"])
         assertDiscoverable(app.buttons["discovery-open-calendar"])
         assertDiscoverable(app.buttons["shortcut-open-calendar"])
+        for identifier in [
+            "discovery-open-more",
+            "discovery-resale-pool",
+            "discovery-genre-concert",
+            "discovery-editorial-1",
+            "shortcut-resale"
+        ] {
+            assertDiscoverable(app.buttons[identifier])
+        }
         assertWithinHomeBounds(app)
 
         app.buttons["discovery-ranking-more"].tap()
@@ -50,6 +59,44 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["discovery-open-calendar"].tap()
         XCTAssertTrue(app.staticTexts["2026년 7월 월별 캘린더"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["오픈 임박"].exists)
+    }
+
+    func testHomeParityDestinations() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+
+        let destinations = [
+            (control: "discovery-open-more", destination: "route-open"),
+            (control: "discovery-resale-pool", destination: "route-resale"),
+            (control: "discovery-genre-concert", destination: "route-genre-concert"),
+            (control: "discovery-editorial-1", destination: "route-event-ticketground-day")
+        ]
+
+        for destination in destinations {
+            let control = app.buttons[destination.control]
+            assertDiscoverable(control)
+            control.tap()
+            assertDiscoverable(app.descendants(matching: .any)[destination.destination])
+            assertDiscoverable(app.buttons["BackButton"])
+            recordScreenshot(named: destination.destination, app: app)
+            app.buttons["BackButton"].tap()
+        }
+    }
+
+    func testHomeParitySectionsFitTabletWidth() throws {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 10))
+        try XCTSkipUnless(window.frame.width >= 700, "tablet-width assertion")
+
+        for heading in ["티켓오픈 예정", "CLEAN 티켓 공식 양도", "장르별 추천", "기획전", "바로가기"] {
+            let element = app.staticTexts.matching(identifier: heading).firstMatch
+            assertDiscoverable(element)
+            XCTAssertGreaterThanOrEqual(element.frame.minX, window.frame.minX + 4, heading)
+            XCTAssertLessThanOrEqual(element.frame.maxX, window.frame.maxX - 4, heading)
+        }
+        recordScreenshot(named: "home-parity-tablet", app: app)
     }
 
     func testEmptyDiscoveryFixture() {

@@ -4,16 +4,21 @@ struct DiscoveryHomeView: View {
     let content: DiscoveryContent
 
     var body: some View {
+        let parity = DiscoveryHomeComposition.make(from: content)
         VStack(alignment: .leading, spacing: 0) {
             DiscoveryCategoryGrid(categories: content.categories)
             DiscoveryFeaturedSection(featured: content.featured, supporting: content.supporting)
                 .padding(.top, TicketgroundSpacing.xl)
             DiscoveryRankingSection(rankings: content.rankings)
                 .padding(.top, TicketgroundSpacing.xxl)
-            if !content.openingSoon.isEmpty {
-                DiscoveryOpeningSection(openingSoon: content.openingSoon)
-                    .padding(.top, TicketgroundSpacing.xxl)
-            }
+            DiscoveryOpeningSection(openingSoon: content.openingSoon)
+                .padding(.top, TicketgroundSpacing.xxl)
+            DiscoveryResaleSection(card: parity.resale)
+                .padding(.top, TicketgroundSpacing.xxl)
+            DiscoveryGenreRecommendationsSection(groups: parity.genreGroups)
+                .padding(.top, TicketgroundSpacing.xxl)
+            DiscoveryEditorialSection(cards: parity.editorials)
+                .padding(.top, TicketgroundSpacing.xxl)
             DiscoveryShortcutsSection(shortcuts: content.shortcuts)
                 .padding(.top, TicketgroundSpacing.xxl)
         }
