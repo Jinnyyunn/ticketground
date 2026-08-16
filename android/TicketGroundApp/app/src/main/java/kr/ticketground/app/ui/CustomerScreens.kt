@@ -171,7 +171,7 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(TicketGroundRadius.medium),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    content = { Column(Modifier.padding(horizontal = TicketGroundSpacing.xs, vertical = TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm), content = content) },
+    content = { Column(Modifier.padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm), content = content) },
   )
 }
 
@@ -680,7 +680,7 @@ fun SupportScreen(content: HomeContent?) {
     item {
       SurfaceCard {
         Text("티켓그라운드 1:1 문의", style = MaterialTheme.typography.titleMedium)
-        Text("예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요.")
+        Text("예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요.", style = MaterialTheme.typography.bodySmall)
         Button(
           onClick = { uriHandler.openUri("https://pf.kakao.com/_xmTniX/chat") },
           modifier = Modifier.testTag("kakao-channel-chat"),
@@ -945,7 +945,7 @@ fun TrustedDeviceScreen(
     SurfaceCard {
       SectionTitle("신뢰 기기")
       Text(if (account.trustedDevice) "이 계정에 신뢰 기기가 등록되어 있습니다." else "등록된 신뢰 기기가 없습니다.", modifier = Modifier.testTag(if (account.trustedDevice) "trusted-device-active" else "trusted-device-empty"))
-      Text("Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.")
+      Text("Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.", style = MaterialTheme.typography.bodySmall)
       Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("trusted-device-register")) { Text("이 기기 확인") }
       actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
@@ -985,7 +985,7 @@ fun BookingProgressScreen(
         is BookingProgress.Held -> {
           Text("좌석 확보·예매 초안", style = MaterialTheme.typography.titleMedium)
           Text(progress.seatLabel)
-          Text("서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.")
+          Text("서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.", style = MaterialTheme.typography.bodySmall)
           Button(onClick = { onCheckout(progress) }, modifier = Modifier.fillMaxWidth().testTag("booking-continue-checkout")) {
             Text("결제 확인으로 이동")
           }

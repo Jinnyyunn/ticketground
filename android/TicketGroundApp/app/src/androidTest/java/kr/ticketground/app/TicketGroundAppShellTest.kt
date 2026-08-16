@@ -616,6 +616,28 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(copy, "추정하지 않습니다")
+    assertTextRangeOnOneLineForText(copy, "전송")
+  }
+
+  @Test
+  fun trustedDeviceCopy_keepsCompletedConditionTogetherAtAcceptedPhoneWidth() {
+    val copy = "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp).height(720.dp)) {
+          kr.ticketground.app.ui.TrustedDeviceScreen(
+            AsyncContent.Ready(AccountOverview(signedIn = true, trustedDevice = true)),
+            false,
+            null,
+            {},
+            {},
+            {},
+          )
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "경우에만")
   }
 
   @Test
