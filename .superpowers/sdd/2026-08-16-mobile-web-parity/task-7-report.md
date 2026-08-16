@@ -230,3 +230,43 @@ The tablet collection contains 19 images at `780x1440` and two expanded-layout i
 - Cancellation continues to say `요청`/review until terminal server state. Public resale and authenticated resale lifecycle remain distinct. No directed transfer or destination/page WebView was added.
 - The round-3 product diff is limited to iOS lifecycle destinations/tests and Android customer UI/data/tests. `git diff d4b5ab9 --name-only` contains no protected simple-login path; Google/Kakao/Naver UI, config, OAuth, session, tests, environment, and provider consoles remained read-only.
 - Cleanup: both Android emulators were killed and `adb devices` returned empty. The fresh iPad simulator was deleted by the wrapper (`device-cleanup=complete`); no Task 7 simulator, emulator, backend, listener, or xcodebuild process remains.
+
+## Fix round 4 — 2026-08-17
+
+### Evidence findings addressed
+
+The round-3 rereview left two Android evidence findings open: fixture captures were being promoted as direct navigation proof, and Android totals did not have retained logs/XML receipts. This round does not broaden provider claims. It records direct installed-app actions separately from fixture-authenticated state setup and keeps external provider outcomes unqualified.
+
+### Harness adjustment
+
+`VisualCaptureTest` now opens authenticated account subroutes from the signed-in My Page fixture root by tapping `open-reservation-detail`, `open-cancellation-request`, `open-resale-lifecycle`, `open-trusted-device`, and `open-push-notifications`; it no longer calls those route openers before capture. The booking conflict capture now starts at the fixture home, taps the hero event, selects the `9월 12일 19:00` performance, opens the seat map, selects a seat, taps `선택한 좌석 예매하기`, and then captures the server-returned conflict/retry state. The fixture still supplies principal/backend state, but it does not directly set the captured target routes.
+
+### Retained Android verification
+
+All artifacts are under `.superpowers/sdd/2026-08-16-mobile-web-parity/evidence/task7-fix4/`.
+
+| Scenario | Invocation | Exit | XML/log observable |
+| --- | --- | --- | --- |
+| Android JVM | `cd android/TicketGroundApp && ./gradlew :app:testDevCustomerDebugUnitTest --rerun-tasks --no-daemon` | 0 | `xml/android-jvm-final/totals.json`: 16 suites, 81 tests, 0 failures/errors/skips; raw log `logs/android-jvm-final.log`. |
+| Android phone Compose | `cd android/TicketGroundApp && ./gradlew :app:connectedDevCustomerDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.ticketground.app.TicketGroundAppShellTest --rerun-tasks --no-daemon` on `ticketground_phone_api36` | 0 | `xml/android-phone-compose-final/totals.json`: 1 suite, 34 tests, 0 failures/errors/skips; raw log `logs/android-phone-compose-final.log`. |
+| Android tablet VisualCapture | same Gradle task with `kr.ticketground.app.VisualCaptureTest` on `ticketground_tablet_api36` | 0 | `xml/android-tablet-visualcapture-final/totals.json`: 1 suite, 21 tests, 0 failures/errors/skips; raw log `logs/android-tablet-visualcapture-final-rerun3.log`. Failed earlier attempts are retained under `xml/android-tablet-visualcapture-failed*` and `logs/android-tablet-visualcapture-final*.log`. |
+| Source contract | `node --test tests/mobile-home-parity.test.mjs` | 0 | `logs/source-contract-post-report-final.log`: 3 tests, 3 pass, 0 fail after the report/matrix edits. |
+| Assemble | `cd android/TicketGroundApp && ./gradlew :app:assembleDevCustomerDebug --rerun-tasks --no-daemon` | 0 | `logs/android-assemble-final.log`: 38 tasks executed, build successful; APK hash in `hashes/android-assemble-apk.sha256`. |
+
+Device identity receipts are in `device/phone-*`, `device/tablet-*`, and `device/after-phone-kill-adb-devices.txt`. Hash receipts are in `hashes/`.
+
+### Direct and fixture action evidence
+
+Phone direct installed-app actions were run on `ticketground_phone_api36` after clean install. Valid hierarchy evidence shows home network error, Retry to ready, ranking destination and Back, search root, event detail, venue destination and Back, artist destination and Back, and My Page signed-out. The valid final phone XML frames are `manual-phone/02-home-network-error.xml`, `04-home-retry-ready.xml`, `05-ranking-ready.xml`, `06-back-home-from-ranking.xml`, `07-search-root.xml`, `08-event-detail-from-search.xml`, `27-venue-ready-from-home.xml`, `28-back-event-from-venue-home.xml`, `38-event-detail-for-artist-final.xml`, `39-artist-ready-final.xml`, `40-back-home-from-artist-final.xml`, and `13-mypage-signed-out.xml`. Invalid coordinate/GMS-login attempts are retained but not used as success evidence.
+
+Tablet direct installed-app evidence was run on `ticketground_tablet_api36` after clean install. The expanded home/detail pane and signed-out My Page hierarchy are in `manual-tablet/06-home-relaunch.xml` and `manual-tablet/07-mypage-signed-out.xml`; emulator window screenshots that bypass the ADB `FLAG_SECURE` black-frame limitation are in `manual-tablet-window/`. ADB `screencap` PNGs under `manual-phone` and `manual-tablet` are retained for chronology but are black because `MainActivity` sets `FLAG_SECURE`; they are not cited as visual success proof.
+
+Authenticated reservation, cancellation, official resale lifecycle, trusted device, push, and booking conflict are covered by the installed `VisualCaptureTest` fixture-principal flow after the harness adjustment above. The final 21 images are in `visual/tablet-captures/`, with `16`-`21` covering the changed principal-bound and booking states. This remains local fixture evidence, not provider/production qualification.
+
+### Visual and CJK check
+
+Fresh PNG inspection is recorded in `visual/png-inspection.json` and `visual/file-inspection.txt`; hashes are in `hashes/manual-and-visual.sha256`, `hashes/tablet-captures.sha256`, and `hashes/tablet-window-captures.sha256`. Direct inspection notes are in `visual/visual-cjk-inspection.txt`: the reservation detail, booking conflict, and tablet My Page window captures showed intact Korean text, no clipping/tofu/overlap, and no QR payload, PII, credential, payment key, provider secret, or push token.
+
+### Boundaries
+
+No iOS source was changed or rerun in this round because the open findings were Android evidence-only. No Google/Kakao/Naver simple-login UI, config, OAuth, session, tests, environment files, or provider consoles were modified. Toss production approval/webhook/settlement/refund, Play Integrity/App Attest real-device proof, APNs/FCM delivery, QR scanner/consume, and Kakao channel/provider-console qualification remain externally blocked.
