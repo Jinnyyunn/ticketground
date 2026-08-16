@@ -77,6 +77,8 @@ import kr.ticketground.app.data.AdmissionQr
 import kr.ticketground.app.data.WatchlistItem
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
+import kr.ticketground.app.data.DisplayStatus
+import kr.ticketground.app.data.SupportThread
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.ContextWrapper
@@ -181,6 +183,8 @@ fun HomeScreen(
   onSearch: () -> Unit,
   onCategory: (String) -> Unit,
   onCollection: (String, List<CatalogEvent>) -> Unit,
+  onRanking: (List<CatalogEvent>) -> Unit,
+  onRegion: (String, List<CatalogEvent>) -> Unit,
   onOpenCalendar: () -> Unit,
   onOpenResale: () -> Unit,
   onSupport: () -> Unit,
@@ -204,7 +208,7 @@ fun HomeScreen(
           HeroEventCard(event, onEvent)
         }
       }
-      item { RankingSection(content.events, onEvent, onSearch) }
+      item { RankingSection(content.events, onEvent) { onRanking(content.events) } }
       item { HomeOpeningSection(presentation.opening, onOpenCalendar, onEvent) }
       item { HomeResaleSection(presentation.resale, onOpenResale) }
       item {
@@ -219,7 +223,7 @@ fun HomeScreen(
           onCollection(it.destination.title, it.events)
         }
       }
-      item { ShortcutSection(onOpenCalendar, onSearch, onSupport) }
+      item { ShortcutSection(onOpenCalendar, onSearch, onSupport) { onRegion("전체 지역", content.events) } }
     }
   }
 }
@@ -285,6 +289,8 @@ fun ExpandedHomeScreen(
   onSearch: () -> Unit,
   onCategory: (String) -> Unit,
   onCollection: (String, List<CatalogEvent>) -> Unit,
+  onRanking: (List<CatalogEvent>) -> Unit,
+  onRegion: (String, List<CatalogEvent>) -> Unit,
   onOpenCalendar: () -> Unit,
   onOpenResale: () -> Unit,
   onSupport: () -> Unit,
@@ -305,7 +311,7 @@ fun ExpandedHomeScreen(
         }
         item { CategoryShortcuts(onHome = {}, onCategory = onCategory) }
         item { content.events.firstOrNull()?.let { event -> HeroEventCard(event, onEvent) } }
-        item { RankingSection(content.events, onEvent, onSearch) }
+        item { RankingSection(content.events, onEvent) { onRanking(content.events) } }
         item { HomeOpeningSection(presentation.opening, onOpenCalendar, onEvent) }
         item { HomeResaleSection(presentation.resale, onOpenResale) }
         item {
@@ -320,7 +326,7 @@ fun ExpandedHomeScreen(
             onCollection(it.destination.title, it.events)
           }
         }
-        item { ShortcutSection(onOpenCalendar, onSearch, onSupport) }
+        item { ShortcutSection(onOpenCalendar, onSearch, onSupport) { onRegion("전체 지역", content.events) } }
       }
       Box(Modifier.width(TicketGroundLayout.detailPaneWidth).padding(TicketGroundSpacing.lg)) {
         content.events.firstOrNull()?.let { event ->
@@ -499,20 +505,28 @@ private fun RankingCard(event: CatalogEvent, rank: Int, onEvent: (CatalogEvent) 
 }
 
 @Composable
-private fun ShortcutSection(onCalendar: () -> Unit, onSearch: () -> Unit, onSupport: () -> Unit) {
+private fun ShortcutSection(
+  onCalendar: () -> Unit,
+  onSearch: () -> Unit,
+  onSupport: () -> Unit,
+  onRegion: () -> Unit,
+) {
   Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
     Text("바로가기", style = MaterialTheme.typography.headlineSmall)
     Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
-      ShortcutCard("오픈캘린더", "오픈 일정", onCalendar, Modifier.weight(1f))
-      ShortcutCard("공연 검색", "공연을 찾아보세요", onSearch, Modifier.weight(1f))
+      ShortcutCard("오픈캘린더", "오픈 일정", onCalendar, Modifier.weight(1f), "home-shortcut-open")
+      ShortcutCard("공연 검색", "공연을 찾아보세요", onSearch, Modifier.weight(1f), "home-shortcut-search")
     }
-    ShortcutCard("공지·자주 묻는 질문", "고객센터", onSupport, Modifier.fillMaxWidth())
+    Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+      ShortcutCard("지역별 공연", "공연 지역", onRegion, Modifier.weight(1f), "home-region-all")
+      ShortcutCard("공지·자주 묻는 질문", "고객센터", onSupport, Modifier.weight(1f), "home-shortcut-support")
+    }
   }
 }
 
 @Composable
-private fun ShortcutCard(title: String, helper: String, onClick: () -> Unit, modifier: Modifier) {
-  Surface(modifier = modifier.clickable { onClick() }, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(TicketGroundRadius.medium)) {
+private fun ShortcutCard(title: String, helper: String, onClick: () -> Unit, modifier: Modifier, tag: String) {
+  Surface(modifier = modifier.clickable { onClick() }.testTag(tag), color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(TicketGroundRadius.medium)) {
     Column(Modifier.padding(TicketGroundSpacing.md), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
       Text(title, style = MaterialTheme.typography.titleMedium)
       Text(helper, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
@@ -557,6 +571,8 @@ fun EventDetailScreen(
   event: CatalogEvent,
   onSeatMap: (String?) -> Unit,
   onWatchlist: () -> Unit = {},
+  onVenue: () -> Unit = {},
+  onArtist: () -> Unit = {},
   actionMessage: String? = null,
 ) {
   val performances = (event.schedules ?: event.dates).orEmpty().filter { !it.id.isNullOrBlank() }
@@ -566,7 +582,12 @@ fun EventDetailScreen(
   LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     item {
       Text(event.title, style = MaterialTheme.typography.headlineSmall)
-      Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      OutlinedButton(onClick = onVenue, modifier = Modifier.testTag("event-venue")) { Text(event.venue) }
+      if (event.artistSlug != null || !event.casts.isNullOrEmpty()) {
+        OutlinedButton(onClick = onArtist, modifier = Modifier.testTag("event-artist")) {
+          Text(event.casts?.firstOrNull() ?: "아티스트 공연")
+        }
+      }
       Text(event.period ?: event.date ?: "공연 일정을 확인해 주세요.")
     }
     item {
@@ -688,10 +709,17 @@ fun LifecycleOverviewScreen(
   onTicketSelected: (String) -> Unit = {},
   admissionQr: AdmissionQr? = null,
   onLogin: () -> Unit = {},
+  onReservationRoute: () -> Unit = {},
+  onCancellationRoute: () -> Unit = {},
+  onResaleRoute: () -> Unit = {},
+  onTrustedDeviceRoute: () -> Unit = {},
+  onPushRoute: () -> Unit = {},
+  onInquiryRoute: () -> Unit = {},
+  routeTag: String = "lifecycle-overview-list",
 ) {
   AsyncSurface(state, onRetry) { account ->
     if (!account.signedIn) {
-      Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
+      Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag(routeTag), contentAlignment = Alignment.Center) {
         SurfaceCard {
           Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
           Text(
@@ -709,11 +737,22 @@ fun LifecycleOverviewScreen(
       var resalePrice by remember { mutableStateOf("") }
       val parsedPrice = resalePrice.toIntOrNull()
       LazyColumn(
-        modifier = Modifier.testTag("lifecycle-overview-list"),
+        modifier = Modifier.testTag(routeTag),
         contentPadding = PaddingValues(TicketGroundSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md),
       ) {
         item { SectionTitle("마이페이지") }
+        item {
+          SurfaceCard {
+            Text("기능별 관리", style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(onClick = onReservationRoute, modifier = Modifier.fillMaxWidth().testTag("open-reservation-detail")) { Text("예매 상세") }
+            OutlinedButton(onClick = onCancellationRoute, modifier = Modifier.fillMaxWidth().testTag("open-cancellation-request")) { Text("취소·환불 관리") }
+            OutlinedButton(onClick = onResaleRoute, modifier = Modifier.fillMaxWidth().testTag("open-resale-lifecycle")) { Text("공식 재판매") }
+            OutlinedButton(onClick = onTrustedDeviceRoute, modifier = Modifier.fillMaxWidth().testTag("open-trusted-device")) { Text("신뢰 기기") }
+            OutlinedButton(onClick = onPushRoute, modifier = Modifier.fillMaxWidth().testTag("open-push-notifications")) { Text("푸시 알림") }
+            OutlinedButton(onClick = onInquiryRoute, modifier = Modifier.fillMaxWidth().testTag("open-support-inquiry")) { Text("1:1 문의") }
+          }
+        }
         actionMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.primary) } }
         if (account.tickets.isNotEmpty()) {
           item { Text("보유 티켓 선택", style = MaterialTheme.typography.titleMedium) }
@@ -800,6 +839,97 @@ fun LifecycleOverviewScreen(
       }
     }
   }
+}
+
+@Composable
+fun BookingProgressScreen(progress: BookingProgress, onCheckout: (BookingProgress.Held) -> Unit) {
+  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag("booking-progress"), contentAlignment = Alignment.Center) {
+    SurfaceCard {
+      when (progress) {
+        is BookingProgress.Waiting -> {
+          Text("예매 대기 중", style = MaterialTheme.typography.titleMedium)
+          Text("현재 대기 순서 ${progress.position}번입니다.")
+          Text("입장 상태가 확인되기 전에는 좌석 확보나 예매 성공으로 처리하지 않습니다.")
+        }
+        is BookingProgress.Held -> {
+          Text("좌석 확보·예매 초안", style = MaterialTheme.typography.titleMedium)
+          Text(progress.seatLabel)
+          Text("서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.")
+          Button(onClick = { onCheckout(progress) }, modifier = Modifier.fillMaxWidth().testTag("booking-continue-checkout")) {
+            Text("결제 확인으로 이동")
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+fun InquiryScreen(
+  accountState: AsyncContent<AccountOverview>,
+  inquiryState: AsyncContent<List<SupportThread>>,
+  pending: Boolean,
+  actionMessage: String?,
+  onRetry: () -> Unit,
+  onSubmit: (String, String) -> Unit,
+  onLogin: () -> Unit,
+) {
+  AsyncSurface(accountState, {}) { account ->
+    if (!account.signedIn) {
+      Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag("support-inquiry-signed-out"), contentAlignment = Alignment.Center) {
+        SurfaceCard {
+          Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
+          Text("문의 내역 확인과 작성은 로그인 후 이용할 수 있습니다.")
+          Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().testTag("support-inquiry-login")) { Text("로그인") }
+        }
+      }
+    } else {
+      var subject by remember { mutableStateOf("") }
+      var message by remember { mutableStateOf("") }
+      LazyColumn(
+        Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag("support-inquiry"),
+        verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md),
+      ) {
+        item { SectionTitle("1:1 문의") }
+        when (inquiryState) {
+          AsyncContent.Loading -> item { CircularProgressIndicator(Modifier.testTag("support-inquiry-loading")) }
+          is AsyncContent.Empty -> item { Text("${inquiryState.title} ${inquiryState.message}") }
+          is AsyncContent.Error -> item {
+            SurfaceCard {
+              Text(inquiryState.message, color = MaterialTheme.colorScheme.error)
+              OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth().testTag("support-inquiry-retry")) {
+                Text("다시 시도")
+              }
+            }
+          }
+          is AsyncContent.Ready -> items(inquiryState.value, key = SupportThread::id) { thread ->
+            SurfaceCard {
+              Text(thread.subject, style = MaterialTheme.typography.titleMedium)
+              Text(thread.status.customerLabel(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+              Text("최근 업데이트 ${thread.updatedAt}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          }
+        }
+        item {
+          OutlinedTextField(subject, { subject = it }, label = { Text("문의 제목") }, modifier = Modifier.fillMaxWidth())
+          OutlinedTextField(message, { message = it }, label = { Text("문의 내용") }, modifier = Modifier.fillMaxWidth())
+          Button(
+            onClick = { onSubmit(subject, message) },
+            enabled = subject.isNotBlank() && message.isNotBlank() && !pending,
+            modifier = Modifier.fillMaxWidth().testTag("support-inquiry-submit"),
+          ) { Text(if (pending) "접수 중" else "문의 접수") }
+        }
+        actionMessage?.let { item { Text(it, Modifier.testTag("support-inquiry-result")) } }
+      }
+    }
+  }
+}
+
+private fun DisplayStatus.customerLabel(): String = when (this) {
+  DisplayStatus.OPEN -> "답변 요청"
+  DisplayStatus.ANSWERED -> "답변 완료"
+  DisplayStatus.CLOSED -> "문의 종료"
+  DisplayStatus.UNKNOWN -> "상태 확인 중"
 }
 
 @Composable

@@ -28,16 +28,28 @@ import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
 import kr.ticketground.app.data.AdmissionQr
+import kr.ticketground.app.data.SupportThread
 
 sealed interface CustomerRoute {
   data object Tab : CustomerRoute
   data class Event(val event: CatalogEvent) : CustomerRoute
   data class Collection(val title: String, val events: List<CatalogEvent>) : CustomerRoute
+  data class Ranking(val events: List<CatalogEvent>) : CustomerRoute
+  data class Region(val name: String, val events: List<CatalogEvent>) : CustomerRoute
+  data class Venue(val venueId: String?, val venueName: String, val events: List<CatalogEvent>) : CustomerRoute
+  data class Artist(val artistSlug: String?, val artistNames: List<String>, val events: List<CatalogEvent>) : CustomerRoute
   data object OpenCalendar : CustomerRoute
   data object Resale : CustomerRoute
   data class SeatMapRoute(val event: CatalogEvent, val performanceDateId: String?) : CustomerRoute
+  data class Booking(val progress: BookingProgress) : CustomerRoute
   data class Checkout(val seatLabel: String, val amount: Int, val request: TossCheckoutRequest) : CustomerRoute
   data object Support : CustomerRoute
+  data object Reservation : CustomerRoute
+  data object Cancellation : CustomerRoute
+  data object ResaleLifecycle : CustomerRoute
+  data object TrustedDevice : CustomerRoute
+  data object PushNotifications : CustomerRoute
+  data object Inquiry : CustomerRoute
 }
 
 class CustomerAppViewModel(private val repository: CustomerRepository) : ViewModel() {
@@ -65,6 +77,8 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   val actionMessage = mutableActionMessage.asStateFlow()
   private val mutableAdmissionQr = MutableStateFlow<AdmissionQr?>(null)
   val admissionQr = mutableAdmissionQr.asStateFlow()
+  private val mutableInquiries = MutableStateFlow<AsyncContent<List<SupportThread>>>(AsyncContent.Loading)
+  val inquiries = mutableInquiries.asStateFlow()
 
   init { loadHome() }
 
@@ -95,6 +109,44 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
 
   fun openCollection(title: String, events: List<CatalogEvent>) {
     mutableRoute.value = CustomerRoute.Collection(title, events)
+  }
+
+  fun openRanking(events: List<CatalogEvent>) { mutableRoute.value = CustomerRoute.Ranking(events) }
+
+  fun openRegion(name: String, events: List<CatalogEvent>) {
+    mutableRoute.value = CustomerRoute.Region(name, events)
+  }
+
+  fun openVenue(event: CatalogEvent) {
+    val events = (mutableHome.value as? AsyncContent.Ready)?.value?.events.orEmpty().filter {
+      (event.venueId != null && it.venueId == event.venueId) || it.venue == event.venue
+    }
+    mutableRoute.value = CustomerRoute.Venue(event.venueId, event.venue, events)
+  }
+
+  fun openArtist(event: CatalogEvent) {
+    val names = event.casts.orEmpty()
+    val events = (mutableHome.value as? AsyncContent.Ready)?.value?.events.orEmpty().filter {
+      (event.artistSlug != null && it.artistSlug == event.artistSlug) || it.casts.orEmpty().any(names::contains)
+    }
+    mutableRoute.value = CustomerRoute.Artist(event.artistSlug, names, events)
+  }
+
+  fun openBooking(progress: BookingProgress) { mutableRoute.value = CustomerRoute.Booking(progress) }
+
+  fun openReservation() { openAccountRoute(CustomerRoute.Reservation) }
+  fun openCancellation() { openAccountRoute(CustomerRoute.Cancellation) }
+  fun openResaleLifecycle() { openAccountRoute(CustomerRoute.ResaleLifecycle) }
+  fun openTrustedDevice() { openAccountRoute(CustomerRoute.TrustedDevice) }
+  fun openPushNotifications() { openAccountRoute(CustomerRoute.PushNotifications) }
+  fun openInquiry() {
+    openAccountRoute(CustomerRoute.Inquiry)
+    loadInquiries()
+  }
+
+  private fun openAccountRoute(route: CustomerRoute) {
+    mutableRoute.value = route
+    if (mutableAccount.value is AsyncContent.Loading || mutableAccount.value is AsyncContent.Error) loadAccount()
   }
 
   fun openCalendar() { mutableRoute.value = CustomerRoute.OpenCalendar }
@@ -150,10 +202,10 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     runCatching { repository.book(performance, seat.id, seat.displayCode.ifBlank { seat.label }, seat.price) }
       .onSuccess { progress ->
         when (progress) {
-          is BookingProgress.Waiting -> mutableActionMessage.value = "현재 대기 순서 ${progress.position}번입니다. 잠시 후 다시 시도해 주세요."
+          is BookingProgress.Waiting -> openBooking(progress)
           is BookingProgress.Held -> {
             mutableHeldSeatIds.value = mutableHeldSeatIds.value + progress.seatId
-            mutableRoute.value = CustomerRoute.Checkout(progress.seatLabel, progress.checkout.amount, progress.checkout)
+            openBooking(progress)
           }
         }
       }
@@ -183,6 +235,31 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
         else AsyncContent.Error(safeUiMessage(error))
       },
     )
+  }
+
+  fun loadInquiries() = viewModelScope.launch {
+    mutableInquiries.value = AsyncContent.Loading
+    mutableInquiries.value = runCatching { repository.supportThreads() }.fold(
+      onSuccess = {
+        if (it.isEmpty()) AsyncContent.Empty("문의 내역이 없습니다", "새 문의를 작성할 수 있습니다.")
+        else AsyncContent.Ready(it)
+      },
+      onFailure = { AsyncContent.Error(safeUiMessage(it)) },
+    )
+  }
+
+  fun submitInquiry(subject: String, message: String) = viewModelScope.launch {
+    if (subject.isBlank() || message.isBlank() || mutableBookingPending.value) return@launch
+    mutableBookingPending.value = true
+    mutableActionMessage.value = null
+    runCatching { repository.createSupportThread(subject.trim(), message.trim()) }
+      .onSuccess { created ->
+        val previous = (mutableInquiries.value as? AsyncContent.Ready)?.value.orEmpty()
+        mutableInquiries.value = AsyncContent.Ready(listOf(created) + previous.filterNot { it.id == created.id })
+        mutableActionMessage.value = "문의 요청이 접수되었습니다."
+      }
+      .onFailure { mutableActionMessage.value = safeUiMessage(it) }
+    mutableBookingPending.value = false
   }
 
   fun selectOwnedTicket(ticketId: String) {
@@ -248,6 +325,10 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     mutableBookingPending.value = false
   }
 
+  fun continueToCheckout(progress: BookingProgress.Held) {
+    mutableRoute.value = CustomerRoute.Checkout(progress.seatLabel, progress.checkout.amount, progress.checkout)
+  }
+
   fun openSupport() { mutableRoute.value = CustomerRoute.Support }
 
   fun completeNativeLogin(provider: String, code: String) = viewModelScope.launch {
@@ -287,6 +368,7 @@ fun TicketGroundCustomerApp(
   val pending by viewModel.bookingPending.collectAsStateWithLifecycle()
   val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
   val admissionQr by viewModel.admissionQr.collectAsStateWithLifecycle()
+  val inquiries by viewModel.inquiries.collectAsStateWithLifecycle()
 
   BackHandler(enabled = route != CustomerRoute.Tab, onBack = viewModel::closeRoute)
 
@@ -303,6 +385,8 @@ fun TicketGroundCustomerApp(
               onSearch = { viewModel.navigate(AppDestination.Search) },
               onCategory = viewModel::openCategory,
               onCollection = viewModel::openCollection,
+              onRanking = viewModel::openRanking,
+              onRegion = viewModel::openRegion,
               onOpenCalendar = viewModel::openCalendar,
               onOpenResale = viewModel::openResale,
               onSupport = viewModel::openSupport,
@@ -317,6 +401,8 @@ fun TicketGroundCustomerApp(
               onSearch = { viewModel.navigate(AppDestination.Search) },
               onCategory = viewModel::openCategory,
               onCollection = viewModel::openCollection,
+              onRanking = viewModel::openRanking,
+              onRegion = viewModel::openRegion,
               onOpenCalendar = viewModel::openCalendar,
               onOpenResale = viewModel::openResale,
               onSupport = viewModel::openSupport,
@@ -339,12 +425,20 @@ fun TicketGroundCustomerApp(
             onTicketSelected = viewModel::selectOwnedTicket,
             admissionQr = admissionQr,
             onLogin = openLogin,
+            onReservationRoute = viewModel::openReservation,
+            onCancellationRoute = viewModel::openCancellation,
+            onResaleRoute = viewModel::openResaleLifecycle,
+            onTrustedDeviceRoute = viewModel::openTrustedDevice,
+            onPushRoute = viewModel::openPushNotifications,
+            onInquiryRoute = viewModel::openInquiry,
           )
         }
         is CustomerRoute.Event -> EventDetailScreen(
           current.event,
           onSeatMap = { viewModel.openSeatMap(current.event, it) },
           onWatchlist = { viewModel.addToWatchlist(current.event) },
+          onVenue = { viewModel.openVenue(current.event) },
+          onArtist = { viewModel.openArtist(current.event) },
           actionMessage = actionMessage,
         )
         is CustomerRoute.Collection -> Box(
@@ -357,6 +451,18 @@ fun TicketGroundCustomerApp(
             onRetry = {},
             onEvent = viewModel::openEvent,
           )
+        }
+        is CustomerRoute.Ranking -> Box(Modifier.fillMaxSize().testTag("ranking-screen")) {
+          EventListScreen("실시간 예매 랭킹", AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent, ranking = true)
+        }
+        is CustomerRoute.Region -> Box(Modifier.fillMaxSize().testTag("region-screen-${current.name}")) {
+          EventListScreen("${current.name} 공연", AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent)
+        }
+        is CustomerRoute.Venue -> Box(Modifier.fillMaxSize().testTag("venue-screen-${current.venueId ?: current.venueName}")) {
+          EventListScreen(current.venueName, AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent)
+        }
+        is CustomerRoute.Artist -> Box(Modifier.fillMaxSize().testTag("artist-screen-${current.artistSlug ?: "unknown"}")) {
+          EventListScreen(current.artistNames.firstOrNull() ?: "아티스트 공연", AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent)
         }
         CustomerRoute.OpenCalendar -> AsyncSurface(home, viewModel::loadHome) {
           OpenCalendarScreen(it.calendar, viewModel::openEvent)
@@ -376,6 +482,9 @@ fun TicketGroundCustomerApp(
           )
           actionMessage?.let { StateBanner(it) }
         }
+        is CustomerRoute.Booking -> BookingProgressScreen(current.progress) {
+          viewModel.continueToCheckout(it)
+        }
         is CustomerRoute.Checkout -> {
           CheckoutHandoffScreen(current.request, pending, current.seatLabel, current.amount) { result ->
             viewModel.completeCheckout(current.request, result)
@@ -383,6 +492,45 @@ fun TicketGroundCustomerApp(
           actionMessage?.let { StateBanner(it) }
         }
         CustomerRoute.Support -> AsyncSurface(home, viewModel::loadHome) { SupportScreen(it) }
+        CustomerRoute.Reservation -> LifecycleOverviewScreen(
+          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
+          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
+          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
+          routeTag = "reservation-detail",
+        )
+        CustomerRoute.Cancellation -> LifecycleOverviewScreen(
+          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
+          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
+          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
+          routeTag = "cancellation-request",
+        )
+        CustomerRoute.ResaleLifecycle -> LifecycleOverviewScreen(
+          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
+          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
+          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
+          routeTag = "resale-lifecycle",
+        )
+        CustomerRoute.TrustedDevice -> LifecycleOverviewScreen(
+          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
+          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
+          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
+          routeTag = "trusted-device",
+        )
+        CustomerRoute.PushNotifications -> LifecycleOverviewScreen(
+          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
+          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
+          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
+          routeTag = "push-notifications",
+        )
+        CustomerRoute.Inquiry -> InquiryScreen(
+          accountState = account,
+          inquiryState = inquiries,
+          pending = pending,
+          actionMessage = actionMessage,
+          onRetry = viewModel::loadInquiries,
+          onSubmit = viewModel::submitInquiry,
+          onLogin = openLogin,
+        )
       }
     }
   }

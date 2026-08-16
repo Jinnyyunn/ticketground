@@ -31,6 +31,7 @@ import kr.ticketground.app.data.DeviceOwnerAuthenticator
 import kr.ticketground.app.data.InMemoryDeviceTokenStore
 import kr.ticketground.app.data.WatchlistItem
 import kr.ticketground.app.data.AdmissionQr
+import kr.ticketground.app.data.SupportThread
 
 sealed interface AsyncContent<out T> {
   data object Loading : AsyncContent<Nothing>
@@ -89,6 +90,12 @@ interface CustomerRepository {
   suspend fun requestCancellation(ticketId: String, reason: String)
   suspend fun listForResale(ticketId: String, price: Int)
   suspend fun addToWatchlist(eventId: String)
+  suspend fun supportThreads(): List<SupportThread> = throw ApiError.Transport(
+    IllegalStateException("Native inquiry history is unavailable"),
+  )
+  suspend fun createSupportThread(subject: String, message: String): SupportThread = throw ApiError.Transport(
+    IllegalStateException("Native inquiry submission is unavailable"),
+  )
   suspend fun completeCheckout(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome =
     throw ExternalProviderError.TossUnavailable
   suspend fun trustThisDevice(): Unit = throw ExternalProviderError.PlayIntegrityUnavailable
@@ -185,6 +192,11 @@ class TypedCustomerRepository(
   override suspend fun addToWatchlist(eventId: String) {
     accountApi.upsertWatchlist(eventId, listOf("PUSH"), true, true, "android-watch-${UUID.randomUUID()}")
   }
+
+  override suspend fun supportThreads(): List<SupportThread> = accountApi.supportThreads()
+
+  override suspend fun createSupportThread(subject: String, message: String): SupportThread =
+    accountApi.createSupportThread(subject, message, "android-support-${UUID.randomUUID()}")
 
   override suspend fun completeCheckout(request: TossCheckoutRequest, result: TossWidgetResult): CheckoutOutcome =
     checkout.complete(request, result)

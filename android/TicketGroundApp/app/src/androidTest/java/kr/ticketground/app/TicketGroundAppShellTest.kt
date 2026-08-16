@@ -152,10 +152,12 @@ class TicketGroundAppShellTest {
     }
 
     listOf(
+      "home-ranking-more" to "ranking-screen",
       "home-open-more" to "open-calendar-screen",
       "home-resale-pool" to "resale-screen",
       "home-genre-콘서트" to "collection-screen-콘서트",
       "home-editorial-1" to "collection-screen-기획전",
+      "home-region-all" to "region-screen-전체 지역",
     ).forEach { (sourceTag, destinationTag) ->
       composeRule.onNodeWithTag("home-list")
         .performScrollToNode(androidx.compose.ui.test.hasTestTag(sourceTag))
@@ -163,6 +165,61 @@ class TicketGroundAppShellTest {
       composeRule.onNodeWithTag(destinationTag).assertIsDisplayed()
       composeRule.runOnIdle { viewModel.navigate(AppDestination.Home) }
     }
+  }
+
+  @Test
+  fun rankingRoute_exposesCanonicalDestination() = assertCustomerRoute("ranking-screen") {
+    it.openRanking(listOf(event()))
+  }
+
+  @Test
+  fun regionRoute_exposesCanonicalDestination() = assertCustomerRoute("region-screen-전체 지역") {
+    it.openRegion("전체 지역", listOf(event()))
+  }
+
+  @Test
+  fun venueRoute_exposesCanonicalDestination() = assertCustomerRoute("venue-screen-venue-1") {
+    it.openVenue(event())
+  }
+
+  @Test
+  fun artistRoute_exposesCanonicalDestination() = assertCustomerRoute("artist-screen-artist-1") {
+    it.openArtist(event())
+  }
+
+  @Test
+  fun bookingRoute_exposesCanonicalProgressWithoutSuccessCopy() = assertCustomerRoute("booking-progress") {
+    it.openBooking(BookingProgress.Waiting(3))
+  }
+
+  @Test
+  fun reservationRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("reservation-detail") {
+    it.openReservation()
+  }
+
+  @Test
+  fun cancellationRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("cancellation-request") {
+    it.openCancellation()
+  }
+
+  @Test
+  fun resaleLifecycleRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("resale-lifecycle") {
+    it.openResaleLifecycle()
+  }
+
+  @Test
+  fun trustedDeviceRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("trusted-device") {
+    it.openTrustedDevice()
+  }
+
+  @Test
+  fun pushRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("push-notifications") {
+    it.openPushNotifications()
+  }
+
+  @Test
+  fun inquiryRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("support-inquiry-signed-out") {
+    it.openInquiry()
   }
 
   @Test
@@ -536,6 +593,18 @@ class TicketGroundAppShellTest {
     }
   }
 
+  private fun assertCustomerRoute(destinationTag: String, open: (CustomerAppViewModel) -> Unit) {
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
+    composeRule.setContent {
+      TicketGroundTheme { Box(Modifier.width(390.dp).height(920.dp)) { TicketGroundCustomerApp(viewModel) } }
+    }
+    composeRule.runOnIdle { open(viewModel) }
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag(destinationTag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(destinationTag).assertIsDisplayed()
+  }
+
   private fun assertTextRangeOnOneLineForText(text: String, phrase: String) {
     val results = mutableListOf<TextLayoutResult>()
     composeRule.onNodeWithText(text, useUnmergedTree = true)
@@ -548,7 +617,8 @@ class TicketGroundAppShellTest {
   }
 
   private fun event() = CatalogEvent(
-    id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42,
+    id = "event-1", title = "서울 콘서트", venueId = "venue-1", venue = "잠실주경기장",
+    artistSlug = "artist-1", casts = listOf("테스트 아티스트"), soldCount = 42,
   )
 
   private fun seatMap(image: String = "") = SeatMap(
@@ -575,7 +645,8 @@ class TicketGroundAppShellTest {
 
 private class ComposeCustomerRepository : CustomerRepository {
   private val event = CatalogEvent(
-    id = "event-1", category = "콘서트", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42,
+    id = "event-1", category = "콘서트", title = "서울 콘서트", venueId = "venue-1",
+    venue = "잠실주경기장", artistSlug = "artist-1", casts = listOf("테스트 아티스트"), soldCount = 42,
   )
   private val musical = event.copy(
     id = "event-2", category = "뮤지컬", title = "뮤지컬 별빛", venue = "예술의전당", soldCount = 31,

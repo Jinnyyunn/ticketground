@@ -23,6 +23,8 @@ import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.CheckoutError
 import kr.ticketground.app.data.OwnedTicket
 import kr.ticketground.app.data.AdmissionQr
+import kr.ticketground.app.data.DisplayStatus
+import kr.ticketground.app.data.SupportThread
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -73,10 +75,11 @@ class CustomerAppViewModelTest {
     advanceUntilIdle()
 
     assertEquals("seat-a1", repository.bookedSeatId)
-    val checkout = viewModel.route.value as CustomerRoute.Checkout
-    assertEquals("A구역 1열 1번", checkout.seatLabel)
-    assertEquals("ticket-1", checkout.request.ticketId)
-    assertEquals("client-key", checkout.request.clientKey)
+    val booking = viewModel.route.value as CustomerRoute.Booking
+    val held = booking.progress as BookingProgress.Held
+    assertEquals("A구역 1열 1번", held.seatLabel)
+    assertEquals("ticket-1", held.checkout.ticketId)
+    assertEquals("client-key", held.checkout.clientKey)
   }
 
   @Test
@@ -181,6 +184,8 @@ class CustomerAppViewModelTest {
     viewModel.selectSeat("seat-a1")
     viewModel.book(event, "performance-1")
     advanceUntilIdle()
+    val progress = (viewModel.route.value as CustomerRoute.Booking).progress as BookingProgress.Held
+    viewModel.continueToCheckout(progress)
     val request = (viewModel.route.value as CustomerRoute.Checkout).request
 
     viewModel.completeCheckout(request, TossWidgetResult.Success("provider-payment-key"))
@@ -206,6 +211,124 @@ class CustomerAppViewModelTest {
     assertTrue(viewModel.route.value is CustomerRoute.SeatMapRoute)
     assertEquals("Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다.", viewModel.actionMessage.value)
   }
+
+  @Test
+  fun `ranking opens a typed ranking destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.openRanking(repository.homeValue.events)
+
+    assertEquals(CustomerRoute.Ranking(repository.homeValue.events), viewModel.route.value)
+  }
+
+  @Test
+  fun `region discovery opens a typed region destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.openRegion("서울", repository.homeValue.events)
+
+    assertEquals(CustomerRoute.Region("서울", repository.homeValue.events), viewModel.route.value)
+  }
+
+  @Test
+  fun `venue discovery opens a typed venue destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openVenue(event)
+
+    assertEquals(CustomerRoute.Venue(event.venueId, event.venue, repository.homeValue.events), viewModel.route.value)
+  }
+
+  @Test
+  fun `artist discovery opens a typed artist destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openArtist(event)
+
+    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty(), repository.homeValue.events), viewModel.route.value)
+  }
+
+  @Test
+  fun `booking progress opens a typed queue hold and draft destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    advanceUntilIdle()
+    val progress = BookingProgress.Waiting(3)
+
+    viewModel.openBooking(progress)
+
+    assertEquals(CustomerRoute.Booking(progress), viewModel.route.value)
+  }
+
+  @Test
+  fun `reservation detail opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openReservation()
+    assertEquals(CustomerRoute.Reservation, viewModel.route.value)
+  }
+
+  @Test
+  fun `cancellation request opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openCancellation()
+    assertEquals(CustomerRoute.Cancellation, viewModel.route.value)
+  }
+
+  @Test
+  fun `official resale lifecycle opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openResaleLifecycle()
+    assertEquals(CustomerRoute.ResaleLifecycle, viewModel.route.value)
+  }
+
+  @Test
+  fun `trusted device opens a typed fail closed destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openTrustedDevice()
+    assertEquals(CustomerRoute.TrustedDevice, viewModel.route.value)
+  }
+
+  @Test
+  fun `push notifications open a typed fail closed destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openPushNotifications()
+    assertEquals(CustomerRoute.PushNotifications, viewModel.route.value)
+  }
+
+  @Test
+  fun `inquiry opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openInquiry()
+    assertEquals(CustomerRoute.Inquiry, viewModel.route.value)
+  }
+
+  @Test
+  fun `inquiry loads history and publishes only the server created thread`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(
+      inquiryValue = listOf(supportThread("thread-old", "기존 문의")),
+    )
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.openInquiry()
+    advanceUntilIdle()
+    assertEquals("기존 문의", (viewModel.inquiries.value as AsyncContent.Ready).value.single().subject)
+
+    viewModel.submitInquiry("새 문의", "서버에서 확인해 주세요.")
+    advanceUntilIdle()
+
+    assertEquals("새 문의", repository.createdInquirySubject)
+    assertEquals("새 문의", (viewModel.inquiries.value as AsyncContent.Ready).value.first().subject)
+  }
 }
 
 private class FakeCustomerRepository(
@@ -213,6 +336,7 @@ private class FakeCustomerRepository(
   private val accountError: Throwable? = null,
   private val accountValue: AccountOverview = AccountOverview(true),
   private val bookError: Throwable? = null,
+  private val inquiryValue: List<SupportThread> = emptyList(),
 ) : CustomerRepository {
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
   var bookedSeatId: String? = null
@@ -221,6 +345,7 @@ private class FakeCustomerRepository(
   var qrTicketId: String? = null
   var completedPaymentKey: String? = null
   var watchlistedEventId: String? = null
+  var createdInquirySubject: String? = null
 
   override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = seatMapFixture()
@@ -239,6 +364,11 @@ private class FakeCustomerRepository(
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
   override suspend fun addToWatchlist(eventId: String) { watchlistedEventId = eventId }
+  override suspend fun supportThreads(): List<SupportThread> = inquiryValue
+  override suspend fun createSupportThread(subject: String, message: String): SupportThread {
+    createdInquirySubject = subject
+    return supportThread("thread-new", subject)
+  }
   override suspend fun trustThisDevice() { trustCalls += 1 }
   override suspend fun registerPush() { pushCalls += 1 }
   override suspend fun issueAdmissionQr(ticketId: String): AdmissionQr {
@@ -258,7 +388,15 @@ private class FakeCustomerRepository(
     )
   }
 
-  private fun event() = CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)
+  private fun event() = CatalogEvent(
+    id = "event-1",
+    title = "서울 콘서트",
+    venueId = "venue-1",
+    venue = "잠실주경기장",
+    artistSlug = "artist-1",
+    casts = listOf("테스트 아티스트"),
+    soldCount = 42,
+  )
 
   private fun admissionQr(ticketId: String) = AdmissionQr(
     "ADMISSION", ticketId, "account-1", "2099-01-01T00:00:00Z", "nonce", "signature",
@@ -283,6 +421,14 @@ private class FakeCustomerRepository(
     ),
   )
 }
+
+private fun supportThread(id: String, subject: String) = SupportThread(
+  id = id,
+  subject = subject,
+  status = DisplayStatus.OPEN,
+  updatedAt = "2026-08-17T00:00:00Z",
+  messages = emptyList(),
+)
 
 private fun accountOverview(twoTickets: Boolean = false): AccountOverview = AccountOverview(
   signedIn = true,
