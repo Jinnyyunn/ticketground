@@ -55,11 +55,16 @@ import kr.ticketground.app.ui.TicketGroundCustomerApp
 import kr.ticketground.app.ui.CustomerAppViewModel
 import kr.ticketground.app.ui.CustomerRepository
 import kr.ticketground.app.ui.CustomerRoute
+import kr.ticketground.app.ui.EditorialCard
 import kr.ticketground.app.ui.GenreRecommendation
 import kr.ticketground.app.ui.HomeContent
+import kr.ticketground.app.ui.HomeEditorialSection
 import kr.ticketground.app.ui.HomeGenreSection
+import kr.ticketground.app.ui.HomeOpeningSection
+import kr.ticketground.app.ui.OpeningPresentation
 import kr.ticketground.app.ui.PublicResaleScreen
 import kr.ticketground.app.ui.SupportScreen
+import kr.ticketground.app.ui.TicketGroundLayout
 import kr.ticketground.app.ui.BookingProgress
 import kr.ticketground.app.ui.TicketGroundTheme
 import kr.ticketground.app.data.WatchlistItem
@@ -466,6 +471,55 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(title, "방학")
+  }
+
+  @Test
+  fun homeParityGeometry_followsSharedLayoutTokens() {
+    val catalogEvent = event()
+    composeRule.setContent {
+      TicketGroundTheme {
+        Column(Modifier.width(411.dp)) {
+          HomeOpeningSection(
+            OpeningPresentation(
+              entries = listOf(OpenCalendarEntry("2026-08-14T20:00:00+09:00", event = catalogEvent)),
+              destination = CustomerRoute.OpenCalendar,
+            ),
+            onOpenCalendar = {},
+            onEvent = {},
+          )
+          HomeEditorialSection(
+            cards = listOf(
+              EditorialCard(
+                order = 1,
+                title = "Ticketground Day",
+                slug = "ticketground-day",
+                events = listOf(catalogEvent),
+                destination = CustomerRoute.Collection("기획전", listOf(catalogEvent)),
+              ),
+            ),
+            onCollection = {},
+          )
+          HomeGenreSection(
+            groups = listOf(
+              GenreRecommendation(
+                label = "콘서트",
+                events = listOf(catalogEvent),
+                destination = CustomerRoute.Collection("콘서트", listOf(catalogEvent)),
+              ),
+            ),
+            onCollection = {},
+            onEvent = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithTag("home-opening-event-1")
+      .assertWidthIsEqualTo(TicketGroundLayout.homeOpeningCardWidth)
+    composeRule.onNodeWithTag("home-editorial-1")
+      .assertWidthIsEqualTo(TicketGroundLayout.homeEditorialCardWidth)
+    composeRule.onNodeWithTag("home-genre-poster-event-1", useUnmergedTree = true)
+      .assertHeightIsEqualTo(TicketGroundLayout.homeGenrePosterHeight)
   }
 
   private fun assertTextRangeOnOneLine(tag: String, phrase: String) {

@@ -156,7 +156,7 @@ fun HomeEditorialSection(
       LazyRow(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
         items(cards, key = { it.slug }) { card ->
           Card(
-            modifier = Modifier.width(260.dp)
+            modifier = Modifier.width(TicketGroundLayout.homeEditorialCardWidth)
               .heightIn(min = TicketGroundLayout.minimumTouchTarget)
               .clickable { onCollection(card) }
               .testTag("home-editorial-${card.order}"),
@@ -256,7 +256,7 @@ private fun ParitySectionHeader(title: String, action: @Composable () -> Unit) {
 private fun OpeningCard(
   entry: OpenCalendarEntry,
   onEvent: (CatalogEvent) -> Unit,
-  modifier: Modifier = Modifier.width(230.dp),
+  modifier: Modifier = Modifier.width(TicketGroundLayout.homeOpeningCardWidth),
 ) {
   Card(
     modifier = modifier
@@ -295,8 +295,10 @@ private fun ParityEventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit
   ) {
     val imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) }
     Box(
-      Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(TicketGroundRadius.medium))
-        .background(MaterialTheme.colorScheme.surfaceVariant),
+      Modifier.fillMaxWidth().height(TicketGroundLayout.homeGenrePosterHeight)
+        .clip(RoundedCornerShape(TicketGroundRadius.medium))
+        .background(MaterialTheme.colorScheme.surfaceVariant)
+        .testTag("home-genre-poster-${event.id}"),
     ) {
       if (imageUrl != null) {
         AsyncImage(

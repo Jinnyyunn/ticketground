@@ -190,3 +190,47 @@ Two independent final gates opened all 16 PNGs at original resolution. The stric
 - `adb emu kill`: exit 0; emulator returned `OK`.
 - Follow-up `adb devices`: empty device list.
 - Exact-process checks: `pgrep -x qemu-system-aarch64` found 0 processes and `jps -l | rg GradleDaemon` found 0 Gradle daemons.
+
+## Fix round 2
+
+### Review verification and token-contract TDD
+
+The final Pass A findings were both reproduced against source and evidence. `manual/04-genre-concert-destination.png` showed the generic `공연 검색` surface rather than the required concert collection. The three literal dimensions (`260.dp`, `230.dp`, and `176.dp`) were genuine, stable dimensions of reused home-parity components rather than local one-off decoration.
+
+The approved smallest coherent fix adds the semantic `TicketGroundLayout.homeEditorialCardWidth`, `homeOpeningCardWidth`, and `homeGenrePosterHeight` tokens while retaining their exact rendered values. A rendered Compose geometry regression measures the opening card, editorial card, and genre poster bounds against those tokens.
+
+- RED: `./gradlew :app:compileDevCustomerDebugAndroidTestKotlin --no-configuration-cache`, exit 1, `BUILD FAILED in 14s`; compilation failed only on the three deliberately referenced, missing token names.
+- GREEN compile: the same command exited 0, `BUILD SUCCESSFUL in 6s`; 29 tasks (3 executed, 26 up-to-date).
+- Final focused rendered command covered the token geometry plus all four CJK contracts (`publicResale`, `support`, signed-out My Page, and genre card): exit 0, 5/5 pass, `BUILD SUCCESSFUL in 50s`; 72 tasks (7 executed, 65 up-to-date).
+
+The genre poster received a stable semantics tag solely so the test can measure the rendered bound. No screenshot-specific branching or pixel adjustment was introduced, and the existing 48 dp touch-target and responsive composition remain unchanged.
+
+### Final serial regression
+
+- Full `TicketGroundAppShellTest`: exit 0, 19/19 pass, 0 failures/errors/skipped; `BUILD SUCCESSFUL in 5m 5s`; 72 tasks (1 executed, 71 up-to-date). Generated XML independently reports 19 tests, 0 failures, 0 errors, 0 skipped, and 268.266 seconds total time.
+- `node --test tests/mobile-home-parity.test.mjs`: exit 0, 3/3 pass, 0 fail/skipped; duration 92.559958 ms.
+- `./gradlew :app:testDevCustomerDebugUnitTest --no-configuration-cache`: exit 0, 68/68 pass across 16 XML suites, 0 failures/errors/skipped; `BUILD SUCCESSFUL in 6s`; 26 tasks (3 executed, 23 up-to-date).
+
+### Fresh evidence and manual actions
+
+Final evidence root: `/tmp/ticketground-mobile-parity/android/task6-fix-round2-final/`.
+
+The last rendered-source mtime is epoch `1786892897` (`CustomerHomeParitySections.kt`, 2026-08-17 00:08:17 +0900). All 16 final PNGs are newer: phone captures are epoch `1786893091`, manual captures range from `1786893152` through `1786893633`, and the tablet capture is epoch `1786893744`.
+
+- Automated phone: `captures-phone/13-phone-home-opening-resale.png`, `14-phone-home-genre-editorial.png`, and `15-phone-home-shortcuts.png`, each 1024x1890; focused capture run 3/3 pass, exit 0.
+- Expanded tablet: `captures-tablet/09-tablet-expanded-home-parity.png`, 2240x1440; focused capture run 1/1 pass, exit 0.
+- Manual real-window set: `manual/00-fresh-home.png` through `manual/11-genre-card-cjk-final.png`, each 822x1902.
+
+The final APK was clean-installed and the real `MainActivity` cold-launched before manual navigation. For the corrected genre evidence, Home was restored, `장르별 추천` was scrolled into view, and the actual `콘서트` action was activated. UIAutomator then observed the concert collection content (`콘서트`, `IU 2026 WORLD TOUR`, `2026 Palette Festival`, `SEVENTEEN TOUR`, `NCT WISH FANMEETING`, and `DAY6 Special Live`) and no `공연 검색`; `manual/04-genre-concert-destination.png` records that settled native collection. The full shell test independently asserts the `collection-screen-콘서트` destination semantics.
+
+The remaining manual files repeat the required real actions: opening-calendar destination, public signed-out resale, resale CTA to My Page login gate, editorial and shortcuts home, editorial collection, opening/search/support shortcuts, system Back to home, and the final genre CJK frame. Public resale remains read-only and makes no listing or purchase-success claim.
+
+All 16 files have PNG signature `89504e470d0a1a0a`, expected dimensions, non-trivial byte sizes, mtimes newer than source, and 16 distinct SHA-256 hashes. Every image was opened at original resolution. Direct inspection found complete app compositions, correct phone section order, coherent expanded reuse, natural CJK line breaks (`실제`, `반영됩니다.`, both `있습니다.`, and `여름방학` intact), and no notification shade, partial compositor, in-app black/blank frame, clipping, overlap, tofu, malformed state, QR secret, credential, token, or customer PII. External black surrounding the emulator device is outside the app surface.
+
+Two serial, independent final visual gates each opened all 16 PNGs at original resolution and returned PASS. The design gate confirmed the corrected concert collection, phone/tablet anatomy, image and fallback consistency, token fidelity, and absence of visual hardcoding. The strict CJK/metadata gate independently reproduced all signatures, dimensions, freshness, and unique hashes; it also confirmed every named Korean word remains intact and that the corrected `manual/04` is not the search screen.
+
+### Boundary and cleanup audit
+
+- Changed product/test paths are limited to home parity sections, shared layout tokens, the shell regression, and this report. No protected Google, Kakao, or Naver simple-login UI/config/OAuth/session/test/environment/provider path changed.
+- No `AndroidView` or `WebView` was added. No hard-coded line break or capture-specific conditional was added.
+- Cleanup receipt: `./gradlew --stop` exited 0 and stopped 1 daemon. The first emulator cleanup attempt used stale serial `emulator-5554` and returned connection refused; the resolved active phone serial `emulator-5556` then returned `OK`. Follow-up `adb devices` was empty, `pgrep -x qemu-system-aarch64` found 0 processes, and the Android Studio JBR `jps -l` check found 0 Gradle daemons.
