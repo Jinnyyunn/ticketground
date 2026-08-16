@@ -30,6 +30,9 @@ import kr.ticketground.app.data.AdmissionQr
 sealed interface CustomerRoute {
   data object Tab : CustomerRoute
   data class Event(val event: CatalogEvent) : CustomerRoute
+  data class Collection(val title: String, val events: List<CatalogEvent>) : CustomerRoute
+  data object OpenCalendar : CustomerRoute
+  data object Resale : CustomerRoute
   data class SeatMapRoute(val event: CatalogEvent, val performanceDateId: String?) : CustomerRoute
   data class Checkout(val seatLabel: String, val amount: Int, val request: TossCheckoutRequest) : CustomerRoute
   data object Support : CustomerRoute
@@ -87,6 +90,14 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun openEvent(event: CatalogEvent) { mutableRoute.value = CustomerRoute.Event(event) }
+
+  fun openCollection(title: String, events: List<CatalogEvent>) {
+    mutableRoute.value = CustomerRoute.Collection(title, events)
+  }
+
+  fun openCalendar() { mutableRoute.value = CustomerRoute.OpenCalendar }
+
+  fun openResale() { mutableRoute.value = CustomerRoute.Resale }
 
   fun addToWatchlist(event: CatalogEvent) = viewModelScope.launch {
     if (mutableBookingPending.value) return@launch
@@ -305,6 +316,7 @@ fun TicketGroundCustomerApp(
           onWatchlist = { viewModel.addToWatchlist(current.event) },
           actionMessage = actionMessage,
         )
+        is CustomerRoute.Collection, CustomerRoute.OpenCalendar, CustomerRoute.Resale -> Unit
         is CustomerRoute.SeatMapRoute -> {
           GraphicalSeatMapScreen(
             state = seatMap,
