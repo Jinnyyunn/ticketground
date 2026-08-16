@@ -30,6 +30,15 @@ final class FixtureUIHarnessTests: XCTestCase {
         app.launch()
         _ = UITestBootstrap.waitForHome(app)
         XCTAssertTrue(app.staticTexts["Ticketground"].exists, file: file, line: line)
-        XCTAssertTrue(app.staticTexts[scenario.statusText].waitForExistence(timeout: 10), file: file, line: line)
+        switch scenario {
+        case .happy:
+            XCTAssertTrue(
+                app.staticTexts["discovery-featured-title"].waitForExistence(timeout: 10),
+                file: file,
+                line: line
+            )
+        default:
+            XCTAssertTrue(app.staticTexts[scenario.statusText].waitForExistence(timeout: 10), file: file, line: line)
+        }
     }
 }
