@@ -64,6 +64,7 @@ import kr.ticketground.app.ui.HomeGenreSection
 import kr.ticketground.app.ui.HomeOpeningSection
 import kr.ticketground.app.ui.OpeningPresentation
 import kr.ticketground.app.ui.PublicResaleScreen
+import kr.ticketground.app.ui.PushNotificationsScreen
 import kr.ticketground.app.ui.SupportScreen
 import kr.ticketground.app.ui.TicketGroundLayout
 import kr.ticketground.app.ui.BookingProgress
@@ -571,6 +572,50 @@ class TicketGroundAppShellTest {
 
     assertTextRangeOnOneLineForText(noticeBody, "작성할 수 있습니다.")
     assertTextRangeOnOneLineForText(faqAnswer, "확인할 수 있습니다.")
+  }
+
+  @Test
+  fun supportCopy_keepsFastSubmissionPhraseTogetherAtAcceptedPhoneWidth() {
+    val copy = "예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp).height(720.dp)) { SupportScreen(null) }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "빠르게")
+  }
+
+  @Test
+  fun tossBlockedCopy_keepsPaymentWordTogetherAtAcceptedPhoneWidth() {
+    val request = kr.ticketground.app.data.TossCheckoutRequest(
+      "draft-1", "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+      "test_ck_widget", "instrumentation-payment",
+    )
+    val copy = "서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp).height(720.dp)) {
+          BookingProgressScreen(BookingProgress.Held("seat-1", "A구역 1열 1번", 122000, request), {}, {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "결제")
+  }
+
+  @Test
+  fun pushCopy_keepsNoInferencePhraseTogetherAtAcceptedPhoneWidth() {
+    val copy = "알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp).height(720.dp)) {
+          PushNotificationsScreen(AsyncContent.Ready(AccountOverview(signedIn = true)), false, null, {}, {}, {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "추정하지 않습니다")
   }
 
   @Test

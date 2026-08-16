@@ -171,7 +171,7 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(TicketGroundRadius.medium),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    content = { Column(Modifier.padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm), content = content) },
+    content = { Column(Modifier.padding(horizontal = TicketGroundSpacing.xs, vertical = TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm), content = content) },
   )
 }
 
@@ -961,7 +961,7 @@ fun PushNotificationsScreen(
     SurfaceCard {
       SectionTitle("푸시 알림")
       Text(account.pushSuffix?.let { "FCM 등록됨 · 끝자리 $it" } ?: "푸시 알림 미등록", modifier = Modifier.testTag(if (account.pushSuffix == null) "push-empty" else "push-active"))
-      Text("알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다.")
+      Text("알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다.", style = MaterialTheme.typography.bodySmall)
       Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("push-register")) { Text("알림 등록 요청") }
       actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
