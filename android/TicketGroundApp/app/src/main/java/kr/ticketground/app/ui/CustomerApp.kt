@@ -1,5 +1,7 @@
 package kr.ticketground.app.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -98,6 +100,8 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   fun openCalendar() { mutableRoute.value = CustomerRoute.OpenCalendar }
 
   fun openResale() { mutableRoute.value = CustomerRoute.Resale }
+
+  fun closeRoute() { mutableRoute.value = CustomerRoute.Tab }
 
   fun addToWatchlist(event: CatalogEvent) = viewModelScope.launch {
     if (mutableBookingPending.value) return@launch
@@ -284,14 +288,41 @@ fun TicketGroundCustomerApp(
   val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
   val admissionQr by viewModel.admissionQr.collectAsStateWithLifecycle()
 
+  BackHandler(enabled = route != CustomerRoute.Tab, onBack = viewModel::closeRoute)
+
   BoxWithConstraints(Modifier.fillMaxSize()) {
+    val expandedLayout = maxWidth >= TicketGroundLayout.expandedBreakpoint
     TicketGroundNavigation(destination, maxWidth, viewModel::navigate) {
       when (val current = route) {
         CustomerRoute.Tab -> when (destination) {
-          AppDestination.Home -> if (maxWidth >= TicketGroundLayout.expandedBreakpoint) {
-            ExpandedHomeScreen(home, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin) { showMenu = true }
+          AppDestination.Home -> if (expandedLayout) {
+            ExpandedHomeScreen(
+              state = home,
+              onRetry = viewModel::loadHome,
+              onEvent = viewModel::openEvent,
+              onSearch = { viewModel.navigate(AppDestination.Search) },
+              onCategory = viewModel::openCategory,
+              onCollection = viewModel::openCollection,
+              onOpenCalendar = viewModel::openCalendar,
+              onOpenResale = viewModel::openResale,
+              onSupport = viewModel::openSupport,
+              onLogin = openLogin,
+              onMenu = { showMenu = true },
+            )
           } else {
-            HomeScreen(home, false, viewModel::loadHome, viewModel::openEvent, { viewModel.navigate(AppDestination.Search) }, viewModel::openCategory, viewModel::openSupport, openLogin) { showMenu = true }
+            HomeScreen(
+              state = home,
+              onRetry = viewModel::loadHome,
+              onEvent = viewModel::openEvent,
+              onSearch = { viewModel.navigate(AppDestination.Search) },
+              onCategory = viewModel::openCategory,
+              onCollection = viewModel::openCollection,
+              onOpenCalendar = viewModel::openCalendar,
+              onOpenResale = viewModel::openResale,
+              onSupport = viewModel::openSupport,
+              onLogin = openLogin,
+              onMenu = { showMenu = true },
+            )
           }
           AppDestination.Search -> AsyncSurface(home, viewModel::loadHome) { SearchScreen(it.events, viewModel::openEvent, searchQuery) }
           AppDestination.Watchlist -> WatchlistScreen(watchlist, viewModel::loadWatchlist)
@@ -316,7 +347,23 @@ fun TicketGroundCustomerApp(
           onWatchlist = { viewModel.addToWatchlist(current.event) },
           actionMessage = actionMessage,
         )
-        is CustomerRoute.Collection, CustomerRoute.OpenCalendar, CustomerRoute.Resale -> Unit
+        is CustomerRoute.Collection -> Box(
+          Modifier.fillMaxSize().testTag("collection-screen-${current.title}"),
+        ) {
+          EventListScreen(
+            title = current.title,
+            state = AsyncContent.Ready(current.events),
+            expanded = expandedLayout,
+            onRetry = {},
+            onEvent = viewModel::openEvent,
+          )
+        }
+        CustomerRoute.OpenCalendar -> AsyncSurface(home, viewModel::loadHome) {
+          OpenCalendarScreen(it.calendar, viewModel::openEvent)
+        }
+        CustomerRoute.Resale -> PublicResaleScreen {
+          viewModel.navigate(AppDestination.MyPage)
+        }
         is CustomerRoute.SeatMapRoute -> {
           GraphicalSeatMapScreen(
             state = seatMap,

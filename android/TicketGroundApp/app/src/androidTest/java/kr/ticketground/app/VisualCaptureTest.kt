@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -143,7 +144,8 @@ class VisualCaptureTest {
     composeRule.waitUntil(5_000) {
       composeRule.onAllNodesWithTag("event-list-two-pane").fetchSemanticsNodes().isNotEmpty()
     }
-    writeCapture("09-tablet-expanded-home-two-pane.png")
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(4)
+    writeCapture("09-tablet-expanded-home-parity.png")
   }
 
   @Test
@@ -167,6 +169,39 @@ class VisualCaptureTest {
     setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
     composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("문제가 발생했어요").fetchSemanticsNodes().isNotEmpty() }
     writeCapture("12-state-error-retry.png")
+  }
+
+  @Test
+  fun capture13_phoneHomeOpeningAndResale() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository())
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(4)
+    writeCapture("13-phone-home-opening-resale.png")
+  }
+
+  @Test
+  fun capture14_phoneHomeGenreAndEditorial() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository())
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(6)
+    writeCapture("14-phone-home-genre-editorial.png")
+  }
+
+  @Test
+  fun capture15_phoneHomeShortcuts() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository())
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(8)
+    writeCapture("15-phone-home-shortcuts.png")
   }
 
   private fun setCapture(
@@ -258,9 +293,15 @@ private fun fixtureHome() = HomeContent(
   events = listOf(
     fixtureEvent(),
     fixtureEvent().copy(id = "event-2", title = "부산 재즈 나이트", venue = "부산문화회관", soldCount = 31),
-    fixtureEvent().copy(id = "event-3", title = "뮤지컬 별빛", venue = "예술의전당", soldCount = 24),
+    fixtureEvent().copy(id = "event-3", category = "뮤지컬", title = "뮤지컬 별빛", venue = "예술의전당", soldCount = 24),
   ),
-  calendar = listOf(OpenCalendarEntry("2026-08-14 20:00", event = fixtureEvent())),
+  calendar = listOf(
+    OpenCalendarEntry("2026-08-14 20:00", event = fixtureEvent()),
+    OpenCalendarEntry(
+      "2026-08-16 14:00",
+      event = fixtureEvent().copy(id = "event-3", category = "뮤지컬", title = "뮤지컬 별빛", venue = "예술의전당"),
+    ),
+  ),
   faq = listOf(SupportFaq("faq-1", "배송 문의", "모바일 티켓으로 제공됩니다.")),
   notices = listOf(SupportNotice("notice-1", "예매 안내", "좌석도에서 원하는 좌석을 직접 선택해 주세요.")),
 )

@@ -176,18 +176,21 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 fun HomeScreen(
   state: AsyncContent<HomeContent>,
-  expanded: Boolean,
   onRetry: () -> Unit,
   onEvent: (CatalogEvent) -> Unit,
   onSearch: () -> Unit,
   onCategory: (String) -> Unit,
+  onCollection: (String, List<CatalogEvent>) -> Unit,
+  onOpenCalendar: () -> Unit,
+  onOpenResale: () -> Unit,
   onSupport: () -> Unit,
   onLogin: () -> Unit,
   onMenu: () -> Unit = {},
 ) {
   AsyncSurface(state, onRetry) { content ->
+    val presentation = CustomerHomePresentation.from(content)
     LazyColumn(
-      modifier = Modifier.fillMaxSize(),
+      modifier = Modifier.fillMaxSize().testTag("home-list"),
       contentPadding = PaddingValues(TicketGroundSpacing.lg),
       verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.lg),
     ) {
@@ -202,18 +205,21 @@ fun HomeScreen(
         }
       }
       item { RankingSection(content.events, onEvent, onSearch) }
-      item { ShortcutSection(onSearch, onSupport) }
-      item { SectionTitle("오픈 캘린더") }
-      if (content.calendar.isEmpty()) item { Text("예매 오픈 일정이 없습니다.") }
-      items(content.calendar, key = { it.opensAt + it.event.id }) { entry ->
-        SurfaceCard {
-          Text(entry.event.title, style = MaterialTheme.typography.titleMedium)
-          Text(entry.opensAt, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+      item { HomeOpeningSection(presentation.opening, onOpenCalendar, onEvent) }
+      item { HomeResaleSection(presentation.resale, onOpenResale) }
+      item {
+        HomeGenreSection(
+          presentation.genres,
+          onCollection = { onCollection(it.destination.title, it.events) },
+          onEvent = onEvent,
+        )
       }
       item {
-        OutlinedButton(onClick = onSupport, modifier = Modifier.fillMaxWidth()) { Text("공지·자주 묻는 질문") }
+        HomeEditorialSection(presentation.editorials) {
+          onCollection(it.destination.title, it.events)
+        }
       }
+      item { ShortcutSection(onOpenCalendar, onSearch, onSupport) }
     }
   }
 }
@@ -278,46 +284,57 @@ fun ExpandedHomeScreen(
   onEvent: (CatalogEvent) -> Unit,
   onSearch: () -> Unit,
   onCategory: (String) -> Unit,
+  onCollection: (String, List<CatalogEvent>) -> Unit,
+  onOpenCalendar: () -> Unit,
+  onOpenResale: () -> Unit,
   onSupport: () -> Unit,
   onLogin: () -> Unit,
   onMenu: () -> Unit = {},
 ) {
   AsyncSurface(state, onRetry) { content ->
-    EventListScreen(
-      title = "실시간 예매 랭킹 TOP10",
-      state = AsyncContent.Ready(content.events),
-      expanded = true,
-      onRetry = onRetry,
-      onEvent = onEvent,
-      beforeList = {
-        Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+    val presentation = CustomerHomePresentation.from(content)
+    Row(Modifier.fillMaxSize().testTag("event-list-two-pane")) {
+      LazyColumn(
+        modifier = Modifier.weight(1f).fillMaxHeight().testTag("home-list"),
+        contentPadding = PaddingValues(TicketGroundSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.lg),
+      ) {
+        item {
           HomeHeader(onLogin, onMenu)
           HomeSearchButton(onSearch)
-          CategoryShortcuts(onHome = {}, onCategory = onCategory)
-          content.events.firstOrNull()?.let { event -> HeroEventCard(event, onEvent) }
         }
-      },
-      afterList = {
-        Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
-          SectionTitle("오픈 캘린더")
-          if (content.calendar.isEmpty()) {
-            Text("예매 오픈 일정이 없습니다.")
-          } else {
-            content.calendar.forEach { entry ->
-              SurfaceCard {
-                Text(entry.event.title, style = MaterialTheme.typography.titleMedium)
-                Text(entry.opensAt, color = MaterialTheme.colorScheme.onSurfaceVariant)
-              }
-            }
-          }
-          OutlinedButton(onClick = onSupport, modifier = Modifier.fillMaxWidth()) {
-            Text("공지·자주 묻는 질문")
+        item { CategoryShortcuts(onHome = {}, onCategory = onCategory) }
+        item { content.events.firstOrNull()?.let { event -> HeroEventCard(event, onEvent) } }
+        item { RankingSection(content.events, onEvent, onSearch) }
+        item { HomeOpeningSection(presentation.opening, onOpenCalendar, onEvent) }
+        item { HomeResaleSection(presentation.resale, onOpenResale) }
+        item {
+          HomeGenreSection(
+            presentation.genres,
+            onCollection = { onCollection(it.destination.title, it.events) },
+            onEvent = onEvent,
+          )
+        }
+        item {
+          HomeEditorialSection(presentation.editorials) {
+            onCollection(it.destination.title, it.events)
           }
         }
-      },
-      ranking = true,
-      onRankingMore = onSearch,
-    )
+        item { ShortcutSection(onOpenCalendar, onSearch, onSupport) }
+      }
+      Box(Modifier.width(TicketGroundLayout.detailPaneWidth).padding(TicketGroundSpacing.lg)) {
+        content.events.firstOrNull()?.let { event ->
+          SurfaceCard {
+            Text(event.title, style = MaterialTheme.typography.titleLarge)
+            Text(event.venue)
+            Text(
+              event.summary ?: "공연 일정과 좌석 현황을 확인하세요.",
+              Modifier.testTag("expanded-event-summary"),
+            )
+          }
+        }
+      }
+    }
   }
 }
 
@@ -482,13 +499,14 @@ private fun RankingCard(event: CatalogEvent, rank: Int, onEvent: (CatalogEvent) 
 }
 
 @Composable
-private fun ShortcutSection(onSearch: () -> Unit, onSupport: () -> Unit) {
+private fun ShortcutSection(onCalendar: () -> Unit, onSearch: () -> Unit, onSupport: () -> Unit) {
   Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
     Text("바로가기", style = MaterialTheme.typography.headlineSmall)
     Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
-      ShortcutCard("오픈캘린더", "D-3 알림", onSupport, Modifier.weight(1f))
+      ShortcutCard("오픈캘린더", "오픈 일정", onCalendar, Modifier.weight(1f))
       ShortcutCard("공연 검색", "공연을 찾아보세요", onSearch, Modifier.weight(1f))
     }
+    ShortcutCard("공지·자주 묻는 질문", "고객센터", onSupport, Modifier.fillMaxWidth())
   }
 }
 

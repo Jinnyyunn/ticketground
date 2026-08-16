@@ -92,9 +92,12 @@ class TicketGroundAppShellTest {
     composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
     composeRule.onNodeWithTag("event-list-two-pane").assertIsDisplayed()
     composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").assertIsDisplayed().assertHasClickAction()
-    composeRule.onNodeWithText("오픈 캘린더").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("2026-08-14 20:00").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("공지·자주 묻는 질문").performScrollTo().assertIsDisplayed().performClick()
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText("티켓오픈 예정"))
+    composeRule.onNodeWithText("티켓오픈 예정").assertIsDisplayed()
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText("2026.08.14 20:00"))
+    composeRule.onNodeWithText("2026.08.14 20:00").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText("공지·자주 묻는 질문"))
+    composeRule.onNodeWithText("공지·자주 묻는 질문").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("배송 문의").assertIsDisplayed()
   }
 
@@ -114,6 +117,41 @@ class TicketGroundAppShellTest {
     }
     composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").performClick()
     composeRule.onNodeWithText("공연 검색").assertIsDisplayed()
+  }
+
+  @Test
+  fun phoneHome_exposesEveryWebParitySectionAndDestination() {
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp)) {
+          TicketGroundCustomerApp(viewModel)
+        }
+      }
+    }
+
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    listOf(
+      "티켓오픈 예정", "CLEAN 티켓 공식 양도", "장르별 추천", "기획전", "바로가기",
+    ).forEach { heading ->
+      composeRule.onNodeWithTag("home-list").performScrollToNode(hasText(heading))
+      composeRule.onNodeWithText(heading).assertIsDisplayed()
+    }
+
+    listOf(
+      "home-open-more" to "open-calendar-screen",
+      "home-resale-pool" to "resale-screen",
+      "home-genre-콘서트" to "collection-screen-콘서트",
+      "home-editorial-1" to "collection-screen-기획전",
+    ).forEach { (sourceTag, destinationTag) ->
+      composeRule.onNodeWithTag("home-list")
+        .performScrollToNode(androidx.compose.ui.test.hasTestTag(sourceTag))
+      composeRule.onNodeWithTag(sourceTag).performScrollTo().assertHasClickAction().performClick()
+      composeRule.onNodeWithTag(destinationTag).assertIsDisplayed()
+      composeRule.runOnIdle { viewModel.navigate(AppDestination.Home) }
+    }
   }
 
   @Test
@@ -399,10 +437,18 @@ class TicketGroundAppShellTest {
 }
 
 private class ComposeCustomerRepository : CustomerRepository {
-  private val event = CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)
+  private val event = CatalogEvent(
+    id = "event-1", category = "콘서트", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42,
+  )
+  private val musical = event.copy(
+    id = "event-2", category = "뮤지컬", title = "뮤지컬 별빛", venue = "예술의전당", soldCount = 31,
+  )
   override suspend fun home() = HomeContent(
-    events = listOf(event),
-    calendar = listOf(OpenCalendarEntry("2026-08-14 20:00", event = event)),
+    events = listOf(event, musical),
+    calendar = listOf(
+      OpenCalendarEntry("2026-08-14T20:00:00+09:00", event = event),
+      OpenCalendarEntry("2026-08-16T14:00:00+09:00", event = musical),
+    ),
     faq = listOf(SupportFaq("faq-1", "배송 문의", "모바일 티켓으로 제공됩니다.")),
     notices = listOf(SupportNotice("notice-1", "예매 안내", "좌석도에서 선택해 주세요.")),
   )
