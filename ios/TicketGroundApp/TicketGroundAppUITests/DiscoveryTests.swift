@@ -333,7 +333,7 @@ final class DiscoveryTests: XCTestCase {
     }
 
     func testLiveHomeShowsPublicStateWhenCatalogRouteIsUnconfirmed() {
-        let app = liveApp()
+        let app = liveApp(homeScenario: "unavailable")
         app.launch()
 
         XCTAssertTrue(anyElement(app, identifier: "live-state-home").waitForExistence(timeout: 20))
@@ -682,14 +682,14 @@ final class DiscoveryTests: XCTestCase {
     }
 
     func testLiveAccountRouteExposesWatchlistAndSupportState() {
-        let app = liveApp()
+        let app = liveApp(homeScenario: "supportAuthenticated")
         app.launch()
         XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
         app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account").waitForExistence(timeout: 20))
-        XCTAssertTrue(app.buttons["tab-mypage"].isSelected)
+        XCTAssertTrue(app.buttons["BackButton"].exists)
         XCTAssertTrue(app.buttons["live-mypage-watchlist"].exists)
         XCTAssertTrue(app.buttons["live-mypage-support"].exists)
         XCTAssertTrue(app.buttons["live-mypage-kakao-channel"].exists)
@@ -701,7 +701,7 @@ final class DiscoveryTests: XCTestCase {
                       || anyElement(app, identifier: "live-support-empty").exists
                       || anyElement(app, identifier: "live-support-error").exists)
 
-        let watchlistApp = liveApp()
+        let watchlistApp = liveApp(homeScenario: "watchlistAuthenticated")
         watchlistApp.launch()
         XCTAssertTrue(watchlistApp.buttons["header-menu"].waitForExistence(timeout: 10))
         watchlistApp.buttons["header-menu"].tap()
@@ -710,11 +710,11 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(watchlistApp.buttons["live-mypage-watchlist"].waitForExistence(timeout: 20))
         watchlistApp.buttons["live-mypage-watchlist"].tap()
         XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist").waitForExistence(timeout: 20))
-        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-login-required").exists || anyElement(watchlistApp, identifier: "live-watchlist-items").exists)
+        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist-empty").exists)
     }
 
     func testLiveAccountRoutesBlockHTTPBeforeProtectedRequests() {
-        let accountApp = liveApp()
+        let accountApp = liveApp(homeScenario: "catalog")
         accountApp.launch()
         XCTAssertTrue(accountApp.buttons["header-menu"].waitForExistence(timeout: 10))
         accountApp.buttons["header-menu"].tap()
@@ -723,7 +723,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(accountApp, identifier: "live-account-https-required").waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(accountApp, identifier: "live-account-error").exists)
 
-        let watchlistApp = liveApp()
+        let watchlistApp = liveApp(homeScenario: "catalog")
         watchlistApp.launch()
         XCTAssertTrue(watchlistApp.buttons["header-menu"].waitForExistence(timeout: 10))
         watchlistApp.buttons["header-menu"].tap()
@@ -732,7 +732,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist-https-required").waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(watchlistApp, identifier: "live-watchlist-error").exists)
 
-        let supportApp = liveApp()
+        let supportApp = liveApp(homeScenario: "catalog")
         supportApp.launch()
         XCTAssertTrue(supportApp.buttons["header-menu"].waitForExistence(timeout: 10))
         supportApp.buttons["header-menu"].tap()
