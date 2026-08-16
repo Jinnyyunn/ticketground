@@ -107,26 +107,39 @@ struct DiscoveryGenreRecommendationsSection: View {
                 if let group = selectedGroup {
                     NavigationLink(value: group.destination) {
                         VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                            ForEach(group.events, id: \.rank) { event in
-                                HStack(spacing: TicketgroundSpacing.md) {
-                                    TicketgroundMediaImage(
-                                        resource: event.imageResource,
-                                        role: .poster,
-                                        accessibilityLabel: "\(event.title) 포스터",
-                                        accessibilitySuffix: "home-genre-\(event.rank)"
+                            LazyVGrid(
+                                columns: [
+                                    GridItem(
+                                        .adaptive(minimum: 280),
+                                        spacing: TicketgroundSpacing.md,
+                                        alignment: .leading
                                     )
-                                    .frame(width: 64, height: 84)
-                                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
-                                    VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
-                                        Text(event.title)
-                                            .font(.headline.weight(.black))
-                                            .foregroundStyle(TicketgroundColor.ink)
-                                            .multilineTextAlignment(.leading)
-                                        Text("\(event.venue) · \(event.date)")
-                                            .font(.caption)
-                                            .foregroundStyle(TicketgroundColor.inkMuted)
+                                ],
+                                alignment: .leading,
+                                spacing: TicketgroundSpacing.sm
+                            ) {
+                                ForEach(group.events, id: \.rank) { event in
+                                    HStack(spacing: TicketgroundSpacing.md) {
+                                        TicketgroundMediaImage(
+                                            resource: event.imageResource,
+                                            role: .poster,
+                                            accessibilityLabel: "\(event.title) 포스터",
+                                            accessibilitySuffix: "home-genre-\(event.rank)"
+                                        )
+                                        .frame(width: 64, height: 84)
+                                        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+                                        VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                                            Text(event.title)
+                                                .font(.headline.weight(.black))
+                                                .foregroundStyle(TicketgroundColor.ink)
+                                                .multilineTextAlignment(.leading)
+                                            Text("\(event.venue) · \(event.date)")
+                                                .font(.caption)
+                                                .foregroundStyle(TicketgroundColor.inkMuted)
+                                        }
+                                        Spacer(minLength: 0)
                                     }
-                                    Spacer(minLength: 0)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
                             Text("\(group.label) 전체 보기")
@@ -135,6 +148,7 @@ struct DiscoveryGenreRecommendationsSection: View {
                                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("discovery-genre-\(identifier(for: group.label))")

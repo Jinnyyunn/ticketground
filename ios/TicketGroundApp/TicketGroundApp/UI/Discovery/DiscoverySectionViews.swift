@@ -102,7 +102,7 @@ struct DiscoveryOpeningSection: View {
                     Text("더보기")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(TicketgroundColor.inkMuted)
-                        .frame(minHeight: 44)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityIdentifier("discovery-open-more")
             }

@@ -83,6 +83,16 @@ final class DiscoveryTests: XCTestCase {
         }
     }
 
+    func testOpeningMoreHitTargetMeetsMinimumSize() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+
+        let openingMore = app.buttons["discovery-open-more"]
+        assertDiscoverable(openingMore)
+        XCTAssertGreaterThanOrEqual(openingMore.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(openingMore.frame.height, 44)
+    }
+
     func testLiveHomeParityDestinationsExposePublicStableRoots() {
         let app = liveApp(homeScenario: "catalog")
         app.launch()
@@ -158,6 +168,38 @@ final class DiscoveryTests: XCTestCase {
             XCTAssertLessThanOrEqual(element.frame.maxX, window.frame.maxX - 4, heading)
         }
         recordScreenshot(named: "home-parity-tablet", app: app)
+    }
+
+    func testGenreRecommendationsAdaptToAvailableWidth() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 10))
+
+        let genreHeading = app.staticTexts.matching(identifier: "장르별 추천").firstMatch
+        for _ in 0..<8 where !genreHeading.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(genreHeading.isHittable)
+        let genreRecommendations = app.buttons["discovery-genre-concert"]
+        let firstEvent = genreRecommendations.staticTexts["IU 2026 WORLD TOUR"]
+        let secondEvent = genreRecommendations.staticTexts["SEVENTEEN TOUR"]
+        assertDiscoverable(firstEvent)
+        if window.frame.width >= 700 {
+            assertDiscoverable(secondEvent)
+            XCTAssertGreaterThanOrEqual(
+                secondEvent.frame.minX,
+                firstEvent.frame.maxX,
+                "tablet genre recommendations should use a second content column"
+            )
+        } else {
+            let firstEventMinX = firstEvent.frame.minX
+            for _ in 0..<4 where !secondEvent.exists {
+                app.swipeUp()
+            }
+            assertDiscoverable(secondEvent)
+            XCTAssertEqual(secondEvent.frame.minX, firstEventMinX, accuracy: 4)
+        }
     }
 
     func testEmptyDiscoveryFixture() {
