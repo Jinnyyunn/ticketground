@@ -50,6 +50,7 @@ import kr.ticketground.app.ui.EventListScreen
 import kr.ticketground.app.ui.EventDetailScreen
 import kr.ticketground.app.ui.GraphicalSeatMapScreen
 import kr.ticketground.app.ui.LifecycleOverviewScreen
+import kr.ticketground.app.ui.HomeScreen
 import kr.ticketground.app.ui.TicketGroundNavigation
 import kr.ticketground.app.ui.TicketGroundCustomerApp
 import kr.ticketground.app.ui.CustomerAppViewModel
@@ -74,6 +75,46 @@ import org.junit.Test
 
 class TicketGroundAppShellTest {
   @get:Rule val composeRule = createComposeRule()
+
+  @Test
+  fun eventDetailKoreanParagraph_keepsProductAndConnectiveWordsIntactAtPhoneWidth() {
+    val summary = "홈 대표 카드와 대기열 예매 흐름의 기준 상품입니다."
+    val notice = "CLEAN 티켓 공식 양도 정책은 공연별 공지에 따라 제한될 수 있습니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(360.dp).height(920.dp)) {
+          EventDetailScreen(
+            event().copy(summary = summary, notices = listOf(notice)),
+            onSeatMap = {},
+          )
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(summary, "상품입니다.")
+    assertTextRangeOnOneLineForText("· $notice", "따라")
+  }
+
+  @Test
+  fun rankingVenueKoreanParagraph_keepsVenueWordIntactAtCardWidth() {
+    val venue = "잠실종합운동장 주경기장"
+    val catalogEvent = event().copy(venue = venue)
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(360.dp).height(920.dp)) {
+          HomeScreen(
+            state = AsyncContent.Ready(HomeContent(listOf(catalogEvent), emptyList(), emptyList(), emptyList())),
+            onRetry = {}, onEvent = {}, onSearch = {}, onCategory = {}, onCollection = { _, _ -> },
+            onRanking = {}, onRegion = { _, _ -> }, onOpenCalendar = {}, onOpenResale = {},
+            onSupport = {}, onLogin = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText(venue))
+    assertTextRangeOnOneLineForText(venue, "주경기장", index = 1)
+  }
 
   @Test
   fun phoneNavigation_exposesFourCustomerDestinations() {
@@ -605,9 +646,9 @@ class TicketGroundAppShellTest {
     composeRule.onNodeWithTag(destinationTag).assertIsDisplayed()
   }
 
-  private fun assertTextRangeOnOneLineForText(text: String, phrase: String) {
+  private fun assertTextRangeOnOneLineForText(text: String, phrase: String, index: Int = 0) {
     val results = mutableListOf<TextLayoutResult>()
-    composeRule.onNodeWithText(text, useUnmergedTree = true)
+    composeRule.onAllNodesWithText(text, useUnmergedTree = true)[index]
       .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
     val result = results.single()
     val start = result.layoutInput.text.text.indexOf(phrase)

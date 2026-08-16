@@ -79,7 +79,7 @@ No WebView destination/page was added. Directed transfer remains excluded by app
 - iOS post-heading UI full suite: 86 executed, 2 skipped, 0 failures in 973.216 seconds (`ios-complete-post-heading-final/xcodebuild.log`).
 - The combined cached command also included the harness-only `BackendFixtureRunnerTests` without its environment file, so its aggregate exit was 65 even though the entire UI suite passed. This is not reported as green. The corrected clean wrapper explicitly skips only that separately provisioned integration harness: 177/177 unit tests passed, 0 failures, exit 0 (`ios-unit-post-heading-clean`).
 - Android JVM suite after the last Android source edit: 80/80 across 16 suites, 0 failures/errors/skips (`android-unit-final.log`).
-- Android emulator Compose suite: `TicketGroundAppShellTest` 30/30 passed (`android-compose-green-final.log`).
+- Android emulator Compose suite: `TicketGroundAppShellTest` 32/32 passed after Fix round 1 (`android-fix1-compose-final.log`).
 - Source architecture contract: `node --test tests/mobile-home-parity.test.mjs`, 3/3 passed.
 - Android fresh `:app:assembleDevCustomerDebug --rerun-tasks`: 38/38 Gradle tasks executed, build successful in 15s.
 
@@ -89,15 +89,15 @@ Heavy UI work was serialized: the original iPhone Simulator run was stopped/dele
 
 | Action | Result / return state | Evidence |
 | --- | --- | --- |
-| Android home → featured event | Event detail opened. | `android-manual/00-home.png`, `01-event-detail.png` |
-| Event → venue | `잠실종합운동장 주경기장` destination; Back returned to home state. | `02-venue.png`, `03-back-home.png` |
-| Event → artist | `IU` destination; Back returned to home state. | `04-artist.png` |
-| Home ranking section | Ranking control and live Korean content rendered. Runtime coordinate hit-testing could not reliably open the small trailing control, so the canonical destination is qualified by the real-emulator Compose test, not claimed as a manual destination. | `06-ranking-visible-home.png` |
-| My Page while signed out | Existing sign-in entry shown; account routes fail closed without bypassing authentication. | `05-account-signed-out.png` |
+| Home ranking section → first ranking card | Ranking cards rendered and the first card opened event detail. | `android-manual-fix1-final/00-home-ranking.png`, `01-event-detail.png` |
+| Event → venue | `잠실종합운동장 주경기장` destination; Back returned to home. | `02-venue.png`, `03-back-home-after-venue.png` |
+| Event → artist | `IU` destination opened. | `04-artist.png` |
+| Artist → Back | A distinct, later capture shows the returned home screen at a separately scrolled position. | `05-back-home-after-artist.png` |
+| My Page while signed out | Existing sign-in entry shown; account routes fail closed without bypassing authentication. | `06-account-signed-out.png` |
 
-Direct Android manual destinations/returns: 5 action families completed. Six uncovered Android subroutes were not falsely claimed as direct manual destinations: ranking/region hit-testing or scroll reachability, booking requires a selected server schedule, and reservation/cancellation/resale/trust/push/inquiry are principal-bound behind the signed-out root. Their native destination/state behavior is covered by the 30/30 real-emulator Compose suite. This is a local fixture/auth limitation, not external-provider success evidence.
+Direct Android manual destinations/returns: 5 action families completed. Six uncovered Android subroutes were not falsely claimed as direct manual destinations: ranking/region hit-testing or scroll reachability, booking requires a selected server schedule, and reservation/cancellation/resale/trust/push/inquiry are principal-bound behind the signed-out root. Their native destination/state behavior is covered by the 32/32 real-emulator Compose suite. This is a local fixture/auth limitation, not external-provider success evidence.
 
-Rendered review used only screenshots created after the last Android source edit. Korean headings, venue/artist names, signed-out copy, touch surfaces, and bottom navigation showed no clipping, mojibake, overlap, or unsafe payload. Existing system toolbar/cutout spacing remained intact. Evidence contains no QR value, PII, credential, push token, payment key, or provider secret.
+Rendered review used only screenshots created after the last Android source edit. Korean headings, venue/artist names, signed-out copy, touch surfaces, and bottom navigation showed no clipping, mojibake, overlap, or unsafe payload. Existing system toolbar/cutout spacing remained intact. Evidence contains no QR value, PII, credential, push token, payment key, or provider secret. The seven filenames above are chronological; artist destination `04` is followed by the distinct Back-to-home capture `05`, so venue-return evidence is not reused as artist-return evidence.
 
 ## Protected auth and scope audit
 
@@ -117,3 +117,37 @@ The final diff is restricted to the matrix/report and its source contract, iOS d
 - Cancellation remains a request until a terminal server state.
 - No destination/page WebView or directed person-to-person transfer was introduced.
 - Fresh build/test fixtures were used after source edits; failures were preserved in the ledger rather than overwritten by later green output.
+
+## Fix round 1 — 2026-08-17
+
+### Review findings and TDD
+
+The visual review correctly identified two rendered Korean word splits and one evidence overclaim. Tests were added against the real customer composables constrained to 360 dp width before changing production typography.
+
+| Finding | RED | Minimal production change | GREEN |
+| --- | --- | --- | --- |
+| Event detail split `상품입니다.` and `따라` | `eventDetailKoreanParagraph_keepsProductAndConnectiveWordsIntactAtPhoneWidth`; `상품입니다. must remain on one line` (`android-fix1-event-red.log`). The same test explicitly obtains the rendered `TextLayoutResult` for both `상품입니다.` and `따라`. | Apply existing `bodySmall` customer typography to the event summary and each notice. A first `LineBreak.Paragraph` attempt did not resolve the actual-width failure and was discarded. | Focused 1/1 passed; both phrase assertions executed (`android-fix1-event-green.log`). |
+| Ranking venue split `주경기장` | `rankingVenueKoreanParagraph_keepsVenueWordIntactAtCardWidth`; `주경기장 must remain on one line` (`android-fix1-ranking-red.log`). | Apply existing `bodySmall` customer typography to ranking venue copy. | Focused 1/1 passed (`android-fix1-ranking-green.log`). |
+| Artist return evidence absent | Prior `04-artist.png` had no later Back capture; the earlier home capture only proved venue return. | No product change. Recapture the complete action sequence after the final APK install. | `04-artist.png` is followed chronologically by unique `05-back-home-after-artist.png`. |
+
+### Fix verification
+
+- Real API 36 emulator Compose suite: 32/32 passed, 0 failures/skips (`android-fix1-compose-final.log`).
+- JVM suite: 80/80 passed, 0 failures/skips (`android-fix1-jvm-final.log`).
+- Source contract: 3/3 passed (`android-fix1-source-final.log`).
+- Fresh affected assemble: `:app:assembleDevCustomerDebug --rerun-tasks`, 38/38 tasks executed, successful (`android-fix1-assemble-final.log`); that APK was installed before the action matrix.
+- iOS source and tests were untouched in this fix round. The previous 86-executed UI and corrected 177/177 unit evidence remains the exact boundary; no iOS heavy rerun was performed.
+
+### Fresh rendered evidence integrity
+
+Final directory: `/tmp/ticketground-mobile-parity/task7/android-manual-fix1-final`.
+
+- All seven files are valid RGBA PNGs, all seven SHA-256 digests are unique, and mtimes increase from `2026-08-17T03:33:43+0900` through `03:34:30+0900`, after the final Android source edit at `03:23:02+0900`.
+- Computer-use ScreenCaptureKit dynamically emitted `553x1280` for the two photo-heavy home captures (`00`, `05`) and `822x1902` for the other five captures. Each file was directly inspected at its native size and contains a completely composited app screen; no partial frame, transparent hole, stale overlay, clipping, or mixed-state capture was accepted.
+- `00` shows `주경기장` intact, and `01` shows `상품입니다.` and `따라` intact. `02` is venue, `03` is its Back-to-home state, `04` is artist, `05` is the later distinct Back-to-home state, and `06` is signed-out account.
+- No capture contains a QR payload, PII, credentials, payment/provider keys, push token, or secret.
+
+### Fix scope and cleanup
+
+- Product/test edits are limited to Android customer UI typography and its rendered layout regressions; report-only evidence corrects the prior claim. No WebView, auth UI/config/OAuth/session/test/env file, provider console, iOS file, or directed-transfer behavior changed.
+- Final cleanup stopped the Android emulator and Gradle daemon. No backend, port, or dev server was started.

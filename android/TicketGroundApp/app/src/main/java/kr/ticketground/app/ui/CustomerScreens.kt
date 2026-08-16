@@ -499,7 +499,12 @@ private fun RankingCard(event: CatalogEvent, rank: Int, onEvent: (CatalogEvent) 
       Text("— —", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
     }
     Text(event.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-    Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+    Text(
+      event.venue,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = 2,
+      style = MaterialTheme.typography.bodySmall,
+    )
     Text(displayEventDate(event), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
   }
 }
@@ -593,8 +598,13 @@ fun EventDetailScreen(
     item {
       SurfaceCard {
         Text("공연 안내", style = MaterialTheme.typography.titleMedium)
-        Text(event.summary ?: "공연 상세 정보는 서버에서 제공되는 내용만 표시합니다.")
-        event.notices.orEmpty().forEach { Text("· $it") }
+        Text(
+          event.summary ?: "공연 상세 정보는 서버에서 제공되는 내용만 표시합니다.",
+          style = MaterialTheme.typography.bodySmall,
+        )
+        event.notices.orEmpty().forEach {
+          Text("· $it", style = MaterialTheme.typography.bodySmall)
+        }
       }
     }
     if (performances.isNotEmpty()) {
