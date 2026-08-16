@@ -1004,10 +1004,12 @@ private struct LiveDiscoveryRouteView: View {
             return true
         }
         guard container.navigationPath.count >= 2 else { return false }
-        if case .reservation = container.navigationPath[container.navigationPath.count - 2] {
+        switch container.navigationPath[container.navigationPath.count - 2] {
+        case .reservation, .menu:
             return true
+        default:
+            return false
         }
-        return false
     }
 
     @ViewBuilder
@@ -1347,6 +1349,10 @@ private struct LiveMenuRouteView: View {
                 menuSection(title: "공연 탐색", detail: "지역과 티켓오픈 일정으로 찾아보세요") {
                     liveMenuLink(title: "지역별 공연", icon: "mappin.and.ellipse", route: .region, identifier: "live-menu-region")
                     liveMenuLink(title: "티켓오픈 캘린더", icon: "calendar", route: .open, identifier: "live-menu-open-calendar")
+                }
+
+                menuSection(title: "티켓 서비스", detail: "예매한 티켓의 공식 양도를 관리하세요") {
+                    liveMenuLink(title: "티켓 양도", icon: "arrow.left.arrow.right", route: .resale, identifier: "menu-resale")
                 }
 
                 menuSection(title: "카테고리", detail: "관심 있는 공연을 찾아보세요") {

@@ -129,6 +129,21 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertFalse(anyElement(app, identifier: "route-resale").exists)
     }
 
+    func testAuthenticatedLiveMenuResaleActionOpensLifecycleRoute() {
+        let app = liveApp(homeScenario: "bookingAuthenticated")
+        app.launch()
+
+        let menu = app.buttons["header-menu"]
+        assertDiscoverable(menu)
+        menu.tap()
+        let resale = app.buttons["menu-resale"]
+        assertDiscoverable(resale)
+        resale.tap()
+        assertDiscoverable(anyElementWithIdentifierPrefix(app, prefix: "live-lifecycle-"))
+        XCTAssertTrue(app.navigationBars["공식 재판매"].exists)
+        XCTAssertFalse(anyElement(app, identifier: "route-resale").exists)
+    }
+
     func testHomeParitySectionsFitTabletWidth() throws {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
