@@ -152,3 +152,44 @@ struct DiscoveryCalendar: Equatable {
     let openingStatus: String
     let route: AppRoute
 }
+
+enum DiscoveryHomeSection: String, CaseIterable {
+    case featured
+    case ranking
+    case opening
+    case resale
+    case genreRecommendations
+    case editorial
+    case shortcuts
+}
+
+struct DiscoveryHomeParityContent: Equatable {
+    let openingMoreDestination: AppRoute
+    let resale: DiscoveryResaleCard
+    let genreGroups: [DiscoveryGenreGroup]
+    let editorials: [DiscoveryEditorialCard]
+}
+
+struct DiscoveryResaleCard: Equatable {
+    let destination: AppRoute
+    let safetyItems: [DiscoveryResaleSafetyItem]
+}
+
+struct DiscoveryResaleSafetyItem: Equatable {
+    let order: Int
+    let title: String
+    let detail: String
+    let systemImage: String
+}
+
+struct DiscoveryGenreGroup: Equatable {
+    let label: String
+    let destination: AppRoute
+    let events: [DiscoveryRanking]
+}
+
+struct DiscoveryEditorialCard: Equatable {
+    let order: Int
+    let title: String
+    let destination: AppRoute
+}
