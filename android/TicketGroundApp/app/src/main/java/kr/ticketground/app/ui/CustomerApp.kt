@@ -174,7 +174,12 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
 
   fun openResale() { mutableRoute.value = CustomerRoute.Resale }
 
-  fun closeRoute() { mutableRoute.value = CustomerRoute.Tab }
+  fun closeRoute() {
+    if (mutableRoute.value == CustomerRoute.Tab && mutableDestination.value != AppDestination.Home) {
+      mutableDestination.value = AppDestination.Home
+    }
+    mutableRoute.value = CustomerRoute.Tab
+  }
 
   fun addToWatchlist(event: CatalogEvent) = viewModelScope.launch {
     if (mutableBookingPending.value) return@launch
@@ -408,7 +413,10 @@ fun TicketGroundCustomerApp(
   val admissionQr by viewModel.admissionQr.collectAsStateWithLifecycle()
   val inquiries by viewModel.inquiries.collectAsStateWithLifecycle()
 
-  BackHandler(enabled = route != CustomerRoute.Tab, onBack = viewModel::closeRoute)
+  BackHandler(
+    enabled = route != CustomerRoute.Tab || destination != AppDestination.Home,
+    onBack = viewModel::closeRoute,
+  )
 
   BoxWithConstraints(Modifier.fillMaxSize()) {
     val expandedLayout = maxWidth >= TicketGroundLayout.expandedBreakpoint

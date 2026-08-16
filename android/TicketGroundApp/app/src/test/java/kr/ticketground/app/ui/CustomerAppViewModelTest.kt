@@ -25,6 +25,7 @@ import kr.ticketground.app.data.OwnedTicket
 import kr.ticketground.app.data.AdmissionQr
 import kr.ticketground.app.data.DisplayStatus
 import kr.ticketground.app.data.SupportThread
+import kr.ticketground.app.AppDestination
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -341,6 +342,17 @@ class CustomerAppViewModelTest {
     val viewModel = CustomerAppViewModel(FakeCustomerRepository())
     viewModel.openInquiry()
     assertEquals(CustomerRoute.Inquiry, viewModel.route.value)
+  }
+
+  @Test
+  fun `closing a tab destination restores home instead of exiting the activity`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+
+    viewModel.navigate(AppDestination.Search)
+    viewModel.closeRoute()
+
+    assertEquals(AppDestination.Home, viewModel.destination.value)
+    assertEquals(CustomerRoute.Tab, viewModel.route.value)
   }
 
   @Test
