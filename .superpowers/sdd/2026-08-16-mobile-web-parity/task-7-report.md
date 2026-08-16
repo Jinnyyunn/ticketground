@@ -259,7 +259,7 @@ Device identity receipts are in `device/phone-*`, `device/tablet-*`, and `device
 
 Phone direct installed-app actions were run on `ticketground_phone_api36` after clean install. Valid hierarchy evidence shows home network error, Retry to ready, ranking destination and Back, search root, event detail, venue destination and Back, artist destination and Back, and My Page signed-out. The valid final phone XML frames are `manual-phone/02-home-network-error.xml`, `04-home-retry-ready.xml`, `05-ranking-ready.xml`, `06-back-home-from-ranking.xml`, `07-search-root.xml`, `08-event-detail-from-search.xml`, `27-venue-ready-from-home.xml`, `28-back-event-from-venue-home.xml`, `38-event-detail-for-artist-final.xml`, `39-artist-ready-final.xml`, `40-back-home-from-artist-final.xml`, and `13-mypage-signed-out.xml`. Invalid coordinate/GMS-login attempts are retained but not used as success evidence.
 
-Tablet direct installed-app evidence was run on `ticketground_tablet_api36` after clean install. The expanded home/detail pane and signed-out My Page hierarchy are in `manual-tablet/06-home-relaunch.xml` and `manual-tablet/07-mypage-signed-out.xml`; emulator window screenshots that bypass the ADB `FLAG_SECURE` black-frame limitation are in `manual-tablet-window/`. ADB `screencap` PNGs under `manual-phone` and `manual-tablet` are retained for chronology but are black because `MainActivity` sets `FLAG_SECURE`; they are not cited as visual success proof.
+Tablet direct installed-app fix4 evidence was run on `ticketground_tablet_api36` after clean install, but it is not accepted as Search -> event detail -> Back proof. The retained fix4 `manual-tablet/03-event-detail.xml` shows an empty search result rather than event detail, and `manual-tablet/04-back-after-event.xml` shows the launcher rather than restored in-app Search/list state. Fix4 only supports the expanded home/My Page hierarchy in `manual-tablet/06-home-relaunch.xml`, `manual-tablet/07-mypage-signed-out.xml`, and `manual-tablet-window/`; those screenshots bypass the ADB `FLAG_SECURE` black-frame limitation. ADB `screencap` PNGs under `manual-phone` and `manual-tablet` are retained for chronology but are black because `MainActivity` sets `FLAG_SECURE`; they are not cited as visual success proof.
 
 Authenticated reservation, cancellation, official resale lifecycle, trusted device, push, and booking conflict are covered by the installed `VisualCaptureTest` fixture-principal flow after the harness adjustment above. The final 21 images are in `visual/tablet-captures/`, with `16`-`21` covering the changed principal-bound and booking states. This remains local fixture evidence, not provider/production qualification.
 
@@ -270,3 +270,31 @@ Fresh PNG inspection is recorded in `visual/png-inspection.json` and `visual/fil
 ### Boundaries
 
 No iOS source was changed or rerun in this round because the open findings were Android evidence-only. No Google/Kakao/Naver simple-login UI, config, OAuth, session, tests, environment files, or provider consoles were modified. Toss production approval/webhook/settlement/refund, Play Integrity/App Attest real-device proof, APNs/FCM delivery, QR scanner/consume, and Kakao channel/provider-console qualification remain externally blocked.
+
+## Fix round 5 — 2026-08-17
+
+### Evidence correction target
+
+Fix round 5 supersedes the Android final-source and tablet direct-action portions of fix4. The tracked report/matrix correction is committed before any fix5 verification. After that commit, no tracked file may change; every Android receipt below must record the same full commit SHA before and after the invocation.
+
+### Exact-SHA Android verification required
+
+All fix5 artifacts are retained under `.superpowers/sdd/2026-08-16-mobile-web-parity/evidence/task7-fix5/`.
+
+| Scenario | Invocation | Required observable |
+| --- | --- | --- |
+| Android JVM | `cd android/TicketGroundApp && ./gradlew :app:testDevCustomerDebugUnitTest --rerun-tasks --no-daemon` | exit 0; XML totals 81 tests, 0 failures/errors/skips |
+| Android phone Compose | `cd android/TicketGroundApp && ./gradlew :app:connectedDevCustomerDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.ticketground.app.TicketGroundAppShellTest --rerun-tasks --no-daemon` on `ticketground_phone_api36` | exit 0; XML totals 34 tests, 0 failures/skips |
+| Android tablet VisualCapture | same Gradle task with `kr.ticketground.app.VisualCaptureTest` on `ticketground_tablet_api36` | exit 0; XML totals 21 tests, 0 failures/skips |
+| Source contract | `node --test tests/mobile-home-parity.test.mjs` | exit 0; 3 tests pass, 0 fail |
+| Assemble | `cd android/TicketGroundApp && ./gradlew :app:assembleDevCustomerDebug --rerun-tasks --no-daemon` | exit 0; APK hash retained |
+
+If actual totals differ from these expected totals, fix5 is not accepted until the difference is diagnosed; totals must not be rewritten or forced.
+
+### Tablet direct-action requirement
+
+The accepted tablet direct action evidence is a clean-installed real `kr.ticketground.app.dev` tablet sequence: normal or fixture root -> Search/list -> tap a visible event -> Event detail -> system/app Back -> restored in-app Search/list. Fixture setup may provide catalog data or a principal, but it must not directly set the target route. The accepted chronology must include screen/window captures plus UI hierarchy XML for each step, and the post-Back state must be the in-app Search/list, not launcher/home unless that is explicitly the documented source state.
+
+### Visual and scope requirement
+
+New tablet images must be directly inspected for complete compositing, intact CJK text, absence of clipping/tofu/overlap, and absence of QR payload, PII, credentials, payment/provider keys, provider secrets, push tokens, or session material. No iOS rerun is part of fix5. No Google/Kakao/Naver simple-login UI, config, OAuth, session, tests, environment files, or provider consoles may be modified.
