@@ -203,7 +203,7 @@ fun OpenCalendarScreen(
 fun PublicResaleScreen(onMyPage: () -> Unit) {
   LazyColumn(
     modifier = Modifier.fillMaxSize().testTag("resale-screen"),
-    contentPadding = PaddingValues(TicketGroundSpacing.lg),
+    contentPadding = PaddingValues(TicketGroundSpacing.md),
     verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md),
   ) {
     item { Text("CLEAN 티켓 공식 양도", style = MaterialTheme.typography.headlineSmall) }
@@ -211,6 +211,7 @@ fun PublicResaleScreen(onMyPage: () -> Unit) {
       Text(
         "공개 화면에서는 안전 정책만 확인할 수 있습니다. 등록과 구매 상태는 실제 처리 결과가 확인된 뒤에만 반영됩니다.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
       )
     }
     items(
@@ -286,7 +287,7 @@ private fun formatOpeningDate(value: String): String = runCatching {
 @Composable
 private fun ParityEventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) {
   Column(
-    modifier = Modifier.width(148.dp)
+    modifier = Modifier.width(TicketGroundLayout.minimumTouchTarget * 3 + TicketGroundSpacing.md)
       .heightIn(min = TicketGroundLayout.minimumTouchTarget)
       .clickable { onEvent(event) }
       .testTag("home-genre-event-${event.id}"),

@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
@@ -53,7 +54,12 @@ import kr.ticketground.app.ui.TicketGroundNavigation
 import kr.ticketground.app.ui.TicketGroundCustomerApp
 import kr.ticketground.app.ui.CustomerAppViewModel
 import kr.ticketground.app.ui.CustomerRepository
+import kr.ticketground.app.ui.CustomerRoute
+import kr.ticketground.app.ui.GenreRecommendation
 import kr.ticketground.app.ui.HomeContent
+import kr.ticketground.app.ui.HomeGenreSection
+import kr.ticketground.app.ui.PublicResaleScreen
+import kr.ticketground.app.ui.SupportScreen
 import kr.ticketground.app.ui.BookingProgress
 import kr.ticketground.app.ui.TicketGroundTheme
 import kr.ticketground.app.data.WatchlistItem
@@ -398,11 +404,86 @@ class TicketGroundAppShellTest {
     assertTextRangeOnOneLine("expanded-event-summary", "라이브 공연입니다.")
   }
 
+  @Test
+  fun publicResale_keepsFinalPredicateTogetherAtPhoneWidth() {
+    val copy = "공개 화면에서는 안전 정책만 확인할 수 있습니다. 등록과 구매 상태는 실제 처리 결과가 확인된 뒤에만 반영됩니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(411.dp)) { PublicResaleScreen(onMyPage = {}) }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "실제")
+    assertTextRangeOnOneLineForText(copy, "반영됩니다.")
+  }
+
+  @Test
+  fun support_keepsPolitePredicateTogetherAtPhoneWidth() {
+    val body = "로그인 세션의 본인 문의만 조회하고 작성할 수 있습니다."
+    val content = HomeContent(
+      events = emptyList(),
+      calendar = emptyList(),
+      faq = emptyList(),
+      notices = listOf(SupportNotice("notice-1", "안전한 1:1 문의", body)),
+    )
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(411.dp)) { SupportScreen(content) }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(body, "있습니다.")
+  }
+
+  @Test
+  fun signedOutMyPage_keepsPolitePredicateTogetherAtPhoneWidth() {
+    val body = "보유 티켓과 계정 기능은 로그인 후 이용할 수 있습니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(411.dp).height(920.dp)) {
+          LifecycleOverviewScreen(AsyncContent.Ready(AccountOverview(signedIn = false)), onRetry = {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(body, "있습니다.")
+  }
+
+  @Test
+  fun genreCard_keepsKoreanWordTogetherAtPhoneWidth() {
+    val title = "브레드이발소 여름방학 특별전"
+    val recommendation = GenreRecommendation(
+      label = "콘서트",
+      events = listOf(event().copy(title = title)),
+      destination = CustomerRoute.Collection("콘서트", emptyList()),
+    )
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp).padding(20.dp)) {
+          HomeGenreSection(listOf(recommendation), onCollection = {}, onEvent = {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(title, "방학")
+  }
+
   private fun assertTextRangeOnOneLine(tag: String, phrase: String) {
     val results = mutableListOf<TextLayoutResult>()
     composeRule.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
       action(results)
     }
+    val result = results.single()
+    val start = result.layoutInput.text.text.indexOf(phrase)
+    check(start >= 0 && result.getLineForOffset(start) == result.getLineForOffset(start + phrase.length - 1)) {
+      "$phrase must remain on one line"
+    }
+  }
+
+  private fun assertTextRangeOnOneLineForText(text: String, phrase: String) {
+    val results = mutableListOf<TextLayoutResult>()
+    composeRule.onNodeWithText(text, useUnmergedTree = true)
+      .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
     val result = results.single()
     val start = result.layoutInput.text.text.indexOf(phrase)
     check(start >= 0 && result.getLineForOffset(start) == result.getLineForOffset(start + phrase.length - 1)) {

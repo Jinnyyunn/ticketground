@@ -659,7 +659,12 @@ fun SupportScreen(content: HomeContent?) {
       }
     }
     if (content == null || content.faq.isEmpty()) item { Text("도움말을 불러오지 못했습니다. 다시 시도해 주세요.") }
-    items(content?.notices.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.title, style = MaterialTheme.typography.titleMedium); Text(it.body) } }
+    items(content?.notices.orEmpty(), key = { it.id }) {
+      SurfaceCard {
+        Text(it.title, style = MaterialTheme.typography.titleMedium)
+        Text(it.body, style = MaterialTheme.typography.bodySmall)
+      }
+    }
     items(content?.faq.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.question, style = MaterialTheme.typography.titleMedium); Text(it.answer) } }
   }
 }
@@ -684,7 +689,10 @@ fun LifecycleOverviewScreen(
       Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
         SurfaceCard {
           Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
-          Text("보유 티켓과 계정 기능은 로그인 후 이용할 수 있습니다.")
+          Text(
+            "보유 티켓과 계정 기능은 로그인 후 이용할 수 있습니다.",
+            style = MaterialTheme.typography.bodySmall,
+          )
           Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().testTag("mypage-login")) {
             Text("로그인")
           }

@@ -98,3 +98,95 @@ Inspection confirmed the required section anatomy/order, consistent spacing and 
 - Touch surfaces use minimum interactive sizing of 48 dp or existing components with that contract.
 - Review found no listing/purchase mutation path on the public resale screen and no duplicate generic opening-calendar section.
 - Commit SHA is reported in the Task 6 DONE handoff because a commit cannot reliably embed its own content hash.
+
+## Fix round 1
+
+### Review reproduction and TDD
+
+The requested `반영됩 / 니다.` and `여름방 / 학` defects were reproduced from the committed APK before changing production code. A 390 dp test width did not reproduce the follow-up live defects because the phone AVD is 1080 px at density 420, or approximately 411 dp. The rendered regression tests therefore use 411 dp and inspect `TextLayoutResult` line geometry rather than mirroring implementation strings.
+
+Canonical RED command:
+
+```text
+./gradlew :app:connectedDevCustomerDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=kr.ticketground.app.TicketGroundAppShellTest#publicResale_keepsFinalPredicateTogetherAtPhoneWidth,kr.ticketground.app.TicketGroundAppShellTest#support_keepsPolitePredicateTogetherAtPhoneWidth
+```
+
+- Exit 1: 2 tests, 2 failures in 17s. `실제 must remain on one line` and `있습니다. must remain on one line` both failed.
+- Manual review then caught that the live `안전한 1:1 문의` copy is a notice, not an FAQ. After correcting the fixture to `SupportNotice`, the focused notice-only run again failed 1/1 with `있습니다. must remain on one line`, exit 1, `BUILD FAILED in 17s`.
+
+Minimal token-driven fixes:
+
+- Public resale content padding changed from `TicketGroundSpacing.lg` to `TicketGroundSpacing.md`, retaining the existing `bodySmall` lead style and increasing usable line width without inserting hard-coded line breaks.
+- Support notice bodies use `MaterialTheme.typography.bodySmall`; FAQ typography remains unchanged.
+- Genre cards retain the prior token expression `TicketGroundLayout.minimumTouchTarget * 3 + TicketGroundSpacing.md`, keeping `여름방학` intact and the touch contract at or above 48 dp.
+
+Focused GREEN command covered public resale, support notice, and genre-card line geometry:
+
+```text
+./gradlew :app:connectedDevCustomerDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=kr.ticketground.app.TicketGroundAppShellTest#publicResale_keepsFinalPredicateTogetherAtPhoneWidth,kr.ticketground.app.TicketGroundAppShellTest#support_keepsPolitePredicateTogetherAtPhoneWidth,kr.ticketground.app.TicketGroundAppShellTest#genreCard_keepsKoreanWordTogetherAtPhoneWidth
+```
+
+- Exit 0: 3/3 pass, `BUILD SUCCESSFUL in 23s`; 72 tasks (6 executed, 66 up-to-date).
+
+The first complete visual pass then exposed the same predicate orphan in the signed-out My Page card reached from the resale CTA. A rendered 411 dp regression test was added before production code changed:
+
+- RED: `signedOutMyPage_keepsPolitePredicateTogetherAtPhoneWidth`, exit 1, 1/1 failed with `있습니다. must remain on one line`; `BUILD FAILED in 9s`; 72 tasks (5 executed, 67 up-to-date).
+- Minimal GREEN fix: the signed-out explanatory body now uses the existing `bodySmall` typography token; no copy-specific line break or screenshot-width hack was added.
+- Final focused CJK command covered public resale, support notice, signed-out My Page, and genre card: exit 0, 4/4 pass; `BUILD SUCCESSFUL in 13s`; 72 tasks (6 executed, 66 up-to-date).
+
+Final serial regression:
+
+- Full `TicketGroundAppShellTest`: exit 0, 18/18 pass, 0 failures/errors/skipped, `BUILD SUCCESSFUL in 1m 41s`; 72 tasks (1 executed, 71 up-to-date). Generated XML independently reports 18 tests, 0 failures, 0 errors, 0 skipped, and 92.056 seconds test time.
+- `node --test tests/mobile-home-parity.test.mjs`: exit 0, 3/3 pass, 0 fail/skipped, duration 90.662333 ms.
+- `./gradlew :app:testDevCustomerDebugUnitTest`: exit 0, 68/68 pass across 16 XML suites, 0 failures/errors/skipped, `BUILD SUCCESSFUL in 2s`; 26 tasks (2 executed, 24 up-to-date).
+
+### Fresh capture and manual-action evidence
+
+Final evidence root: `/tmp/ticketground-mobile-parity/android/task6-fix-round1-final2/`.
+
+The last rendered-source mtime is epoch `1786890766` (`CustomerScreens.kt`, 2026-08-16 23:32:46 +0900). All 16 final PNGs are newer: automated phone captures are epoch `1786890820`, tablet is `1786891472`, and manual captures range from `1786890838` through `1786891807`.
+
+- Automated phone: `captures-phone/13-phone-home-opening-resale.png`, `14-phone-home-genre-editorial.png`, and `15-phone-home-shortcuts.png`, each 1024x1890; focused capture run 3/3 pass in 10s.
+- Expanded tablet: `captures-tablet/09-tablet-expanded-home-parity.png`, 2240x1440; focused capture run 1/1 pass in 16s.
+- Manual real-window set: `manual/00-fresh-home.png` through `manual/11-genre-card-cjk-final.png`, each 822x1902.
+
+All 16 files have PNG signature `89504e470d0a1a0a`, expected dimensions, mtimes newer than the final source, non-trivial byte sizes, 16 distinct SHA-256 hashes, and no QR payload, customer PII, credential, or token. Every image was opened at original resolution. In addition to the initial coordinate and incomplete-compositor rejects, the final direct-inspection pass rejected notification-shade frames at `manual/04`, `06`, `07`, and `11`; each was reproduced through the named real action and replaced. The approved set contains no partial compositor or notification-shade frame.
+
+| Manual file/action | Final observation |
+| --- | --- |
+| `00-fresh-home` | Clean install and cold real `MainActivity` launch; launch total 1536 ms |
+| `01-open-calendar-destination` | `home-open-more` path, native `티켓오픈 예정` destination and localized dates |
+| `02-public-resale-destination` | Native read-only resale; `실제` and `반영됩니다.` remain intact |
+| `03-resale-cta-signed-out-my-page` | CTA routes to signed-out My Page; no listing/purchase success claim |
+| `04-genre-concert-destination` | `home-genre-콘서트` opens the native concert collection |
+| `05-editorial-shortcuts-home` | `여름방학` intact; editorial and all shortcuts visible |
+| `06-editorial-destination` | `home-editorial-1` opens the native editorial collection |
+| `07-shortcut-open-calendar` | Shortcut opens native opening calendar |
+| `08-shortcut-search` | Shortcut opens native search |
+| `09-shortcut-support` | Shortcut opens native support; `있습니다.` remains intact |
+| `10-back-restored-home` | System Back restores the home surface |
+| `11-genre-card-cjk-final` | Independent CJK frame at a distinct scroll/time state; `여름방학` intact |
+
+Direct visual inspection found coherent phone and expanded anatomy/order, natural Korean line breaks, complete image fallback/loading surfaces, consistent spacing/radii/tokens, and no overlap, clipping, tofu, malformed state, or in-app black frame. The black pixels below the rounded device in real-window captures are outside the emulator device surface.
+
+The final manual CJK checks show `실제` and `반영됩니다.` intact in `manual/02`, signed-out `있습니다.` intact in `manual/03`, support `있습니다.` intact in `manual/09`, and `여름방학` intact in `manual/05` and `manual/11`.
+
+Two independent final gates opened all 16 PNGs at original resolution. The strict CJK/metadata gate returned PASS after reproducing signatures, dimensions, freshness, and 16 unique hashes. The design gate returned PASS with high confidence for the required section order, native phone/tablet anatomy, token consistency, image fallback, and absence of clipping, overlap, tofu, malformed composition, or sensitive content.
+
+### Adversarial and boundary audit
+
+- `stale_state`: current APK was clean-installed before the final manual run; the real `MainActivity` cold launch was observed.
+- `dirty_worktree`: implementation and tests remain confined to Task 6-owned Android files; the required report is the only documentation update.
+- `flaky/misleading output`: the erroneous coordinate and partial compositor frames were rejected; Gradle footers, instrumentation progress, XML totals, image signatures, dimensions, mtimes, and hashes were independently checked.
+- `malformed/empty/public signed-out`: existing loading/empty/error fixture coverage remains green, and signed-out resale/My Page was exercised directly.
+- `sensitive artifacts`: no QR secret, PII, key, token, or environment value appears in the final set or report.
+- Protected boundary: no Google, Kakao, or Naver simple-login UI/config/OAuth/session/test/environment/provider path changed. No `AndroidView` or `WebView` was added.
+
+### Final cleanup receipt
+
+- `./gradlew --stop`: exit 0; `1 Daemon stopped`.
+- `adb emu kill`: exit 0; emulator returned `OK`.
+- Follow-up `adb devices`: empty device list.
+- Exact-process checks: `pgrep -x qemu-system-aarch64` found 0 processes and `jps -l | rg GradleDaemon` found 0 Gradle daemons.
