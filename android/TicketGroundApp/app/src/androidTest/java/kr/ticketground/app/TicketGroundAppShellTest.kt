@@ -423,13 +423,14 @@ class TicketGroundAppShellTest {
   }
 
   @Test
-  fun support_keepsPolitePredicateTogetherAtPhoneWidth() {
-    val body = "로그인 세션의 본인 문의만 조회하고 작성할 수 있습니다."
+  fun support_keepsSemanticPredicatesTogetherAtPhoneWidth() {
+    val noticeBody = "로그인 세션의 본인 문의만 조회하고 작성할 수 있습니다."
+    val faqAnswer = "로그인 후 마이페이지의 예매내역에서 확인할 수 있습니다."
     val content = HomeContent(
       events = emptyList(),
       calendar = emptyList(),
-      faq = emptyList(),
-      notices = listOf(SupportNotice("notice-1", "안전한 1:1 문의", body)),
+      faq = listOf(SupportFaq("faq-1", "예매 내역은 어디에서 확인하나요?", faqAnswer)),
+      notices = listOf(SupportNotice("notice-1", "안전한 1:1 문의", noticeBody)),
     )
     composeRule.setContent {
       TicketGroundTheme {
@@ -437,7 +438,8 @@ class TicketGroundAppShellTest {
       }
     }
 
-    assertTextRangeOnOneLineForText(body, "있습니다.")
+    assertTextRangeOnOneLineForText(noticeBody, "작성할 수 있습니다.")
+    assertTextRangeOnOneLineForText(faqAnswer, "확인할 수 있습니다.")
   }
 
   @Test

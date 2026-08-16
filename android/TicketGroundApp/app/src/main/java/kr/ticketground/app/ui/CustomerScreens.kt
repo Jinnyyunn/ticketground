@@ -665,7 +665,12 @@ fun SupportScreen(content: HomeContent?) {
         Text(it.body, style = MaterialTheme.typography.bodySmall)
       }
     }
-    items(content?.faq.orEmpty(), key = { it.id }) { SurfaceCard { Text(it.question, style = MaterialTheme.typography.titleMedium); Text(it.answer) } }
+    items(content?.faq.orEmpty(), key = { it.id }) {
+      SurfaceCard {
+        Text(it.question, style = MaterialTheme.typography.titleMedium)
+        Text(it.answer, style = MaterialTheme.typography.bodySmall)
+      }
+    }
   }
 }
 

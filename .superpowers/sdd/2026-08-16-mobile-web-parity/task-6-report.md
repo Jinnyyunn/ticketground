@@ -234,3 +234,39 @@ Two serial, independent final visual gates each opened all 16 PNGs at original r
 - Changed product/test paths are limited to home parity sections, shared layout tokens, the shell regression, and this report. No protected Google, Kakao, or Naver simple-login UI/config/OAuth/session/test/environment/provider path changed.
 - No `AndroidView` or `WebView` was added. No hard-coded line break or capture-specific conditional was added.
 - Cleanup receipt: `./gradlew --stop` exited 0 and stopped 1 daemon. The first emulator cleanup attempt used stale serial `emulator-5554` and returned connection refused; the resolved active phone serial `emulator-5556` then returned `OK`. Follow-up `adb devices` was empty, `pgrep -x qemu-system-aarch64` found 0 processes, and the Android Studio JBR `jps -l` check found 0 Gradle daemons.
+
+## Fix round 3
+
+### Review reproduction and phrase-level TDD
+
+The remaining Pass B blocker was reproduced in the actual 411 dp Compose layout. Source inspection confirmed that support notices used `MaterialTheme.typography.bodySmall`, while FAQ answers still used the default body style. The prior regression rendered only a notice and checked the substring `있습니다.`, so it could not detect the FAQ answer breaking the semantic predicate `확인할 수 있습니다.` across lines.
+
+The support regression now renders both the real-shaped notice and FAQ fixtures. It measures `작성할 수 있습니다.` for the notice and the complete `확인할 수 있습니다.` phrase for the FAQ through `TextLayoutResult`, rather than mirroring an implementation substring.
+
+- RED: focused `support_keepsSemanticPredicatesTogetherAtPhoneWidth`, exit 1, 1/1 failed with `확인할 수 있습니다. must remain on one line`; `BUILD FAILED in 2m 14s`; 72 tasks (5 executed, 67 up-to-date).
+- Minimal production fix: FAQ answers use the existing `MaterialTheme.typography.bodySmall` token already used by support notice bodies. No global typography, width, copy, hard-coded line break, or unrelated screen changed.
+- GREEN: the same focused test exited 0, 1/1 pass; `BUILD SUCCESSFUL in 42s`; 72 tasks (6 executed, 66 up-to-date).
+- Final focused geometry/CJK set: exit 0, 5/5 pass; `BUILD SUCCESSFUL in 1m 20s`; 72 tasks (1 executed, 71 up-to-date).
+
+### Fresh complete evidence
+
+Final evidence root: `/tmp/ticketground-mobile-parity/android/task6-fix-round3-final/`.
+
+The final rendered-source baseline is `CustomerScreens.kt` epoch `1786895323` (2026-08-17 00:48:43 +0900). All 16 final images are newer: automated phone epoch `1786895581`, tablet epoch `1786895887`, and manual captures epoch `1786895979..1786896453`.
+
+- Phone captures: 3/3 pass and pull; three 1024x1890 PNGs.
+- Expanded tablet: 1/1 pass and pull; one 2240x1440 PNG.
+- Manual real-window set: `manual/00-fresh-home.png` through `manual/11-genre-card-cjk-final.png`; twelve 822x1902 ScreenCaptureKit PNGs.
+
+The final APK was clean-uninstalled and installed as `kr.ticketground.app.dev`, then the real `MainActivity` cold-launched in 3945 ms. Manual actions repeated fresh home, opening destination, public resale, signed-out My Page, concert collection, editorial/shortcuts home, editorial destination, opening/search/support shortcuts, Back-restored home, and the genre CJK state. UIAutomator observed the final support FAQ answer `로그인 후 마이페이지의 예매내역에서 확인할 수 있습니다.` in one rendered text bound (`[84,1528][869,1574]`), while `manual/09-shortcut-support.png` visibly keeps the entire `확인할 수 있습니다.` phrase together. `manual/04` again shows the `콘서트` collection with five concert events and no generic search surface.
+
+All 16 images have the PNG signature `89504e470d0a1a0a`, expected dimensions, non-trivial sizes, mtimes newer than source, and 16 distinct SHA-256 hashes. Every file was directly opened at original resolution. The set contains no partial compositor, notification shade, in-app black/blank frame, clipping, overlap, tofu, malformed state, QR secret, credential, token, or customer PII. Existing CJK protections remain intact: `실제`, `반영됩니다.`, signed-out and notice `있습니다.`, and `여름방학`.
+
+### Final serial regression and boundary audit
+
+- Full `TicketGroundAppShellTest`: exit 0, 19/19 pass, 0 failures/errors/skipped; `BUILD SUCCESSFUL in 29s`; 72 tasks (1 executed, 71 up-to-date). XML reports 19 tests and 23.753 seconds total time.
+- `node --test tests/mobile-home-parity.test.mjs`: exit 0, 3/3 pass, 0 fail/skipped; duration 61.138333 ms.
+- `./gradlew :app:testDevCustomerDebugUnitTest --no-configuration-cache`: exit 0, 68/68 pass across 16 XML suites, 0 failures/errors/skipped; `BUILD SUCCESSFUL in 2s`; 26 tasks (2 executed, 24 up-to-date).
+- Protected Google, Kakao, and Naver simple-login UI/config/OAuth/session/test/environment/provider paths remain unchanged. No `AndroidView` or `WebView` was added.
+- Two serial independent gates directly opened all 16 original PNGs and returned PASS. The strict CJK gate reproduced metadata and all named phrase contracts; the design gate returned HIGH-confidence PASS for phone/tablet anatomy, typography, spacing/radius, image/fallback behavior, and absence of visual workarounds.
+- Cleanup receipt: `./gradlew --stop` exited 0 and stopped 1 daemon. The active `emulator-5554` returned `OK` to `emu kill`; after its transient offline state cleared, `adb devices` was empty. Exact process checks reported `qemu=0` and `gradle_daemon=0`.
