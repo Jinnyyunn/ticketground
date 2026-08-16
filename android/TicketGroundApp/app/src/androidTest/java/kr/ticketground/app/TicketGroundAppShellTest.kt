@@ -584,6 +584,7 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(copy, "빠르게")
+    assertTextLinesBreakOnSafeBoundaries(copy)
   }
 
   @Test
@@ -602,6 +603,7 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(copy, "결제")
+    assertTextLinesBreakOnSafeBoundaries(copy)
   }
 
   @Test
@@ -617,6 +619,7 @@ class TicketGroundAppShellTest {
 
     assertTextRangeOnOneLineForText(copy, "추정하지 않습니다")
     assertTextRangeOnOneLineForText(copy, "전송")
+    assertTextLinesBreakOnSafeBoundaries(copy)
   }
 
   @Test
@@ -638,6 +641,7 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(copy, "경우에만")
+    assertTextLinesBreakOnSafeBoundaries(copy)
   }
 
   @Test
@@ -759,6 +763,22 @@ class TicketGroundAppShellTest {
     val start = result.layoutInput.text.text.indexOf(phrase)
     check(start >= 0 && result.getLineForOffset(start) == result.getLineForOffset(start + phrase.length - 1)) {
       "$phrase must remain on one line"
+    }
+  }
+
+  private fun assertTextLinesBreakOnSafeBoundaries(text: String) {
+    val results = mutableListOf<TextLayoutResult>()
+    composeRule.onAllNodesWithText(text, useUnmergedTree = true)[0]
+      .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+    val result = results.single()
+    for (line in 0 until result.lineCount - 1) {
+      val boundary = result.getLineEnd(line, visibleEnd = true)
+      if (boundary >= text.length) continue
+      val previous = text[boundary - 1]
+      val next = text[boundary]
+      check(previous.isWhitespace() || next.isWhitespace() || previous in ".,!?·:;。！？" || next in ".,!?·:;。！？") {
+        "line $line splits Korean prose between '$previous' and '$next' in '$text'"
+      }
     }
   }
 
