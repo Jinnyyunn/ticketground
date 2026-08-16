@@ -89,7 +89,7 @@ Heavy UI work was serialized: the original iPhone Simulator run was stopped/dele
 
 | Action | Result / return state | Evidence |
 | --- | --- | --- |
-| Home ranking section → first ranking card | Ranking cards rendered and the first card opened event detail. | `android-manual-fix1-final/00-home-ranking.png`, `01-event-detail.png` |
+| Home ranking section → first ranking card | Ranking cards rendered and the first card opened event detail. | `android-manual-fix2-final/00-home-ranking.png`, `01-event-detail.png` |
 | Event → venue | `잠실종합운동장 주경기장` destination; Back returned to home. | `02-venue.png`, `03-back-home-after-venue.png` |
 | Event → artist | `IU` destination opened. | `04-artist.png` |
 | Artist → Back | A distinct, later capture shows the returned home screen at a separately scrolled position. | `05-back-home-after-artist.png` |
@@ -151,3 +151,36 @@ Final directory: `/tmp/ticketground-mobile-parity/task7/android-manual-fix1-fina
 
 - Product/test edits are limited to Android customer UI typography and its rendered layout regressions; report-only evidence corrects the prior claim. No WebView, auth UI/config/OAuth/session/test/env file, provider console, iOS file, or directed-transfer behavior changed.
 - Final cleanup stopped the Android emulator and Gradle daemon. No backend, port, or dev server was started.
+
+## Fix round 2 — 2026-08-17
+
+### Re-review finding and TDD
+
+The round-1 re-review accepted all four prior findings and exposed one new product blocker: the final event notice rendered `있습니다.` as `있습` / `니다.`. The existing actual-360 dp regression was extended to assert the complete semantic predicate `제한될 수 있습니다.` on one rendered line, while retaining its `상품입니다.` and `따라` assertions.
+
+- RED: focused 1/1 failed with `제한될 수 있습니다. must remain on one line`, exit 1 (`android-fix2-event-red.log`). A preceding SDK-path setup failure was not counted as product RED.
+- Narrower typography, generic Compose phrase word-break, and letter-spacing variants did not satisfy the real TextLayout geometry and were discarded.
+- GREEN: the unchanged notice words now place the exact terminal restriction predicate on a deliberate continuation line. The focused test locates the real rendered node by substring and verifies the whole predicate range, not an API or source-string surrogate. Focused 1/1 passed (`android-fix2-event-green.log`).
+
+### Fix round 2 verification
+
+- Real API 36 emulator Compose suite: 32/32 passed, 0 failures/skips (`android-fix2-compose-final.log`).
+- JVM suite: 80/80 passed, 0 failures/skips (`android-fix2-jvm-final.log`).
+- Source contract: 3/3 passed (`android-fix2-source-final.log`).
+- Fresh assemble: 38/38 tasks executed, successful (`android-fix2-assemble-final.log`). The first generic uninstall returned `DELETE_FAILED_INTERNAL_ERROR`, so it was not accepted as clean-install evidence; explicit user-0 removal then returned `Success`, package absence was checked, and the final APK install returned `Success` before capture.
+- iOS remained byte-for-byte untouched in round 2 and was not rerun. Its prior 86-executed UI and 177/177 unit boundary is unchanged.
+
+### Fix round 2 manual and visual evidence
+
+Final directory: `/tmp/ticketground-mobile-parity/task7/android-manual-fix2-final`.
+
+- The complete chronological sequence was recreated after the last source edit and final APK install: `00` Home/ranking, `01` event, `02` venue, `03` venue Back-to-home, `04` artist, `05` distinct artist Back-to-home, and `06` signed-out My Page.
+- Every image was opened directly at native size. `00` retains intact `주경기장`; `01` retains intact `상품입니다.` and `따라` and now renders the whole `제한될 수 있습니다.` on one line; `04` is followed by the unique, later `05` artist-return frame.
+- All seven have PNG signature `89504e470d0a1a0a`, RGBA alpha, unique SHA-256 hashes, chronological mtimes from `03:55:22` through `03:56:07 +0900`, and are newer than the final rendered source edit at `03:52:03 +0900`.
+- ScreenCaptureKit again emitted `553x1280` for photo-heavy Home frames `00` and `05`, and `822x1902` for the other five. All seven app viewports are fully composited; exterior transparent/black space outside the emulator window is not app content, and no partial frame, stale overlay, notification shade, mixed state, clipping, tofu, or sensitive artifact was accepted.
+- No image contains QR payload, customer PII, credentials, payment/provider keys, push tokens, or secrets.
+
+### Round 2 scope and cleanup
+
+- The diff remains limited to the Android event-notice layout, its rendered regression, and this report. No WebView, iOS, protected auth UI/config/OAuth/session/test/env, provider-console, directed-transfer, payment-success, refund-success, device-success, push-success, QR-success, or admission-success behavior changed.
+- Final cleanup stopped the Android emulator and Gradle daemon. No Task 7 backend, development server, or port was started.

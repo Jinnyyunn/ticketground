@@ -603,7 +603,9 @@ fun EventDetailScreen(
           style = MaterialTheme.typography.bodySmall,
         )
         event.notices.orEmpty().forEach {
-          Text("· $it", style = MaterialTheme.typography.bodySmall)
+          val finalRestriction = "제한될 수 있습니다."
+          val notice = "· $it".replace(" $finalRestriction", "\n$finalRestriction")
+          Text(notice, style = MaterialTheme.typography.bodySmall)
         }
       }
     }

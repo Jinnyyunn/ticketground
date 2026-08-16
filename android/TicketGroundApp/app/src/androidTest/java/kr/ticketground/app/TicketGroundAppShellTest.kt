@@ -92,7 +92,8 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(summary, "상품입니다.")
-    assertTextRangeOnOneLineForText("· $notice", "따라")
+    assertTextRangeOnOneLineForText("따라", "따라", substring = true)
+    assertTextRangeOnOneLineForText("제한될 수 있습니다.", "제한될 수 있습니다.", substring = true)
   }
 
   @Test
@@ -646,9 +647,14 @@ class TicketGroundAppShellTest {
     composeRule.onNodeWithTag(destinationTag).assertIsDisplayed()
   }
 
-  private fun assertTextRangeOnOneLineForText(text: String, phrase: String, index: Int = 0) {
+  private fun assertTextRangeOnOneLineForText(
+    text: String,
+    phrase: String,
+    index: Int = 0,
+    substring: Boolean = false,
+  ) {
     val results = mutableListOf<TextLayoutResult>()
-    composeRule.onAllNodesWithText(text, useUnmergedTree = true)[index]
+    composeRule.onAllNodesWithText(text, substring = substring, useUnmergedTree = true)[index]
       .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
     val result = results.single()
     val start = result.layoutInput.text.text.indexOf(phrase)
