@@ -196,7 +196,7 @@ class CustomerAppViewModelTest {
   }
 
   @Test
-  fun `missing Toss configuration remains on seat map with a fail closed message`() = runTest(dispatcher) {
+  fun `missing Toss configuration opens observable fail closed booking error`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository(bookError = CheckoutError.ProviderUnavailable)
     val viewModel = CustomerAppViewModel(repository)
     advanceUntilIdle()
@@ -208,19 +208,27 @@ class CustomerAppViewModelTest {
     viewModel.book(event, "performance-1")
     advanceUntilIdle()
 
-    assertTrue(viewModel.route.value is CustomerRoute.SeatMapRoute)
-    assertEquals("Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다.", viewModel.actionMessage.value)
+    val progress = (viewModel.route.value as CustomerRoute.Booking).progress as BookingProgress.Error
+    assertEquals("Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다.", progress.message)
   }
 
   @Test
   fun `ranking opens a typed ranking destination`() = runTest(dispatcher) {
-    val repository = FakeCustomerRepository()
+    val repository = FakeCustomerRepository(discoveryError = ApiError.Transport(java.io.IOException("offline")))
     val viewModel = CustomerAppViewModel(repository)
     advanceUntilIdle()
 
     viewModel.openRanking(repository.homeValue.events)
+    advanceUntilIdle()
+    assertTrue(viewModel.discovery.value is AsyncContent.Error)
 
-    assertEquals(CustomerRoute.Ranking(repository.homeValue.events), viewModel.route.value)
+    repository.discoveryError = null
+    viewModel.retryDiscovery()
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Ranking, viewModel.route.value)
+    assertEquals("서울 콘서트", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+    assertEquals(2, repository.rankingCalls)
   }
 
   @Test
@@ -231,7 +239,8 @@ class CustomerAppViewModelTest {
 
     viewModel.openRegion("서울", repository.homeValue.events)
 
-    assertEquals(CustomerRoute.Region("서울", repository.homeValue.events), viewModel.route.value)
+    advanceUntilIdle()
+    assertEquals(CustomerRoute.Region("서울"), viewModel.route.value)
   }
 
   @Test
@@ -243,7 +252,8 @@ class CustomerAppViewModelTest {
 
     viewModel.openVenue(event)
 
-    assertEquals(CustomerRoute.Venue(event.venueId, event.venue, repository.homeValue.events), viewModel.route.value)
+    advanceUntilIdle()
+    assertEquals(CustomerRoute.Venue(event.venueId, event.venue), viewModel.route.value)
   }
 
   @Test
@@ -255,7 +265,8 @@ class CustomerAppViewModelTest {
 
     viewModel.openArtist(event)
 
-    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty(), repository.homeValue.events), viewModel.route.value)
+    advanceUntilIdle()
+    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty()), viewModel.route.value)
   }
 
   @Test
@@ -267,6 +278,27 @@ class CustomerAppViewModelTest {
     viewModel.openBooking(progress)
 
     assertEquals(CustomerRoute.Booking(progress), viewModel.route.value)
+  }
+
+  @Test
+  fun `booking failure is observable and retry never fabricates success`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Error)
+
+    repository.bookError = null
+    viewModel.retryBooking()
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Held)
+    assertEquals(2, repository.bookCalls)
   }
 
   @Test
@@ -335,7 +367,8 @@ private class FakeCustomerRepository(
   var homeError: Throwable? = null,
   private val accountError: Throwable? = null,
   private val accountValue: AccountOverview = AccountOverview(true),
-  private val bookError: Throwable? = null,
+  var bookError: Throwable? = null,
+  var discoveryError: Throwable? = null,
   private val inquiryValue: List<SupportThread> = emptyList(),
 ) : CustomerRepository {
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
@@ -346,12 +379,27 @@ private class FakeCustomerRepository(
   var completedPaymentKey: String? = null
   var watchlistedEventId: String? = null
   var createdInquirySubject: String? = null
+  var rankingCalls = 0
+  var bookCalls = 0
 
   override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
+  override suspend fun ranking(): List<CatalogEvent> {
+    rankingCalls += 1
+    discoveryError?.let { throw it }
+    return homeValue.events
+  }
+  override suspend fun region(name: String): List<CatalogEvent> = discovery()
+  override suspend fun venue(venueId: String?, venueName: String): List<CatalogEvent> = discovery()
+  override suspend fun artist(artistSlug: String?, artistNames: List<String>): List<CatalogEvent> = discovery()
+  private fun discovery(): List<CatalogEvent> {
+    discoveryError?.let { throw it }
+    return homeValue.events
+  }
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = seatMapFixture()
   override suspend fun watchlist(): List<WatchlistItem> = emptyList()
   override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: accountValue
   override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress {
+    bookCalls += 1
     bookError?.let { throw it }
     bookedSeatId = seatId
     return BookingProgress.Held(

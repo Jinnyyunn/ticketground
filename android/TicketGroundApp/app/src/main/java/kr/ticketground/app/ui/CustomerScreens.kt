@@ -854,7 +854,126 @@ fun LifecycleOverviewScreen(
 }
 
 @Composable
-fun BookingProgressScreen(progress: BookingProgress, onCheckout: (BookingProgress.Held) -> Unit) {
+private fun AccountDestinationSurface(
+  routeTag: String,
+  state: AsyncContent<AccountOverview>,
+  onRetry: () -> Unit,
+  onLogin: () -> Unit,
+  content: @Composable (AccountOverview) -> Unit,
+) {
+  Box(Modifier.fillMaxSize().testTag(routeTag)) {
+    AsyncSurface(state, onRetry) { account ->
+      if (!account.signedIn) {
+        Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
+          SurfaceCard {
+            Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
+            Text("본인 소유 티켓과 기기 상태는 로그인 후 확인할 수 있습니다.")
+            Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().testTag("$routeTag-login")) { Text("로그인") }
+          }
+        }
+      } else content(account)
+    }
+  }
+}
+
+@Composable
+fun ReservationDetailScreen(
+  state: AsyncContent<AccountOverview>, onRetry: () -> Unit, onLogin: () -> Unit, onTicketSelected: (String) -> Unit,
+) = AccountDestinationSurface("reservation-detail", state, onRetry, onLogin) { account ->
+  LazyColumn(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
+    item { SectionTitle("예매 상세") }
+    if (account.tickets.isEmpty()) item { Text("현재 계정에서 소유한 예매를 찾을 수 없습니다.", modifier = Modifier.testTag("reservation-empty")) }
+    items(account.tickets, key = { it.id }) { ticket ->
+      OutlinedButton(onClick = { onTicketSelected(ticket.id) }, modifier = Modifier.fillMaxWidth().testTag("reservation-ticket-${ticket.id}")) {
+        Text("${ticket.title} · ${ticket.seatLabel}")
+      }
+    }
+    account.selectedTicket?.let { ticket -> item { SurfaceCard { Text(ticket.title, style = MaterialTheme.typography.titleMedium); Text(ticket.seatLabel); Text(ticket.qrState) } } }
+  }
+}
+
+@Composable
+fun CancellationRequestScreen(
+  state: AsyncContent<AccountOverview>, pending: Boolean, actionMessage: String?, onRetry: () -> Unit,
+  onSubmit: (String) -> Unit, onLogin: () -> Unit,
+) = AccountDestinationSurface("cancellation-request", state, onRetry, onLogin) { account ->
+  var reason by remember { mutableStateOf("") }
+  LazyColumn(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
+    item { SectionTitle("취소 요청") }
+    item { Text(if (account.cancellationPending) "취소 요청 검토 중" else "서버가 접수한 뒤에만 요청 상태가 표시됩니다.", modifier = Modifier.testTag("cancellation-state")) }
+    if (account.selectedTicket == null || !account.ticketEligible) item { Text("취소 요청 가능한 티켓이 없습니다.", modifier = Modifier.testTag("cancellation-ineligible")) }
+    else item {
+      SurfaceCard {
+        Text(account.ticketTitle.orEmpty(), style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(reason, { reason = it }, label = { Text("취소 사유") }, modifier = Modifier.fillMaxWidth().testTag("cancellation-reason"))
+        Button(onClick = { onSubmit(reason.trim()) }, enabled = reason.isNotBlank() && !pending, modifier = Modifier.fillMaxWidth().testTag("cancellation-submit")) { Text("취소 요청") }
+      }
+    }
+    actionMessage?.let { item { Text(it, color = MaterialTheme.colorScheme.primary) } }
+  }
+}
+
+@Composable
+fun AccountResaleLifecycleScreen(
+  state: AsyncContent<AccountOverview>, pending: Boolean, actionMessage: String?, onRetry: () -> Unit,
+  onSubmit: (Int) -> Unit, onLogin: () -> Unit,
+) = AccountDestinationSurface("resale-lifecycle", state, onRetry, onLogin) { account ->
+  var price by remember { mutableStateOf("") }
+  val parsed = price.toIntOrNull()
+  LazyColumn(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
+    item { SectionTitle("내 티켓 공식 재판매") }
+    item { Text(account.resaleState?.let { "서버 재판매 상태 $it" } ?: "등록된 공식 재판매 내역이 없습니다.", modifier = Modifier.testTag("account-resale-state")) }
+    if (account.selectedTicket == null || !account.ticketEligible) item { Text("재판매 가능한 티켓이 없습니다.", modifier = Modifier.testTag("account-resale-ineligible")) }
+    else item {
+      SurfaceCard {
+        Text(account.ticketTitle.orEmpty(), style = MaterialTheme.typography.titleMedium)
+        Text("허용 범위 ${account.minimumResalePrice.krw()}원~${account.maximumResalePrice.krw()}원")
+        OutlinedTextField(price, { price = it.filter(Char::isDigit) }, label = { Text("재판매 가격") }, modifier = Modifier.fillMaxWidth())
+        Button(onClick = { parsed?.let(onSubmit) }, enabled = parsed in account.minimumResalePrice..account.maximumResalePrice && !pending, modifier = Modifier.fillMaxWidth().testTag("account-resale-submit")) { Text("공식 재판매 등록") }
+      }
+    }
+    actionMessage?.let { item { Text(it, color = MaterialTheme.colorScheme.primary) } }
+  }
+}
+
+@Composable
+fun TrustedDeviceScreen(
+  state: AsyncContent<AccountOverview>, pending: Boolean, actionMessage: String?, onRetry: () -> Unit,
+  onRegister: () -> Unit, onLogin: () -> Unit,
+) = AccountDestinationSurface("trusted-device", state, onRetry, onLogin) { account ->
+  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
+    SurfaceCard {
+      SectionTitle("신뢰 기기")
+      Text(if (account.trustedDevice) "이 계정에 신뢰 기기가 등록되어 있습니다." else "등록된 신뢰 기기가 없습니다.", modifier = Modifier.testTag(if (account.trustedDevice) "trusted-device-active" else "trusted-device-empty"))
+      Text("Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.")
+      Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("trusted-device-register")) { Text("이 기기 확인") }
+      actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+    }
+  }
+}
+
+@Composable
+fun PushNotificationsScreen(
+  state: AsyncContent<AccountOverview>, pending: Boolean, actionMessage: String?, onRetry: () -> Unit,
+  onRegister: () -> Unit, onLogin: () -> Unit,
+) = AccountDestinationSurface("push-notifications", state, onRetry, onLogin) { account ->
+  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
+    SurfaceCard {
+      SectionTitle("푸시 알림")
+      Text(account.pushSuffix?.let { "FCM 등록됨 · 끝자리 $it" } ?: "푸시 알림 미등록", modifier = Modifier.testTag(if (account.pushSuffix == null) "push-empty" else "push-active"))
+      Text("알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다.")
+      Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("push-register")) { Text("알림 등록 요청") }
+      actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+    }
+  }
+}
+
+@Composable
+fun BookingProgressScreen(
+  progress: BookingProgress,
+  onRetry: () -> Unit,
+  onCheckout: (BookingProgress.Held) -> Unit,
+) {
   Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag("booking-progress"), contentAlignment = Alignment.Center) {
     SurfaceCard {
       when (progress) {
@@ -871,8 +990,24 @@ fun BookingProgressScreen(progress: BookingProgress, onCheckout: (BookingProgres
             Text("결제 확인으로 이동")
           }
         }
+        is BookingProgress.Expired -> BookingFailureContent("대기·좌석 시간이 만료되었습니다", progress.message, "booking-expired", onRetry)
+        is BookingProgress.Conflict -> BookingFailureContent("좌석 상태가 변경되었습니다", progress.message, "booking-conflict", onRetry)
+        is BookingProgress.Error -> BookingFailureContent("예매 상태를 확인할 수 없습니다", progress.message, "booking-error", onRetry)
       }
     }
+  }
+}
+
+@Composable
+private fun BookingFailureContent(title: String, message: String, tag: String, onRetry: () -> Unit) {
+  androidx.compose.foundation.layout.Column(
+    modifier = Modifier.testTag(tag),
+    verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm),
+  ) {
+    Text(title, style = MaterialTheme.typography.titleMedium)
+    Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("서버에서 새 상태를 확인하기 전에는 좌석 확보나 예매 성공으로 처리하지 않습니다.")
+    OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth().testTag("booking-retry")) { Text("다시 시도") }
   }
 }
 

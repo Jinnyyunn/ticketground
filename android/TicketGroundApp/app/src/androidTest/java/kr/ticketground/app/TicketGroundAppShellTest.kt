@@ -67,6 +67,7 @@ import kr.ticketground.app.ui.PublicResaleScreen
 import kr.ticketground.app.ui.SupportScreen
 import kr.ticketground.app.ui.TicketGroundLayout
 import kr.ticketground.app.ui.BookingProgress
+import kr.ticketground.app.ui.BookingProgressScreen
 import kr.ticketground.app.ui.TicketGroundTheme
 import kr.ticketground.app.data.WatchlistItem
 import org.junit.Assert.assertEquals
@@ -235,6 +236,19 @@ class TicketGroundAppShellTest {
   }
 
   @Test
+  fun bookingProgress_exposesExpiredConflictAndRetryWithoutSuccessCopy() {
+    var retried = 0
+    var progress by mutableStateOf<BookingProgress>(BookingProgress.Expired("만료됨"))
+    composeRule.setContent { TicketGroundTheme { BookingProgressScreen(progress, { retried += 1 }, {}) } }
+    composeRule.onNodeWithTag("booking-expired").assertIsDisplayed()
+    composeRule.onNodeWithTag("booking-retry").performClick()
+    composeRule.runOnIdle { progress = BookingProgress.Conflict("충돌") }
+    composeRule.onNodeWithTag("booking-conflict").assertIsDisplayed()
+    composeRule.onNodeWithText("예매 완료", substring = true).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, retried) }
+  }
+
+  @Test
   fun reservationRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("reservation-detail") {
     it.openReservation()
   }
@@ -257,6 +271,24 @@ class TicketGroundAppShellTest {
   @Test
   fun pushRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("push-notifications") {
     it.openPushNotifications()
+  }
+
+  @Test
+  fun accountSubroutes_renderIndependentAuthenticatedStateSurfaces() {
+    val repository = ComposeCustomerRepository(signedIn = true)
+    val viewModel = CustomerAppViewModel(repository)
+    composeRule.setContent { TicketGroundTheme { TicketGroundCustomerApp(viewModel) } }
+    composeRule.runOnIdle { viewModel.openReservation() }
+    composeRule.onNodeWithTag("reservation-ticket-ticket-1").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openCancellation() }
+    composeRule.onNodeWithTag("cancellation-state").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openResaleLifecycle() }
+    composeRule.onNodeWithTag("account-resale-state").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openTrustedDevice() }
+    composeRule.onNodeWithTag("trusted-device-active").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openPushNotifications() }
+    composeRule.onNodeWithTag("push-active").assertIsDisplayed()
+    composeRule.onNodeWithTag("lifecycle-overview-list").assertDoesNotExist()
   }
 
   @Test
@@ -690,7 +722,7 @@ class TicketGroundAppShellTest {
   )
 }
 
-private class ComposeCustomerRepository : CustomerRepository {
+private class ComposeCustomerRepository(private val signedIn: Boolean = false) : CustomerRepository {
   private val event = CatalogEvent(
     id = "event-1", category = "콘서트", title = "서울 콘서트", venueId = "venue-1",
     venue = "잠실주경기장", artistSlug = "artist-1", casts = listOf("테스트 아티스트"), soldCount = 42,
@@ -709,7 +741,15 @@ private class ComposeCustomerRepository : CustomerRepository {
   )
   override suspend fun seatMap(eventId: String, performanceDateId: String?) = error("not used")
   override suspend fun watchlist(): List<WatchlistItem> = emptyList()
-  override suspend fun accountOverview() = AccountOverview(signedIn = false)
+  override suspend fun accountOverview() = if (!signedIn) AccountOverview(signedIn = false) else AccountOverview(
+    signedIn = true,
+    tickets = listOf(AccountTicketOverview("ticket-1", "서울 콘서트", "A구역 1열 1번", true, 80_000, 120_000, "입장 가능")),
+    trustedDevice = true,
+    trustedDeviceId = "device-1",
+    pushSuffix = "4821",
+    cancellationPending = true,
+    resaleState = "OPEN",
+  )
   override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress = error("not used")
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit

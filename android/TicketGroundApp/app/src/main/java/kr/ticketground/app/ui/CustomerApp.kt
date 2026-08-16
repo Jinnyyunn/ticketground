@@ -34,10 +34,10 @@ sealed interface CustomerRoute {
   data object Tab : CustomerRoute
   data class Event(val event: CatalogEvent) : CustomerRoute
   data class Collection(val title: String, val events: List<CatalogEvent>) : CustomerRoute
-  data class Ranking(val events: List<CatalogEvent>) : CustomerRoute
-  data class Region(val name: String, val events: List<CatalogEvent>) : CustomerRoute
-  data class Venue(val venueId: String?, val venueName: String, val events: List<CatalogEvent>) : CustomerRoute
-  data class Artist(val artistSlug: String?, val artistNames: List<String>, val events: List<CatalogEvent>) : CustomerRoute
+  data object Ranking : CustomerRoute
+  data class Region(val name: String) : CustomerRoute
+  data class Venue(val venueId: String?, val venueName: String) : CustomerRoute
+  data class Artist(val artistSlug: String?, val artistNames: List<String>) : CustomerRoute
   data object OpenCalendar : CustomerRoute
   data object Resale : CustomerRoute
   data class SeatMapRoute(val event: CatalogEvent, val performanceDateId: String?) : CustomerRoute
@@ -63,6 +63,8 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   val home = mutableHome.asStateFlow()
   private val mutableSeatMap = MutableStateFlow<AsyncContent<SeatMap>>(AsyncContent.Loading)
   val seatMap = mutableSeatMap.asStateFlow()
+  private val mutableDiscovery = MutableStateFlow<AsyncContent<List<CatalogEvent>>>(AsyncContent.Loading)
+  val discovery = mutableDiscovery.asStateFlow()
   private val mutableWatchlist = MutableStateFlow<AsyncContent<List<WatchlistItem>>>(AsyncContent.Loading)
   val watchlist = mutableWatchlist.asStateFlow()
   private val mutableAccount = MutableStateFlow<AsyncContent<AccountOverview>>(AsyncContent.Loading)
@@ -79,6 +81,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   val admissionQr = mutableAdmissionQr.asStateFlow()
   private val mutableInquiries = MutableStateFlow<AsyncContent<List<SupportThread>>>(AsyncContent.Loading)
   val inquiries = mutableInquiries.asStateFlow()
+  private var lastBookingAttempt: BookingAttempt? = null
 
   init { loadHome() }
 
@@ -111,25 +114,43 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     mutableRoute.value = CustomerRoute.Collection(title, events)
   }
 
-  fun openRanking(events: List<CatalogEvent>) { mutableRoute.value = CustomerRoute.Ranking(events) }
+  fun openRanking(events: List<CatalogEvent>) {
+    mutableRoute.value = CustomerRoute.Ranking
+    loadDiscovery { repository.ranking() }
+  }
 
   fun openRegion(name: String, events: List<CatalogEvent>) {
-    mutableRoute.value = CustomerRoute.Region(name, events)
+    mutableRoute.value = CustomerRoute.Region(name)
+    loadDiscovery { repository.region(name) }
   }
 
   fun openVenue(event: CatalogEvent) {
-    val events = (mutableHome.value as? AsyncContent.Ready)?.value?.events.orEmpty().filter {
-      (event.venueId != null && it.venueId == event.venueId) || it.venue == event.venue
-    }
-    mutableRoute.value = CustomerRoute.Venue(event.venueId, event.venue, events)
+    mutableRoute.value = CustomerRoute.Venue(event.venueId, event.venue)
+    loadDiscovery { repository.venue(event.venueId, event.venue) }
   }
 
   fun openArtist(event: CatalogEvent) {
     val names = event.casts.orEmpty()
-    val events = (mutableHome.value as? AsyncContent.Ready)?.value?.events.orEmpty().filter {
-      (event.artistSlug != null && it.artistSlug == event.artistSlug) || it.casts.orEmpty().any(names::contains)
+    mutableRoute.value = CustomerRoute.Artist(event.artistSlug, names)
+    loadDiscovery { repository.artist(event.artistSlug, names) }
+  }
+
+  fun retryDiscovery() {
+    when (val current = mutableRoute.value) {
+      CustomerRoute.Ranking -> loadDiscovery { repository.ranking() }
+      is CustomerRoute.Region -> loadDiscovery { repository.region(current.name) }
+      is CustomerRoute.Venue -> loadDiscovery { repository.venue(current.venueId, current.venueName) }
+      is CustomerRoute.Artist -> loadDiscovery { repository.artist(current.artistSlug, current.artistNames) }
+      else -> Unit
     }
-    mutableRoute.value = CustomerRoute.Artist(event.artistSlug, names, events)
+  }
+
+  private fun loadDiscovery(block: suspend () -> List<CatalogEvent>) = viewModelScope.launch {
+    mutableDiscovery.value = AsyncContent.Loading
+    mutableDiscovery.value = runCatching { block() }.fold(
+      onSuccess = { if (it.isEmpty()) AsyncContent.Empty("공연이 없습니다", "다른 조건을 확인해 주세요.") else AsyncContent.Ready(it) },
+      onFailure = { AsyncContent.Error(safeUiMessage(it)) },
+    )
   }
 
   fun openBooking(progress: BookingProgress) { mutableRoute.value = CustomerRoute.Booking(progress) }
@@ -197,6 +218,19 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
       mutableActionMessage.value = "예매 회차를 확인할 수 없습니다. 공연 상세에서 회차를 다시 선택해 주세요."
       return@launch
     }
+    lastBookingAttempt = BookingAttempt(event, performance)
+    performBooking(event, performance, seat.id)
+  }
+
+  fun retryBooking() {
+    val attempt = lastBookingAttempt ?: return
+    val seatId = mutableSelectedSeatId.value ?: return
+    viewModelScope.launch { performBooking(attempt.event, attempt.performanceDateId, seatId) }
+  }
+
+  private suspend fun performBooking(event: CatalogEvent, performance: String, seatId: String) {
+    val map = (mutableSeatMap.value as? AsyncContent.Ready)?.value ?: return
+    val seat = map.seats.firstOrNull { it.id == seatId && it.available } ?: return
     mutableBookingPending.value = true
     mutableActionMessage.value = null
     runCatching { repository.book(performance, seat.id, seat.displayCode.ifBlank { seat.label }, seat.price) }
@@ -207,9 +241,10 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
             mutableHeldSeatIds.value = mutableHeldSeatIds.value + progress.seatId
             openBooking(progress)
           }
+          is BookingProgress.Expired, is BookingProgress.Conflict, is BookingProgress.Error -> openBooking(progress)
         }
       }
-      .onFailure { mutableActionMessage.value = safeUiMessage(it) }
+      .onFailure { openBooking(BookingProgress.Error(safeUiMessage(it))) }
     mutableBookingPending.value = false
   }
 
@@ -346,6 +381,8 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   fun nativeLoginFailed(message: String) {
     mutableActionMessage.value = message
   }
+
+  private data class BookingAttempt(val event: CatalogEvent, val performanceDateId: String)
 }
 
 @Composable
@@ -361,6 +398,7 @@ fun TicketGroundCustomerApp(
   val route by viewModel.route.collectAsStateWithLifecycle()
   val home by viewModel.home.collectAsStateWithLifecycle()
   val seatMap by viewModel.seatMap.collectAsStateWithLifecycle()
+  val discovery by viewModel.discovery.collectAsStateWithLifecycle()
   val watchlist by viewModel.watchlist.collectAsStateWithLifecycle()
   val account by viewModel.account.collectAsStateWithLifecycle()
   val selectedSeatId by viewModel.selectedSeatId.collectAsStateWithLifecycle()
@@ -452,17 +490,17 @@ fun TicketGroundCustomerApp(
             onEvent = viewModel::openEvent,
           )
         }
-        is CustomerRoute.Ranking -> Box(Modifier.fillMaxSize().testTag("ranking-screen")) {
-          EventListScreen("실시간 예매 랭킹", AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent, ranking = true)
+        CustomerRoute.Ranking -> Box(Modifier.fillMaxSize().testTag("ranking-screen")) {
+          EventListScreen("실시간 예매 랭킹", discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent, ranking = true)
         }
         is CustomerRoute.Region -> Box(Modifier.fillMaxSize().testTag("region-screen-${current.name}")) {
-          EventListScreen("${current.name} 공연", AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent)
+          EventListScreen("${current.name} 공연", discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent)
         }
         is CustomerRoute.Venue -> Box(Modifier.fillMaxSize().testTag("venue-screen-${current.venueId ?: current.venueName}")) {
-          EventListScreen(current.venueName, AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent)
+          EventListScreen(current.venueName, discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent)
         }
         is CustomerRoute.Artist -> Box(Modifier.fillMaxSize().testTag("artist-screen-${current.artistSlug ?: "unknown"}")) {
-          EventListScreen(current.artistNames.firstOrNull() ?: "아티스트 공연", AsyncContent.Ready(current.events), expandedLayout, {}, viewModel::openEvent)
+          EventListScreen(current.artistNames.firstOrNull() ?: "아티스트 공연", discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent)
         }
         CustomerRoute.OpenCalendar -> AsyncSurface(home, viewModel::loadHome) {
           OpenCalendarScreen(it.calendar, viewModel::openEvent)
@@ -482,9 +520,7 @@ fun TicketGroundCustomerApp(
           )
           actionMessage?.let { StateBanner(it) }
         }
-        is CustomerRoute.Booking -> BookingProgressScreen(current.progress) {
-          viewModel.continueToCheckout(it)
-        }
+        is CustomerRoute.Booking -> BookingProgressScreen(current.progress, viewModel::retryBooking, viewModel::continueToCheckout)
         is CustomerRoute.Checkout -> {
           CheckoutHandoffScreen(current.request, pending, current.seatLabel, current.amount) { result ->
             viewModel.completeCheckout(current.request, result)
@@ -492,35 +528,18 @@ fun TicketGroundCustomerApp(
           actionMessage?.let { StateBanner(it) }
         }
         CustomerRoute.Support -> AsyncSurface(home, viewModel::loadHome) { SupportScreen(it) }
-        CustomerRoute.Reservation -> LifecycleOverviewScreen(
-          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
-          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
-          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
-          routeTag = "reservation-detail",
+        CustomerRoute.Reservation -> ReservationDetailScreen(account, viewModel::loadAccount, openLogin, viewModel::selectOwnedTicket)
+        CustomerRoute.Cancellation -> CancellationRequestScreen(
+          account, pending, actionMessage, viewModel::loadAccount, viewModel::requestCancellation, openLogin,
         )
-        CustomerRoute.Cancellation -> LifecycleOverviewScreen(
-          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
-          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
-          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
-          routeTag = "cancellation-request",
+        CustomerRoute.ResaleLifecycle -> AccountResaleLifecycleScreen(
+          account, pending, actionMessage, viewModel::loadAccount, viewModel::listForResale, openLogin,
         )
-        CustomerRoute.ResaleLifecycle -> LifecycleOverviewScreen(
-          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
-          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
-          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
-          routeTag = "resale-lifecycle",
+        CustomerRoute.TrustedDevice -> TrustedDeviceScreen(
+          account, pending, actionMessage, viewModel::loadAccount, viewModel::trustThisDevice, openLogin,
         )
-        CustomerRoute.TrustedDevice -> LifecycleOverviewScreen(
-          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
-          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
-          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
-          routeTag = "trusted-device",
-        )
-        CustomerRoute.PushNotifications -> LifecycleOverviewScreen(
-          account, viewModel::loadAccount, pending, actionMessage, viewModel::requestCancellation,
-          viewModel::listForResale, viewModel::trustThisDevice, viewModel::registerPush,
-          viewModel::issueAdmissionQr, viewModel::selectOwnedTicket, admissionQr, openLogin,
-          routeTag = "push-notifications",
+        CustomerRoute.PushNotifications -> PushNotificationsScreen(
+          account, pending, actionMessage, viewModel::loadAccount, viewModel::registerPush, openLogin,
         )
         CustomerRoute.Inquiry -> InquiryScreen(
           accountState = account,

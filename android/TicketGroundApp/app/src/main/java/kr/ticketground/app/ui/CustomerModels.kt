@@ -62,7 +62,10 @@ data class AccountOverview(
   val tickets: List<AccountTicketOverview> = emptyList(),
   val selectedTicketId: String? = tickets.firstOrNull()?.id,
   val trustedDevice: Boolean = false,
+  val trustedDeviceId: String? = null,
   val pushSuffix: String? = null,
+  val cancellationPending: Boolean = false,
+  val resaleState: String? = null,
 ) {
   val selectedTicket: AccountTicketOverview? get() = tickets.firstOrNull { it.id == selectedTicketId }
   val ticketId: String? get() = selectedTicket?.id
@@ -77,12 +80,23 @@ data class AccountOverview(
 sealed interface BookingProgress {
   data class Waiting(val position: Int) : BookingProgress
   data class Held(val seatId: String, val seatLabel: String, val amount: Int, val checkout: TossCheckoutRequest) : BookingProgress
+  data class Expired(val message: String) : BookingProgress
+  data class Conflict(val message: String) : BookingProgress
+  data class Error(val message: String) : BookingProgress
 }
 
 data class DeviceIdentity(val id: String, val name: String)
 
 interface CustomerRepository {
   suspend fun home(): HomeContent
+  suspend fun ranking(): List<CatalogEvent> = home().events.sortedByDescending(CatalogEvent::soldCount)
+  suspend fun region(name: String): List<CatalogEvent> = home().events
+  suspend fun venue(venueId: String?, venueName: String): List<CatalogEvent> = home().events.filter {
+    (venueId != null && it.venueId == venueId) || it.venue == venueName
+  }
+  suspend fun artist(artistSlug: String?, artistNames: List<String>): List<CatalogEvent> = home().events.filter {
+    (artistSlug != null && it.artistSlug == artistSlug) || it.casts.orEmpty().any(artistNames::contains)
+  }
   suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap
   suspend fun watchlist(): List<WatchlistItem>
   suspend fun accountOverview(): AccountOverview
@@ -131,6 +145,22 @@ class TypedCustomerRepository(
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap =
     publicApi.seatMap(eventId, performanceDateId)
 
+  override suspend fun ranking(): List<CatalogEvent> =
+    publicApi.catalog().events.sortedByDescending(CatalogEvent::soldCount)
+
+  override suspend fun region(name: String): List<CatalogEvent> {
+    val groups = publicApi.regions().regions
+    return if (name == "전체 지역") groups.flatMap { it.events }.distinctBy { it.id }
+    else groups.firstOrNull { it.name == name || it.slug == name }?.events.orEmpty()
+  }
+
+  override suspend fun venue(venueId: String?, venueName: String): List<CatalogEvent> =
+    publicApi.catalog().events.filter { (venueId != null && it.venueId == venueId) || it.venue == venueName }
+
+  override suspend fun artist(artistSlug: String?, artistNames: List<String>): List<CatalogEvent> =
+    artistSlug?.let { publicApi.artist(it).events }
+      ?: publicApi.catalog().events.filter { event -> event.casts.orEmpty().any(artistNames::contains) }
+
   override suspend fun watchlist(): List<WatchlistItem> = accountApi.watchlist()
 
   override suspend fun accountOverview(): AccountOverview {
@@ -138,6 +168,8 @@ class TypedCustomerRepository(
     val tickets = accountApi.tickets()
     val devices = lifecycleApi.trustedDevices()
     val push = lifecycleApi.pushTokens()
+    val cancellations = lifecycleApi.cancellationRequests()
+    val resalePools = lifecycleApi.resalePools()
     return AccountOverview(
       signedIn = true,
       tickets = tickets.map { ticket ->
@@ -152,7 +184,10 @@ class TypedCustomerRepository(
         )
       },
       trustedDevice = devices.any { LifecyclePolicy.canRevoke(it.status) },
+      trustedDeviceId = devices.firstOrNull { LifecyclePolicy.canRevoke(it.status) }?.id,
       pushSuffix = push.firstOrNull()?.suffix,
+      cancellationPending = cancellations.isNotEmpty(),
+      resaleState = resalePools.firstOrNull()?.status?.name,
     )
   }
 
@@ -163,14 +198,23 @@ class TypedCustomerRepository(
     amount: Int,
   ): BookingProgress {
     val entry = accountApi.enterQueue(performanceDateId, "android-queue-${UUID.randomUUID()}")
-    if (entry.status != LifecycleStatus.ADMITTED) return BookingProgress.Waiting(entry.position)
+    when (entry.status) {
+      LifecycleStatus.WAITING -> return BookingProgress.Waiting(entry.position)
+      LifecycleStatus.EXPIRED, LifecycleStatus.LEFT -> return BookingProgress.Expired("대기 입장 시간이 만료되었습니다. 다시 시도해 주세요.")
+      LifecycleStatus.ADMITTED -> Unit
+      else -> return BookingProgress.Conflict("대기 상태가 변경되었습니다. 좌석 상태를 다시 확인해 주세요.")
+    }
     val hold = accountApi.createSeatHold(performanceDateId, listOf(seatId), "android-hold-${UUID.randomUUID()}")
     if (hold.status != LifecycleStatus.ACTIVE || hold.ticketIds != listOf(seatId)) {
-      throw IllegalStateException("좌석을 안전하게 확보하지 못했습니다.")
+      return if (hold.status == LifecycleStatus.EXPIRED || hold.status == LifecycleStatus.RELEASED) {
+        BookingProgress.Expired("좌석 확보 시간이 만료되었습니다. 다시 선택해 주세요.")
+      } else BookingProgress.Conflict("좌석 상태가 변경되어 확보하지 않았습니다. 다시 확인해 주세요.")
     }
     val draft = accountApi.createReservationDraft(hold.id, "android-draft-${UUID.randomUUID()}")
     if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.ticketIds != listOf(seatId)) {
-      throw IllegalStateException("결제 대상을 안전하게 준비하지 못했습니다.")
+      return if (draft.status == LifecycleStatus.EXPIRED || draft.status == LifecycleStatus.CANCELLED) {
+        BookingProgress.Expired("예매 초안이 만료되었습니다. 다시 시도해 주세요.")
+      } else BookingProgress.Conflict("예매 초안 상태가 변경되어 결제를 시작하지 않았습니다.")
     }
     val request = checkout.prepare(
       draft,

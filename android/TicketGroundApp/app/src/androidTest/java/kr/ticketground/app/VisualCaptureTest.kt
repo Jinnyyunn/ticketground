@@ -105,7 +105,7 @@ class VisualCaptureTest {
   fun capture06_phoneLifecycleOverview() {
     val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also { it.navigate(AppDestination.MyPage) }
     setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
-    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("티켓 관리").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.waitUntil(10_000) { composeRule.onAllNodesWithTag("lifecycle-overview-list").fetchSemanticsNodes().isNotEmpty() }
     writeCapture("06-phone-lifecycle-overview.png")
   }
 
@@ -131,7 +131,7 @@ class VisualCaptureTest {
     setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
     composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("seat-seat-selected").fetchSemanticsNodes().isNotEmpty() }
     composeRule.runOnIdle { viewModel.selectSeat("seat-selected"); viewModel.book(fixtureEvent(), "performance-1") }
-    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("결제 확인").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.waitUntil(10_000) { composeRule.onAllNodesWithTag("booking-progress").fetchSemanticsNodes().isNotEmpty() }
     writeCapture("08-phone-toss-blocked.png")
   }
 
@@ -141,7 +141,7 @@ class VisualCaptureTest {
     setCapture(TabletWidth, TabletHeight) {
       TicketGroundCustomerApp(viewModel)
     }
-    composeRule.waitUntil(5_000) {
+    composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("event-list-two-pane").fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag("home-list").performScrollToIndex(4)
@@ -202,6 +202,56 @@ class VisualCaptureTest {
     }
     composeRule.onNodeWithTag("home-list").performScrollToIndex(8)
     writeCapture("15-phone-home-shortcuts.png")
+  }
+
+  @Test
+  fun capture16_phoneReservationDetail() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also { it.openReservation() }
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("reservation-ticket-ticket-1").fetchSemanticsNodes().isNotEmpty() }
+    writeCapture("16-phone-reservation-detail.png")
+  }
+
+  @Test
+  fun capture17_phoneCancellationRequest() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also { it.openCancellation() }
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("cancellation-state").fetchSemanticsNodes().isNotEmpty() }
+    writeCapture("17-phone-cancellation-request.png")
+  }
+
+  @Test
+  fun capture18_phoneAccountResale() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also { it.openResaleLifecycle() }
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("account-resale-state").fetchSemanticsNodes().isNotEmpty() }
+    writeCapture("18-phone-account-resale.png")
+  }
+
+  @Test
+  fun capture19_phoneTrustedDevice() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also { it.openTrustedDevice() }
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("trusted-device-active").fetchSemanticsNodes().isNotEmpty() }
+    writeCapture("19-phone-trusted-device.png")
+  }
+
+  @Test
+  fun capture20_phonePushNotifications() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also { it.openPushNotifications() }
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("push-active").fetchSemanticsNodes().isNotEmpty() }
+    writeCapture("20-phone-push-notifications.png")
+  }
+
+  @Test
+  fun capture21_tabletBookingConflict() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also {
+      it.openBooking(BookingProgress.Conflict("좌석 상태가 변경되어 확보하지 않았습니다. 다시 확인해 주세요."))
+    }
+    setCapture(TabletWidth, TabletHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("booking-conflict").fetchSemanticsNodes().isNotEmpty() }
+    writeCapture("21-tablet-booking-conflict.png")
   }
 
   private fun setCapture(
@@ -340,7 +390,10 @@ private fun fixtureAccount() = AccountOverview(
     ),
   ),
   trustedDevice = true,
+  trustedDeviceId = "device-capture",
   pushSuffix = "4821",
+  cancellationPending = true,
+  resaleState = "OPEN",
 )
 
 private enum class HomeMode { Ready, Loading, Empty, Error }
