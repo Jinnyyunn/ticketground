@@ -9,7 +9,7 @@ This matrix is the ordered release contract for matching the Ticketground web cu
 | 1 | Header/search | `/contents/search` | `header-search` / `.search` | `home-search` / `AppDestination.Search` | ready,error |
 | 2 | Category navigation | `/contents/genre/:genre` | `discovery-category-*` / `.genre` | `home-category-*` / `CustomerRoute.Collection` | ready,empty,error |
 | 3 | Featured hero | `/goods/:slug` | `discovery-featured-cta` / `.goods` | `home-featured` / `CustomerRoute.Event` | ready,media-fallback |
-| 4 | Real-time ranking | `/contents/ranking` | `discovery-ranking-more` / `.ranking` | `home-ranking-more` / `CustomerRoute.Collection` | ready,empty,error |
+| 4 | Real-time ranking | `/contents/ranking` | `discovery-ranking-more` / `.ranking` | `home-ranking-more` / `CustomerRoute.Ranking` | ready,empty,error |
 | 5 | Ticket-open upcoming | `/open` | `discovery-open-more` / `.open` | `home-open-more` / `CustomerRoute.OpenCalendar` | ready,empty,error |
 | 6 | CLEAN ticket | `/resale` | `discovery-resale-pool` / `.resale` | `home-resale-pool` / `CustomerRoute.Resale` | ready,signed-out,error |
 | 7 | Genre recommendations | `/contents/genre/:genre` | `discovery-genre-*` / `.genre` | `home-genre-*` / `CustomerRoute.Collection` | ready,empty,error |
@@ -24,24 +24,45 @@ Identifiers and typed destinations below are required native contracts. `loading
 
 | Surface | Web source/control | iOS identifier/destination | Android tag/destination | Required data source | Required states | Automated evidence | Manual evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Region discovery | Region control / `/contents/region` | `discovery-region-*` / `.region` | `home-region-*` / `CustomerRoute.Collection` | public catalog and region APIs | ready,empty,error | route, filter, and state tests | phone/tablet region selection |
-| Venue discovery | Venue control / `/place/:slug` | `discovery-venue-*` / `.place` | `home-venue-*` / `CustomerRoute.Venue` | public catalog and venue APIs | ready,empty,error | route, detail, and state tests | phone/tablet venue selection |
-| Artist discovery | Artist control / `/artist/:slug` | `discovery-artist-*` / `.artist` | `home-artist-*` / `CustomerRoute.Artist` | public catalog and artist APIs | ready,empty,error | route, detail, and state tests | phone/tablet artist selection |
+| Region discovery | Region control / `/contents/region` | `discovery-region-*` / `.region` | `home-region-all` / `CustomerRoute.Region` | public catalog and region APIs | ready,empty,error | route, filter, and state tests | phone/tablet region selection |
+| Venue discovery | Venue control / `/place/:slug` | `discovery-venue-*` / `.place` | `event-venue` / `CustomerRoute.Venue` | public catalog and venue APIs | ready,empty,error | route, detail, and state tests | phone/tablet venue selection |
+| Artist discovery | Artist control / `/artist/:slug` | `discovery-artist-*` / `.artist` | `event-artist` / `CustomerRoute.Artist` | public catalog and artist APIs | ready,empty,error | route, detail, and state tests | phone/tablet artist selection |
 | Event detail | `/goods/:slug` event tile | `event-detail-*` / `.goods` | `event-detail-*` / `CustomerRoute.Event` | public catalog and performance APIs | loading,ready,empty,error,booking-unavailable | route, state, and event-detail tests | phone/tablet event selection |
-| Seat selection | `/booking/:slug` seat entry | `seat-map` / `.seatMap` | `seat-map` / `CustomerRoute.SeatMap` | seat snapshot API | loading,ready,empty,error,stale,seat-unavailable | route, seat-map, and stale-contract tests | phone/tablet graphical seat taps |
+| Seat selection | `/booking/:slug` seat entry | `seat-map` / `.seatMap` | `seat-map` / `CustomerRoute.SeatMapRoute` | seat snapshot API | loading,ready,empty,error,stale,seat-unavailable | route, seat-map, and stale-contract tests | phone/tablet graphical seat taps |
 | Queue, hold, and draft | `/queue/:slug` then `/booking/:slug` | `booking-progress` / `.queue` then `.booking` | `booking-progress` / `CustomerRoute.Booking` | queue, hold, and reservation-draft APIs | pending,admitted,expired,seat-conflict,error,retry | queue, hold, draft, and idempotency tests | queue admit, expiry, and retry |
 | Toss handoff | `/checkout/:slug` | `toss-checkout` / `.checkout` | `toss-checkout` / `CustomerRoute.Checkout` | reservation draft and Toss handoff contract | ready,submitting,provider-unavailable,cancelled,error | duplicate-submit and payment handoff tests | provider transition and safe native return |
 | Watchlist | `/watchlist` and detail toggle | `watchlist` / `.watchlist` | `watchlist` / `AppDestination.Watchlist` | principal watchlist API | loading,ready,empty,signed-out,error,retry | route, mutation, rollback, and idempotency tests | add/remove and signed-out entry |
 | Reservation detail | `/reservation/:id` | `reservation-detail` / `.reservation` | `reservation-detail` / `CustomerRoute.Reservation` | principal reservation API | loading,ready,signed-out,not-found,error | ownership and detail-state tests | owned reservation and denied access |
 | Cancellation | `/cancel?reservation=:id` | `cancellation-request` / `.cancel` | `cancellation-request` / `CustomerRoute.Cancellation` | cancellation-request API | loading,ready,submitting,requested,signed-out,ineligible,error | authorization, idempotency, and request-state tests | request without refund-complete claim |
-| Official resale lifecycle | `/resale`, `/resale/:poolId`, `/mypage/resale` | `resale-lifecycle` / `.resale` | `resale-lifecycle` / `CustomerRoute.Resale` | resale pool, listing, purchase, and cancel APIs | loading,ready,empty,signed-out,ineligible,submitting,error | list, buy, cancel, ownership, and idempotency tests | pool browse, list, buy, and cancel |
+| Official resale lifecycle | `/resale`, `/resale/:poolId`, `/mypage/resale` | `resale-lifecycle` / `.resale` | `resale-lifecycle` / `CustomerRoute.ResaleLifecycle` | resale pool, listing, purchase, and cancel APIs | loading,ready,empty,signed-out,ineligible,submitting,error | list, buy, cancel, ownership, and idempotency tests | pool browse, list, buy, and cancel |
 | Trusted device | account trusted-device control | `trusted-device` / `.mypage` | `trusted-device` / `CustomerRoute.TrustedDevice` | device challenge/proof API | loading,ready,untrusted,registering,revoked,signed-out,error | challenge, proof, revoke, and authorization tests | simulator/emulator repository flow |
 | Push | account notification control | `push-notifications` / `.mypage` | `push-notifications` / `CustomerRoute.PushNotifications` | push-token registration API | loading,enabled,disabled,permission-denied,signed-out,error | token register/revoke and redaction tests | permission and toggle states |
-| Admission QR | reservation admission control | `admission-qr` / `.reservation` | `admission-qr` / `CustomerRoute.AdmissionQr` | short-lived admission QR API | loading,ready,expired,used,cancelled,offline,signed-out,error | expiry, rotation, consume, and redaction tests | QR state transitions without payload capture |
+| Admission QR | reservation admission control | `admission-qr` / `.reservation` | `admission-qr` / `CustomerRoute.Reservation` | short-lived admission QR API | loading,ready,expired,used,cancelled,offline,signed-out,error | expiry, rotation, consume, and redaction tests | QR state transitions without payload capture |
 | Help | `/help` | `support-help` / `.help` | `support-help` / `CustomerRoute.Support` | public support API | loading,ready,empty,error,retry | route and support state tests | search FAQ and notice links |
 | Inquiry | `/inquiry` and `/support/inquiry` | `support-inquiry` / `.inquiry` | `support-inquiry` / `CustomerRoute.Inquiry` | principal inquiry API | loading,ready,empty,signed-out,submitting,error | ownership, submit, and error tests | native inquiry history and submit |
 
 Directed person-to-person transfer is excluded by product policy and is not a parity row.
+
+## Task 7 repository status (2026-08-17)
+
+The non-home audit is recorded in `.superpowers/sdd/2026-08-16-mobile-web-parity/task-7-report.md`. Search, calendar, genre, editorial, event detail, seat map, Toss handoff, watchlist, help, and the platform rows not listed below retained their earlier repository-complete status. Task 7 closed these proven route/evidence gaps:
+
+| Surface | iOS repository status | Android repository status | Task 7 evidence |
+| --- | --- | --- | --- |
+| Ranking | implemented | implemented | Android `CustomerRoute.Ranking`; focused VM and Compose destination checks |
+| Region | implemented | implemented | canonical `discovery-region-*`; Android `CustomerRoute.Region` |
+| Venue | implemented | implemented | typed venue controls/destinations on both platforms |
+| Artist | implemented | implemented | typed artist controls/destinations on both platforms |
+| Queue, hold, and draft | implemented | implemented | Android `CustomerRoute.Booking` exposes waiting and server-confirmed hold/draft without a success claim |
+| Reservation detail | implemented | implemented | Android `reservation-detail` typed principal route and signed-out state |
+| Cancellation request | implemented | implemented | Android `cancellation-request`; UI continues to say `요청` |
+| Official resale lifecycle | implemented | implemented | Android account lifecycle is separated from the public resale pool |
+| Trusted device | implemented | implemented | canonical visible state surface and typed Android route; real attestation externally blocked |
+| Push | implemented | implemented | canonical visible state surface and typed Android route; real delivery externally blocked |
+| Admission QR | implemented | implemented | canonical iOS state surface with legacy compatibility; real consume externally blocked |
+| Inquiry | implemented | implemented | Android native signed-out/history/form/error route; Kakao availability externally blocked |
+
+Task 7 verification on the final source: iOS unit 177/177 and UI 86 executed with 2 skipped and 0 failures; Android JVM 80/80 and customer Compose 30/30; source architecture contract 3/3. Manual Android evidence directly covers five feasible action families, while six account/fixture-constrained destinations are qualified only by the real-emulator Compose suite and are not represented as direct manual success.
 
 ## External-provider qualification gates
 
