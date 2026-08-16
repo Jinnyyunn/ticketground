@@ -67,3 +67,19 @@ test("native parity does not substitute a WebView", async () => {
     assert.doesNotMatch(source, /WKWebView|AndroidView\s*\(.*WebView|android\.webkit\.WebView/s);
   });
 });
+
+test("the parity matrix locks region venue and artist discovery contracts", async () => {
+  const matrix = await read("docs/research/MOBILE_CUSTOMER_PARITY_MATRIX.md");
+  const rows = matrix
+    .split("\n")
+    .filter((line) => line.startsWith("|"))
+    .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()));
+  const expectedRows = [
+    ["Region discovery", "Region control / `/contents/region`", "`discovery-region-*` / `.region`", "`home-region-*` / `CustomerRoute.Collection`", "public catalog and region APIs", "ready,empty,error", "route, filter, and state tests", "phone/tablet region selection"],
+    ["Venue discovery", "Venue control / `/place/:slug`", "`discovery-venue-*` / `.place`", "`home-venue-*` / `CustomerRoute.Venue`", "public catalog and venue APIs", "ready,empty,error", "route, detail, and state tests", "phone/tablet venue selection"],
+    ["Artist discovery", "Artist control / `/artist/:slug`", "`discovery-artist-*` / `.artist`", "`home-artist-*` / `CustomerRoute.Artist`", "public catalog and artist APIs", "ready,empty,error", "route, detail, and state tests", "phone/tablet artist selection"],
+  ];
+  expectedRows.forEach((expected) => {
+    assert.deepEqual(rows.find(([surface]) => surface === expected[0]), expected);
+  });
+});

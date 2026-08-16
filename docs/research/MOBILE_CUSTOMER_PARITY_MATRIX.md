@@ -24,6 +24,9 @@ Identifiers and typed destinations below are required native contracts. `loading
 
 | Surface | Web source/control | iOS identifier/destination | Android tag/destination | Required data source | Required states | Automated evidence | Manual evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| Region discovery | Region control / `/contents/region` | `discovery-region-*` / `.region` | `home-region-*` / `CustomerRoute.Collection` | public catalog and region APIs | ready,empty,error | route, filter, and state tests | phone/tablet region selection |
+| Venue discovery | Venue control / `/place/:slug` | `discovery-venue-*` / `.place` | `home-venue-*` / `CustomerRoute.Venue` | public catalog and venue APIs | ready,empty,error | route, detail, and state tests | phone/tablet venue selection |
+| Artist discovery | Artist control / `/artist/:slug` | `discovery-artist-*` / `.artist` | `home-artist-*` / `CustomerRoute.Artist` | public catalog and artist APIs | ready,empty,error | route, detail, and state tests | phone/tablet artist selection |
 | Event detail | `/goods/:slug` event tile | `event-detail-*` / `.goods` | `event-detail-*` / `CustomerRoute.Event` | public catalog and performance APIs | loading,ready,empty,error,booking-unavailable | route, state, and event-detail tests | phone/tablet event selection |
 | Seat selection | `/booking/:slug` seat entry | `seat-map` / `.seatMap` | `seat-map` / `CustomerRoute.SeatMap` | seat snapshot API | loading,ready,empty,error,stale,seat-unavailable | route, seat-map, and stale-contract tests | phone/tablet graphical seat taps |
 | Queue, hold, and draft | `/queue/:slug` then `/booking/:slug` | `booking-progress` / `.queue` then `.booking` | `booking-progress` / `CustomerRoute.Booking` | queue, hold, and reservation-draft APIs | pending,admitted,expired,seat-conflict,error,retry | queue, hold, draft, and idempotency tests | queue admit, expiry, and retry |
