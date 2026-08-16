@@ -961,8 +961,11 @@ private struct LiveDiscoveryRouteView: View {
             LiveAccountRouteView()
         case .capabilityLedger:
             CapabilityLedgerView()
-        case .search, .ranking, .place, .goods:
+        case .search, .ranking, .goods:
             catalogBody
+        case .place(let slug):
+            catalogBody
+                .accessibilityIdentifier("route-venue-\(slug ?? "index")")
         case .genre(let name):
             catalogBody
                 .accessibilityIdentifier("route-genre-\(name)")
@@ -1554,9 +1557,13 @@ private struct LiveCatalogDetailView: View {
                     .font(.title.weight(.black))
                     .foregroundStyle(TicketgroundColor.ink)
                     .accessibilityIdentifier("live-catalog-event")
-                Text(event.venue)
-                    .font(.headline)
-                    .foregroundStyle(TicketgroundColor.inkSecondary)
+                let venueRoute = event.venueID ?? event.venue
+                NavigationLink(value: AppRoute.place(slug: venueRoute)) {
+                        Label(event.venue, systemImage: "building.columns")
+                            .font(.headline)
+                            .foregroundStyle(TicketgroundColor.inkSecondary)
+                }
+                .accessibilityIdentifier("discovery-venue-\(venueRoute)")
                 Text(event.period ?? event.date ?? "일정 미정")
                     .font(.subheadline)
                     .foregroundStyle(TicketgroundColor.inkMuted)

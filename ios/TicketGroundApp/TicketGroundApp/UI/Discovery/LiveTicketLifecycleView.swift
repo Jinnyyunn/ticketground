@@ -282,7 +282,7 @@ struct LiveTicketLifecycleRouteView: View {
 
     private func deviceAndPushBody(ticket: LiveTicket) -> some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-            formSurface(title: "신뢰 기기") {
+            formSurface(title: "신뢰 기기", identifier: "trusted-device") {
                 if devices.isEmpty {
                     Text("등록된 신뢰 기기가 없습니다. App Attest와 생체 확인이 가능한 실제 기기에서 등록해 주세요.")
                         .foregroundStyle(TicketgroundColor.inkSecondary)
@@ -310,7 +310,7 @@ struct LiveTicketLifecycleRouteView: View {
                     .accessibilityIdentifier("lifecycle-register-device")
             }
 
-            formSurface(title: "푸시 등록") {
+            formSurface(title: "푸시 등록", identifier: "push-notifications") {
                 if let token = pushTokens.first {
                     Label("APNs 등록됨 · 끝자리 \(token.suffix)", systemImage: "bell.badge.fill")
                         .foregroundStyle(TicketgroundColor.success)
@@ -324,7 +324,7 @@ struct LiveTicketLifecycleRouteView: View {
                 }
             }
 
-            formSurface(title: "입장 QR") {
+            formSurface(title: "입장 QR", identifier: "admission-qr") {
                 if qrExpired {
                     TicketgroundAlert(title: "QR이 만료되었습니다", message: "만료된 입장 정보는 표시하지 않습니다. 새 QR을 발급해 주세요.")
                         .accessibilityIdentifier("lifecycle-qr-expired")
@@ -360,10 +360,20 @@ struct LiveTicketLifecycleRouteView: View {
         }
     }
 
-    private func formSurface<Content: View>(title: String, @ViewBuilder content: @escaping () -> Content) -> some View {
+    private func formSurface<Content: View>(
+        title: String,
+        identifier: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
         TicketgroundSurface {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
-                Text(title).font(.headline)
+                if let identifier {
+                    Text(title)
+                        .font(.headline)
+                        .accessibilityIdentifier(identifier)
+                } else {
+                    Text(title).font(.headline)
+                }
                 content()
             }
         }

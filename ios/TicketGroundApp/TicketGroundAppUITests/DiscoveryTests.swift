@@ -598,7 +598,7 @@ final class DiscoveryTests: XCTestCase {
         region.buttons["header-menu"].tap()
         XCTAssertTrue(region.buttons["live-menu-region"].waitForExistence(timeout: 10))
         region.buttons["live-menu-region"].tap()
-        XCTAssertTrue(anyElement(region, identifier: "live-discovery-region-seoul").waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(region, identifier: "discovery-region-seoul").waitForExistence(timeout: 10))
         XCTAssertTrue(region.staticTexts["Neon Stage"].exists)
 
         let calendar = liveApp(homeScenario: "catalog")
@@ -616,6 +616,42 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(artist.buttons["live-artist-link"].waitForExistence(timeout: 10))
         artist.buttons["live-artist-link"].tap()
         XCTAssertTrue(artist.staticTexts["Neon Artist"].waitForExistence(timeout: 10))
+    }
+
+    func testRegionDiscoveryExposesCanonicalDestination() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
+        XCTAssertTrue(app.buttons["live-menu-region"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-region"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "discovery-region-seoul").waitForExistence(timeout: 10))
+    }
+
+    func testVenueDiscoveryOpensCanonicalDestination() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(app.buttons["discovery-venue-Live Hall"].waitForExistence(timeout: 10))
+        app.buttons["discovery-venue-Live Hall"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "route-venue-Live Hall").waitForExistence(timeout: 10))
+    }
+
+    func testArtistDiscoveryExposesCanonicalDestination() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(app.buttons["live-artist-link"].waitForExistence(timeout: 10))
+        app.buttons["live-artist-link"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "discovery-artist-neon-artist").waitForExistence(timeout: 10))
     }
 
     func testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates() {

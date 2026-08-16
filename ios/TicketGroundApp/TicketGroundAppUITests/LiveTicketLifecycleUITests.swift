@@ -13,6 +13,27 @@ final class LiveTicketLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["lifecycle-issue-qr"].exists)
     }
 
+    func testTrustedDeviceExposesCanonicalStateSurface() {
+        let app = lifecycleApp(scenario: "happy", route: "reservation")
+        app.launch()
+
+        XCTAssertTrue(app.descendants(matching: .any)["trusted-device"].waitForExistence(timeout: 20))
+    }
+
+    func testPushNotificationsExposeCanonicalStateSurface() {
+        let app = lifecycleApp(scenario: "happy", route: "reservation")
+        app.launch()
+
+        XCTAssertTrue(app.descendants(matching: .any)["push-notifications"].waitForExistence(timeout: 20))
+    }
+
+    func testAdmissionQrExposesCanonicalStateSurface() {
+        let app = lifecycleApp(scenario: "happy", route: "reservation")
+        app.launch()
+
+        XCTAssertTrue(app.descendants(matching: .any)["admission-qr"].waitForExistence(timeout: 20))
+    }
+
     func testSignedOutLifecycleFailsClosed() {
         let app = lifecycleApp(scenario: "signed-out", route: "reservation")
         app.launch()
