@@ -2,9 +2,11 @@ package kr.ticketground.app.ui
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kr.ticketground.app.data.ApiError
@@ -271,6 +273,72 @@ class CustomerAppViewModelTest {
   }
 
   @Test
+  fun `late ranking success cannot replace newer artist discovery`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val ranking = repository.deferRanking()
+    val artist = repository.deferArtist()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openRanking(repository.homeValue.events)
+    runCurrent()
+    viewModel.openArtist(event)
+    runCurrent()
+    artist.complete(listOf(event.copy(title = "최신 아티스트 공연")))
+    runCurrent()
+    ranking.complete(listOf(event.copy(title = "오래된 랭킹 공연")))
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty()), viewModel.route.value)
+    assertEquals("최신 아티스트 공연", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+  }
+
+  @Test
+  fun `late ranking error cannot replace newer artist discovery`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val ranking = repository.deferRanking()
+    val artist = repository.deferArtist()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openRanking(repository.homeValue.events)
+    runCurrent()
+    viewModel.openArtist(event)
+    runCurrent()
+    artist.complete(listOf(event.copy(title = "최신 아티스트 공연")))
+    runCurrent()
+    ranking.completeExceptionally(ApiError.Transport(java.io.IOException("late offline")))
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty()), viewModel.route.value)
+    assertEquals("최신 아티스트 공연", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+  }
+
+  @Test
+  fun `late initial completion cannot replace ranking retry generation`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val initial = repository.deferRanking()
+    val retry = repository.deferRanking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openRanking(repository.homeValue.events)
+    runCurrent()
+    viewModel.retryDiscovery()
+    runCurrent()
+    retry.complete(listOf(event.copy(title = "재시도 랭킹 공연")))
+    runCurrent()
+    initial.complete(listOf(event.copy(title = "오래된 최초 공연")))
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Ranking, viewModel.route.value)
+    assertEquals("재시도 랭킹 공연", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+  }
+
+  @Test
   fun `booking progress opens a typed queue hold and draft destination`() = runTest(dispatcher) {
     val viewModel = CustomerAppViewModel(FakeCustomerRepository())
     advanceUntilIdle()
@@ -384,6 +452,8 @@ private class FakeCustomerRepository(
   private val inquiryValue: List<SupportThread> = emptyList(),
 ) : CustomerRepository {
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
+  private val rankingDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
+  private val artistDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
   var bookedSeatId: String? = null
   var trustCalls = 0
   var pushCalls = 0
@@ -394,15 +464,22 @@ private class FakeCustomerRepository(
   var rankingCalls = 0
   var bookCalls = 0
 
+  fun deferRanking() = CompletableDeferred<List<CatalogEvent>>().also(rankingDeferreds::addLast)
+  fun deferArtist() = CompletableDeferred<List<CatalogEvent>>().also(artistDeferreds::addLast)
+
   override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
   override suspend fun ranking(): List<CatalogEvent> {
     rankingCalls += 1
+    if (rankingDeferreds.isNotEmpty()) return rankingDeferreds.removeFirst().await()
     discoveryError?.let { throw it }
     return homeValue.events
   }
   override suspend fun region(name: String): List<CatalogEvent> = discovery()
   override suspend fun venue(venueId: String?, venueName: String): List<CatalogEvent> = discovery()
-  override suspend fun artist(artistSlug: String?, artistNames: List<String>): List<CatalogEvent> = discovery()
+  override suspend fun artist(artistSlug: String?, artistNames: List<String>): List<CatalogEvent> {
+    if (artistDeferreds.isNotEmpty()) return artistDeferreds.removeFirst().await()
+    return discovery()
+  }
   private fun discovery(): List<CatalogEvent> {
     discoveryError?.let { throw it }
     return homeValue.events

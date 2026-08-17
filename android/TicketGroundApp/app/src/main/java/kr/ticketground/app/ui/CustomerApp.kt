@@ -82,6 +82,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private val mutableInquiries = MutableStateFlow<AsyncContent<List<SupportThread>>>(AsyncContent.Loading)
   val inquiries = mutableInquiries.asStateFlow()
   private var lastBookingAttempt: BookingAttempt? = null
+  private var discoveryGeneration = 0L
 
   init { loadHome() }
 
@@ -145,12 +146,16 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     }
   }
 
-  private fun loadDiscovery(block: suspend () -> List<CatalogEvent>) = viewModelScope.launch {
-    mutableDiscovery.value = AsyncContent.Loading
-    mutableDiscovery.value = runCatching { block() }.fold(
-      onSuccess = { if (it.isEmpty()) AsyncContent.Empty("공연이 없습니다", "다른 조건을 확인해 주세요.") else AsyncContent.Ready(it) },
-      onFailure = { AsyncContent.Error(safeUiMessage(it)) },
-    )
+  private fun loadDiscovery(block: suspend () -> List<CatalogEvent>) {
+    val generation = ++discoveryGeneration
+    viewModelScope.launch {
+      mutableDiscovery.value = AsyncContent.Loading
+      val content = runCatching { block() }.fold(
+        onSuccess = { if (it.isEmpty()) AsyncContent.Empty("공연이 없습니다", "다른 조건을 확인해 주세요.") else AsyncContent.Ready(it) },
+        onFailure = { AsyncContent.Error(safeUiMessage(it)) },
+      )
+      if (generation == discoveryGeneration) mutableDiscovery.value = content
+    }
   }
 
   fun openBooking(progress: BookingProgress) { mutableRoute.value = CustomerRoute.Booking(progress) }
