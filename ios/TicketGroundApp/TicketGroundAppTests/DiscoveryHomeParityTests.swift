@@ -19,6 +19,20 @@ final class DiscoveryHomeParityTests: XCTestCase {
         XCTAssertEqual(parity.openingMoreDestination, .open)
     }
 
+    func testEditorialsPreserveEachCatalogDestination() {
+        let content = DiscoveryFixtures.content(
+            featuredRoute: .event(slug: "summer-festival"),
+            supportingRoute: .goods(slug: "autumn-concert")
+        )
+
+        let parity = DiscoveryHomeComposition.make(from: content)
+
+        XCTAssertEqual(
+            parity.editorials.map(\.destination),
+            [.event(slug: "summer-festival"), .goods(slug: "autumn-concert")]
+        )
+    }
+
     func testParityContentUsesCatalogDataAndCapsGenreGroups() {
         let content = DiscoveryFixtures.happyContent
         let parity = DiscoveryHomeComposition.make(from: content)
@@ -66,6 +80,36 @@ private enum DiscoveryFixtures {
         ],
         calendar: []
     )
+
+    static func content(featuredRoute: AppRoute, supportingRoute: AppRoute) -> DiscoveryContent {
+        DiscoveryContent(
+            categories: happyContent.categories,
+            featured: DiscoveryFeatured(
+                title: "여름 기획전",
+                eyebrow: "EDITORIAL",
+                venue: "Ticketground",
+                date: "2026.08.17",
+                cta: "기획전 보기",
+                route: featuredRoute,
+                imageResource: nil
+            ),
+            supporting: [
+                DiscoveryFeatured(
+                    title: "가을 콘서트",
+                    eyebrow: "EDITORIAL",
+                    venue: "Ticketground",
+                    date: "2026.09.01",
+                    cta: "공연 보기",
+                    route: supportingRoute,
+                    imageResource: nil
+                )
+            ],
+            rankings: happyContent.rankings,
+            openingSoon: happyContent.openingSoon,
+            shortcuts: happyContent.shortcuts,
+            calendar: happyContent.calendar
+        )
+    }
 
     private static func ranking(_ rank: Int) -> DiscoveryRanking {
         DiscoveryRanking(

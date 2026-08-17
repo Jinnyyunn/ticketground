@@ -15,7 +15,7 @@ enum DiscoveryHomeComposition {
                     DiscoveryEditorialCard(
                         order: index + 1,
                         title: featured.title,
-                        destination: .event(slug: "ticketground-day")
+                        destination: featured.route
                     )
                 }
         )
