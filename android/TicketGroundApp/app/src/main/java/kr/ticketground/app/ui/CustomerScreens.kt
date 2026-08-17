@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -84,7 +85,6 @@ import kr.ticketground.app.BuildConfig
 import kr.ticketground.app.AppDestination
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.AdmissionQr
-import kr.ticketground.app.data.WatchlistItem
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
 import kr.ticketground.app.data.DisplayStatus
@@ -152,12 +152,15 @@ fun TicketGroundNavigation(
 fun <T> AsyncSurface(
   state: AsyncContent<T>,
   onRetry: () -> Unit,
+  loadingContent: @Composable () -> Unit = {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+  },
   content: @Composable (T) -> Unit,
 ) {
   when (state) {
-    AsyncContent.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-      CircularProgressIndicator(Modifier.semantics { contentDescription = "콘텐츠를 불러오는 중" })
-    }
+    AsyncContent.Loading -> Box(
+      Modifier.fillMaxSize().semantics { contentDescription = "콘텐츠를 불러오는 중" },
+    ) { loadingContent() }
     is AsyncContent.Empty -> StateCard(state.title, state.message, null)
     is AsyncContent.Error -> StateCard("문제가 발생했어요", state.message, onRetry)
     is AsyncContent.Ready -> content(state.value)
@@ -189,6 +192,28 @@ private fun SurfaceCard(
   )
 }
 
+/**
+ * Calm, consistent "sign in required" state shared by every account-scoped screen (mypage,
+ * reservation/cancellation/resale/device/push sub-routes, 1:1 inquiry, watchlist). Screens only
+ * supply their own explanatory copy and login button test tag; the surrounding card, title and
+ * button all come from this single component so the tone never drifts between screens.
+ */
+@Composable
+private fun SignedOutCard(
+  onLogin: () -> Unit,
+  loginTestTag: String,
+  modifier: Modifier = Modifier,
+  message: @Composable () -> Unit,
+) {
+  Box(modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
+    SurfaceCard {
+      Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
+      message()
+      Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().testTag(loginTestTag)) { Text("로그인") }
+    }
+  }
+}
+
 @Composable
 fun HomeScreen(
   state: AsyncContent<HomeContent>,
@@ -205,7 +230,7 @@ fun HomeScreen(
   onLogin: () -> Unit,
   onMenu: () -> Unit = {},
 ) {
-  AsyncSurface(state, onRetry) { content ->
+  AsyncSurface(state, onRetry, loadingContent = { HomeLoadingSkeleton() }) { content ->
     val presentation = CustomerHomePresentation.from(content)
     LazyColumn(
       modifier = Modifier.fillMaxSize().testTag("home-list"),
@@ -254,7 +279,7 @@ fun EventListScreen(
   ranking: Boolean = false,
   onRankingMore: () -> Unit = {},
 ) {
-  AsyncSurface(state, onRetry) { events ->
+  AsyncSurface(state, onRetry, loadingContent = { EventListLoadingSkeleton() }) { events ->
     if (events.isEmpty()) {
       StateCard("공연이 없습니다", "다른 검색어나 일정을 확인해 주세요.", null)
     } else if (expanded) {
@@ -311,7 +336,7 @@ fun ExpandedHomeScreen(
   onLogin: () -> Unit,
   onMenu: () -> Unit = {},
 ) {
-  AsyncSurface(state, onRetry) { content ->
+  AsyncSurface(state, onRetry, loadingContent = { HomeLoadingSkeleton() }) { content ->
     val presentation = CustomerHomePresentation.from(content)
     Row(Modifier.fillMaxSize().testTag("event-list-two-pane")) {
       LazyColumn(
@@ -454,6 +479,13 @@ private fun HeroEventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) 
         verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs),
       ) {
         Text("오늘의 추천", style = MaterialTheme.typography.labelLarge, color = if (imageUrl != null) Color.White else MaterialTheme.colorScheme.primary)
+        event.badge?.takeIf { it.isNotBlank() }?.let {
+          StatusBadge(
+            it,
+            containerColor = if (imageUrl != null) Color.White.copy(alpha = 0.92f) else MaterialTheme.colorScheme.primary,
+            contentColor = if (imageUrl != null) MaterialTheme.colorScheme.onSurface else Color.White,
+          )
+        }
         Text(event.title, style = MaterialTheme.typography.headlineSmall, color = if (imageUrl != null) Color.White else MaterialTheme.colorScheme.onSurface)
         Text(event.venue, style = MaterialTheme.typography.titleMedium, color = if (imageUrl != null) Color.White.copy(alpha = 0.92f) else MaterialTheme.colorScheme.onSurface)
         Text(event.period ?: displayEventDate(event), color = if (imageUrl != null) Color.White.copy(alpha = 0.82f) else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -499,14 +531,17 @@ private fun RankingSection(events: List<CatalogEvent>, onEvent: (CatalogEvent) -
 @Composable
 private fun RankingCard(event: CatalogEvent, rank: Int, onEvent: (CatalogEvent) -> Unit) {
   Column(Modifier.width(156.dp).clickable { onEvent(event) }.testTag("home-ranking-$rank"), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
-    Box(Modifier.fillMaxWidth().height(202.dp).clip(RoundedCornerShape(TicketGroundRadius.medium))) {
-      val imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) }
-      if (imageUrl != null) {
-        AsyncImage(model = imageUrl, imageLoader = seatMapImageLoader(LocalContext.current), contentDescription = "${event.title} 포스터", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-      } else {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
-      }
+    Box(Modifier.fillMaxWidth().height(202.dp)) {
+      EventPosterThumbnail(
+        imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) },
+        title = event.title,
+        modifier = Modifier.fillMaxSize(),
+        shape = RoundedCornerShape(TicketGroundRadius.medium),
+      )
       Text("$rank", style = MaterialTheme.typography.headlineSmall, color = Color.White, modifier = Modifier.padding(TicketGroundSpacing.sm).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(TicketGroundRadius.small)).padding(horizontal = TicketGroundSpacing.sm, vertical = TicketGroundSpacing.xs))
+      event.badge?.takeIf { it.isNotBlank() }?.let {
+        StatusBadge(it, modifier = Modifier.align(Alignment.BottomStart).padding(TicketGroundSpacing.sm))
+      }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
       Text(displayCategory(event.category), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
@@ -577,10 +612,21 @@ private fun EventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) {
     modifier = Modifier.fillMaxWidth().padding(vertical = TicketGroundSpacing.xs).clickable { onEvent(event) },
     shape = RoundedCornerShape(TicketGroundRadius.medium),
   ) {
-    Column(Modifier.padding(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
-      Text(event.title, style = MaterialTheme.typography.titleMedium)
-      Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      Text(event.sale?.label ?: event.saleState ?: "판매 일정 확인", color = MaterialTheme.colorScheme.primary)
+    Row(
+      Modifier.fillMaxWidth().padding(TicketGroundSpacing.lg),
+      horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md),
+    ) {
+      EventPosterThumbnail(
+        imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) },
+        title = event.title,
+        modifier = Modifier.size(72.dp),
+      )
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
+        Text(event.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+        Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        StatusBadge(event.badge?.takeIf { it.isNotBlank() } ?: event.sale?.label ?: event.saleState ?: "판매 일정 확인")
+        event.casts?.takeIf { it.isNotEmpty() }?.let { CastChipRow(it) }
+      }
     }
   }
 }
@@ -671,15 +717,26 @@ fun SearchScreen(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit, in
 }
 
 @Composable
-fun WatchlistScreen(state: AsyncContent<List<WatchlistItem>>, onRetry: () -> Unit) {
-  AsyncSurface(state, onRetry) { entries ->
-    if (entries.isEmpty()) StateCard("관심공연이 없습니다", "공연 상세에서 찜하기를 눌러보세요.", null)
-    else LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.xl), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
-      item { SectionTitle("관심공연·알림") }
-      items(entries, key = { it.id }) { entry ->
-        SurfaceCard {
-          Text(entry.event?.title ?: "공연 정보 확인 중", style = MaterialTheme.typography.titleMedium)
-          Text(if (entry.notificationEnabled) "예매 알림 사용 중" else "알림 꺼짐")
+fun WatchlistScreen(state: AsyncContent<WatchlistOverview>, onRetry: () -> Unit, onLogin: () -> Unit) {
+  AsyncSurface(state, onRetry) { overview ->
+    if (!overview.signedIn) {
+      SignedOutCard(onLogin = onLogin, loginTestTag = "watchlist-login", modifier = Modifier.testTag("watchlist-signed-out")) {
+        Text("관심공연은 로그인 후 확인할 수 있습니다.")
+      }
+    } else {
+      LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.xl), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+        item { SectionTitle("관심공연·알림") }
+        items(overview.items, key = { it.id }) { entry ->
+          SurfaceCard {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
+              EventPosterThumbnail(imageUrl = null, title = entry.event?.title ?: "공연", modifier = Modifier.size(56.dp))
+              Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
+                Text(entry.event?.title ?: "공연 정보 확인 중", style = MaterialTheme.typography.titleMedium)
+                entry.event?.saleState?.takeIf { it.isNotBlank() }?.let { StatusBadge(it) }
+                Text(if (entry.notificationEnabled) "예매 알림 사용 중" else "알림 꺼짐", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+              }
+            }
+          }
         }
       }
     }
@@ -754,17 +811,8 @@ fun LifecycleOverviewScreen(
 ) {
   AsyncSurface(state, onRetry) { account ->
     if (!account.signedIn) {
-      Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag(routeTag), contentAlignment = Alignment.Center) {
-        SurfaceCard {
-          Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
-          Text(
-            "보유 티켓과 계정 기능은 로그인 후 이용할 수 있습니다.",
-            style = MaterialTheme.typography.bodySmall,
-          )
-          Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().testTag("mypage-login")) {
-            Text("로그인")
-          }
-        }
+      SignedOutCard(onLogin = onLogin, loginTestTag = "mypage-login", modifier = Modifier.testTag(routeTag)) {
+        Text("보유 티켓과 계정 기능은 로그인 후 이용할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
       }
     } else {
       var cancellationReason by remember { mutableStateOf("") }
@@ -887,12 +935,8 @@ private fun AccountDestinationSurface(
   Box(Modifier.fillMaxSize().testTag(routeTag)) {
     AsyncSurface(state, onRetry) { account ->
       if (!account.signedIn) {
-        Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
-          SurfaceCard {
-            Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
-            Text("본인 소유 티켓과 기기 상태는 로그인 후 확인할 수 있습니다.")
-            Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().testTag("$routeTag-login")) { Text("로그인") }
-          }
+        SignedOutCard(onLogin = onLogin, loginTestTag = "$routeTag-login") {
+          Text("본인 소유 티켓과 기기 상태는 로그인 후 확인할 수 있습니다.")
         }
       } else content(account)
     }
@@ -1124,12 +1168,8 @@ fun InquiryScreen(
 ) {
   AsyncSurface(accountState, {}) { account ->
     if (!account.signedIn) {
-      Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag("support-inquiry-signed-out"), contentAlignment = Alignment.Center) {
-        SurfaceCard {
-          Text("로그인이 필요합니다", style = MaterialTheme.typography.titleMedium)
-          Text("문의 내역 확인과 작성은 로그인 후 이용할 수 있습니다.")
-          Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().testTag("support-inquiry-login")) { Text("로그인") }
-        }
+      SignedOutCard(onLogin = onLogin, loginTestTag = "support-inquiry-login", modifier = Modifier.testTag("support-inquiry-signed-out")) {
+        Text("문의 내역 확인과 작성은 로그인 후 이용할 수 있습니다.")
       }
     } else {
       var subject by remember { mutableStateOf("") }

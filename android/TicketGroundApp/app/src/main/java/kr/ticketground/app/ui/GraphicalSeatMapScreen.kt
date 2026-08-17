@@ -69,7 +69,7 @@ fun GraphicalSeatMapScreen(
   onSeatSelected: (String?) -> Unit,
   onBook: () -> Unit,
 ) {
-  AsyncSurface(state, onRetry) { seatMap ->
+  AsyncSurface(state, onRetry, loadingContent = { SeatMapLoadingSkeleton() }) { seatMap ->
     val positioned = seatMap.seats.filter { it.mapPosition != null }
     if (positioned.isEmpty()) {
       Box(Modifier.fillMaxSize()) {
@@ -145,9 +145,27 @@ fun GraphicalSeatMapScreen(
           }
         }
       }
+      val legendColors = LocalTicketGroundSeatStateColors.current
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        listOf("선택 가능", "선택됨", "점유됨", "판매 완료", "선택 불가").forEach {
-          Text(it, style = MaterialTheme.typography.labelSmall)
+        listOf(
+          "선택 가능" to legendColors.available,
+          "선택됨" to legendColors.selected,
+          "점유됨" to legendColors.held,
+          "판매 완료" to legendColors.sold,
+          "선택 불가" to legendColors.unavailable,
+        ).forEach { (label, color) ->
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs),
+          ) {
+            Box(
+              Modifier.size(10.dp)
+                .background(color, CircleShape)
+                .semantics { contentDescription = "$label 색상" }
+                .testTag("seat-legend-swatch-$label"),
+            )
+            Text(label, style = MaterialTheme.typography.labelSmall)
+          }
         }
       }
       val selected = seatMap.seats.firstOrNull { it.id == selectedSeatId }

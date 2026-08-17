@@ -52,6 +52,11 @@ data class HomeContent(
   val notices: List<SupportNotice>,
 )
 
+data class WatchlistOverview(
+  val signedIn: Boolean,
+  val items: List<WatchlistItem> = emptyList(),
+)
+
 data class AccountTicketOverview(
   val id: String,
   val title: String,

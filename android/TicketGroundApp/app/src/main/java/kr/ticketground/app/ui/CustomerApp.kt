@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
 import kr.ticketground.app.AppDestination
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.SeatMap
-import kr.ticketground.app.data.WatchlistItem
 import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossWidgetResult
@@ -52,6 +51,8 @@ sealed interface CustomerRoute {
   data object Inquiry : CustomerRoute
 }
 
+private data class NavSnapshot(val destination: AppDestination, val route: CustomerRoute)
+
 class CustomerAppViewModel(private val repository: CustomerRepository) : ViewModel() {
   private val mutableDestination = MutableStateFlow(AppDestination.Home)
   val destination = mutableDestination.asStateFlow()
@@ -59,13 +60,16 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   val searchQuery = mutableSearchQuery.asStateFlow()
   private val mutableRoute = MutableStateFlow<CustomerRoute>(CustomerRoute.Tab)
   val route = mutableRoute.asStateFlow()
+  private val backStack = ArrayDeque<NavSnapshot>()
+  private val mutableCanGoBack = MutableStateFlow(false)
+  val canGoBack = mutableCanGoBack.asStateFlow()
   private val mutableHome = MutableStateFlow<AsyncContent<HomeContent>>(AsyncContent.Loading)
   val home = mutableHome.asStateFlow()
   private val mutableSeatMap = MutableStateFlow<AsyncContent<SeatMap>>(AsyncContent.Loading)
   val seatMap = mutableSeatMap.asStateFlow()
   private val mutableDiscovery = MutableStateFlow<AsyncContent<List<CatalogEvent>>>(AsyncContent.Loading)
   val discovery = mutableDiscovery.asStateFlow()
-  private val mutableWatchlist = MutableStateFlow<AsyncContent<List<WatchlistItem>>>(AsyncContent.Loading)
+  private val mutableWatchlist = MutableStateFlow<AsyncContent<WatchlistOverview>>(AsyncContent.Loading)
   val watchlist = mutableWatchlist.asStateFlow()
   private val mutableAccount = MutableStateFlow<AsyncContent<AccountOverview>>(AsyncContent.Loading)
   val account = mutableAccount.asStateFlow()
@@ -87,7 +91,26 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
 
   init { loadHome() }
 
+  /**
+   * Minimal manual back stack for the hand-rolled navigator (interim fix ahead of the Phase 2
+   * NavHost migration). Every forward navigation pushes the state it is leaving so the system
+   * back button can step out one screen at a time instead of jumping straight to a tab root or
+   * exiting the app.
+   */
+  private fun pushSnapshot() {
+    backStack.addLast(NavSnapshot(mutableDestination.value, mutableRoute.value))
+    mutableCanGoBack.value = true
+  }
+
+  private fun pushRoute(newRoute: CustomerRoute) {
+    if (mutableRoute.value != newRoute) pushSnapshot()
+    mutableRoute.value = newRoute
+  }
+
   fun navigate(destination: AppDestination) {
+    if (mutableDestination.value != destination || mutableRoute.value != CustomerRoute.Tab) {
+      pushSnapshot()
+    }
     mutableDestination.value = destination
     mutableRoute.value = CustomerRoute.Tab
     when (destination) {
@@ -110,30 +133,30 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     )
   }
 
-  fun openEvent(event: CatalogEvent) { mutableRoute.value = CustomerRoute.Event(event) }
+  fun openEvent(event: CatalogEvent) { pushRoute(CustomerRoute.Event(event)) }
 
   fun openCollection(title: String, events: List<CatalogEvent>) {
-    mutableRoute.value = CustomerRoute.Collection(title, events)
+    pushRoute(CustomerRoute.Collection(title, events))
   }
 
   fun openRanking(events: List<CatalogEvent>) {
-    mutableRoute.value = CustomerRoute.Ranking
+    pushRoute(CustomerRoute.Ranking)
     loadDiscovery { repository.ranking() }
   }
 
   fun openRegion(name: String, events: List<CatalogEvent>) {
-    mutableRoute.value = CustomerRoute.Region(name)
+    pushRoute(CustomerRoute.Region(name))
     loadDiscovery { repository.region(name) }
   }
 
   fun openVenue(event: CatalogEvent) {
-    mutableRoute.value = CustomerRoute.Venue(event.venueId, event.venue)
+    pushRoute(CustomerRoute.Venue(event.venueId, event.venue))
     loadDiscovery { repository.venue(event.venueId, event.venue) }
   }
 
   fun openArtist(event: CatalogEvent) {
     val names = event.casts.orEmpty()
-    mutableRoute.value = CustomerRoute.Artist(event.artistSlug, names)
+    pushRoute(CustomerRoute.Artist(event.artistSlug, names))
     loadDiscovery { repository.artist(event.artistSlug, names) }
   }
 
@@ -159,7 +182,13 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     }
   }
 
-  fun openBooking(progress: BookingProgress) { mutableRoute.value = CustomerRoute.Booking(progress) }
+  fun openBooking(progress: BookingProgress) {
+    // Progress updates within an already-open booking flow (waiting -> held -> retry) replace the
+    // current screen in place; only the first transition into the booking flow is pushed, so a
+    // single back press returns to the seat map instead of stepping through every queue poll.
+    if (mutableRoute.value !is CustomerRoute.Booking) pushSnapshot()
+    mutableRoute.value = CustomerRoute.Booking(progress)
+  }
 
   fun openReservation() { openAccountRoute(CustomerRoute.Reservation) }
   fun openCancellation() { openAccountRoute(CustomerRoute.Cancellation) }
@@ -172,20 +201,22 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   private fun openAccountRoute(route: CustomerRoute) {
-    mutableRoute.value = route
+    pushRoute(route)
     if (mutableAccount.value is AsyncContent.Loading || mutableAccount.value is AsyncContent.Error) loadAccount()
   }
 
-  fun openCalendar() { mutableRoute.value = CustomerRoute.OpenCalendar }
+  fun openCalendar() { pushRoute(CustomerRoute.OpenCalendar) }
 
-  fun openResale() { mutableRoute.value = CustomerRoute.Resale }
+  fun openResale() { pushRoute(CustomerRoute.Resale) }
 
   fun closeRoute() {
     if (mutableBookingPending.value) bookingGeneration += 1
-    if (mutableRoute.value == CustomerRoute.Tab && mutableDestination.value != AppDestination.Home) {
-      mutableDestination.value = AppDestination.Home
+    val previous = backStack.removeLastOrNull()
+    if (previous != null) {
+      mutableDestination.value = previous.destination
+      mutableRoute.value = previous.route
     }
-    mutableRoute.value = CustomerRoute.Tab
+    mutableCanGoBack.value = backStack.isNotEmpty()
   }
 
   fun addToWatchlist(event: CatalogEvent) = viewModelScope.launch {
@@ -203,7 +234,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     lastBookingAttempt = null
     mutableSelectedSeatId.value = null
     mutableHeldSeatIds.value = emptySet()
-    mutableRoute.value = CustomerRoute.SeatMapRoute(event, performanceDateId)
+    pushRoute(CustomerRoute.SeatMapRoute(event, performanceDateId))
     loadSeatMap(event.id, performanceDateId)
   }
 
@@ -307,8 +338,16 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   fun loadWatchlist() = viewModelScope.launch {
     mutableWatchlist.value = AsyncContent.Loading
     mutableWatchlist.value = runCatching { repository.watchlist() }.fold(
-      onSuccess = { if (it.isEmpty()) AsyncContent.Empty("관심공연이 없습니다", "공연 상세에서 찜하기를 눌러보세요.") else AsyncContent.Ready(it) },
-      onFailure = { AsyncContent.Error(safeUiMessage(it)) },
+      onSuccess = {
+        if (it.isEmpty()) AsyncContent.Empty("관심공연이 없습니다", "공연 상세에서 찜하기를 눌러보세요.")
+        else AsyncContent.Ready(WatchlistOverview(signedIn = true, items = it))
+      },
+      onFailure = { error ->
+        // Same not-logged-in detection as loadAccount(): surface the calm signed-out state
+        // instead of the generic error card so the two tabs read consistently.
+        if (safeUiMessage(error).startsWith("로그인이 필요한")) AsyncContent.Ready(WatchlistOverview(signedIn = false))
+        else AsyncContent.Error(safeUiMessage(error))
+      },
     )
   }
 
@@ -417,10 +456,10 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun continueToCheckout(progress: BookingProgress.Held) {
-    mutableRoute.value = CustomerRoute.Checkout(progress.seatLabel, progress.checkout.amount, progress.checkout)
+    pushRoute(CustomerRoute.Checkout(progress.seatLabel, progress.checkout.amount, progress.checkout))
   }
 
-  fun openSupport() { mutableRoute.value = CustomerRoute.Support }
+  fun openSupport() { pushRoute(CustomerRoute.Support) }
 
   fun completeNativeLogin(provider: String, code: String) = viewModelScope.launch {
     mutableBookingPending.value = true
@@ -452,6 +491,7 @@ fun TicketGroundCustomerApp(
   val destination by viewModel.destination.collectAsStateWithLifecycle()
   val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
   val route by viewModel.route.collectAsStateWithLifecycle()
+  val canGoBack by viewModel.canGoBack.collectAsStateWithLifecycle()
   val home by viewModel.home.collectAsStateWithLifecycle()
   val seatMap by viewModel.seatMap.collectAsStateWithLifecycle()
   val discovery by viewModel.discovery.collectAsStateWithLifecycle()
@@ -465,7 +505,7 @@ fun TicketGroundCustomerApp(
   val inquiries by viewModel.inquiries.collectAsStateWithLifecycle()
 
   BackHandler(
-    enabled = route != CustomerRoute.Tab || destination != AppDestination.Home,
+    enabled = canGoBack,
     onBack = viewModel::closeRoute,
   )
 
@@ -507,8 +547,10 @@ fun TicketGroundCustomerApp(
               onMenu = { showMenu = true },
             )
           }
-          AppDestination.Search -> AsyncSurface(home, viewModel::loadHome) { SearchScreen(it.events, viewModel::openEvent, searchQuery) }
-          AppDestination.Watchlist -> WatchlistScreen(watchlist, viewModel::loadWatchlist)
+          AppDestination.Search -> AsyncSurface(home, viewModel::loadHome, loadingContent = { EventListLoadingSkeleton() }) {
+            SearchScreen(it.events, viewModel::openEvent, searchQuery)
+          }
+          AppDestination.Watchlist -> WatchlistScreen(watchlist, viewModel::loadWatchlist, openLogin)
           AppDestination.MyPage -> LifecycleOverviewScreen(
             state = account,
             onRetry = viewModel::loadAccount,
