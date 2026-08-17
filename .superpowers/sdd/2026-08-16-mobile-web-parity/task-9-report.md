@@ -1,8 +1,18 @@
 # Task 9 final cross-platform verification report
 
 Date: 2026-08-17
-Qualified product source: `513eebb` (`fix(android): admit booking before creating request`)
-Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections through booking admission Fix round 3 are implemented. Exact post-report SHA requalification is recorded under `.omo/evidence/task9/fix-round3/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+Qualified product source: `b2d95e1c39829907755054cabc56b9b888f198fa` (`fix(android): compensate failed booking preparation`)
+Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections through booking compensation Fix round 4 are implemented. Exact post-report SHA requalification is recorded under `.omo/evidence/task9/fix-round4/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+
+## Security correction round 4: booking preparation compensation
+
+The security review at `.omo/evidence/final4-security-8c8fd5b.md` found that Android could own an ACTIVE seat hold and then leak it if reservation-draft creation threw or returned an invalid draft. `TossCheckoutCoordinator.prepare` previously cancelled only a created draft after payment preparation failed; it did not know the hold identifier, while the repository did not own a complete compensation boundary. No inspected Android API type, client history, or review artifact states that cancelling a draft releases its source hold.
+
+Commit `b2d95e1c39829907755054cabc56b9b888f198fa` makes `TypedCustomerRepository` the single pre-handoff compensation owner. Each logical `BookingRequest` now carries stable, opaque draft-cancel and hold-release idempotency keys in addition to its existing queue, hold, draft, and payment keys. After an ACTIVE hold is accepted, draft creation failure releases the hold; invalid cancellable drafts are cancelled before release; and payment preparation failure or an invalid checkout response cancels the draft before explicitly releasing the hold. Compensation runs in a non-cancellable context, attempts the remaining cleanup after an earlier cleanup failure, and attaches cleanup failures to the primary throwable without logging identifiers or secrets. A successful validated checkout handoff performs no compensation. The coordinator no longer independently cancels during `prepare`, avoiding duplicate draft cancellation; widget cancellation after successful handoff remains coordinator-owned.
+
+Canonical fake-API coverage records exact ordered calls and stable identifiers for draft throw, invalid draft, payment throw, invalid payment request, dual cleanup failure, successful handoff, and same-attempt retry/new-attempt rotation. The compensation-failure case proves draft cancellation failure does not prevent hold release and that both cleanup failures are suppressed on the original payment error. `AccountApi` continues to send the existing authenticated idempotent DELETE methods; no server-success inference was added.
+
+Canonical RED is `.omo/evidence/task9/fix-round4/red-booking-compensation.log` and `.exit`: baseline test compilation failed because no booking compensation API seam, checkout-preparer seam, stable cleanup identities, or repository injection existed. Focused GREEN is `green-focused.log` and `.exit` (7 booking-compensation plus 5 coordinator tests). Pre-commit qualification covered the full 98-test dev-customer JVM suite, lint, assemble, source contract 3/3, two phone booking-state interactions, a fresh retry-pending phone capture, and protected-auth zero-diff classification. Exact post-report SHA results and cleanup are recorded in the round-4 final verification ledger. No idempotency-key value is persisted in evidence.
 
 ## Security correction round 3: atomic initial booking admission
 
