@@ -30,6 +30,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -611,7 +612,9 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(copy, "결제")
+    assertTextRangeOnOneLineForText(copy, "예매가 완료되지 않습니다")
     assertTextLinesBreakOnSafeBoundaries(copy)
+    assertAccessibleTextEquals(copy)
     assertCardBodyUsesReadableTokens(copy, "booking-progress-card", bodySmallFontSize)
   }
 
@@ -630,7 +633,9 @@ class TicketGroundAppShellTest {
 
     assertTextRangeOnOneLineForText(copy, "추정하지 않습니다")
     assertTextRangeOnOneLineForText(copy, "전송")
+    assertTextRangeOnOneLineForText(copy, "실제 전송 성공")
     assertTextLinesBreakOnSafeBoundaries(copy)
+    assertAccessibleTextEquals(copy)
     assertCardBodyUsesReadableTokens(copy, "push-notifications-card", bodySmallFontSize)
   }
 
@@ -655,7 +660,9 @@ class TicketGroundAppShellTest {
     }
 
     assertTextRangeOnOneLineForText(copy, "경우에만")
+    assertTextRangeOnOneLineForText(copy, "서버가 등록합니다")
     assertTextLinesBreakOnSafeBoundaries(copy)
+    assertAccessibleTextEquals(copy)
     assertCardBodyUsesReadableTokens(copy, "trusted-device-card", bodySmallFontSize)
   }
 
@@ -795,6 +802,13 @@ class TicketGroundAppShellTest {
         "line $line splits Korean prose between '$previous' and '$next' in '$text'"
       }
     }
+  }
+
+  private fun assertAccessibleTextEquals(text: String) {
+    val semanticsText = composeRule.onAllNodesWithText(text)[0]
+      .fetchSemanticsNode().config[SemanticsProperties.Text]
+      .joinToString(separator = "") { it.text }
+    assertEquals(text, semanticsText)
   }
 
   private fun assertCardBodyUsesReadableTokens(text: String, cardTag: String, bodySmallFontSize: TextUnit) {

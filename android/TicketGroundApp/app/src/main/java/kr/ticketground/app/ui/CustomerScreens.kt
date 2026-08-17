@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -57,12 +59,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.LocaleList
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -963,12 +970,9 @@ fun TrustedDeviceScreen(
     ) {
       SectionTitle("신뢰 기기")
       Text(if (account.trustedDevice) "이 계정에 신뢰 기기가 등록되어 있습니다." else "등록된 신뢰 기기가 없습니다.", modifier = Modifier.testTag(if (account.trustedDevice) "trusted-device-active" else "trusted-device-empty"))
-      Text(
-        "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.",
-        style = MaterialTheme.typography.bodySmall.copy(
-          localeList = LocaleList("ko-KR"),
-          lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
-        ),
+      SemanticPhraseText(
+        text = "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.",
+        phrase = "서버가 등록합니다.",
       )
       Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("trusted-device-register")) { Text("이 기기 확인") }
       actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
@@ -988,12 +992,9 @@ fun PushNotificationsScreen(
     ) {
       SectionTitle("푸시 알림")
       Text(account.pushSuffix?.let { "FCM 등록됨 · 끝자리 $it" } ?: "푸시 알림 미등록", modifier = Modifier.testTag(if (account.pushSuffix == null) "push-empty" else "push-active"))
-      Text(
-        "알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다.",
-        style = MaterialTheme.typography.bodySmall.copy(
-          localeList = LocaleList("ko-KR"),
-          lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
-        ),
+      SemanticPhraseText(
+        text = "알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다.",
+        phrase = "실제 전송 성공을",
       )
       Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("push-register")) { Text("알림 등록 요청") }
       actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
@@ -1021,12 +1022,9 @@ fun BookingProgressScreen(
         is BookingProgress.Held -> {
           Text("좌석 확보·예매 초안", style = MaterialTheme.typography.titleMedium)
           Text(progress.seatLabel)
-          Text(
-            "서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.",
-            style = MaterialTheme.typography.bodySmall.copy(
-              localeList = LocaleList("ko-KR"),
-              lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
-            ),
+          SemanticPhraseText(
+            text = "서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.",
+            phrase = "예매가 완료되지 않습니다.",
           )
           Button(onClick = { onCheckout(progress) }, modifier = Modifier.fillMaxWidth().testTag("booking-continue-checkout")) {
             Text("결제 확인으로 이동")
@@ -1038,6 +1036,43 @@ fun BookingProgressScreen(
       }
     }
   }
+}
+
+@Composable
+private fun SemanticPhraseText(text: String, phrase: String) {
+  val style = MaterialTheme.typography.bodySmall.copy(
+    localeList = LocaleList("ko-KR"),
+    lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+  )
+  val phraseStart = text.indexOf(phrase)
+  check(phraseStart >= 0) { "Phrase must be part of its accessible text" }
+  val inlineId = phrase
+  val annotatedText = remember(text, phrase) {
+    buildAnnotatedString {
+      append(text.substring(startIndex = 0, endIndex = phraseStart))
+      appendInlineContent(inlineId, alternateText = phrase)
+      append(text.substring(startIndex = phraseStart + phrase.length))
+    }
+  }
+  val textMeasurer = rememberTextMeasurer()
+  val phraseWidth = with(LocalDensity.current) {
+    textMeasurer.measure(text = phrase, style = style, maxLines = 1).size.width.toSp()
+  }
+  Text(
+    text = annotatedText,
+    style = style,
+    inlineContent = mapOf(
+      inlineId to InlineTextContent(
+        placeholder = Placeholder(
+          width = phraseWidth,
+          height = style.lineHeight,
+          placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+        ),
+      ) { alternateText ->
+        Text(alternateText, style = style, maxLines = 1, softWrap = false)
+      },
+    ),
+  )
 }
 
 @Composable

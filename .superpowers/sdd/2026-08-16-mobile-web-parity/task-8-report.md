@@ -78,3 +78,7 @@ Rereview3에서 실제 390dp 렌더의 `주세요`와 `실제`가 한국어 단�
 ## Fix round5 correction
 
 Rereview4에서 확인된 0dp 카드 인셋과 8–10sp 임의 본문 크기를 제거했다. 네 설명 문구는 모두 기존 `MaterialTheme.typography.bodySmall`을 기반으로 하고, 한국어 locale과 Compose `LineBreak.Paragraph`/`WordBreak.Phrase`를 적용한다. 네 화면의 국소 바깥 여백과 카드 콘텐츠 인셋은 모두 기존 `TicketGroundSpacing.sm` 토큰이다. 390dp 렌더 테스트는 각 전체 문장의 모든 줄 경계뿐 아니라 실제 TextLayoutResult의 `bodySmall` fontSize와 카드/본문 좌측 경계를 함께 검증한다. 현재 round4 구현에 대한 canonical RED는 12sp 토큰 대신 8sp, 9sp, 10sp가 렌더됨을 네 화면 모두에서 재현했고, round5 focused GREEN은 네 테스트 모두 통과했다. 최종 커밋 SHA에서 직렬 전체 게이트, phone/tablet Back 흐름, fresh 21+1 시각 증거를 `evidence/task8/fix-round5/`에 기록한다.
+
+## Fix round6 correction
+
+Fix5 최종 캡처에서 단어 경계는 안전했지만 Toss의 `예매가 완료되지 않습니다`, 신뢰 기기의 `서버가 등록합니다`, Push의 `실제 전송 성공`이라는 짧은 의미 단위가 줄 사이에서 분리되었다. 390dp 렌더 테스트에 세 구절 전체의 동일 줄 배치와 접근성 원문 일치 검증을 추가했고, Fix5 구현에서 세 테스트 모두 실패하는 canonical RED를 기록했다. 카드 바깥과 내용 인셋은 이미 허용 최솟값인 기존 `TicketGroundSpacing.sm`이어서 폭을 더 줄이지 않았다. 대신 세 문장에만 재사용 가능한 Compose `InlineTextContent`를 적용해 `bodySmall`로 실측한 구절을 원자적으로 배치한다. inline 대체 텍스트는 원문 구절 그대로이므로 전체 접근성 문장은 원문과 정확히 같고, 글자 크기·안전 단어 경계·`sm` 인셋 검증도 유지된다. 임의 dp/sp, 0dp, 수동 개행, NBSP/zero-width 문자, 축약은 추가하지 않았다. focused 4-test GREEN과 최종 exact-SHA 전체 게이트 및 fresh 21+1 시각 증거는 `evidence/task8/fix-round6/`에 기록한다.
