@@ -1,15 +1,19 @@
 package kr.ticketground.app.ui
 
 import java.util.UUID
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kr.ticketground.app.data.AccountApi
 import kr.ticketground.app.data.AccountSession
 import kr.ticketground.app.data.ApiError
+import kr.ticketground.app.data.BookingApi
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.LifecycleApi
 import kr.ticketground.app.data.LifecyclePolicy
 import kr.ticketground.app.data.LifecycleStatus
 import kr.ticketground.app.data.OpenCalendarEntry
 import kr.ticketground.app.data.PublicApi
+import kr.ticketground.app.data.ReservationDraft
 import kr.ticketground.app.data.SeatMap
 import kr.ticketground.app.data.SupportFaq
 import kr.ticketground.app.data.SupportNotice
@@ -23,6 +27,7 @@ import kr.ticketground.app.data.InMemoryCheckoutRetryStore
 import kr.ticketground.app.data.IntegrityPurpose
 import kr.ticketground.app.data.PlayIntegrityProofProvider
 import kr.ticketground.app.data.TossCheckoutCoordinator
+import kr.ticketground.app.data.TossCheckoutPreparer
 import kr.ticketground.app.data.TossCheckoutRequest
 import kr.ticketground.app.data.TossPaymentMethod
 import kr.ticketground.app.data.TossWidgetResult
@@ -85,6 +90,14 @@ sealed interface BookingProgress {
   data class Error(val message: String) : BookingProgress
 }
 
+internal class BookingPreparationFailure(val progress: BookingProgress) : Exception(
+  when (progress) {
+    is BookingProgress.Expired -> progress.message
+    is BookingProgress.Conflict -> progress.message
+    else -> "Booking preparation failed"
+  },
+)
+
 data class BookingProgressState(val progress: BookingProgress, val pending: Boolean)
 
 data class DeviceIdentity(val id: String, val name: String)
@@ -94,6 +107,8 @@ internal class BookingOperationKeys private constructor(
   val hold: String,
   val draft: String,
   val payment: String,
+  val draftCancel: String,
+  val holdRelease: String,
 ) {
   companion object {
     fun create() = BookingOperationKeys(
@@ -101,6 +116,8 @@ internal class BookingOperationKeys private constructor(
       hold = "android-hold-${UUID.randomUUID()}",
       draft = "android-draft-${UUID.randomUUID()}",
       payment = "android-payment-${UUID.randomUUID()}",
+      draftCancel = "android-draft-cancel-${UUID.randomUUID()}",
+      holdRelease = "android-hold-release-${UUID.randomUUID()}",
     )
   }
 }
@@ -166,9 +183,10 @@ class TypedCustomerRepository(
   private val deviceIdentity: DeviceIdentity? = null,
   private val deviceTokenStore: DeviceTokenStore = InMemoryDeviceTokenStore(),
   private val ownerAuthenticator: DeviceOwnerAuthenticator? = null,
+  private val bookingApi: BookingApi = accountApi,
+  private val checkout: TossCheckoutCoordinator = TossCheckoutCoordinator(client.payments(), checkoutRetryStore),
+  private val checkoutPreparer: TossCheckoutPreparer = checkout,
 ) : CustomerRepository {
-  private val checkout = TossCheckoutCoordinator(client.payments(), checkoutRetryStore)
-
   override suspend fun completeNativeLogin(provider: String, code: String): AccountSession =
     client.completeNativeLogin(provider, code)
   override suspend fun home(): HomeContent {
@@ -228,14 +246,14 @@ class TypedCustomerRepository(
   }
 
   override suspend fun book(request: BookingRequest): BookingProgress {
-    val entry = accountApi.enterQueue(request.performanceDateId, request.operationKeys.queue)
+    val entry = bookingApi.enterQueue(request.performanceDateId, request.operationKeys.queue)
     when (entry.status) {
       LifecycleStatus.WAITING -> return BookingProgress.Waiting(entry.position)
       LifecycleStatus.EXPIRED, LifecycleStatus.LEFT -> return BookingProgress.Expired("대기 입장 시간이 만료되었습니다. 다시 시도해 주세요.")
       LifecycleStatus.ADMITTED -> Unit
       else -> return BookingProgress.Conflict("대기 상태가 변경되었습니다. 좌석 상태를 다시 확인해 주세요.")
     }
-    val hold = accountApi.createSeatHold(
+    val hold = bookingApi.createSeatHold(
       request.performanceDateId,
       listOf(request.seatId),
       request.operationKeys.hold,
@@ -245,19 +263,60 @@ class TypedCustomerRepository(
         BookingProgress.Expired("좌석 확보 시간이 만료되었습니다. 다시 선택해 주세요.")
       } else BookingProgress.Conflict("좌석 상태가 변경되어 확보하지 않았습니다. 다시 확인해 주세요.")
     }
-    val draft = accountApi.createReservationDraft(hold.id, request.operationKeys.draft)
+    val draft = try {
+      bookingApi.createReservationDraft(hold.id, request.operationKeys.draft)
+    } catch (error: Throwable) {
+      compensateBooking(hold.id, null, request.operationKeys, error)
+      throw error
+    }
     if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.ticketIds != listOf(request.seatId)) {
-      return if (draft.status == LifecycleStatus.EXPIRED || draft.status == LifecycleStatus.CANCELLED) {
+      val progress = if (draft.status == LifecycleStatus.EXPIRED || draft.status == LifecycleStatus.CANCELLED) {
         BookingProgress.Expired("예매 초안이 만료되었습니다. 다시 시도해 주세요.")
       } else BookingProgress.Conflict("예매 초안 상태가 변경되어 결제를 시작하지 않았습니다.")
+      val error = BookingPreparationFailure(progress)
+      compensateBooking(hold.id, draft, request.operationKeys, error)
+      if (error.suppressed.isNotEmpty()) throw error
+      return progress
     }
-    val checkoutRequest = checkout.prepare(
-      draft,
-      request.seatLabel,
-      TossPaymentMethod.CREDIT_CARD,
-      request.operationKeys.payment,
-    )
+    val checkoutRequest = try {
+      checkoutPreparer.prepare(
+        draft,
+        request.seatLabel,
+        TossPaymentMethod.CREDIT_CARD,
+        request.operationKeys.payment,
+      )
+    } catch (error: Throwable) {
+      compensateBooking(hold.id, draft, request.operationKeys, error)
+      throw error
+    }
+    if (!checkoutRequest.matches(draft, request)) {
+      val progress = BookingProgress.Conflict("결제 준비 상태가 변경되어 결제를 시작하지 않았습니다.")
+      val error = BookingPreparationFailure(progress)
+      compensateBooking(hold.id, draft, request.operationKeys, error)
+      if (error.suppressed.isNotEmpty()) throw error
+      return progress
+    }
     return BookingProgress.Held(request.seatId, request.seatLabel, request.amount, checkoutRequest)
+  }
+
+  private suspend fun compensateBooking(
+    holdId: String,
+    draft: ReservationDraft?,
+    keys: BookingOperationKeys,
+    primary: Throwable,
+  ) = withContext(NonCancellable) {
+    if (draft?.canCancel == true && draft.id.isNotBlank()) {
+      try {
+        bookingApi.cancelReservationDraft(draft.id, keys.draftCancel)
+      } catch (cleanup: Throwable) {
+        if (cleanup !== primary) primary.addSuppressed(cleanup)
+      }
+    }
+    try {
+      bookingApi.releaseSeatHold(holdId, keys.holdRelease)
+    } catch (cleanup: Throwable) {
+      if (cleanup !== primary) primary.addSuppressed(cleanup)
+    }
   }
 
   override suspend fun requestCancellation(ticketId: String, reason: String) {
@@ -305,6 +364,11 @@ class TypedCustomerRepository(
 }
 
 fun safeUiMessage(error: Throwable): String = when (error) {
+  is BookingPreparationFailure -> when (val progress = error.progress) {
+    is BookingProgress.Expired -> progress.message
+    is BookingProgress.Conflict -> progress.message
+    else -> "요청을 완료하지 못했습니다. 다시 시도해 주세요."
+  }
   is ApiError.MissingCredential, is ApiError.Unauthorized -> "로그인이 필요한 기능입니다. 웹 또는 iOS에서 로그인한 계정의 연결을 확인해 주세요."
   is ApiError.Transport, is ApiError.Retryable -> "네트워크 연결을 확인한 뒤 다시 시도해 주세요."
   is ApiError.IncompatibleContract -> "현재 앱과 서버 버전이 맞지 않습니다. 잠시 후 다시 시도해 주세요."
@@ -317,3 +381,12 @@ fun safeUiMessage(error: Throwable): String = when (error) {
   CheckoutError.TicketUnavailable -> "결제할 티켓 상태를 확인할 수 없습니다. 좌석을 다시 선택해 주세요."
   else -> "요청을 완료하지 못했습니다. 다시 시도해 주세요."
 }
+
+private fun TossCheckoutRequest.matches(draft: ReservationDraft, request: BookingRequest): Boolean =
+  draftId == draft.id &&
+    ticketId == request.seatId &&
+    orderName == request.seatLabel &&
+    amount == draft.amount.total &&
+    method == TossPaymentMethod.CREDIT_CARD &&
+    clientKey.isNotBlank() &&
+    idempotencyKey == request.operationKeys.payment

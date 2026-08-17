@@ -5,7 +5,15 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 
-class AccountApi internal constructor(private val client: TicketGroundApiClient) {
+interface BookingApi {
+  suspend fun enterQueue(performanceDateId: String, idempotencyKey: String): QueueEntry
+  suspend fun createSeatHold(performanceDateId: String, ticketIds: List<String>, idempotencyKey: String): SeatHold
+  suspend fun releaseSeatHold(holdId: String, idempotencyKey: String): SeatHold
+  suspend fun createReservationDraft(holdId: String, idempotencyKey: String): ReservationDraft
+  suspend fun cancelReservationDraft(draftId: String, idempotencyKey: String): ReservationDraft
+}
+
+class AccountApi internal constructor(private val client: TicketGroundApiClient) : BookingApi {
   suspend fun session(): AccountSession = read("/api/me", AccountSession.serializer(), ACCOUNT)
   suspend fun profile(): AccountSession = read("/api/me/profile", AccountSession.serializer(), ACCOUNT)
 
@@ -48,7 +56,7 @@ class AccountApi internal constructor(private val client: TicketGroundApiClient)
     WatchlistDeletion.serializer(), WATCHLIST,
   )
 
-  suspend fun enterQueue(performanceDateId: String, idempotencyKey: String): QueueEntry = mutation(
+  override suspend fun enterQueue(performanceDateId: String, idempotencyKey: String): QueueEntry = mutation(
     "POST", "/api/me/queue-entries", QueueEntryBody(performanceDateId), idempotencyKey,
     QueueEntry.serializer(), BOOKING,
   )
@@ -61,7 +69,7 @@ class AccountApi internal constructor(private val client: TicketGroundApiClient)
     QueueLeaveResult.serializer(), BOOKING,
   )
 
-  suspend fun createSeatHold(
+  override suspend fun createSeatHold(
     performanceDateId: String,
     ticketIds: List<String>,
     idempotencyKey: String,
@@ -78,12 +86,12 @@ class AccountApi internal constructor(private val client: TicketGroundApiClient)
     SeatHold.serializer(), BOOKING,
   )
 
-  suspend fun releaseSeatHold(holdId: String, idempotencyKey: String): SeatHold = mutationWithoutBody(
+  override suspend fun releaseSeatHold(holdId: String, idempotencyKey: String): SeatHold = mutationWithoutBody(
     "DELETE", "/api/me/seat-holds/${pathSegment(holdId)}", idempotencyKey,
     SeatHold.serializer(), BOOKING,
   )
 
-  suspend fun createReservationDraft(holdId: String, idempotencyKey: String): ReservationDraft = mutation(
+  override suspend fun createReservationDraft(holdId: String, idempotencyKey: String): ReservationDraft = mutation(
     "POST", "/api/me/reservation-drafts", ReservationDraftBody(holdId), idempotencyKey,
     ReservationDraft.serializer(), BOOKING,
   )
@@ -91,7 +99,7 @@ class AccountApi internal constructor(private val client: TicketGroundApiClient)
   suspend fun reservationDraft(draftId: String): ReservationDraft =
     read("/api/me/reservation-drafts/${pathSegment(draftId)}", ReservationDraft.serializer(), BOOKING)
 
-  suspend fun cancelReservationDraft(draftId: String, idempotencyKey: String): ReservationDraft = mutationWithoutBody(
+  override suspend fun cancelReservationDraft(draftId: String, idempotencyKey: String): ReservationDraft = mutationWithoutBody(
     "DELETE", "/api/me/reservation-drafts/${pathSegment(draftId)}", idempotencyKey,
     ReservationDraft.serializer(), BOOKING,
   )

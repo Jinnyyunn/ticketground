@@ -7,14 +7,13 @@ import org.junit.Test
 
 class TossCheckoutTest {
   @Test
-  fun `unconfigured Toss fails closed before checkout is actionable`() = runTest {
+  fun `unconfigured Toss fails closed and leaves pre-handoff compensation to its owner`() = runTest {
     val gateway = FakeCheckoutGateway(configured = false)
     val coordinator = TossCheckoutCoordinator(gateway, InMemoryCheckoutRetryStore())
 
     assertEquals(CheckoutError.ProviderUnavailable, assertFails { coordinator.prepare(draft(), "A1", TossPaymentMethod.CREDIT_CARD, "stable-1") })
     assertEquals(0, gateway.confirmCalls)
-    assertEquals(1, gateway.cancelCalls)
-    assertEquals("draft-1", gateway.lastCancelledDraftId)
+    assertEquals(0, gateway.cancelCalls)
   }
 
   @Test
