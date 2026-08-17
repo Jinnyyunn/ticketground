@@ -1,8 +1,18 @@
 # Task 9 final cross-platform verification report
 
 Date: 2026-08-17
-Qualified product source: `b2d95e1c39829907755054cabc56b9b888f198fa` (`fix(android): compensate failed booking preparation`)
-Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections through booking compensation Fix round 4 are implemented. Exact post-report SHA requalification is recorded under `.omo/evidence/task9/fix-round4/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+Qualified product source: `aed9dd6b1189928507f947ebfec2cab9da83da05` (`fix(android): reconcile booking queue safely`)
+Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections through booking queue and hold safety Fix round 6 are implemented. Exact post-report SHA requalification is recorded under `.omo/evidence/task9/fix-round6/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+
+## Code-quality correction round 6: booking queue reconciliation and hold safety
+
+The code-quality review at `.omo/evidence/final6-code-cc1e598.md` found two Android booking defects. A `WAITING` queue response discarded its queue-entry identity, so the native flow had no route to observe a later backend `ADMITTED` or terminal state. Separately, an ACTIVE seat hold whose ticket IDs did not exactly match the request returned Conflict without releasing the newly owned hold.
+
+Commit `aed9dd6b1189928507f947ebfec2cab9da83da05` preserves the opaque queue-entry ID in `BookingProgress.Waiting` and exposes an explicit user-driven queue refresh. The refresh performs the existing authenticated `GET /api/me/queue-entries/{entryId}`, verifies the returned identity and performance, and advances to hold/draft/payment preparation only after the read observes `ADMITTED`. A repeated `WAITING` preserves the identity and updated position; `EXPIRED`/`LEFT`, unknown or mismatched state, and transport failure remain fail-closed. Refresh shares the synchronous single-flight booking guard, generation publication guard, original `BookingRequest`, and its stable operation keys, so rapid repeated refresh cannot start duplicate booking work. The waiting card exposes a labelled 48dp refresh control with visible pending copy and disabled state; no background polling loop was added.
+
+An ACTIVE mismatched hold is now released inside the existing `NonCancellable` compensation boundary before Conflict returns. The original logical attempt's stable `holdRelease` key is reused. If release fails, a typed primary Conflict is thrown with the cleanup failure suppressed, preserving both the primary disposition and cleanup evidence; no draft or payment work starts.
+
+Canonical RED is `.omo/evidence/task9/fix-round6/red-focused.log` and `.exit`: compilation failed specifically on the absent `refreshBooking`, `Waiting.entryId`, and `BookingApi.queueEntry` contracts. Focused GREEN covers four queue transitions, nine compensation cases, 35 ViewModel cases, and five Account API wire cases. Pre-commit qualification covered the full 106-test dev-customer JVM suite, lint, assemble, source contract 3/3, two phone-form-factor Compose instrumentation cases, and a fresh 1024 x 1890 waiting/pending capture. Exact post-report SHA results, protected-auth audit, PNG hash/inspection, and cleanup are recorded in the round-6 final verification ledger. No queue ID, hold ID, idempotency key, credential, or provider secret is logged in the report.
 
 ## Security correction round 4: booking preparation compensation
 
