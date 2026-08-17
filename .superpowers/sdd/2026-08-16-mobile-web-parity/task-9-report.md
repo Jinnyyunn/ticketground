@@ -1,8 +1,25 @@
 # Task 9 final cross-platform verification report
 
 Date: 2026-08-17
-Qualified product source: `73d263a0818e5bcd171b319e79f2e63841b897f6`
-Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections are implemented and their exact-SHA requalification is recorded under `.omo/evidence/task9/fix-round1/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+Qualified product source: `0a075df` (`fix(android): serialize booking retries`)
+Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections through booking concurrency/idempotency Fix round 2 are implemented. Exact post-report SHA requalification is recorded under `.omo/evidence/task9/fix-round2/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+
+## Security correction round 2: booking retry concurrency and idempotency
+
+The security review at `.omo/evidence/final2-security-beca26e.md` found that Android set booking pending state only after a launched coroutine started, admitted retry calls without a ViewModel guard, and generated fresh queue/hold/draft/payment idempotency keys on every repository invocation. A rapid repeated tap could therefore overlap artifact-creating work, while a retry of one logical attempt could create different server artifacts.
+
+Commit `0a075df` fixes the complete native call chain:
+
+- `CustomerAppViewModel` atomically changes `bookingPending` before launching any coroutine. Initial submit and retry share the same guarded entry point, so only one queue/hold/draft/payment chain can be active. Retry and checkout controls consume the observable state and are disabled while that call is active.
+- A `BookingRequest` owns four opaque UUID-backed operation identities. The first submit creates the request, a retry reuses the same request and all four identities, and opening a seat map for a new attempt clears the old request so the next submit generates four fresh identities. Keys remain internal and are never rendered or logged.
+- `TypedCustomerRepository` passes those stable identities through the existing `X-Idempotency-Key` API mechanism. `TossCheckoutCoordinator` reuses stored payment state only when the caller supplied the same logical-attempt key; a new attempt rotates it even when the ticket ID is unchanged.
+- Booking publication is generation-gated. Closing the route or opening a new seat map invalidates an older completion, and exceptions only publish the existing fail-closed booking error for the current generation.
+
+Canonical RED artifacts are `red-concurrency.log`, `red-idempotency.log`, and `red-ui.log`. They respectively record the pre-fix immediate-pending/double-retry failure and the missing request/key and rendered-pending contracts. Focused GREEN is `green-focused.log`; the wire test proves same-attempt equality and new-attempt inequality at queue, hold, draft, and payment boundaries without persisting key values in evidence.
+
+Pre-final verification covered the complete dev-customer JVM suite (90/90), Android lint, all-variant assemble, source contract (3/3), rendered retry-disabled instrumentation, the existing expired/retry/conflict instrumentation path, and a fresh phone capture. The inspected 1024 x 1890 capture `22-phone-booking-retry-pending.png` shows the retry control disabled with no clipping, overlap, or Korean glyph defects. The installed dev-customer app opened and reached event detail, but the current dev response exposed no selectable performance schedule, so no unsafe backend mutation was made merely to manufacture a direct retry tap; `manual-installed-app.md` records that boundary.
+
+The broad `:app:test` command executed 90 tests and retained one pre-existing `devGateDebug` failure: `LifecycleApiWireTest` expects package `kr.ticketground.app.dev`, while that build variant is `kr.ticketground.app.dev.gate`. No changed booking path participates in that assertion. The authoritative changed-surface suite is `:app:testDevCustomerDebugUnitTest`, which passes 90 tests with zero failures, errors, or skips. Full receipts, exit files, protected-boundary audit, and the exact final commit SHA are under `.omo/evidence/task9/fix-round2/`.
 
 ## Final-review correction round 1
 
