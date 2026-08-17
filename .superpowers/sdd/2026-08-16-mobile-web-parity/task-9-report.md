@@ -1,8 +1,18 @@
 # Task 9 final cross-platform verification report
 
 Date: 2026-08-17
-Qualified product source: `0a075df` (`fix(android): serialize booking retries`)
-Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections through booking concurrency/idempotency Fix round 2 are implemented. Exact post-report SHA requalification is recorded under `.omo/evidence/task9/fix-round2/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+Qualified product source: `513eebb` (`fix(android): admit booking before creating request`)
+Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections through booking admission Fix round 3 are implemented. Exact post-report SHA requalification is recorded under `.omo/evidence/task9/fix-round3/`. GitHub delivery and external production/provider gates were not performed or claimed.**
+
+## Security correction round 3: atomic initial booking admission
+
+The security review at `.omo/evidence/final3-security-09468f.md` found that round 2 serialized repository execution but generated and stored a fresh `BookingRequest` before atomic admission. A rapid rejected second initial tap could therefore replace `lastBookingAttempt`; after the admitted first request failed, retry used the rejected tap's new queue/hold/draft/payment identities.
+
+Commit `513eebb` moves the `BookingRequest` factory behind the shared `bookingPending.compareAndSet` boundary. Rejected initial and retry invocations now return before request generation or retry-identity mutation. The admitted initial request remains the exact object replayed after failure, while opening a seat map and admitting a genuinely later attempt still rotates the request and all four operation keys. Existing generation and `closeRoute` publication guards and synchronous pending-state publication remain unchanged.
+
+The controlled regression calls `book()` twice before dispatcher progress, observes one repository request, completes the admitted first request with a transport error, and asserts that retry replays the exact first request and operation-key object. The companion rapid-retry regression holds one admitted retry, rejects a second invocation, fails the admitted retry, and proves a later retry still replays the original request. The existing new-attempt regression proves a newly admitted attempt has a distinct operation-key object.
+
+Canonical RED is `.omo/evidence/task9/fix-round3/red-rapid-initial.log`: the baseline failed because the retry request was not the admitted first object. Focused GREEN and the pre-commit 91-test dev-customer JVM pass are `green-rapid-initial.log` and `precommit-android-jvm.log`. Exact post-report JVM, lint, assemble, source-contract, phone retry-disabled instrumentation, protected-auth zero-diff audit, snapshots, exits, and the final verification ledger are stored in the same round-3 directory. No idempotency-key value is persisted in evidence.
 
 ## Security correction round 2: booking retry concurrency and idempotency
 
