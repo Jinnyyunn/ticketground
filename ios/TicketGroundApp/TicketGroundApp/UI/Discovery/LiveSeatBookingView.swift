@@ -34,6 +34,7 @@ struct LiveSeatBookingView: View {
         }
         .frame(maxWidth: TicketgroundLayout.seatBookingMaximumWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .center)
+        .sensoryFeedback(.impact(weight: .light), trigger: selectedTicketID)
     }
 
     private var header: some View {
