@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
@@ -47,6 +48,8 @@ import kr.ticketground.app.ui.AccountOverview
 import kr.ticketground.app.ui.AccountTicketOverview
 import kr.ticketground.app.ui.AsyncContent
 import kr.ticketground.app.ui.BookingProgress
+import kr.ticketground.app.ui.BookingProgressScreen
+import kr.ticketground.app.ui.BookingProgressState
 import kr.ticketground.app.ui.CustomerAppViewModel
 import kr.ticketground.app.ui.CustomerRepository
 import kr.ticketground.app.ui.HomeContent
@@ -257,6 +260,19 @@ class VisualCaptureTest {
     writeCapture("21-tablet-booking-conflict.png")
   }
 
+  @Test
+  fun capture22_phoneBookingRetryPending() {
+    setCapture(PhoneWidth, PhoneHeight) {
+      BookingProgressScreen(
+        BookingProgressState(BookingProgress.Error("네트워크 연결을 확인한 뒤 다시 시도해 주세요."), true),
+        {},
+        {},
+      )
+    }
+    composeRule.onNodeWithTag("booking-retry").assertIsNotEnabled()
+    writeCapture("22-phone-booking-retry-pending.png", verifyNavigation = false)
+  }
+
   private fun openMyPageDestination(buttonTag: String, expectedTag: String) {
     val viewModel = CustomerAppViewModel(VisualFixtureRepository())
     setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
@@ -280,22 +296,24 @@ class VisualCaptureTest {
     }
   }
 
-  private fun writeCapture(name: String) {
+  private fun writeCapture(name: String, verifyNavigation: Boolean = true) {
     composeRule.waitForIdle()
-    composeRule.waitUntil(5_000) {
-      AppDestination.entries.all { destination ->
-        runCatching {
-          val icon = composeRule
-            .onNodeWithTag("navigation-icon-${destination.name.lowercase()}", useUnmergedTree = true)
-            .assertIsDisplayed()
-            .captureToImage()
-            .asAndroidBitmap()
-          val pixels = IntArray(icon.width * icon.height)
-          icon.getPixels(pixels, 0, icon.width, 0, 0, icon.width, icon.height)
-          pixels.any { pixel ->
-            Color.alpha(pixel) > 0 && Color.red(pixel) < 128 && Color.green(pixel) < 128 && Color.blue(pixel) < 128
-          }
-        }.getOrDefault(false)
+    if (verifyNavigation) {
+      composeRule.waitUntil(5_000) {
+        AppDestination.entries.all { destination ->
+          runCatching {
+            val icon = composeRule
+              .onNodeWithTag("navigation-icon-${destination.name.lowercase()}", useUnmergedTree = true)
+              .assertIsDisplayed()
+              .captureToImage()
+              .asAndroidBitmap()
+            val pixels = IntArray(icon.width * icon.height)
+            icon.getPixels(pixels, 0, icon.width, 0, 0, icon.width, icon.height)
+            pixels.any { pixel ->
+              Color.alpha(pixel) > 0 && Color.red(pixel) < 128 && Color.green(pixel) < 128 && Color.blue(pixel) < 128
+            }
+          }.getOrDefault(false)
+        }
       }
     }
     composeRule.mainClock.advanceTimeByFrame()
@@ -425,13 +443,13 @@ private class VisualFixtureRepository(
   override suspend fun seatMap(eventId: String, performanceDateId: String?) = fixtureSeatMap()
   override suspend fun watchlist() = listOf(fixtureWatchlistItem())
   override suspend fun accountOverview() = fixtureAccount()
-  override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress =
+  override suspend fun book(request: kr.ticketground.app.ui.BookingRequest): BookingProgress =
     bookingProgress ?: BookingProgress.Held(
-      seatId,
-      seatLabel,
-      amount,
+      request.seatId,
+      request.seatLabel,
+      request.amount,
       kr.ticketground.app.data.TossCheckoutRequest(
-        "draft-capture", seatId, seatLabel, amount + 2_000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+        "draft-capture", request.seatId, request.seatLabel, request.amount + 2_000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
         "test_ck_capture", "capture-idempotency",
       ),
     )

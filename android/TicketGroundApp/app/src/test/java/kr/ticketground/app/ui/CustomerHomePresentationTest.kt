@@ -121,7 +121,7 @@ private class PresentationRepository(private val content: HomeContent) : Custome
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = error("not used")
   override suspend fun watchlist(): List<WatchlistItem> = error("not used")
   override suspend fun accountOverview(): AccountOverview = error("not used")
-  override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress = error("not used")
+  override suspend fun book(request: BookingRequest): BookingProgress = error("not used")
   override suspend fun requestCancellation(ticketId: String, reason: String) = error("not used")
   override suspend fun listForResale(ticketId: String, price: Int) = error("not used")
   override suspend fun addToWatchlist(eventId: String) = error("not used")

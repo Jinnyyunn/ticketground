@@ -72,7 +72,9 @@ import kr.ticketground.app.ui.SupportScreen
 import kr.ticketground.app.ui.TicketGroundLayout
 import kr.ticketground.app.ui.TicketGroundSpacing
 import kr.ticketground.app.ui.BookingProgress
+import kr.ticketground.app.ui.BookingProgressState
 import kr.ticketground.app.ui.BookingProgressScreen
+import kr.ticketground.app.ui.BookingRequest
 import kr.ticketground.app.ui.TicketGroundTheme
 import kr.ticketground.app.data.WatchlistItem
 import org.junit.Assert.assertEquals
@@ -244,13 +246,24 @@ class TicketGroundAppShellTest {
   fun bookingProgress_exposesExpiredConflictAndRetryWithoutSuccessCopy() {
     var retried = 0
     var progress by mutableStateOf<BookingProgress>(BookingProgress.Expired("만료됨"))
-    composeRule.setContent { TicketGroundTheme { BookingProgressScreen(progress, { retried += 1 }, {}) } }
+    composeRule.setContent { TicketGroundTheme { BookingProgressScreen(BookingProgressState(progress, false), { retried += 1 }, {}) } }
     composeRule.onNodeWithTag("booking-expired").assertIsDisplayed()
     composeRule.onNodeWithTag("booking-retry").performClick()
     composeRule.runOnIdle { progress = BookingProgress.Conflict("충돌") }
     composeRule.onNodeWithTag("booking-conflict").assertIsDisplayed()
     composeRule.onNodeWithText("예매 완료", substring = true).assertDoesNotExist()
     composeRule.runOnIdle { assertEquals(1, retried) }
+  }
+
+  @Test
+  fun bookingProgress_disablesRetryWhileBookingIsInFlight() {
+    composeRule.setContent {
+      TicketGroundTheme {
+        BookingProgressScreen(BookingProgressState(BookingProgress.Error("네트워크 오류"), true), {}, {})
+      }
+    }
+
+    composeRule.onNodeWithTag("booking-retry").assertIsNotEnabled()
   }
 
   @Test
@@ -606,7 +619,7 @@ class TicketGroundAppShellTest {
       TicketGroundTheme {
         bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
         Box(Modifier.width(390.dp).height(720.dp)) {
-          BookingProgressScreen(BookingProgress.Held("seat-1", "A구역 1열 1번", 122000, request), {}, {})
+          BookingProgressScreen(BookingProgressState(BookingProgress.Held("seat-1", "A구역 1열 1번", 122000, request), false), {}, {})
         }
       }
     }
@@ -875,7 +888,7 @@ private class ComposeCustomerRepository(private val signedIn: Boolean = false) :
     cancellationPending = true,
     resaleState = "OPEN",
   )
-  override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress = error("not used")
+  override suspend fun book(request: BookingRequest): BookingProgress = error("not used")
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
   override suspend fun addToWatchlist(eventId: String) = Unit

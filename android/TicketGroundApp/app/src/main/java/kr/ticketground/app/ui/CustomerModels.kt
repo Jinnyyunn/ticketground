@@ -85,7 +85,43 @@ sealed interface BookingProgress {
   data class Error(val message: String) : BookingProgress
 }
 
+data class BookingProgressState(val progress: BookingProgress, val pending: Boolean)
+
 data class DeviceIdentity(val id: String, val name: String)
+
+internal class BookingOperationKeys private constructor(
+  val queue: String,
+  val hold: String,
+  val draft: String,
+  val payment: String,
+) {
+  companion object {
+    fun create() = BookingOperationKeys(
+      queue = "android-queue-${UUID.randomUUID()}",
+      hold = "android-hold-${UUID.randomUUID()}",
+      draft = "android-draft-${UUID.randomUUID()}",
+      payment = "android-payment-${UUID.randomUUID()}",
+    )
+  }
+}
+
+class BookingRequest internal constructor(
+  val performanceDateId: String,
+  val seatId: String,
+  val seatLabel: String,
+  val amount: Int,
+  internal val operationKeys: BookingOperationKeys,
+) {
+  companion object {
+    fun create(performanceDateId: String, seatId: String, seatLabel: String, amount: Int) = BookingRequest(
+      performanceDateId,
+      seatId,
+      seatLabel,
+      amount,
+      BookingOperationKeys.create(),
+    )
+  }
+}
 
 interface CustomerRepository {
   suspend fun home(): HomeContent
@@ -100,7 +136,7 @@ interface CustomerRepository {
   suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap
   suspend fun watchlist(): List<WatchlistItem>
   suspend fun accountOverview(): AccountOverview
-  suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress
+  suspend fun book(request: BookingRequest): BookingProgress
   suspend fun requestCancellation(ticketId: String, reason: String)
   suspend fun listForResale(ticketId: String, price: Int)
   suspend fun addToWatchlist(eventId: String)
@@ -191,38 +227,37 @@ class TypedCustomerRepository(
     )
   }
 
-  override suspend fun book(
-    performanceDateId: String,
-    seatId: String,
-    seatLabel: String,
-    amount: Int,
-  ): BookingProgress {
-    val entry = accountApi.enterQueue(performanceDateId, "android-queue-${UUID.randomUUID()}")
+  override suspend fun book(request: BookingRequest): BookingProgress {
+    val entry = accountApi.enterQueue(request.performanceDateId, request.operationKeys.queue)
     when (entry.status) {
       LifecycleStatus.WAITING -> return BookingProgress.Waiting(entry.position)
       LifecycleStatus.EXPIRED, LifecycleStatus.LEFT -> return BookingProgress.Expired("대기 입장 시간이 만료되었습니다. 다시 시도해 주세요.")
       LifecycleStatus.ADMITTED -> Unit
       else -> return BookingProgress.Conflict("대기 상태가 변경되었습니다. 좌석 상태를 다시 확인해 주세요.")
     }
-    val hold = accountApi.createSeatHold(performanceDateId, listOf(seatId), "android-hold-${UUID.randomUUID()}")
-    if (hold.status != LifecycleStatus.ACTIVE || hold.ticketIds != listOf(seatId)) {
+    val hold = accountApi.createSeatHold(
+      request.performanceDateId,
+      listOf(request.seatId),
+      request.operationKeys.hold,
+    )
+    if (hold.status != LifecycleStatus.ACTIVE || hold.ticketIds != listOf(request.seatId)) {
       return if (hold.status == LifecycleStatus.EXPIRED || hold.status == LifecycleStatus.RELEASED) {
         BookingProgress.Expired("좌석 확보 시간이 만료되었습니다. 다시 선택해 주세요.")
       } else BookingProgress.Conflict("좌석 상태가 변경되어 확보하지 않았습니다. 다시 확인해 주세요.")
     }
-    val draft = accountApi.createReservationDraft(hold.id, "android-draft-${UUID.randomUUID()}")
-    if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.ticketIds != listOf(seatId)) {
+    val draft = accountApi.createReservationDraft(hold.id, request.operationKeys.draft)
+    if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.ticketIds != listOf(request.seatId)) {
       return if (draft.status == LifecycleStatus.EXPIRED || draft.status == LifecycleStatus.CANCELLED) {
         BookingProgress.Expired("예매 초안이 만료되었습니다. 다시 시도해 주세요.")
       } else BookingProgress.Conflict("예매 초안 상태가 변경되어 결제를 시작하지 않았습니다.")
     }
-    val request = checkout.prepare(
+    val checkoutRequest = checkout.prepare(
       draft,
-      seatLabel,
+      request.seatLabel,
       TossPaymentMethod.CREDIT_CARD,
-      "android-payment-${UUID.randomUUID()}",
+      request.operationKeys.payment,
     )
-    return BookingProgress.Held(seatId, seatLabel, amount, request)
+    return BookingProgress.Held(request.seatId, request.seatLabel, request.amount, checkoutRequest)
   }
 
   override suspend fun requestCancellation(ticketId: String, reason: String) {

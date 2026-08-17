@@ -113,7 +113,9 @@ class TossCheckoutCoordinator(
       val ticketId = draft.ticketIds.singleOrNull() ?: throw CheckoutError.TicketUnavailable
       if (draft.status != LifecycleStatus.PENDING_PAYMENT || draft.amount.total <= 0) throw CheckoutError.TicketUnavailable
       val prior = retryStore.read()
-      val stableKey = prior?.takeIf { it.ticketId == ticketId && !it.confirmed }?.idempotencyKey ?: idempotencyKey
+      val stableKey = prior?.takeIf {
+        it.ticketId == ticketId && !it.confirmed && it.idempotencyKey == idempotencyKey
+      }?.idempotencyKey ?: idempotencyKey
       retryStore.write(CheckoutRetryState(ticketId, stableKey, false))
       return TossCheckoutRequest(
         draft.id, ticketId, orderName, draft.amount.total, method, config.clientKey, stableKey,

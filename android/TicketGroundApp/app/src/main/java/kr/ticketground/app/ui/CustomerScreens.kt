@@ -1004,10 +1004,11 @@ fun PushNotificationsScreen(
 
 @Composable
 fun BookingProgressScreen(
-  progress: BookingProgress,
+  state: BookingProgressState,
   onRetry: () -> Unit,
   onCheckout: (BookingProgress.Held) -> Unit,
 ) {
+  val progress = state.progress
   Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.sm).testTag("booking-progress"), contentAlignment = Alignment.Center) {
     SurfaceCard(
       modifier = Modifier.testTag("booking-progress-card"),
@@ -1026,13 +1027,17 @@ fun BookingProgressScreen(
             text = "서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.",
             phrase = "예매가 완료되지 않습니다.",
           )
-          Button(onClick = { onCheckout(progress) }, modifier = Modifier.fillMaxWidth().testTag("booking-continue-checkout")) {
+          Button(
+            onClick = { onCheckout(progress) },
+            enabled = !state.pending,
+            modifier = Modifier.fillMaxWidth().testTag("booking-continue-checkout"),
+          ) {
             Text("결제 확인으로 이동")
           }
         }
-        is BookingProgress.Expired -> BookingFailureContent("대기·좌석 시간이 만료되었습니다", progress.message, "booking-expired", onRetry)
-        is BookingProgress.Conflict -> BookingFailureContent("좌석 상태가 변경되었습니다", progress.message, "booking-conflict", onRetry)
-        is BookingProgress.Error -> BookingFailureContent("예매 상태를 확인할 수 없습니다", progress.message, "booking-error", onRetry)
+        is BookingProgress.Expired -> BookingFailureContent(progress, state.pending, onRetry)
+        is BookingProgress.Conflict -> BookingFailureContent(progress, state.pending, onRetry)
+        is BookingProgress.Error -> BookingFailureContent(progress, state.pending, onRetry)
       }
     }
   }
@@ -1076,7 +1081,13 @@ private fun SemanticPhraseText(text: String, phrase: String) {
 }
 
 @Composable
-private fun BookingFailureContent(title: String, message: String, tag: String, onRetry: () -> Unit) {
+private fun BookingFailureContent(progress: BookingProgress, pending: Boolean, onRetry: () -> Unit) {
+  val (title, message, tag) = when (progress) {
+    is BookingProgress.Expired -> Triple("대기·좌석 시간이 만료되었습니다", progress.message, "booking-expired")
+    is BookingProgress.Conflict -> Triple("좌석 상태가 변경되었습니다", progress.message, "booking-conflict")
+    is BookingProgress.Error -> Triple("예매 상태를 확인할 수 없습니다", progress.message, "booking-error")
+    is BookingProgress.Waiting, is BookingProgress.Held -> error("Booking progress is not a failure")
+  }
   androidx.compose.foundation.layout.Column(
     modifier = Modifier.testTag(tag),
     verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm),
@@ -1084,7 +1095,11 @@ private fun BookingFailureContent(title: String, message: String, tag: String, o
     Text(title, style = MaterialTheme.typography.titleMedium)
     Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text("서버에서 새 상태를 확인하기 전에는 좌석 확보나 예매 성공으로 처리하지 않습니다.")
-    OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth().testTag("booking-retry")) { Text("다시 시도") }
+    OutlinedButton(
+      onClick = onRetry,
+      enabled = !pending,
+      modifier = Modifier.fillMaxWidth().testTag("booking-retry"),
+    ) { Text("다시 시도") }
   }
 }
 

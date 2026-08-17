@@ -30,6 +30,8 @@ import kr.ticketground.app.data.SupportThread
 import kr.ticketground.app.AppDestination
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -371,6 +373,91 @@ class CustomerAppViewModelTest {
   }
 
   @Test
+  fun `rapid repeated booking retry starts one repository call and publishes pending immediately`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    repository.bookError = null
+    val retry = repository.deferBooking()
+
+    viewModel.retryBooking()
+    assertTrue(viewModel.bookingPending.value)
+    viewModel.retryBooking()
+    runCurrent()
+
+    assertEquals(2, repository.bookCalls)
+    retry.complete(repository.heldBooking())
+    advanceUntilIdle()
+    assertTrue(!viewModel.bookingPending.value)
+  }
+
+  @Test
+  fun `retry reuses the same booking operation identities`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.retryBooking()
+    advanceUntilIdle()
+
+    assertSame(repository.bookingRequests[0].operationKeys, repository.bookingRequests[1].operationKeys)
+  }
+
+  @Test
+  fun `new booking attempt creates fresh operation identities for the same seat`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+
+    assertNotSame(repository.bookingRequests[0].operationKeys, repository.bookingRequests[1].operationKeys)
+  }
+
+  @Test
+  fun `late booking completion cannot reopen a route the user closed`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val booking = repository.deferBooking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    runCurrent()
+    viewModel.closeRoute()
+    booking.complete(repository.heldBooking())
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Tab, viewModel.route.value)
+    assertTrue(!viewModel.bookingPending.value)
+  }
+
+  @Test
   fun `reservation detail opens a typed principal destination`() = runTest(dispatcher) {
     val viewModel = CustomerAppViewModel(FakeCustomerRepository())
     viewModel.openReservation()
@@ -454,6 +541,7 @@ private class FakeCustomerRepository(
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
   private val rankingDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
   private val artistDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
+  private val bookingDeferreds = ArrayDeque<CompletableDeferred<BookingProgress>>()
   var bookedSeatId: String? = null
   var trustCalls = 0
   var pushCalls = 0
@@ -463,9 +551,20 @@ private class FakeCustomerRepository(
   var createdInquirySubject: String? = null
   var rankingCalls = 0
   var bookCalls = 0
+  val bookingRequests = mutableListOf<BookingRequest>()
 
   fun deferRanking() = CompletableDeferred<List<CatalogEvent>>().also(rankingDeferreds::addLast)
   fun deferArtist() = CompletableDeferred<List<CatalogEvent>>().also(artistDeferreds::addLast)
+  fun deferBooking() = CompletableDeferred<BookingProgress>().also(bookingDeferreds::addLast)
+  fun heldBooking() = BookingProgress.Held(
+    "seat-a1",
+    "A구역 1열 1번",
+    120_000,
+    TossCheckoutRequest(
+      "draft-1", "ticket-1", "A구역 1열 1번", 122_000,
+      TossPaymentMethod.CREDIT_CARD, "client-key", "payment-key",
+    ),
+  )
 
   override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
   override suspend fun ranking(): List<CatalogEvent> {
@@ -487,16 +586,13 @@ private class FakeCustomerRepository(
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = seatMapFixture()
   override suspend fun watchlist(): List<WatchlistItem> = emptyList()
   override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: accountValue
-  override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress {
+  override suspend fun book(request: BookingRequest): BookingProgress {
     bookCalls += 1
+    bookingRequests += request
+    if (bookingDeferreds.isNotEmpty()) return bookingDeferreds.removeFirst().await()
     bookError?.let { throw it }
-    bookedSeatId = seatId
-    return BookingProgress.Held(
-      seatId,
-      seatLabel,
-      amount,
-      TossCheckoutRequest("draft-1", "ticket-1", seatLabel, amount + 2_000, TossPaymentMethod.CREDIT_CARD, "client-key", "payment-key"),
-    )
+    bookedSeatId = request.seatId
+    return heldBooking()
   }
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit

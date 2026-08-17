@@ -82,6 +82,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private val mutableInquiries = MutableStateFlow<AsyncContent<List<SupportThread>>>(AsyncContent.Loading)
   val inquiries = mutableInquiries.asStateFlow()
   private var lastBookingAttempt: BookingAttempt? = null
+  private var bookingGeneration = 0L
   private var discoveryGeneration = 0L
 
   init { loadHome() }
@@ -180,6 +181,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   fun openResale() { mutableRoute.value = CustomerRoute.Resale }
 
   fun closeRoute() {
+    if (mutableBookingPending.value) bookingGeneration += 1
     if (mutableRoute.value == CustomerRoute.Tab && mutableDestination.value != AppDestination.Home) {
       mutableDestination.value = AppDestination.Home
     }
@@ -197,6 +199,8 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun openSeatMap(event: CatalogEvent, performanceDateId: String?) {
+    bookingGeneration += 1
+    lastBookingAttempt = null
     mutableSelectedSeatId.value = null
     mutableHeldSeatIds.value = emptySet()
     mutableRoute.value = CustomerRoute.SeatMapRoute(event, performanceDateId)
@@ -220,42 +224,54 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     if (!mutableBookingPending.value) mutableSelectedSeatId.value = seatId
   }
 
-  fun book(event: CatalogEvent, performanceDateId: String?) = viewModelScope.launch {
-    val map = (mutableSeatMap.value as? AsyncContent.Ready)?.value ?: return@launch
-    val seat = map.seats.firstOrNull { it.id == mutableSelectedSeatId.value && it.available } ?: return@launch
+  fun book(event: CatalogEvent, performanceDateId: String?) {
+    val map = (mutableSeatMap.value as? AsyncContent.Ready)?.value ?: return
+    val seat = map.seats.firstOrNull { it.id == mutableSelectedSeatId.value && it.available } ?: return
     val performance = performanceDateId?.takeIf(String::isNotBlank)
     if (performance == null) {
       mutableActionMessage.value = "예매 회차를 확인할 수 없습니다. 공연 상세에서 회차를 다시 선택해 주세요."
-      return@launch
+      return
     }
-    lastBookingAttempt = BookingAttempt(event, performance)
-    performBooking(event, performance, seat.id)
+    val request = BookingRequest.create(
+      performance,
+      seat.id,
+      seat.displayCode.ifBlank { seat.label },
+      seat.price,
+    )
+    lastBookingAttempt = BookingAttempt(request)
+    performBooking(request)
   }
 
   fun retryBooking() {
     val attempt = lastBookingAttempt ?: return
-    val seatId = mutableSelectedSeatId.value ?: return
-    viewModelScope.launch { performBooking(attempt.event, attempt.performanceDateId, seatId) }
+    performBooking(attempt.request)
   }
 
-  private suspend fun performBooking(event: CatalogEvent, performance: String, seatId: String) {
-    val map = (mutableSeatMap.value as? AsyncContent.Ready)?.value ?: return
-    val seat = map.seats.firstOrNull { it.id == seatId && it.available } ?: return
-    mutableBookingPending.value = true
+  private fun performBooking(request: BookingRequest) {
+    if (!mutableBookingPending.compareAndSet(expect = false, update = true)) return
+    val generation = ++bookingGeneration
     mutableActionMessage.value = null
-    runCatching { repository.book(performance, seat.id, seat.displayCode.ifBlank { seat.label }, seat.price) }
-      .onSuccess { progress ->
-        when (progress) {
-          is BookingProgress.Waiting -> openBooking(progress)
-          is BookingProgress.Held -> {
-            mutableHeldSeatIds.value = mutableHeldSeatIds.value + progress.seatId
-            openBooking(progress)
+    viewModelScope.launch {
+      try {
+        runCatching { repository.book(request) }
+          .onSuccess { progress ->
+            if (generation != bookingGeneration) return@onSuccess
+            when (progress) {
+              is BookingProgress.Waiting -> openBooking(progress)
+              is BookingProgress.Held -> {
+                mutableHeldSeatIds.value = mutableHeldSeatIds.value + progress.seatId
+                openBooking(progress)
+              }
+              is BookingProgress.Expired, is BookingProgress.Conflict, is BookingProgress.Error -> openBooking(progress)
+            }
           }
-          is BookingProgress.Expired, is BookingProgress.Conflict, is BookingProgress.Error -> openBooking(progress)
-        }
+          .onFailure {
+            if (generation == bookingGeneration) openBooking(BookingProgress.Error(safeUiMessage(it)))
+          }
+      } finally {
+        mutableBookingPending.value = false
       }
-      .onFailure { openBooking(BookingProgress.Error(safeUiMessage(it))) }
-    mutableBookingPending.value = false
+    }
   }
 
   fun loadWatchlist() = viewModelScope.launch {
@@ -392,7 +408,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     mutableActionMessage.value = message
   }
 
-  private data class BookingAttempt(val event: CatalogEvent, val performanceDateId: String)
+  private data class BookingAttempt(val request: BookingRequest)
 }
 
 @Composable
@@ -533,7 +549,11 @@ fun TicketGroundCustomerApp(
           )
           actionMessage?.let { StateBanner(it) }
         }
-        is CustomerRoute.Booking -> BookingProgressScreen(current.progress, viewModel::retryBooking, viewModel::continueToCheckout)
+        is CustomerRoute.Booking -> BookingProgressScreen(
+          BookingProgressState(current.progress, pending),
+          viewModel::retryBooking,
+          viewModel::continueToCheckout,
+        )
         is CustomerRoute.Checkout -> {
           CheckoutHandoffScreen(current.request, pending, current.seatLabel, current.amount) { result ->
             viewModel.completeCheckout(current.request, result)
