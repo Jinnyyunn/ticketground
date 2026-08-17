@@ -1,6 +1,5 @@
 package kr.ticketground.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,12 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -293,23 +287,13 @@ private fun ParityEventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit
       .testTag("home-genre-event-${event.id}"),
     verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs),
   ) {
-    val imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) }
-    Box(
-      Modifier.fillMaxWidth().height(TicketGroundLayout.homeGenrePosterHeight)
-        .clip(RoundedCornerShape(TicketGroundRadius.medium))
-        .background(MaterialTheme.colorScheme.surfaceVariant)
+    EventPosterThumbnail(
+      imageUrl = event.image?.let { safeSeatMapImageUrl(it, BuildConfig.API_BASE_URL) },
+      title = event.title,
+      modifier = Modifier.fillMaxWidth().height(TicketGroundLayout.homeGenrePosterHeight)
         .testTag("home-genre-poster-${event.id}"),
-    ) {
-      if (imageUrl != null) {
-        AsyncImage(
-          model = imageUrl,
-          imageLoader = seatMapImageLoader(LocalContext.current),
-          contentDescription = "${event.title} 포스터",
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize(),
-        )
-      }
-    }
+      shape = RoundedCornerShape(TicketGroundRadius.medium),
+    )
     Text(event.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
     Text(event.venue, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
   }
