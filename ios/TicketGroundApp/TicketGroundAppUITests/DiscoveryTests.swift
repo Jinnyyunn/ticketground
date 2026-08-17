@@ -69,7 +69,7 @@ final class DiscoveryTests: XCTestCase {
             (control: "discovery-open-more", destination: "route-open"),
             (control: "discovery-resale-pool", destination: "route-resale"),
             (control: "discovery-genre-concert", destination: "route-genre-concert"),
-            (control: "discovery-editorial-1", destination: "route-event-ticketground-day")
+            (control: "discovery-editorial-1", destination: "route-queue:iu-world-tour")
         ]
 
         for destination in destinations {
@@ -101,7 +101,7 @@ final class DiscoveryTests: XCTestCase {
             (control: "discovery-resale-pool", destination: "route-resale"),
             (control: "discovery-open-more", destination: "route-open"),
             (control: "discovery-genre-concert", destination: "route-genre-concert"),
-            (control: "discovery-editorial-1", destination: "route-event-ticketground-day")
+            (control: "discovery-editorial-1", destination: "live-catalog-event")
         ]
 
         for destination in destinations {
@@ -110,6 +110,10 @@ final class DiscoveryTests: XCTestCase {
             control.tap()
             assertDiscoverable(anyElement(app, identifier: destination.destination))
             assertDiscoverable(app.buttons["BackButton"])
+
+            if destination.control == "discovery-editorial-1" {
+                XCTAssertEqual(app.staticTexts["live-catalog-event"].label, "Neon Stage")
+            }
 
             if destination.destination == "route-resale" {
                 XCTAssertTrue(app.staticTexts["공개 양도 티켓을 확인하는 화면입니다."].exists)
