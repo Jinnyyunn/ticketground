@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1006,6 +1007,7 @@ fun PushNotificationsScreen(
 fun BookingProgressScreen(
   state: BookingProgressState,
   onRetry: () -> Unit,
+  onRefresh: () -> Unit,
   onCheckout: (BookingProgress.Held) -> Unit,
 ) {
   val progress = state.progress
@@ -1019,6 +1021,13 @@ fun BookingProgressScreen(
           Text("예매 대기 중", style = MaterialTheme.typography.titleMedium)
           Text("현재 대기 순서 ${progress.position}번입니다.")
           Text("입장 상태가 확인되기 전에는 좌석 확보나 예매 성공으로 처리하지 않습니다.")
+          OutlinedButton(
+            onClick = onRefresh,
+            enabled = !state.pending,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("booking-refresh-queue"),
+          ) {
+            Text(if (state.pending) "입장 상태 확인 중" else "입장 상태 새로고침")
+          }
         }
         is BookingProgress.Held -> {
           Text("좌석 확보·예매 초안", style = MaterialTheme.typography.titleMedium)

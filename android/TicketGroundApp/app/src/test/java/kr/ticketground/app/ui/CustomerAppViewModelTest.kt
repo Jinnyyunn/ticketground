@@ -344,11 +344,61 @@ class CustomerAppViewModelTest {
   fun `booking progress opens a typed queue hold and draft destination`() = runTest(dispatcher) {
     val viewModel = CustomerAppViewModel(FakeCustomerRepository())
     advanceUntilIdle()
-    val progress = BookingProgress.Waiting(3)
+    val progress = BookingProgress.Waiting("queue-1", 3)
 
     viewModel.openBooking(progress)
 
     assertEquals(CustomerRoute.Booking(progress), viewModel.route.value)
+  }
+
+  @Test
+  fun `waiting refresh advances on observed admission and rejects a rapid duplicate`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val initial = repository.deferBooking()
+    val refresh = repository.deferBookingRefresh()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    initial.complete(BookingProgress.Waiting("queue-1", 3))
+    advanceUntilIdle()
+    val originalRequest = repository.bookingRequests.single()
+
+    viewModel.refreshBooking()
+    assertTrue(viewModel.bookingPending.value)
+    viewModel.refreshBooking()
+    runCurrent()
+
+    assertEquals(1, repository.bookingRefreshCalls)
+    assertEquals(listOf("queue-1"), repository.refreshedQueueIds)
+    assertSame(originalRequest, repository.bookingRefreshRequests.single())
+    refresh.complete(repository.heldBooking())
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Held)
+  }
+
+  @Test
+  fun `waiting refresh failure publishes a fail closed booking error`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(refreshBookingError = ApiError.Transport(java.io.IOException("offline")))
+    val initial = repository.deferBooking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    initial.complete(BookingProgress.Waiting("queue-1", 3))
+    advanceUntilIdle()
+
+    viewModel.refreshBooking()
+    advanceUntilIdle()
+
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Error)
+    assertEquals(1, repository.bookingRefreshCalls)
   }
 
   @Test
@@ -577,12 +627,14 @@ private class FakeCustomerRepository(
   private val accountValue: AccountOverview = AccountOverview(true),
   var bookError: Throwable? = null,
   var discoveryError: Throwable? = null,
+  private var refreshBookingError: Throwable? = null,
   private val inquiryValue: List<SupportThread> = emptyList(),
 ) : CustomerRepository {
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
   private val rankingDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
   private val artistDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
   private val bookingDeferreds = ArrayDeque<CompletableDeferred<BookingProgress>>()
+  private val bookingRefreshDeferreds = ArrayDeque<CompletableDeferred<BookingProgress>>()
   var bookedSeatId: String? = null
   var trustCalls = 0
   var pushCalls = 0
@@ -592,11 +644,15 @@ private class FakeCustomerRepository(
   var createdInquirySubject: String? = null
   var rankingCalls = 0
   var bookCalls = 0
+  var bookingRefreshCalls = 0
   val bookingRequests = mutableListOf<BookingRequest>()
+  val bookingRefreshRequests = mutableListOf<BookingRequest>()
+  val refreshedQueueIds = mutableListOf<String>()
 
   fun deferRanking() = CompletableDeferred<List<CatalogEvent>>().also(rankingDeferreds::addLast)
   fun deferArtist() = CompletableDeferred<List<CatalogEvent>>().also(artistDeferreds::addLast)
   fun deferBooking() = CompletableDeferred<BookingProgress>().also(bookingDeferreds::addLast)
+  fun deferBookingRefresh() = CompletableDeferred<BookingProgress>().also(bookingRefreshDeferreds::addLast)
   fun heldBooking() = BookingProgress.Held(
     "seat-a1",
     "A구역 1열 1번",
@@ -633,6 +689,14 @@ private class FakeCustomerRepository(
     if (bookingDeferreds.isNotEmpty()) return bookingDeferreds.removeFirst().await()
     bookError?.let { throw it }
     bookedSeatId = request.seatId
+    return heldBooking()
+  }
+  override suspend fun refreshBooking(request: BookingRequest, entryId: String): BookingProgress {
+    bookingRefreshCalls += 1
+    bookingRefreshRequests += request
+    refreshedQueueIds += entryId
+    if (bookingRefreshDeferreds.isNotEmpty()) return bookingRefreshDeferreds.removeFirst().await()
+    refreshBookingError?.let { throw it }
     return heldBooking()
   }
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit

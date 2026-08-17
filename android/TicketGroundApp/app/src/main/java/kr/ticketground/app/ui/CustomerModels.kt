@@ -83,7 +83,7 @@ data class AccountOverview(
 }
 
 sealed interface BookingProgress {
-  data class Waiting(val position: Int) : BookingProgress
+  data class Waiting(val entryId: String, val position: Int) : BookingProgress
   data class Held(val seatId: String, val seatLabel: String, val amount: Int, val checkout: TossCheckoutRequest) : BookingProgress
   data class Expired(val message: String) : BookingProgress
   data class Conflict(val message: String) : BookingProgress
@@ -154,6 +154,8 @@ interface CustomerRepository {
   suspend fun watchlist(): List<WatchlistItem>
   suspend fun accountOverview(): AccountOverview
   suspend fun book(request: BookingRequest): BookingProgress
+  suspend fun refreshBooking(request: BookingRequest, entryId: String): BookingProgress =
+    throw ApiError.Transport(IllegalStateException("Native queue refresh is unavailable"))
   suspend fun requestCancellation(ticketId: String, reason: String)
   suspend fun listForResale(ticketId: String, price: Int)
   suspend fun addToWatchlist(eventId: String)
@@ -247,8 +249,22 @@ class TypedCustomerRepository(
 
   override suspend fun book(request: BookingRequest): BookingProgress {
     val entry = bookingApi.enterQueue(request.performanceDateId, request.operationKeys.queue)
+    return continueBookingAfterQueue(request, entry)
+  }
+
+  override suspend fun refreshBooking(request: BookingRequest, entryId: String): BookingProgress {
+    if (entryId.isBlank()) return BookingProgress.Conflict("대기 상태를 확인할 수 없습니다. 다시 시도해 주세요.")
+    val entry = bookingApi.queueEntry(entryId)
+    if (entry.id != entryId) return BookingProgress.Conflict("대기 상태가 변경되었습니다. 다시 시도해 주세요.")
+    return continueBookingAfterQueue(request, entry)
+  }
+
+  private suspend fun continueBookingAfterQueue(request: BookingRequest, entry: kr.ticketground.app.data.QueueEntry): BookingProgress {
+    if (entry.id.isBlank() || entry.performanceDateId != request.performanceDateId) {
+      return BookingProgress.Conflict("대기 상태가 변경되었습니다. 다시 시도해 주세요.")
+    }
     when (entry.status) {
-      LifecycleStatus.WAITING -> return BookingProgress.Waiting(entry.position)
+      LifecycleStatus.WAITING -> return BookingProgress.Waiting(entry.id, entry.position)
       LifecycleStatus.EXPIRED, LifecycleStatus.LEFT -> return BookingProgress.Expired("대기 입장 시간이 만료되었습니다. 다시 시도해 주세요.")
       LifecycleStatus.ADMITTED -> Unit
       else -> return BookingProgress.Conflict("대기 상태가 변경되었습니다. 좌석 상태를 다시 확인해 주세요.")
@@ -258,10 +274,17 @@ class TypedCustomerRepository(
       listOf(request.seatId),
       request.operationKeys.hold,
     )
-    if (hold.status != LifecycleStatus.ACTIVE || hold.ticketIds != listOf(request.seatId)) {
+    if (hold.status != LifecycleStatus.ACTIVE) {
       return if (hold.status == LifecycleStatus.EXPIRED || hold.status == LifecycleStatus.RELEASED) {
         BookingProgress.Expired("좌석 확보 시간이 만료되었습니다. 다시 선택해 주세요.")
       } else BookingProgress.Conflict("좌석 상태가 변경되어 확보하지 않았습니다. 다시 확인해 주세요.")
+    }
+    if (hold.ticketIds != listOf(request.seatId)) {
+      val progress = BookingProgress.Conflict("좌석 상태가 변경되어 확보하지 않았습니다. 다시 확인해 주세요.")
+      val error = BookingPreparationFailure(progress)
+      compensateBooking(hold.id, null, request.operationKeys, error)
+      if (error.suppressed.isNotEmpty()) throw error
+      return progress
     }
     val draft = try {
       bookingApi.createReservationDraft(hold.id, request.operationKeys.draft)

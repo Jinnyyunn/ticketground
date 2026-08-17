@@ -49,6 +49,38 @@ class BookingCompensationTest : ApiTestSupport() {
   }
 
   @Test
+  fun `mismatched active hold is released before returning conflict`() = runTest {
+    val bookingApi = FakeBookingApi(hold = compensationHold(ticketIds = listOf("different-ticket")))
+    val checkout = FakeCheckoutPreparer()
+    val repository = repository(bookingApi, checkout)
+
+    val result = repository.book(bookingApi.request)
+
+    assertTrue(result is BookingProgress.Conflict)
+    assertEquals(listOf("queue", "hold", "release:hold-1"), bookingApi.calls)
+    assertEquals(listOf(bookingApi.request.operationKeys.holdRelease), bookingApi.releaseKeys)
+    assertEquals(0, checkout.prepareCalls)
+  }
+
+  @Test
+  fun `mismatched active hold cleanup failure is suppressed on primary conflict`() = runTest {
+    val releaseFailure = IllegalStateException("release failed")
+    val bookingApi = FakeBookingApi(
+      hold = compensationHold(ticketIds = listOf("different-ticket")),
+      releaseFailure = releaseFailure,
+    )
+    val repository = repository(bookingApi)
+
+    val thrown = assertFails { repository.book(bookingApi.request) }
+
+    assertTrue(thrown is BookingPreparationFailure)
+    assertTrue((thrown as BookingPreparationFailure).progress is BookingProgress.Conflict)
+    assertEquals(listOf(releaseFailure), thrown.suppressed.toList())
+    assertEquals(listOf("queue", "hold", "release:hold-1"), bookingApi.calls)
+    assertEquals(listOf(bookingApi.request.operationKeys.holdRelease), bookingApi.releaseKeys)
+  }
+
+  @Test
   fun `payment prepare failure cancels the draft then releases its hold once`() = runTest {
     val primary = IllegalStateException("payment prepare failed")
     val bookingApi = FakeBookingApi()
@@ -141,6 +173,7 @@ class BookingCompensationTest : ApiTestSupport() {
 }
 
 private class FakeBookingApi(
+  private val hold: SeatHold = compensationHold(),
   private val draft: ReservationDraft = compensationDraft(),
   private val draftFailure: Throwable? = null,
   private val cancelFailure: Throwable? = null,
@@ -163,13 +196,15 @@ private class FakeBookingApi(
     )
   }
 
+  override suspend fun queueEntry(entryId: String): QueueEntry = error("not used")
+
   override suspend fun createSeatHold(
     performanceDateId: String,
     ticketIds: List<String>,
     idempotencyKey: String,
   ): SeatHold {
     calls += "hold"
-    return compensationHold()
+    return hold
   }
 
   override suspend fun releaseSeatHold(holdId: String, idempotencyKey: String): SeatHold {
@@ -211,8 +246,8 @@ private class FakeCheckoutPreparer(
   }
 }
 
-private fun compensationHold() = SeatHold(
-  "hold-1", LifecycleStatus.ACTIVE, "performance-1", listOf("ticket-1"),
+private fun compensationHold(ticketIds: List<String> = listOf("ticket-1")) = SeatHold(
+  "hold-1", LifecycleStatus.ACTIVE, "performance-1", ticketIds,
   "2099-01-01T00:00:00Z", 0,
 )
 

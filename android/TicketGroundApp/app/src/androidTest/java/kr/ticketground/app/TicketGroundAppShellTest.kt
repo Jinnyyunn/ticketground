@@ -239,14 +239,14 @@ class TicketGroundAppShellTest {
 
   @Test
   fun bookingRoute_exposesCanonicalProgressWithoutSuccessCopy() = assertCustomerRoute("booking-progress") {
-    it.openBooking(BookingProgress.Waiting(3))
+    it.openBooking(BookingProgress.Waiting("queue-1", 3))
   }
 
   @Test
   fun bookingProgress_exposesExpiredConflictAndRetryWithoutSuccessCopy() {
     var retried = 0
     var progress by mutableStateOf<BookingProgress>(BookingProgress.Expired("만료됨"))
-    composeRule.setContent { TicketGroundTheme { BookingProgressScreen(BookingProgressState(progress, false), { retried += 1 }, {}) } }
+    composeRule.setContent { TicketGroundTheme { BookingProgressScreen(BookingProgressState(progress, false), { retried += 1 }, {}, {}) } }
     composeRule.onNodeWithTag("booking-expired").assertIsDisplayed()
     composeRule.onNodeWithTag("booking-retry").performClick()
     composeRule.runOnIdle { progress = BookingProgress.Conflict("충돌") }
@@ -259,11 +259,36 @@ class TicketGroundAppShellTest {
   fun bookingProgress_disablesRetryWhileBookingIsInFlight() {
     composeRule.setContent {
       TicketGroundTheme {
-        BookingProgressScreen(BookingProgressState(BookingProgress.Error("네트워크 오류"), true), {}, {})
+        BookingProgressScreen(BookingProgressState(BookingProgress.Error("네트워크 오류"), true), {}, {}, {})
       }
     }
 
     composeRule.onNodeWithTag("booking-retry").assertIsNotEnabled()
+  }
+
+  @Test
+  fun bookingProgress_waitingRefreshIsAccessibleAndDisabledWhilePending() {
+    var refreshed = 0
+    var pending by mutableStateOf(false)
+    composeRule.setContent {
+      TicketGroundTheme {
+        BookingProgressScreen(
+          BookingProgressState(BookingProgress.Waiting("queue-1", 3), pending),
+          {},
+          { refreshed += 1 },
+          {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag("booking-refresh-queue")
+      .assertIsDisplayed()
+      .assertHasClickAction()
+      .assertHeightIsEqualTo(48.dp)
+      .performClick()
+    composeRule.runOnIdle { pending = true }
+    composeRule.onNodeWithTag("booking-refresh-queue").assertIsNotEnabled()
+    composeRule.runOnIdle { assertEquals(1, refreshed) }
   }
 
   @Test
@@ -619,7 +644,7 @@ class TicketGroundAppShellTest {
       TicketGroundTheme {
         bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
         Box(Modifier.width(390.dp).height(720.dp)) {
-          BookingProgressScreen(BookingProgressState(BookingProgress.Held("seat-1", "A구역 1열 1번", 122000, request), false), {}, {})
+          BookingProgressScreen(BookingProgressState(BookingProgress.Held("seat-1", "A구역 1열 1번", 122000, request), false), {}, {}, {})
         }
       }
     }

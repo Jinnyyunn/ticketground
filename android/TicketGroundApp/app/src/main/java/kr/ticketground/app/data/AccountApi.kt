@@ -7,6 +7,7 @@ import kotlinx.serialization.encodeToString
 
 interface BookingApi {
   suspend fun enterQueue(performanceDateId: String, idempotencyKey: String): QueueEntry
+  suspend fun queueEntry(entryId: String): QueueEntry
   suspend fun createSeatHold(performanceDateId: String, ticketIds: List<String>, idempotencyKey: String): SeatHold
   suspend fun releaseSeatHold(holdId: String, idempotencyKey: String): SeatHold
   suspend fun createReservationDraft(holdId: String, idempotencyKey: String): ReservationDraft
@@ -61,7 +62,7 @@ class AccountApi internal constructor(private val client: TicketGroundApiClient)
     QueueEntry.serializer(), BOOKING,
   )
 
-  suspend fun queueEntry(entryId: String): QueueEntry =
+  override suspend fun queueEntry(entryId: String): QueueEntry =
     read("/api/me/queue-entries/${pathSegment(entryId)}", QueueEntry.serializer(), BOOKING)
 
   suspend fun leaveQueue(entryId: String, idempotencyKey: String): QueueLeaveResult = mutationWithoutBody(

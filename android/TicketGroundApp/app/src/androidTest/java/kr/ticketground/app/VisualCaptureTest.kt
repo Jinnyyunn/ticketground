@@ -265,12 +265,23 @@ class VisualCaptureTest {
     setCapture(PhoneWidth, PhoneHeight) {
       BookingProgressScreen(
         BookingProgressState(BookingProgress.Error("네트워크 연결을 확인한 뒤 다시 시도해 주세요."), true),
-        {},
-        {},
+        {}, {}, {},
       )
     }
     composeRule.onNodeWithTag("booking-retry").assertIsNotEnabled()
     writeCapture("22-phone-booking-retry-pending.png", verifyNavigation = false)
+  }
+
+  @Test
+  fun capture23_phoneBookingWaitingRefreshPending() {
+    setCapture(PhoneWidth, PhoneHeight) {
+      BookingProgressScreen(
+        BookingProgressState(BookingProgress.Waiting("queue-1", 3), true),
+        {}, {}, {},
+      )
+    }
+    composeRule.onNodeWithTag("booking-refresh-queue").assertIsNotEnabled()
+    writeCapture("23-phone-booking-waiting-refresh-pending.png", verifyNavigation = false)
   }
 
   private fun openMyPageDestination(buttonTag: String, expectedTag: String) {

@@ -247,6 +247,35 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     performBooking { attempt.request }
   }
 
+  fun refreshBooking() {
+    val waiting = (mutableRoute.value as? CustomerRoute.Booking)?.progress as? BookingProgress.Waiting ?: return
+    val attempt = lastBookingAttempt ?: return
+    if (!mutableBookingPending.compareAndSet(expect = false, update = true)) return
+    val generation = ++bookingGeneration
+    mutableActionMessage.value = null
+    viewModelScope.launch {
+      try {
+        runCatching { repository.refreshBooking(attempt.request, waiting.entryId) }
+          .onSuccess { progress ->
+            if (generation != bookingGeneration) return@onSuccess
+            when (progress) {
+              is BookingProgress.Waiting -> openBooking(progress)
+              is BookingProgress.Held -> {
+                mutableHeldSeatIds.value = mutableHeldSeatIds.value + progress.seatId
+                openBooking(progress)
+              }
+              is BookingProgress.Expired, is BookingProgress.Conflict, is BookingProgress.Error -> openBooking(progress)
+            }
+          }
+          .onFailure {
+            if (generation == bookingGeneration) openBooking(BookingProgress.Error(safeUiMessage(it)))
+          }
+      } finally {
+        mutableBookingPending.value = false
+      }
+    }
+  }
+
   private fun performBooking(requestFactory: () -> BookingRequest) {
     if (!mutableBookingPending.compareAndSet(expect = false, update = true)) return
     val request = requestFactory()
@@ -553,6 +582,7 @@ fun TicketGroundCustomerApp(
         is CustomerRoute.Booking -> BookingProgressScreen(
           BookingProgressState(current.progress, pending),
           viewModel::retryBooking,
+          viewModel::refreshBooking,
           viewModel::continueToCheckout,
         )
         is CustomerRoute.Checkout -> {
