@@ -61,6 +61,7 @@ struct LiveTicketLifecycleRouteView: View {
     @State private var resaleIdempotencyKey = UUID().uuidString
     @State private var pushIdempotencyKey = UUID().uuidString
     @State private var poolMutationKeys: [String: String] = [:]
+    @State private var qrIssuedFeedback = 0
     private let credentialProvider = LifecycleCredentialProvider.shared
 
     var body: some View {
@@ -98,6 +99,7 @@ struct LiveTicketLifecycleRouteView: View {
         .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
             await load()
         }
+        .sensoryFeedback(.success, trigger: qrIssuedFeedback)
     }
 
     private var loginRequired: some View {
@@ -622,6 +624,7 @@ struct LiveTicketLifecycleRouteView: View {
             qrExpired = false
             admissionQR = qr
             actionMessage = "입장 QR을 안전하게 발급했습니다."
+            qrIssuedFeedback += 1
         }
     }
 

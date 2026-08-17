@@ -453,9 +453,14 @@ struct TicketgroundMediaImage: View {
     private var remoteContent: some View {
         switch phase {
         case .loading:
-            ProgressView()
-                .controlSize(.regular)
-                .tint(TicketgroundColor.accent)
+            // Skeleton placeholder shaped like the media slot itself, instead
+            // of a spinner — the surrounding ZStack already fills this frame
+            // with `TicketgroundColor.surfaceRaised`, so redacting a shape
+            // sized to the destination keeps the loading state looking like
+            // the image that is about to appear.
+            RoundedRectangle(cornerRadius: TicketgroundRadius.small)
+                .fill(TicketgroundColor.surfaceRaised)
+                .redacted(reason: .placeholder)
                 .accessibilityHidden(true)
         case .loaded(let image):
             imageView(image)

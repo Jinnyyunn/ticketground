@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Skeleton loading state shaped like the list-style content most destinations
+/// eventually render (a poster-sized block plus a couple of text lines,
+/// repeated a few times). Uses SwiftUI's built-in `.redacted(reason: .placeholder)`
+/// instead of a bare spinner so the loading state previews the destination's
+/// layout rather than just signalling "something is happening".
 struct TicketgroundLoadingSurface: View {
     let title: String
     let identifier: String
@@ -10,16 +15,35 @@ struct TicketgroundLoadingSurface: View {
     }
 
     var body: some View {
-        ZStack {
-            ProgressView()
-                .controlSize(.large)
-                .tint(TicketgroundColor.accent)
-                .accessibilityLabel(title)
-                .accessibilityIdentifier("state-loading-progress")
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+            ForEach(0..<3, id: \.self) { _ in skeletonRow }
         }
-        .frame(maxWidth: .infinity, minHeight: 240, alignment: .center)
+        .redacted(reason: .placeholder)
+        .frame(maxWidth: .infinity, minHeight: 240, alignment: .topLeading)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("state-loading-progress")
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
+    }
+
+    private var skeletonRow: some View {
+        HStack(alignment: .top, spacing: TicketgroundSpacing.md) {
+            RoundedRectangle(cornerRadius: TicketgroundRadius.medium)
+                .fill(TicketgroundColor.surfaceRaised)
+                .frame(width: 64, height: 64)
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+                RoundedRectangle(cornerRadius: TicketgroundRadius.small)
+                    .fill(TicketgroundColor.surfaceRaised)
+                    .frame(height: 14)
+                    .frame(maxWidth: .infinity)
+                RoundedRectangle(cornerRadius: TicketgroundRadius.small)
+                    .fill(TicketgroundColor.surfaceRaised)
+                    .frame(width: 140, height: 12)
+                RoundedRectangle(cornerRadius: TicketgroundRadius.small)
+                    .fill(TicketgroundColor.surfaceRaised)
+                    .frame(width: 90, height: 12)
+            }
+        }
     }
 }
 
@@ -28,11 +52,12 @@ struct TicketgroundEmptySurface: View {
     let message: String
     let actionTitle: String?
     let action: (() -> Void)?
+    var icon: String = "tray"
 
     var body: some View {
         TicketgroundSurface(tone: .muted) {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                Image(systemName: "tray")
+                Image(systemName: icon)
                     .font(.title)
                     .foregroundStyle(TicketgroundColor.inkMuted)
                     .accessibilityHidden(true)
