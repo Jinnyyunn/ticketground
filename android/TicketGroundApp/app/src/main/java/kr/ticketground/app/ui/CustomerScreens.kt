@@ -62,10 +62,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -169,11 +169,12 @@ private fun StateCard(title: String, message: String, onRetry: (() -> Unit)?) {
 
 @Composable
 private fun SurfaceCard(
+  modifier: Modifier = Modifier,
   contentPadding: PaddingValues = PaddingValues(TicketGroundSpacing.lg),
   content: @Composable ColumnScope.() -> Unit,
 ) {
   Card(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = modifier.fillMaxWidth(),
     shape = RoundedCornerShape(TicketGroundRadius.medium),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     content = { Column(Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm), content = content) },
@@ -680,12 +681,21 @@ fun WatchlistScreen(state: AsyncContent<List<WatchlistItem>>, onRetry: () -> Uni
 @Composable
 fun SupportScreen(content: HomeContent?) {
   val uriHandler = LocalUriHandler.current
-  LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
+  LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.sm), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     item { SectionTitle("고객센터") }
     item {
-      SurfaceCard(contentPadding = PaddingValues(horizontal = 0.dp, vertical = TicketGroundSpacing.sm)) {
+      SurfaceCard(
+        modifier = Modifier.testTag("support-contact-card"),
+        contentPadding = PaddingValues(TicketGroundSpacing.sm),
+      ) {
         Text("티켓그라운드 1:1 문의", style = MaterialTheme.typography.titleMedium)
-        Text("예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요.", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)))
+        Text(
+          "예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요.",
+          style = MaterialTheme.typography.bodySmall.copy(
+            localeList = LocaleList("ko-KR"),
+            lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+          ),
+        )
         Button(
           onClick = { uriHandler.openUri("https://pf.kakao.com/_xmTniX/chat") },
           modifier = Modifier.testTag("kakao-channel-chat"),
@@ -946,11 +956,20 @@ fun TrustedDeviceScreen(
   state: AsyncContent<AccountOverview>, pending: Boolean, actionMessage: String?, onRetry: () -> Unit,
   onRegister: () -> Unit, onLogin: () -> Unit,
 ) = AccountDestinationSurface("trusted-device", state, onRetry, onLogin) { account ->
-  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
-    SurfaceCard(contentPadding = PaddingValues(horizontal = 0.dp, vertical = TicketGroundSpacing.sm)) {
+  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.sm), contentAlignment = Alignment.Center) {
+    SurfaceCard(
+      modifier = Modifier.testTag("trusted-device-card"),
+      contentPadding = PaddingValues(TicketGroundSpacing.sm),
+    ) {
       SectionTitle("신뢰 기기")
       Text(if (account.trustedDevice) "이 계정에 신뢰 기기가 등록되어 있습니다." else "등록된 신뢰 기기가 없습니다.", modifier = Modifier.testTag(if (account.trustedDevice) "trusted-device-active" else "trusted-device-empty"))
-      Text("Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)))
+      Text(
+        "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.",
+        style = MaterialTheme.typography.bodySmall.copy(
+          localeList = LocaleList("ko-KR"),
+          lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+        ),
+      )
       Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("trusted-device-register")) { Text("이 기기 확인") }
       actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
@@ -962,11 +981,20 @@ fun PushNotificationsScreen(
   state: AsyncContent<AccountOverview>, pending: Boolean, actionMessage: String?, onRetry: () -> Unit,
   onRegister: () -> Unit, onLogin: () -> Unit,
 ) = AccountDestinationSurface("push-notifications", state, onRetry, onLogin) { account ->
-  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg), contentAlignment = Alignment.Center) {
-    SurfaceCard(contentPadding = PaddingValues(horizontal = 0.dp, vertical = TicketGroundSpacing.sm)) {
+  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.sm), contentAlignment = Alignment.Center) {
+    SurfaceCard(
+      modifier = Modifier.testTag("push-notifications-card"),
+      contentPadding = PaddingValues(TicketGroundSpacing.sm),
+    ) {
       SectionTitle("푸시 알림")
       Text(account.pushSuffix?.let { "FCM 등록됨 · 끝자리 $it" } ?: "푸시 알림 미등록", modifier = Modifier.testTag(if (account.pushSuffix == null) "push-empty" else "push-active"))
-      Text("알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다.", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, lineBreak = LineBreak.Paragraph))
+      Text(
+        "알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다.",
+        style = MaterialTheme.typography.bodySmall.copy(
+          localeList = LocaleList("ko-KR"),
+          lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+        ),
+      )
       Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("push-register")) { Text("알림 등록 요청") }
       actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
@@ -979,8 +1007,11 @@ fun BookingProgressScreen(
   onRetry: () -> Unit,
   onCheckout: (BookingProgress.Held) -> Unit,
 ) {
-  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.lg).testTag("booking-progress"), contentAlignment = Alignment.Center) {
-    SurfaceCard(contentPadding = PaddingValues(horizontal = 0.dp, vertical = TicketGroundSpacing.sm)) {
+  Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.sm).testTag("booking-progress"), contentAlignment = Alignment.Center) {
+    SurfaceCard(
+      modifier = Modifier.testTag("booking-progress-card"),
+      contentPadding = PaddingValues(TicketGroundSpacing.sm),
+    ) {
       when (progress) {
         is BookingProgress.Waiting -> {
           Text("예매 대기 중", style = MaterialTheme.typography.titleMedium)
@@ -990,7 +1021,13 @@ fun BookingProgressScreen(
         is BookingProgress.Held -> {
           Text("좌석 확보·예매 초안", style = MaterialTheme.typography.titleMedium)
           Text(progress.seatLabel)
-          Text("서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)))
+          Text(
+            "서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다.",
+            style = MaterialTheme.typography.bodySmall.copy(
+              localeList = LocaleList("ko-KR"),
+              lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase),
+            ),
+          )
           Button(onClick = { onCheckout(progress) }, modifier = Modifier.fillMaxWidth().testTag("booking-continue-checkout")) {
             Text("결제 확인으로 이동")
           }

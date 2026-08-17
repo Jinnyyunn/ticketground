@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.CatalogSchedule
@@ -67,6 +69,7 @@ import kr.ticketground.app.ui.PublicResaleScreen
 import kr.ticketground.app.ui.PushNotificationsScreen
 import kr.ticketground.app.ui.SupportScreen
 import kr.ticketground.app.ui.TicketGroundLayout
+import kr.ticketground.app.ui.TicketGroundSpacing
 import kr.ticketground.app.ui.BookingProgress
 import kr.ticketground.app.ui.BookingProgressScreen
 import kr.ticketground.app.ui.TicketGroundTheme
@@ -577,14 +580,17 @@ class TicketGroundAppShellTest {
   @Test
   fun supportCopy_keepsFastSubmissionPhraseTogetherAtAcceptedPhoneWidth() {
     val copy = "예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요."
+    var bodySmallFontSize = TextUnit.Unspecified
     composeRule.setContent {
       TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
         Box(Modifier.width(390.dp).height(720.dp)) { SupportScreen(null) }
       }
     }
 
     assertTextRangeOnOneLineForText(copy, "빠르게")
     assertTextLinesBreakOnSafeBoundaries(copy)
+    assertCardBodyUsesReadableTokens(copy, "support-contact-card", bodySmallFontSize)
   }
 
   @Test
@@ -594,8 +600,10 @@ class TicketGroundAppShellTest {
       "test_ck_widget", "instrumentation-payment",
     )
     val copy = "서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다."
+    var bodySmallFontSize = TextUnit.Unspecified
     composeRule.setContent {
       TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
         Box(Modifier.width(390.dp).height(720.dp)) {
           BookingProgressScreen(BookingProgress.Held("seat-1", "A구역 1열 1번", 122000, request), {}, {})
         }
@@ -604,13 +612,16 @@ class TicketGroundAppShellTest {
 
     assertTextRangeOnOneLineForText(copy, "결제")
     assertTextLinesBreakOnSafeBoundaries(copy)
+    assertCardBodyUsesReadableTokens(copy, "booking-progress-card", bodySmallFontSize)
   }
 
   @Test
   fun pushCopy_keepsNoInferencePhraseTogetherAtAcceptedPhoneWidth() {
     val copy = "알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다."
+    var bodySmallFontSize = TextUnit.Unspecified
     composeRule.setContent {
       TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
         Box(Modifier.width(390.dp).height(720.dp)) {
           PushNotificationsScreen(AsyncContent.Ready(AccountOverview(signedIn = true)), false, null, {}, {}, {})
         }
@@ -620,13 +631,16 @@ class TicketGroundAppShellTest {
     assertTextRangeOnOneLineForText(copy, "추정하지 않습니다")
     assertTextRangeOnOneLineForText(copy, "전송")
     assertTextLinesBreakOnSafeBoundaries(copy)
+    assertCardBodyUsesReadableTokens(copy, "push-notifications-card", bodySmallFontSize)
   }
 
   @Test
   fun trustedDeviceCopy_keepsCompletedConditionTogetherAtAcceptedPhoneWidth() {
     val copy = "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다."
+    var bodySmallFontSize = TextUnit.Unspecified
     composeRule.setContent {
       TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
         Box(Modifier.width(390.dp).height(720.dp)) {
           kr.ticketground.app.ui.TrustedDeviceScreen(
             AsyncContent.Ready(AccountOverview(signedIn = true, trustedDevice = true)),
@@ -642,6 +656,7 @@ class TicketGroundAppShellTest {
 
     assertTextRangeOnOneLineForText(copy, "경우에만")
     assertTextLinesBreakOnSafeBoundaries(copy)
+    assertCardBodyUsesReadableTokens(copy, "trusted-device-card", bodySmallFontSize)
   }
 
   @Test
@@ -780,6 +795,15 @@ class TicketGroundAppShellTest {
         "line $line splits Korean prose between '$previous' and '$next' in '$text'"
       }
     }
+  }
+
+  private fun assertCardBodyUsesReadableTokens(text: String, cardTag: String, bodySmallFontSize: TextUnit) {
+    val node = composeRule.onAllNodesWithText(text, useUnmergedTree = true)[0]
+    val results = mutableListOf<TextLayoutResult>()
+    node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+    assertEquals(bodySmallFontSize, results.single().layoutInput.style.fontSize)
+    composeRule.onNodeWithTag(cardTag).assertLeftPositionInRootIsEqualTo(TicketGroundSpacing.sm)
+    node.assertLeftPositionInRootIsEqualTo(TicketGroundSpacing.sm + TicketGroundSpacing.sm)
   }
 
   private fun event() = CatalogEvent(
