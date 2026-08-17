@@ -38,6 +38,15 @@ final class DiscoveryTests: XCTestCase {
         assertDiscoverable(app.buttons["discovery-ranking-more"])
         assertDiscoverable(app.buttons["discovery-open-calendar"])
         assertDiscoverable(app.buttons["shortcut-open-calendar"])
+        for identifier in [
+            "discovery-open-more",
+            "discovery-resale-pool",
+            "discovery-genre-concert",
+            "discovery-editorial-1",
+            "shortcut-resale"
+        ] {
+            assertDiscoverable(app.buttons[identifier])
+        }
         assertWithinHomeBounds(app)
 
         app.buttons["discovery-ranking-more"].tap()
@@ -50,6 +59,151 @@ final class DiscoveryTests: XCTestCase {
         app.buttons["discovery-open-calendar"].tap()
         XCTAssertTrue(app.staticTexts["2026년 7월 월별 캘린더"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["오픈 임박"].exists)
+    }
+
+    func testHomeParityDestinations() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+
+        let destinations = [
+            (control: "discovery-open-more", destination: "route-open"),
+            (control: "discovery-resale-pool", destination: "route-resale"),
+            (control: "discovery-genre-concert", destination: "route-genre-concert"),
+            (control: "discovery-editorial-1", destination: "route-queue:iu-world-tour")
+        ]
+
+        for destination in destinations {
+            let control = app.buttons[destination.control]
+            assertDiscoverable(control)
+            control.tap()
+            assertDiscoverable(app.descendants(matching: .any)[destination.destination])
+            assertDiscoverable(app.buttons["BackButton"])
+            recordScreenshot(named: destination.destination, app: app)
+            app.buttons["BackButton"].tap()
+        }
+    }
+
+    func testOpeningMoreHitTargetMeetsMinimumSize() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+
+        let openingMore = app.buttons["discovery-open-more"]
+        assertDiscoverable(openingMore)
+        XCTAssertGreaterThanOrEqual(openingMore.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(openingMore.frame.height, 44)
+    }
+
+    func testLiveHomeParityDestinationsExposePublicStableRoots() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        let destinations = [
+            (control: "discovery-resale-pool", destination: "route-resale"),
+            (control: "discovery-open-more", destination: "route-open"),
+            (control: "discovery-genre-concert", destination: "route-genre-concert"),
+            (control: "discovery-editorial-1", destination: "live-catalog-event")
+        ]
+
+        for destination in destinations {
+            let control = app.buttons[destination.control]
+            assertDiscoverable(control)
+            control.tap()
+            assertDiscoverable(anyElement(app, identifier: destination.destination))
+            assertDiscoverable(app.buttons["BackButton"])
+
+            if destination.control == "discovery-editorial-1" {
+                XCTAssertEqual(app.staticTexts["live-catalog-event"].label, "Neon Stage")
+            }
+
+            if destination.destination == "route-resale" {
+                XCTAssertTrue(app.staticTexts["공개 양도 티켓을 확인하는 화면입니다."].exists)
+                XCTAssertFalse(app.staticTexts["로그인이 필요합니다"].exists)
+                XCTAssertFalse(anyElement(app, identifier: "live-lifecycle-resale").exists)
+                XCTAssertFalse(app.buttons["lifecycle-submit-resale"].exists)
+            }
+
+            app.buttons["BackButton"].tap()
+        }
+    }
+
+    func testAuthenticatedLifecycleResaleActionRemainsOnLifecycleRoute() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-api-mode", "live",
+            "-live-lifecycle-scenario", "happy",
+            "-live-lifecycle-route", "reservation"
+        ]
+        app.launch()
+
+        let resale = app.buttons["lifecycle-open-resale"]
+        assertDiscoverable(resale)
+        resale.tap()
+        assertDiscoverable(anyElement(app, identifier: "live-lifecycle-resale"))
+        XCTAssertFalse(anyElement(app, identifier: "route-resale").exists)
+    }
+
+    func testAuthenticatedLiveMenuResaleActionOpensLifecycleRoute() {
+        let app = liveApp(homeScenario: "bookingAuthenticated")
+        app.launch()
+
+        let menu = app.buttons["header-menu"]
+        assertDiscoverable(menu)
+        menu.tap()
+        let resale = app.buttons["menu-resale"]
+        assertDiscoverable(resale)
+        resale.tap()
+        assertDiscoverable(anyElementWithIdentifierPrefix(app, prefix: "live-lifecycle-"))
+        XCTAssertTrue(app.navigationBars["공식 재판매"].exists)
+        XCTAssertFalse(anyElement(app, identifier: "route-resale").exists)
+    }
+
+    func testHomeParitySectionsFitTabletWidth() throws {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 10))
+        try XCTSkipUnless(window.frame.width >= 700, "tablet-width assertion")
+
+        for heading in ["티켓오픈 예정", "CLEAN 티켓 공식 양도", "장르별 추천", "기획전", "바로가기"] {
+            let element = app.staticTexts.matching(identifier: heading).firstMatch
+            assertDiscoverable(element)
+            XCTAssertGreaterThanOrEqual(element.frame.minX, window.frame.minX + 4, heading)
+            XCTAssertLessThanOrEqual(element.frame.maxX, window.frame.maxX - 4, heading)
+        }
+        recordScreenshot(named: "home-parity-tablet", app: app)
+    }
+
+    func testGenreRecommendationsAdaptToAvailableWidth() {
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 10))
+
+        let genreHeading = app.staticTexts.matching(identifier: "장르별 추천").firstMatch
+        for _ in 0..<8 where !genreHeading.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(genreHeading.isHittable)
+        let genreRecommendations = app.buttons["discovery-genre-concert"]
+        let firstEvent = genreRecommendations.staticTexts["IU 2026 WORLD TOUR"]
+        let secondEvent = genreRecommendations.staticTexts["SEVENTEEN TOUR"]
+        assertDiscoverable(firstEvent)
+        if window.frame.width >= 700 {
+            assertDiscoverable(secondEvent)
+            XCTAssertGreaterThanOrEqual(
+                secondEvent.frame.minX,
+                firstEvent.frame.maxX,
+                "tablet genre recommendations should use a second content column"
+            )
+        } else {
+            let firstEventMinX = firstEvent.frame.minX
+            for _ in 0..<4 where !secondEvent.exists {
+                app.swipeUp()
+            }
+            assertDiscoverable(secondEvent)
+            XCTAssertEqual(secondEvent.frame.minX, firstEventMinX, accuracy: 4)
+        }
     }
 
     func testEmptyDiscoveryFixture() {
@@ -183,7 +337,7 @@ final class DiscoveryTests: XCTestCase {
     }
 
     func testLiveHomeShowsPublicStateWhenCatalogRouteIsUnconfirmed() {
-        let app = liveApp()
+        let app = liveApp(homeScenario: "unavailable")
         app.launch()
 
         XCTAssertTrue(anyElement(app, identifier: "live-state-home").waitForExistence(timeout: 20))
@@ -448,7 +602,7 @@ final class DiscoveryTests: XCTestCase {
         region.buttons["header-menu"].tap()
         XCTAssertTrue(region.buttons["live-menu-region"].waitForExistence(timeout: 10))
         region.buttons["live-menu-region"].tap()
-        XCTAssertTrue(anyElement(region, identifier: "live-discovery-region-seoul").waitForExistence(timeout: 10))
+        XCTAssertTrue(anyElement(region, identifier: "discovery-region-seoul").waitForExistence(timeout: 10))
         XCTAssertTrue(region.staticTexts["Neon Stage"].exists)
 
         let calendar = liveApp(homeScenario: "catalog")
@@ -466,6 +620,42 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(artist.buttons["live-artist-link"].waitForExistence(timeout: 10))
         artist.buttons["live-artist-link"].tap()
         XCTAssertTrue(artist.staticTexts["Neon Artist"].waitForExistence(timeout: 10))
+    }
+
+    func testRegionDiscoveryExposesCanonicalDestination() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
+        app.buttons["header-menu"].tap()
+        XCTAssertTrue(app.buttons["live-menu-region"].waitForExistence(timeout: 10))
+        app.buttons["live-menu-region"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "discovery-region-seoul").waitForExistence(timeout: 10))
+    }
+
+    func testVenueDiscoveryOpensCanonicalDestination() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(app.buttons["discovery-venue-Live Hall"].waitForExistence(timeout: 10))
+        app.buttons["discovery-venue-Live Hall"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "route-venue-Live Hall").waitForExistence(timeout: 10))
+    }
+
+    func testArtistDiscoveryExposesCanonicalDestination() {
+        let app = liveApp(homeScenario: "catalog")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
+        app.buttons["discovery-featured-cta"].tap()
+        XCTAssertTrue(app.buttons["live-artist-link"].waitForExistence(timeout: 10))
+        app.buttons["live-artist-link"].tap()
+
+        XCTAssertTrue(anyElement(app, identifier: "discovery-artist-neon-artist").waitForExistence(timeout: 10))
     }
 
     func testLiveDiscoverySeparatesEmptyNotFoundAndServerErrorStates() {
@@ -532,14 +722,14 @@ final class DiscoveryTests: XCTestCase {
     }
 
     func testLiveAccountRouteExposesWatchlistAndSupportState() {
-        let app = liveApp()
+        let app = liveApp(homeScenario: "supportAuthenticated")
         app.launch()
         XCTAssertTrue(app.buttons["header-menu"].waitForExistence(timeout: 10))
         app.buttons["header-menu"].tap()
         XCTAssertTrue(app.staticTexts["live-menu-screen-title"].waitForExistence(timeout: 10))
         app.buttons["live-menu-account"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-account").waitForExistence(timeout: 20))
-        XCTAssertTrue(app.buttons["tab-mypage"].isSelected)
+        XCTAssertTrue(app.buttons["BackButton"].exists)
         XCTAssertTrue(app.buttons["live-mypage-watchlist"].exists)
         XCTAssertTrue(app.buttons["live-mypage-support"].exists)
         XCTAssertTrue(app.buttons["live-mypage-kakao-channel"].exists)
@@ -551,7 +741,7 @@ final class DiscoveryTests: XCTestCase {
                       || anyElement(app, identifier: "live-support-empty").exists
                       || anyElement(app, identifier: "live-support-error").exists)
 
-        let watchlistApp = liveApp()
+        let watchlistApp = liveApp(homeScenario: "watchlistAuthenticated")
         watchlistApp.launch()
         XCTAssertTrue(watchlistApp.buttons["header-menu"].waitForExistence(timeout: 10))
         watchlistApp.buttons["header-menu"].tap()
@@ -560,11 +750,11 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(watchlistApp.buttons["live-mypage-watchlist"].waitForExistence(timeout: 20))
         watchlistApp.buttons["live-mypage-watchlist"].tap()
         XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist").waitForExistence(timeout: 20))
-        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-login-required").exists || anyElement(watchlistApp, identifier: "live-watchlist-items").exists)
+        XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist-empty").exists)
     }
 
     func testLiveAccountRoutesBlockHTTPBeforeProtectedRequests() {
-        let accountApp = liveApp()
+        let accountApp = liveApp(homeScenario: "catalog")
         accountApp.launch()
         XCTAssertTrue(accountApp.buttons["header-menu"].waitForExistence(timeout: 10))
         accountApp.buttons["header-menu"].tap()
@@ -573,7 +763,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(accountApp, identifier: "live-account-https-required").waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(accountApp, identifier: "live-account-error").exists)
 
-        let watchlistApp = liveApp()
+        let watchlistApp = liveApp(homeScenario: "catalog")
         watchlistApp.launch()
         XCTAssertTrue(watchlistApp.buttons["header-menu"].waitForExistence(timeout: 10))
         watchlistApp.buttons["header-menu"].tap()
@@ -582,7 +772,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(anyElement(watchlistApp, identifier: "live-watchlist-https-required").waitForExistence(timeout: 10))
         XCTAssertFalse(anyElement(watchlistApp, identifier: "live-watchlist-error").exists)
 
-        let supportApp = liveApp()
+        let supportApp = liveApp(homeScenario: "catalog")
         supportApp.launch()
         XCTAssertTrue(supportApp.buttons["header-menu"].waitForExistence(timeout: 10))
         supportApp.buttons["header-menu"].tap()

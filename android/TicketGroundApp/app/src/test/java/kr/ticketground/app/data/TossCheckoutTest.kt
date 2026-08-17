@@ -7,14 +7,13 @@ import org.junit.Test
 
 class TossCheckoutTest {
   @Test
-  fun `unconfigured Toss fails closed before checkout is actionable`() = runTest {
+  fun `unconfigured Toss fails closed and leaves pre-handoff compensation to its owner`() = runTest {
     val gateway = FakeCheckoutGateway(configured = false)
     val coordinator = TossCheckoutCoordinator(gateway, InMemoryCheckoutRetryStore())
 
     assertEquals(CheckoutError.ProviderUnavailable, assertFails { coordinator.prepare(draft(), "A1", TossPaymentMethod.CREDIT_CARD, "stable-1") })
     assertEquals(0, gateway.confirmCalls)
-    assertEquals(1, gateway.cancelCalls)
-    assertEquals("draft-1", gateway.lastCancelledDraftId)
+    assertEquals(0, gateway.cancelCalls)
   }
 
   @Test
@@ -50,7 +49,7 @@ class TossCheckoutTest {
   }
 
   @Test
-  fun `retry continuity reuses only the non secret stable key after coordinator recreation`() = runTest {
+  fun `coordinator recreation reuses an explicit attempt key and rotates a new attempt`() = runTest {
     val gateway = FakeCheckoutGateway(configured = true)
     val persistence = InMemoryRetryPersistence()
     val first = TossCheckoutCoordinator(gateway, PersistentCheckoutRetryStore(persistence))
@@ -60,9 +59,11 @@ class TossCheckoutTest {
     )
 
     val recreated = TossCheckoutCoordinator(gateway, PersistentCheckoutRetryStore(persistence))
-    val retried = recreated.prepare(draft(), "A1", TossPaymentMethod.CREDIT_CARD, "new-unstable-key")
+    val retried = recreated.prepare(draft(), "A1", TossPaymentMethod.CREDIT_CARD, "stable-original")
+    val fresh = recreated.prepare(draft(), "A1", TossPaymentMethod.CREDIT_CARD, "stable-fresh")
 
     assertEquals("stable-original", retried.idempotencyKey)
+    assertEquals("stable-fresh", fresh.idempotencyKey)
     assertNull(persistence.string("paymentKey"))
   }
 

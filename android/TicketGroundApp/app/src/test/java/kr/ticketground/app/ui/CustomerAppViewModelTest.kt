@@ -2,9 +2,11 @@ package kr.ticketground.app.ui
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kr.ticketground.app.data.ApiError
@@ -23,8 +25,13 @@ import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.CheckoutError
 import kr.ticketground.app.data.OwnedTicket
 import kr.ticketground.app.data.AdmissionQr
+import kr.ticketground.app.data.DisplayStatus
+import kr.ticketground.app.data.SupportThread
+import kr.ticketground.app.AppDestination
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -73,10 +80,11 @@ class CustomerAppViewModelTest {
     advanceUntilIdle()
 
     assertEquals("seat-a1", repository.bookedSeatId)
-    val checkout = viewModel.route.value as CustomerRoute.Checkout
-    assertEquals("A구역 1열 1번", checkout.seatLabel)
-    assertEquals("ticket-1", checkout.request.ticketId)
-    assertEquals("client-key", checkout.request.clientKey)
+    val booking = viewModel.route.value as CustomerRoute.Booking
+    val held = booking.progress as BookingProgress.Held
+    assertEquals("A구역 1열 1번", held.seatLabel)
+    assertEquals("ticket-1", held.checkout.ticketId)
+    assertEquals("client-key", held.checkout.clientKey)
   }
 
   @Test
@@ -181,6 +189,8 @@ class CustomerAppViewModelTest {
     viewModel.selectSeat("seat-a1")
     viewModel.book(event, "performance-1")
     advanceUntilIdle()
+    val progress = (viewModel.route.value as CustomerRoute.Booking).progress as BookingProgress.Held
+    viewModel.continueToCheckout(progress)
     val request = (viewModel.route.value as CustomerRoute.Checkout).request
 
     viewModel.completeCheckout(request, TossWidgetResult.Success("provider-payment-key"))
@@ -191,7 +201,7 @@ class CustomerAppViewModelTest {
   }
 
   @Test
-  fun `missing Toss configuration remains on seat map with a fail closed message`() = runTest(dispatcher) {
+  fun `missing Toss configuration opens observable fail closed booking error`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository(bookError = CheckoutError.ProviderUnavailable)
     val viewModel = CustomerAppViewModel(repository)
     advanceUntilIdle()
@@ -203,8 +213,411 @@ class CustomerAppViewModelTest {
     viewModel.book(event, "performance-1")
     advanceUntilIdle()
 
-    assertTrue(viewModel.route.value is CustomerRoute.SeatMapRoute)
-    assertEquals("Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다.", viewModel.actionMessage.value)
+    val progress = (viewModel.route.value as CustomerRoute.Booking).progress as BookingProgress.Error
+    assertEquals("Toss Payments 설정을 확인할 수 없어 결제를 시작하지 않았습니다.", progress.message)
+  }
+
+  @Test
+  fun `ranking opens a typed ranking destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(discoveryError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.openRanking(repository.homeValue.events)
+    advanceUntilIdle()
+    assertTrue(viewModel.discovery.value is AsyncContent.Error)
+
+    repository.discoveryError = null
+    viewModel.retryDiscovery()
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Ranking, viewModel.route.value)
+    assertEquals("서울 콘서트", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+    assertEquals(2, repository.rankingCalls)
+  }
+
+  @Test
+  fun `region discovery opens a typed region destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.openRegion("서울", repository.homeValue.events)
+
+    advanceUntilIdle()
+    assertEquals(CustomerRoute.Region("서울"), viewModel.route.value)
+  }
+
+  @Test
+  fun `venue discovery opens a typed venue destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openVenue(event)
+
+    advanceUntilIdle()
+    assertEquals(CustomerRoute.Venue(event.venueId, event.venue), viewModel.route.value)
+  }
+
+  @Test
+  fun `artist discovery opens a typed artist destination`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openArtist(event)
+
+    advanceUntilIdle()
+    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty()), viewModel.route.value)
+  }
+
+  @Test
+  fun `late ranking success cannot replace newer artist discovery`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val ranking = repository.deferRanking()
+    val artist = repository.deferArtist()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openRanking(repository.homeValue.events)
+    runCurrent()
+    viewModel.openArtist(event)
+    runCurrent()
+    artist.complete(listOf(event.copy(title = "최신 아티스트 공연")))
+    runCurrent()
+    ranking.complete(listOf(event.copy(title = "오래된 랭킹 공연")))
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty()), viewModel.route.value)
+    assertEquals("최신 아티스트 공연", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+  }
+
+  @Test
+  fun `late ranking error cannot replace newer artist discovery`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val ranking = repository.deferRanking()
+    val artist = repository.deferArtist()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openRanking(repository.homeValue.events)
+    runCurrent()
+    viewModel.openArtist(event)
+    runCurrent()
+    artist.complete(listOf(event.copy(title = "최신 아티스트 공연")))
+    runCurrent()
+    ranking.completeExceptionally(ApiError.Transport(java.io.IOException("late offline")))
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Artist(event.artistSlug, event.casts.orEmpty()), viewModel.route.value)
+    assertEquals("최신 아티스트 공연", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+  }
+
+  @Test
+  fun `late initial completion cannot replace ranking retry generation`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val initial = repository.deferRanking()
+    val retry = repository.deferRanking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+
+    viewModel.openRanking(repository.homeValue.events)
+    runCurrent()
+    viewModel.retryDiscovery()
+    runCurrent()
+    retry.complete(listOf(event.copy(title = "재시도 랭킹 공연")))
+    runCurrent()
+    initial.complete(listOf(event.copy(title = "오래된 최초 공연")))
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Ranking, viewModel.route.value)
+    assertEquals("재시도 랭킹 공연", (viewModel.discovery.value as AsyncContent.Ready).value.single().title)
+  }
+
+  @Test
+  fun `booking progress opens a typed queue hold and draft destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    advanceUntilIdle()
+    val progress = BookingProgress.Waiting("queue-1", 3)
+
+    viewModel.openBooking(progress)
+
+    assertEquals(CustomerRoute.Booking(progress), viewModel.route.value)
+  }
+
+  @Test
+  fun `waiting refresh advances on observed admission and rejects a rapid duplicate`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val initial = repository.deferBooking()
+    val refresh = repository.deferBookingRefresh()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    initial.complete(BookingProgress.Waiting("queue-1", 3))
+    advanceUntilIdle()
+    val originalRequest = repository.bookingRequests.single()
+
+    viewModel.refreshBooking()
+    assertTrue(viewModel.bookingPending.value)
+    viewModel.refreshBooking()
+    runCurrent()
+
+    assertEquals(1, repository.bookingRefreshCalls)
+    assertEquals(listOf("queue-1"), repository.refreshedQueueIds)
+    assertSame(originalRequest, repository.bookingRefreshRequests.single())
+    refresh.complete(repository.heldBooking())
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Held)
+  }
+
+  @Test
+  fun `waiting refresh failure publishes a fail closed booking error`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(refreshBookingError = ApiError.Transport(java.io.IOException("offline")))
+    val initial = repository.deferBooking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    initial.complete(BookingProgress.Waiting("queue-1", 3))
+    advanceUntilIdle()
+
+    viewModel.refreshBooking()
+    advanceUntilIdle()
+
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Error)
+    assertEquals(1, repository.bookingRefreshCalls)
+  }
+
+  @Test
+  fun `booking failure is observable and retry never fabricates success`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Error)
+
+    repository.bookError = null
+    viewModel.retryBooking()
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Held)
+    assertEquals(2, repository.bookCalls)
+  }
+
+  @Test
+  fun `rapid repeated booking retry is a no-op and preserves the admitted request`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    val admittedRequest = repository.bookingRequests.single()
+    repository.bookError = null
+    val retry = repository.deferBooking()
+
+    viewModel.retryBooking()
+    assertTrue(viewModel.bookingPending.value)
+    viewModel.retryBooking()
+    runCurrent()
+
+    assertEquals(2, repository.bookCalls)
+    assertEquals(2, repository.bookingRequests.size)
+    assertSame(admittedRequest, repository.bookingRequests[1])
+    retry.completeExceptionally(ApiError.Transport(java.io.IOException("still offline")))
+    advanceUntilIdle()
+    assertTrue(!viewModel.bookingPending.value)
+
+    viewModel.retryBooking()
+    advanceUntilIdle()
+
+    assertEquals(3, repository.bookCalls)
+    assertSame(admittedRequest, repository.bookingRequests[2])
+  }
+
+  @Test
+  fun `rapid repeated initial booking preserves the admitted request through retry`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val firstBooking = repository.deferBooking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    viewModel.book(event, "performance-1")
+    runCurrent()
+
+    assertTrue(viewModel.bookingPending.value)
+    assertEquals(1, repository.bookCalls)
+    assertEquals(1, repository.bookingRequests.size)
+    val admittedRequest = repository.bookingRequests.single()
+
+    firstBooking.completeExceptionally(ApiError.Transport(java.io.IOException("offline")))
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Error)
+
+    viewModel.retryBooking()
+    advanceUntilIdle()
+
+    assertEquals(2, repository.bookCalls)
+    assertSame(admittedRequest, repository.bookingRequests[1])
+    assertSame(admittedRequest.operationKeys, repository.bookingRequests[1].operationKeys)
+  }
+
+  @Test
+  fun `retry reuses the same booking operation identities`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.retryBooking()
+    advanceUntilIdle()
+
+    assertSame(repository.bookingRequests[0].operationKeys, repository.bookingRequests[1].operationKeys)
+  }
+
+  @Test
+  fun `new booking attempt creates fresh operation identities for the same seat`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+    viewModel.book(event, "performance-1")
+    advanceUntilIdle()
+
+    assertNotSame(repository.bookingRequests[0].operationKeys, repository.bookingRequests[1].operationKeys)
+  }
+
+  @Test
+  fun `late booking completion cannot reopen a route the user closed`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val booking = repository.deferBooking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    runCurrent()
+    viewModel.closeRoute()
+    booking.complete(repository.heldBooking())
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Tab, viewModel.route.value)
+    assertTrue(!viewModel.bookingPending.value)
+  }
+
+  @Test
+  fun `reservation detail opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openReservation()
+    assertEquals(CustomerRoute.Reservation, viewModel.route.value)
+  }
+
+  @Test
+  fun `cancellation request opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openCancellation()
+    assertEquals(CustomerRoute.Cancellation, viewModel.route.value)
+  }
+
+  @Test
+  fun `official resale lifecycle opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openResaleLifecycle()
+    assertEquals(CustomerRoute.ResaleLifecycle, viewModel.route.value)
+  }
+
+  @Test
+  fun `trusted device opens a typed fail closed destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openTrustedDevice()
+    assertEquals(CustomerRoute.TrustedDevice, viewModel.route.value)
+  }
+
+  @Test
+  fun `push notifications open a typed fail closed destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openPushNotifications()
+    assertEquals(CustomerRoute.PushNotifications, viewModel.route.value)
+  }
+
+  @Test
+  fun `inquiry opens a typed principal destination`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+    viewModel.openInquiry()
+    assertEquals(CustomerRoute.Inquiry, viewModel.route.value)
+  }
+
+  @Test
+  fun `closing a tab destination restores home instead of exiting the activity`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository())
+
+    viewModel.navigate(AppDestination.Search)
+    viewModel.closeRoute()
+
+    assertEquals(AppDestination.Home, viewModel.destination.value)
+    assertEquals(CustomerRoute.Tab, viewModel.route.value)
+  }
+
+  @Test
+  fun `inquiry loads history and publishes only the server created thread`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(
+      inquiryValue = listOf(supportThread("thread-old", "기존 문의")),
+    )
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.openInquiry()
+    advanceUntilIdle()
+    assertEquals("기존 문의", (viewModel.inquiries.value as AsyncContent.Ready).value.single().subject)
+
+    viewModel.submitInquiry("새 문의", "서버에서 확인해 주세요.")
+    advanceUntilIdle()
+
+    assertEquals("새 문의", repository.createdInquirySubject)
+    assertEquals("새 문의", (viewModel.inquiries.value as AsyncContent.Ready).value.first().subject)
   }
 }
 
@@ -212,33 +625,88 @@ private class FakeCustomerRepository(
   var homeError: Throwable? = null,
   private val accountError: Throwable? = null,
   private val accountValue: AccountOverview = AccountOverview(true),
-  private val bookError: Throwable? = null,
+  var bookError: Throwable? = null,
+  var discoveryError: Throwable? = null,
+  private var refreshBookingError: Throwable? = null,
+  private val inquiryValue: List<SupportThread> = emptyList(),
 ) : CustomerRepository {
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
+  private val rankingDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
+  private val artistDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
+  private val bookingDeferreds = ArrayDeque<CompletableDeferred<BookingProgress>>()
+  private val bookingRefreshDeferreds = ArrayDeque<CompletableDeferred<BookingProgress>>()
   var bookedSeatId: String? = null
   var trustCalls = 0
   var pushCalls = 0
   var qrTicketId: String? = null
   var completedPaymentKey: String? = null
   var watchlistedEventId: String? = null
+  var createdInquirySubject: String? = null
+  var rankingCalls = 0
+  var bookCalls = 0
+  var bookingRefreshCalls = 0
+  val bookingRequests = mutableListOf<BookingRequest>()
+  val bookingRefreshRequests = mutableListOf<BookingRequest>()
+  val refreshedQueueIds = mutableListOf<String>()
+
+  fun deferRanking() = CompletableDeferred<List<CatalogEvent>>().also(rankingDeferreds::addLast)
+  fun deferArtist() = CompletableDeferred<List<CatalogEvent>>().also(artistDeferreds::addLast)
+  fun deferBooking() = CompletableDeferred<BookingProgress>().also(bookingDeferreds::addLast)
+  fun deferBookingRefresh() = CompletableDeferred<BookingProgress>().also(bookingRefreshDeferreds::addLast)
+  fun heldBooking() = BookingProgress.Held(
+    "seat-a1",
+    "A구역 1열 1번",
+    120_000,
+    TossCheckoutRequest(
+      "draft-1", "ticket-1", "A구역 1열 1번", 122_000,
+      TossPaymentMethod.CREDIT_CARD, "client-key", "payment-key",
+    ),
+  )
 
   override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
+  override suspend fun ranking(): List<CatalogEvent> {
+    rankingCalls += 1
+    if (rankingDeferreds.isNotEmpty()) return rankingDeferreds.removeFirst().await()
+    discoveryError?.let { throw it }
+    return homeValue.events
+  }
+  override suspend fun region(name: String): List<CatalogEvent> = discovery()
+  override suspend fun venue(venueId: String?, venueName: String): List<CatalogEvent> = discovery()
+  override suspend fun artist(artistSlug: String?, artistNames: List<String>): List<CatalogEvent> {
+    if (artistDeferreds.isNotEmpty()) return artistDeferreds.removeFirst().await()
+    return discovery()
+  }
+  private fun discovery(): List<CatalogEvent> {
+    discoveryError?.let { throw it }
+    return homeValue.events
+  }
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = seatMapFixture()
   override suspend fun watchlist(): List<WatchlistItem> = emptyList()
   override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: accountValue
-  override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress {
+  override suspend fun book(request: BookingRequest): BookingProgress {
+    bookCalls += 1
+    bookingRequests += request
+    if (bookingDeferreds.isNotEmpty()) return bookingDeferreds.removeFirst().await()
     bookError?.let { throw it }
-    bookedSeatId = seatId
-    return BookingProgress.Held(
-      seatId,
-      seatLabel,
-      amount,
-      TossCheckoutRequest("draft-1", "ticket-1", seatLabel, amount + 2_000, TossPaymentMethod.CREDIT_CARD, "client-key", "payment-key"),
-    )
+    bookedSeatId = request.seatId
+    return heldBooking()
+  }
+  override suspend fun refreshBooking(request: BookingRequest, entryId: String): BookingProgress {
+    bookingRefreshCalls += 1
+    bookingRefreshRequests += request
+    refreshedQueueIds += entryId
+    if (bookingRefreshDeferreds.isNotEmpty()) return bookingRefreshDeferreds.removeFirst().await()
+    refreshBookingError?.let { throw it }
+    return heldBooking()
   }
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
   override suspend fun addToWatchlist(eventId: String) { watchlistedEventId = eventId }
+  override suspend fun supportThreads(): List<SupportThread> = inquiryValue
+  override suspend fun createSupportThread(subject: String, message: String): SupportThread {
+    createdInquirySubject = subject
+    return supportThread("thread-new", subject)
+  }
   override suspend fun trustThisDevice() { trustCalls += 1 }
   override suspend fun registerPush() { pushCalls += 1 }
   override suspend fun issueAdmissionQr(ticketId: String): AdmissionQr {
@@ -258,7 +726,15 @@ private class FakeCustomerRepository(
     )
   }
 
-  private fun event() = CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)
+  private fun event() = CatalogEvent(
+    id = "event-1",
+    title = "서울 콘서트",
+    venueId = "venue-1",
+    venue = "잠실주경기장",
+    artistSlug = "artist-1",
+    casts = listOf("테스트 아티스트"),
+    soldCount = 42,
+  )
 
   private fun admissionQr(ticketId: String) = AdmissionQr(
     "ADMISSION", ticketId, "account-1", "2099-01-01T00:00:00Z", "nonce", "signature",
@@ -283,6 +759,14 @@ private class FakeCustomerRepository(
     ),
   )
 }
+
+private fun supportThread(id: String, subject: String) = SupportThread(
+  id = id,
+  subject = subject,
+  status = DisplayStatus.OPEN,
+  updatedAt = "2026-08-17T00:00:00Z",
+  messages = emptyList(),
+)
 
 private fun accountOverview(twoTickets: Boolean = false): AccountOverview = AccountOverview(
   signedIn = true,

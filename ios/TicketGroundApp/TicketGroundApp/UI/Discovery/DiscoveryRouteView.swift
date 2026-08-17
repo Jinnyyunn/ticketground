@@ -31,6 +31,12 @@ struct DiscoveryRouteView: View {
             } else {
                 TicketgroundLoadingSurface(title: "오픈 캘린더를 불러오는 중")
             }
+        case .resale:
+            DiscoveryPublicResaleView()
+        case .genre(let name):
+            DiscoveryGenreDestinationView(name: name, content: content)
+        case .event(let slug):
+            DiscoveryEditorialDestinationView(slug: slug)
         default:
             VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
                 Text("이동한 화면")
@@ -693,6 +699,121 @@ struct DiscoveryOpenCalendarView: View {
         }
         .navigationTitle("오픈 캘린더")
         .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("route-open")
+    }
+}
+
+private struct DiscoveryPublicResaleView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text("CLEAN TICKET POOL")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                Text("CLEAN 티켓 공식 양도")
+                    .font(.title.weight(.black))
+                    .foregroundStyle(TicketgroundColor.ink)
+                Text("정가 범위와 구매 이력 검증을 통과한 티켓을 공식 풀에서 확인할 수 있습니다.")
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+                TicketgroundEmptySurface(
+                    title: "공개 양도 티켓을 확인하는 화면입니다.",
+                    message: "등록·취소 등 보유 티켓 변경은 로그인한 예매 내역에서만 진행됩니다.",
+                    actionTitle: nil,
+                    action: nil
+                )
+            }
+            .padding(TicketgroundSpacing.xl)
+        }
+        .navigationTitle("공식 재판매")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("route-resale")
+    }
+}
+
+private struct DiscoveryGenreDestinationView: View {
+    let name: String
+    let content: DiscoveryContent?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+                Text("장르별 추천")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                Text(displayName)
+                    .font(.title.weight(.black))
+                    .foregroundStyle(TicketgroundColor.ink)
+                if let rankings = content?.rankings, !rankings.isEmpty {
+                    ForEach(rankings.prefix(10), id: \.rank) { ranking in
+                        NavigationLink(value: ranking.route) {
+                            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                                Text(ranking.title)
+                                    .font(.headline.weight(.black))
+                                    .foregroundStyle(TicketgroundColor.ink)
+                                Text("\(ranking.venue) · \(ranking.date)")
+                                    .font(.caption)
+                                    .foregroundStyle(TicketgroundColor.inkMuted)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                            .padding(TicketgroundSpacing.md)
+                            .background(TicketgroundColor.surfaceMuted)
+                            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    TicketgroundEmptySurface(
+                        title: "\(displayName) 공연을 준비 중입니다.",
+                        message: "새로운 공연이 등록되면 이곳에 표시됩니다.",
+                        actionTitle: nil,
+                        action: nil
+                    )
+                }
+            }
+            .padding(TicketgroundSpacing.xl)
+        }
+        .navigationTitle(displayName)
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("route-genre-\(name)")
+    }
+
+    private var displayName: String {
+        switch name {
+        case "concert": return "콘서트"
+        case "musical": return "뮤지컬"
+        case "play": return "연극"
+        case "classic": return "클래식"
+        case "exhibition": return "전시"
+        case "child": return "아동"
+        case "sports": return "스포츠"
+        default: return name
+        }
+    }
+}
+
+private struct DiscoveryEditorialDestinationView: View {
+    let slug: String
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text("EDITORIAL")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                Text("Ticketground 기획전")
+                    .font(.title.weight(.black))
+                    .foregroundStyle(TicketgroundColor.ink)
+                Text("지금 봐야 할 공연을 에디터가 엄선해 소개합니다.")
+                    .font(.body)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(TicketgroundSpacing.xl)
+        }
+        .navigationTitle("기획전")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("route-event-\(slug)")
     }
 }
 
@@ -840,28 +961,59 @@ private struct LiveDiscoveryRouteView: View {
             LiveAccountRouteView()
         case .capabilityLedger:
             CapabilityLedgerView()
-        case .search, .ranking, .genre, .place, .event, .goods:
+        case .search, .ranking, .goods:
             catalogBody
+        case .place(let slug):
+            catalogBody
+                .accessibilityIdentifier("route-venue-\(slug ?? "index")")
+        case .genre(let name):
+            catalogBody
+                .accessibilityIdentifier("route-genre-\(name)")
+        case .event(let slug):
+            catalogBody
+                .accessibilityIdentifier("route-event-\(slug)")
         case .seatMap, .queue, .booking:
             LiveSeatMapRouteView(route: route)
         case .watchlist:
             LiveWatchlistRouteView()
         case .help, .inquiry:
             LiveSupportRouteView(route: route)
-        case .region, .artist, .open:
+        case .region, .artist:
             LiveDiscoveryContractView(route: route)
+        case .open:
+            LiveDiscoveryContractView(route: route)
+                .accessibilityIdentifier("route-open")
         case .checkout(let ticketId):
             LiveCheckoutRouteView(ticketId: ticketId)
         case .reservation(let id):
-            LiveTicketLifecycleRouteView(destination: .reservation(id: id))
+            LiveTicketLifecycleRouteView(
+                destination: RuntimeConfiguration.liveLifecycleTestConfiguration?.destination ?? .reservation(id: id)
+            )
         case .cancel:
             LiveTicketLifecycleRouteView(destination: .cancellation)
         case .resale:
-            LiveTicketLifecycleRouteView(destination: .resale)
+            if isLifecycleResaleRoute {
+                LiveTicketLifecycleRouteView(destination: .resale)
+            } else {
+                DiscoveryPublicResaleView()
+            }
         case .signup, .transfer:
             LiveUnsupportedRouteView(route: route)
         default:
             LiveUnsupportedRouteView(route: route)
+        }
+    }
+
+    private var isLifecycleResaleRoute: Bool {
+        if RuntimeConfiguration.liveLifecycleTestConfiguration != nil {
+            return true
+        }
+        guard container.navigationPath.count >= 2 else { return false }
+        switch container.navigationPath[container.navigationPath.count - 2] {
+        case .reservation, .menu:
+            return true
+        default:
+            return false
         }
     }
 
@@ -1204,6 +1356,10 @@ private struct LiveMenuRouteView: View {
                     liveMenuLink(title: "티켓오픈 캘린더", icon: "calendar", route: .open, identifier: "live-menu-open-calendar")
                 }
 
+                menuSection(title: "티켓 서비스", detail: "예매한 티켓의 공식 양도를 관리하세요") {
+                    liveMenuLink(title: "티켓 양도", icon: "arrow.left.arrow.right", route: .resale, identifier: "menu-resale")
+                }
+
                 menuSection(title: "카테고리", detail: "관심 있는 공연을 찾아보세요") {
                     ForEach(categories) { category in
                         liveMenuLink(title: category.title, icon: category.icon, route: category.route, identifier: category.id)
@@ -1403,9 +1559,13 @@ private struct LiveCatalogDetailView: View {
                     .font(.title.weight(.black))
                     .foregroundStyle(TicketgroundColor.ink)
                     .accessibilityIdentifier("live-catalog-event")
-                Text(event.venue)
-                    .font(.headline)
-                    .foregroundStyle(TicketgroundColor.inkSecondary)
+                let venueRoute = event.venueID ?? event.venue
+                NavigationLink(value: AppRoute.place(slug: venueRoute)) {
+                        Label(event.venue, systemImage: "building.columns")
+                            .font(.headline)
+                            .foregroundStyle(TicketgroundColor.inkSecondary)
+                }
+                .accessibilityIdentifier("discovery-venue-\(venueRoute)")
                 Text(event.period ?? event.date ?? "일정 미정")
                     .font(.subheadline)
                     .foregroundStyle(TicketgroundColor.inkMuted)

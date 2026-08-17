@@ -35,6 +35,9 @@ object TicketGroundRadius {
 object TicketGroundLayout {
   val expandedBreakpoint = 600.dp
   val detailPaneWidth = 360.dp
+  val homeEditorialCardWidth = 260.dp
+  val homeOpeningCardWidth = 230.dp
+  val homeGenrePosterHeight = 176.dp
   val minimumTouchTarget = 48.dp
   val minimumSeatMarker = 16.dp
   val maximumSeatMarker = 60.dp

@@ -69,7 +69,7 @@ struct LiveDiscoveryContractView: View {
                                     eventRow(event)
                                 }
                             }
-                            .accessibilityIdentifier("live-discovery-region-\(region.slug)")
+                            .accessibilityIdentifier("discovery-region-\(region.slug)")
                         }
                     }
                     .padding(TicketgroundSpacing.xl)
@@ -82,7 +82,7 @@ struct LiveDiscoveryContractView: View {
                 eventList(
                     heading: discovery.artist.name,
                     events: discovery.events,
-                    identifier: "live-discovery-artist-\(discovery.artist.slug)"
+                    identifier: "discovery-artist-\(discovery.artist.slug)"
                 )
             }
         case .openCalendar(let entries):
@@ -116,6 +116,7 @@ struct LiveDiscoveryContractView: View {
             LazyVStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                 Text(heading)
                     .font(.title2.weight(.black))
+                    .accessibilityIdentifier(identifier)
                 ForEach(events, id: \.id) { event in
                     eventRow(event)
                 }

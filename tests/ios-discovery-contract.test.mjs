@@ -8,6 +8,82 @@ async function source(path) {
   return readFile(new URL(path, root), "utf8");
 }
 
+function extractSwiftBlock(sourceText, marker) {
+  const markerStart = sourceText.indexOf(marker);
+  assert.notEqual(markerStart, -1, `Missing Swift source marker: ${marker}`);
+  const openBrace = sourceText.indexOf("{", markerStart);
+  assert.notEqual(openBrace, -1, `Missing Swift block for: ${marker}`);
+
+  let depth = 0;
+  let inString = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  for (let index = openBrace; index < sourceText.length; index += 1) {
+    const character = sourceText[index];
+    const nextCharacter = sourceText[index + 1];
+    if (inLineComment) {
+      if (character === "\n") inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (character === "*" && nextCharacter === "/") {
+        inBlockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (!inString && character === "/" && nextCharacter === "/") {
+      inLineComment = true;
+      index += 1;
+      continue;
+    }
+    if (!inString && character === "/" && nextCharacter === "*") {
+      inBlockComment = true;
+      index += 1;
+      continue;
+    }
+    if (character === '"') {
+      if (inString && sourceText[index - 1] === "\\") continue;
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (character === "{") depth += 1;
+    if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return sourceText.slice(openBrace + 1, index);
+    }
+  }
+  assert.fail(`Unclosed Swift block for: ${marker}`);
+}
+
+function normalizedSwift(sourceText) {
+  return sourceText.replace(/\/\/[^\r\n]*/g, "").replace(/\s+/g, " ").trim();
+}
+
+function extractSwiftSwitchBody(sourceText) {
+  return extractSwiftBlock(sourceText, "switch route");
+}
+
+function extractSwiftCase(switchBody, labelPattern) {
+  const normalized = normalizedSwift(switchBody);
+  const caseMatches = [
+    ...normalized.matchAll(/(?:^|\s)(case\s+([^:]+):|default\s*:)/g)
+  ];
+  const matchIndex = caseMatches.findIndex((match) => {
+    const label = match[1].startsWith("case")
+      ? match[2].trim()
+      : "default";
+    return labelPattern.test(label);
+  });
+  assert.notEqual(matchIndex, -1, `Missing Swift route case: ${labelPattern}`);
+  const match = caseMatches[matchIndex];
+  const nextMatch = caseMatches[matchIndex + 1];
+  const bodyStart = match.index + match[0].length;
+  const bodyEnd = nextMatch?.index ?? normalized.length;
+  return normalized.slice(bodyStart, bodyEnd).trim();
+}
+
 test("native discovery service declares typed versioned public endpoints", async () => {
   const [models, service] = await Promise.all([
     source("ios/TicketGroundApp/TicketGroundApp/Models/LiveBackendModels.swift"),
@@ -36,7 +112,47 @@ test("native region artist and open routes use the public discovery contract vie
   ]);
 
   assert.match(environment, /case \.region, \.artist, \.open:[\s\S]*?connectivity: \.publicRead/);
-  assert.match(routeView, /case \.region, \.artist, \.open:[\s\S]*?LiveDiscoveryContractView\(route: route\)/);
+
+  const fixtureSwitch = extractSwiftSwitchBody(
+    extractSwiftBlock(routeView, "private var fixtureBody: some View")
+  );
+  const fixtureOpen = extractSwiftCase(fixtureSwitch, /\.open\b/);
+  assert.match(fixtureOpen, /DiscoveryOpenCalendarView\(content: content\)/);
+  assert.doesNotMatch(fixtureOpen, /이동한 화면/);
+  const fixtureEvent = extractSwiftCase(fixtureSwitch, /\.event\b/);
+  assert.match(fixtureEvent, /DiscoveryEditorialDestinationView\(slug: slug\)/);
+  assert.doesNotMatch(fixtureEvent, /이동한 화면/);
+
+  const liveRouteSwitch = extractSwiftSwitchBody(
+    extractSwiftBlock(routeView, "private struct LiveDiscoveryRouteView: View")
+  );
+  const liveOpen = extractSwiftCase(liveRouteSwitch, /\.open\b/);
+  assert.match(liveOpen, /LiveDiscoveryContractView\(route: route\)/);
+  assert.match(liveOpen, /route-open/);
+  const liveEvent = extractSwiftCase(liveRouteSwitch, /\.event\b/);
+  assert.match(liveEvent, /catalogBody/);
+  assert.match(liveEvent, /route-event-\\\(slug\)/);
+  const liveGoods = extractSwiftCase(liveRouteSwitch, /\.goods\b/);
+  assert.match(liveGoods, /catalogBody/);
+
+  const catalogView = extractSwiftBlock(
+    routeView,
+    "private func catalogView(_ catalog: LiveCatalog)"
+  );
+  assert.match(catalogView, /events\(for: route, in: catalog, searchQuery: submittedSearchQuery\)/);
+  assert.match(catalogView, /if isDetailRoute, let event = events\.first/);
+  const detailRoutes = normalizedSwift(
+    extractSwiftBlock(routeView, "private var isDetailRoute: Bool")
+  );
+  assert.match(detailRoutes, /case \.event, \.goods: return true/);
+  const eventSelection = extractSwiftBlock(
+    routeView,
+    "private func events(for route: AppRoute, in catalog: LiveCatalog, searchQuery: String)"
+  );
+  assert.match(
+    normalizedSwift(eventSelection),
+    /case \.event\(let slug\), \.goods\(let slug\): return LiveCatalogRouteMatcher\.detailEvents\(slug: slug, in: catalog\)/
+  );
   assert.match(project, /LiveDiscoveryContractView\.swift/);
 });
 

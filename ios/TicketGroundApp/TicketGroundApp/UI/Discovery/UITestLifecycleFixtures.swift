@@ -1,7 +1,11 @@
 import Foundation
 
 struct LifecycleDeviceCredential { let deviceID: String; let token: String; let attestation: String }
-struct UITestLifecycleConfiguration { let scenario: UITestLifecycleScenario; let route: AppRoute }
+struct UITestLifecycleConfiguration {
+    let scenario: UITestLifecycleScenario
+    let route: AppRoute
+    let destination: LiveLifecycleDestination
+}
 enum UITestLifecycleScenario: String { case happy, signedOut = "signed-out", unavailable, expiredQR = "expired-qr", serverError = "server-error" }
 
 extension RuntimeConfiguration {
@@ -12,8 +16,17 @@ extension RuntimeConfiguration {
     static var liveLifecycleTestConfiguration: UITestLifecycleConfiguration? {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("-ui-testing"), let scenarioIndex = arguments.firstIndex(of: "-live-lifecycle-scenario"), arguments.indices.contains(scenarioIndex + 1), let routeIndex = arguments.firstIndex(of: "-live-lifecycle-route"), arguments.indices.contains(routeIndex + 1), let scenario = UITestLifecycleScenario(rawValue: arguments[scenarioIndex + 1]) else { return nil }
-        let route: AppRoute = switch arguments[routeIndex + 1] { case "cancel": .cancel; case "resale": .resale; default: .reservation(id: UITestLifecycleAPIClient.ticketID) }
-        return UITestLifecycleConfiguration(scenario: scenario, route: route)
+        let selected = arguments[routeIndex + 1]
+        let route: AppRoute = switch selected { case "cancel": .cancel; case "resale": .resale; default: .reservation(id: UITestLifecycleAPIClient.ticketID) }
+        let destination: LiveLifecycleDestination = switch selected {
+        case "cancel": .cancellation
+        case "resale": .resale
+        case "trusted-device": .trustedDevice
+        case "push-notifications": .pushNotifications
+        case "admission-qr": .admissionQR(ticketID: UITestLifecycleAPIClient.ticketID)
+        default: .reservation(id: UITestLifecycleAPIClient.ticketID)
+        }
+        return UITestLifecycleConfiguration(scenario: scenario, route: route, destination: destination)
     }
 }
 

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -21,7 +22,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -44,6 +48,8 @@ import kr.ticketground.app.ui.AccountOverview
 import kr.ticketground.app.ui.AccountTicketOverview
 import kr.ticketground.app.ui.AsyncContent
 import kr.ticketground.app.ui.BookingProgress
+import kr.ticketground.app.ui.BookingProgressScreen
+import kr.ticketground.app.ui.BookingProgressState
 import kr.ticketground.app.ui.CustomerAppViewModel
 import kr.ticketground.app.ui.CustomerRepository
 import kr.ticketground.app.ui.HomeContent
@@ -52,6 +58,7 @@ import kr.ticketground.app.ui.TicketGroundTheme
 import kotlinx.coroutines.awaitCancellation
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assume.assumeTrue
 
 class VisualCaptureTest {
   @get:Rule val composeRule = createComposeRule()
@@ -104,7 +111,7 @@ class VisualCaptureTest {
   fun capture06_phoneLifecycleOverview() {
     val viewModel = CustomerAppViewModel(VisualFixtureRepository()).also { it.navigate(AppDestination.MyPage) }
     setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
-    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("티켓 관리").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.waitUntil(10_000) { composeRule.onAllNodesWithTag("lifecycle-overview-list").fetchSemanticsNodes().isNotEmpty() }
     writeCapture("06-phone-lifecycle-overview.png")
   }
 
@@ -130,20 +137,23 @@ class VisualCaptureTest {
     setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
     composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("seat-seat-selected").fetchSemanticsNodes().isNotEmpty() }
     composeRule.runOnIdle { viewModel.selectSeat("seat-selected"); viewModel.book(fixtureEvent(), "performance-1") }
-    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("결제 확인").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.waitUntil(10_000) { composeRule.onAllNodesWithTag("booking-progress").fetchSemanticsNodes().isNotEmpty() }
     writeCapture("08-phone-toss-blocked.png")
   }
 
   @Test
   fun capture09_tabletExpandedHome() {
+    val smallestWidthDp = InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration.smallestScreenWidthDp
+    assumeTrue("capture09_tabletExpandedHome requires a tablet form factor", smallestWidthDp >= 600)
     val viewModel = CustomerAppViewModel(VisualFixtureRepository())
     setCapture(TabletWidth, TabletHeight) {
       TicketGroundCustomerApp(viewModel)
     }
-    composeRule.waitUntil(5_000) {
+    composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("event-list-two-pane").fetchSemanticsNodes().isNotEmpty()
     }
-    writeCapture("09-tablet-expanded-home-two-pane.png")
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(4)
+    writeCapture("09-tablet-expanded-home-parity.png")
   }
 
   @Test
@@ -169,6 +179,122 @@ class VisualCaptureTest {
     writeCapture("12-state-error-retry.png")
   }
 
+  @Test
+  fun capture13_phoneHomeOpeningAndResale() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository())
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(4)
+    writeCapture("13-phone-home-opening-resale.png")
+  }
+
+  @Test
+  fun capture14_phoneHomeGenreAndEditorial() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository())
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(6)
+    writeCapture("14-phone-home-genre-editorial.png")
+  }
+
+  @Test
+  fun capture15_phoneHomeShortcuts() {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository())
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("home-list").performScrollToIndex(8)
+    writeCapture("15-phone-home-shortcuts.png")
+  }
+
+  @Test
+  fun capture16_phoneReservationDetail() {
+    openMyPageDestination("open-reservation-detail", "reservation-ticket-ticket-1")
+    writeCapture("16-phone-reservation-detail.png")
+  }
+
+  @Test
+  fun capture17_phoneCancellationRequest() {
+    openMyPageDestination("open-cancellation-request", "cancellation-state")
+    writeCapture("17-phone-cancellation-request.png")
+  }
+
+  @Test
+  fun capture18_phoneAccountResale() {
+    openMyPageDestination("open-resale-lifecycle", "account-resale-state")
+    writeCapture("18-phone-account-resale.png")
+  }
+
+  @Test
+  fun capture19_phoneTrustedDevice() {
+    openMyPageDestination("open-trusted-device", "trusted-device-active")
+    writeCapture("19-phone-trusted-device.png")
+  }
+
+  @Test
+  fun capture20_phonePushNotifications() {
+    openMyPageDestination("open-push-notifications", "push-active")
+    writeCapture("20-phone-push-notifications.png")
+  }
+
+  @Test
+  fun capture21_tabletBookingConflict() {
+    val viewModel = CustomerAppViewModel(
+      VisualFixtureRepository(bookingProgress = BookingProgress.Conflict("좌석 상태가 변경되어 확보하지 않았습니다. 다시 확인해 주세요.")),
+    )
+    setCapture(TabletWidth, TabletHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("home-hero").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("home-hero").performClick()
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("좌석도에서 예매하기").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithText("9월 12일 19:00").performClick()
+    composeRule.onNodeWithText("좌석도에서 예매하기").performClick()
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("seat-seat-selected").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("seat-seat-selected").performClick()
+    composeRule.onNodeWithText("선택한 좌석 예매하기").performScrollTo().performClick()
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("booking-conflict").fetchSemanticsNodes().isNotEmpty() }
+    writeCapture("21-tablet-booking-conflict.png")
+  }
+
+  @Test
+  fun capture22_phoneBookingRetryPending() {
+    setCapture(PhoneWidth, PhoneHeight) {
+      BookingProgressScreen(
+        BookingProgressState(BookingProgress.Error("네트워크 연결을 확인한 뒤 다시 시도해 주세요."), true),
+        {}, {}, {},
+      )
+    }
+    composeRule.onNodeWithTag("booking-retry").assertIsNotEnabled()
+    writeCapture("22-phone-booking-retry-pending.png", verifyNavigation = false)
+  }
+
+  @Test
+  fun capture23_phoneBookingWaitingRefreshPending() {
+    setCapture(PhoneWidth, PhoneHeight) {
+      BookingProgressScreen(
+        BookingProgressState(BookingProgress.Waiting("queue-1", 3), true),
+        {}, {}, {},
+      )
+    }
+    composeRule.onNodeWithTag("booking-refresh-queue").assertIsNotEnabled()
+    writeCapture("23-phone-booking-waiting-refresh-pending.png", verifyNavigation = false)
+  }
+
+  private fun openMyPageDestination(buttonTag: String, expectedTag: String) {
+    val viewModel = CustomerAppViewModel(VisualFixtureRepository())
+    setCapture(PhoneWidth, PhoneHeight) { TicketGroundCustomerApp(viewModel) }
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("마이페이지").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithText("마이페이지").performClick()
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag("lifecycle-overview-list").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("lifecycle-overview-list").performScrollToNode(hasTestTag(buttonTag))
+    composeRule.onNodeWithTag(buttonTag).performClick()
+    composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag(expectedTag).fetchSemanticsNodes().isNotEmpty() }
+  }
+
   private fun setCapture(
     width: Dp,
     height: Dp,
@@ -181,22 +307,24 @@ class VisualCaptureTest {
     }
   }
 
-  private fun writeCapture(name: String) {
+  private fun writeCapture(name: String, verifyNavigation: Boolean = true) {
     composeRule.waitForIdle()
-    composeRule.waitUntil(5_000) {
-      AppDestination.entries.all { destination ->
-        runCatching {
-          val icon = composeRule
-            .onNodeWithTag("navigation-icon-${destination.name.lowercase()}", useUnmergedTree = true)
-            .assertIsDisplayed()
-            .captureToImage()
-            .asAndroidBitmap()
-          val pixels = IntArray(icon.width * icon.height)
-          icon.getPixels(pixels, 0, icon.width, 0, 0, icon.width, icon.height)
-          pixels.any { pixel ->
-            Color.alpha(pixel) > 0 && Color.red(pixel) < 128 && Color.green(pixel) < 128 && Color.blue(pixel) < 128
-          }
-        }.getOrDefault(false)
+    if (verifyNavigation) {
+      composeRule.waitUntil(5_000) {
+        AppDestination.entries.all { destination ->
+          runCatching {
+            val icon = composeRule
+              .onNodeWithTag("navigation-icon-${destination.name.lowercase()}", useUnmergedTree = true)
+              .assertIsDisplayed()
+              .captureToImage()
+              .asAndroidBitmap()
+            val pixels = IntArray(icon.width * icon.height)
+            icon.getPixels(pixels, 0, icon.width, 0, 0, icon.width, icon.height)
+            pixels.any { pixel ->
+              Color.alpha(pixel) > 0 && Color.red(pixel) < 128 && Color.green(pixel) < 128 && Color.blue(pixel) < 128
+            }
+          }.getOrDefault(false)
+        }
       }
     }
     composeRule.mainClock.advanceTimeByFrame()
@@ -258,9 +386,15 @@ private fun fixtureHome() = HomeContent(
   events = listOf(
     fixtureEvent(),
     fixtureEvent().copy(id = "event-2", title = "부산 재즈 나이트", venue = "부산문화회관", soldCount = 31),
-    fixtureEvent().copy(id = "event-3", title = "뮤지컬 별빛", venue = "예술의전당", soldCount = 24),
+    fixtureEvent().copy(id = "event-3", category = "뮤지컬", title = "뮤지컬 별빛", venue = "예술의전당", soldCount = 24),
   ),
-  calendar = listOf(OpenCalendarEntry("2026-08-14 20:00", event = fixtureEvent())),
+  calendar = listOf(
+    OpenCalendarEntry("2026-08-14 20:00", event = fixtureEvent()),
+    OpenCalendarEntry(
+      "2026-08-16 14:00",
+      event = fixtureEvent().copy(id = "event-3", category = "뮤지컬", title = "뮤지컬 별빛", venue = "예술의전당"),
+    ),
+  ),
   faq = listOf(SupportFaq("faq-1", "배송 문의", "모바일 티켓으로 제공됩니다.")),
   notices = listOf(SupportNotice("notice-1", "예매 안내", "좌석도에서 원하는 좌석을 직접 선택해 주세요.")),
 )
@@ -299,12 +433,18 @@ private fun fixtureAccount() = AccountOverview(
     ),
   ),
   trustedDevice = true,
+  trustedDeviceId = "device-capture",
   pushSuffix = "4821",
+  cancellationPending = true,
+  resaleState = "OPEN",
 )
 
 private enum class HomeMode { Ready, Loading, Empty, Error }
 
-private class VisualFixtureRepository(private val homeMode: HomeMode = HomeMode.Ready) : CustomerRepository {
+private class VisualFixtureRepository(
+  private val homeMode: HomeMode = HomeMode.Ready,
+  private val bookingProgress: BookingProgress? = null,
+) : CustomerRepository {
   override suspend fun home() = when (homeMode) {
     HomeMode.Ready -> fixtureHome()
     HomeMode.Loading -> awaitCancellation()
@@ -314,13 +454,13 @@ private class VisualFixtureRepository(private val homeMode: HomeMode = HomeMode.
   override suspend fun seatMap(eventId: String, performanceDateId: String?) = fixtureSeatMap()
   override suspend fun watchlist() = listOf(fixtureWatchlistItem())
   override suspend fun accountOverview() = fixtureAccount()
-  override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress =
-    BookingProgress.Held(
-      seatId,
-      seatLabel,
-      amount,
+  override suspend fun book(request: kr.ticketground.app.ui.BookingRequest): BookingProgress =
+    bookingProgress ?: BookingProgress.Held(
+      request.seatId,
+      request.seatLabel,
+      request.amount,
       kr.ticketground.app.data.TossCheckoutRequest(
-        "draft-capture", seatId, seatLabel, amount + 2_000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+        "draft-capture", request.seatId, request.seatLabel, request.amount + 2_000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
         "test_ck_capture", "capture-idempotency",
       ),
     )

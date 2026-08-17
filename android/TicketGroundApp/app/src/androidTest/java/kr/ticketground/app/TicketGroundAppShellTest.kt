@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -28,7 +30,9 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.CatalogSchedule
@@ -49,12 +53,28 @@ import kr.ticketground.app.ui.EventListScreen
 import kr.ticketground.app.ui.EventDetailScreen
 import kr.ticketground.app.ui.GraphicalSeatMapScreen
 import kr.ticketground.app.ui.LifecycleOverviewScreen
+import kr.ticketground.app.ui.HomeScreen
 import kr.ticketground.app.ui.TicketGroundNavigation
 import kr.ticketground.app.ui.TicketGroundCustomerApp
 import kr.ticketground.app.ui.CustomerAppViewModel
 import kr.ticketground.app.ui.CustomerRepository
+import kr.ticketground.app.ui.CustomerRoute
+import kr.ticketground.app.ui.EditorialCard
+import kr.ticketground.app.ui.GenreRecommendation
 import kr.ticketground.app.ui.HomeContent
+import kr.ticketground.app.ui.HomeEditorialSection
+import kr.ticketground.app.ui.HomeGenreSection
+import kr.ticketground.app.ui.HomeOpeningSection
+import kr.ticketground.app.ui.OpeningPresentation
+import kr.ticketground.app.ui.PublicResaleScreen
+import kr.ticketground.app.ui.PushNotificationsScreen
+import kr.ticketground.app.ui.SupportScreen
+import kr.ticketground.app.ui.TicketGroundLayout
+import kr.ticketground.app.ui.TicketGroundSpacing
 import kr.ticketground.app.ui.BookingProgress
+import kr.ticketground.app.ui.BookingProgressState
+import kr.ticketground.app.ui.BookingProgressScreen
+import kr.ticketground.app.ui.BookingRequest
 import kr.ticketground.app.ui.TicketGroundTheme
 import kr.ticketground.app.data.WatchlistItem
 import org.junit.Assert.assertEquals
@@ -63,6 +83,47 @@ import org.junit.Test
 
 class TicketGroundAppShellTest {
   @get:Rule val composeRule = createComposeRule()
+
+  @Test
+  fun eventDetailKoreanParagraph_keepsProductAndConnectiveWordsIntactAtPhoneWidth() {
+    val summary = "홈 대표 카드와 대기열 예매 흐름의 기준 상품입니다."
+    val notice = "CLEAN 티켓 공식 양도 정책은 공연별 공지에 따라 제한될 수 있습니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(360.dp).height(920.dp)) {
+          EventDetailScreen(
+            event().copy(summary = summary, notices = listOf(notice)),
+            onSeatMap = {},
+          )
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(summary, "상품입니다.")
+    assertTextRangeOnOneLineForText("따라", "따라", substring = true)
+    assertTextRangeOnOneLineForText("제한될 수 있습니다.", "제한될 수 있습니다.", substring = true)
+  }
+
+  @Test
+  fun rankingVenueKoreanParagraph_keepsVenueWordIntactAtCardWidth() {
+    val venue = "잠실종합운동장 주경기장"
+    val catalogEvent = event().copy(venue = venue)
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(360.dp).height(920.dp)) {
+          HomeScreen(
+            state = AsyncContent.Ready(HomeContent(listOf(catalogEvent), emptyList(), emptyList(), emptyList())),
+            onRetry = {}, onEvent = {}, onSearch = {}, onCategory = {}, onCollection = { _, _ -> },
+            onRanking = {}, onRegion = { _, _ -> }, onOpenCalendar = {}, onOpenResale = {},
+            onSupport = {}, onLogin = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText(venue))
+    assertTextRangeOnOneLineForText(venue, "주경기장", index = 1)
+  }
 
   @Test
   fun phoneNavigation_exposesFourCustomerDestinations() {
@@ -92,9 +153,12 @@ class TicketGroundAppShellTest {
     composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
     composeRule.onNodeWithTag("event-list-two-pane").assertIsDisplayed()
     composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").assertIsDisplayed().assertHasClickAction()
-    composeRule.onNodeWithText("오픈 캘린더").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("2026-08-14 20:00").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("공지·자주 묻는 질문").performScrollTo().assertIsDisplayed().performClick()
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText("티켓오픈 예정"))
+    composeRule.onNodeWithText("티켓오픈 예정").assertIsDisplayed()
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText("2026.08.14 20:00"))
+    composeRule.onNodeWithText("2026.08.14 20:00").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("home-list").performScrollToNode(hasText("공지·자주 묻는 질문"))
+    composeRule.onNodeWithText("공지·자주 묻는 질문").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("배송 문의").assertIsDisplayed()
   }
 
@@ -114,6 +178,165 @@ class TicketGroundAppShellTest {
     }
     composeRule.onNodeWithText("공연, 아티스트 또는 공연장 검색").performClick()
     composeRule.onNodeWithText("공연 검색").assertIsDisplayed()
+  }
+
+  @Test
+  fun phoneHome_exposesEveryWebParitySectionAndDestination() {
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp)) {
+          TicketGroundCustomerApp(viewModel)
+        }
+      }
+    }
+
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag("home-list").fetchSemanticsNodes().isNotEmpty()
+    }
+    listOf(
+      "티켓오픈 예정", "CLEAN 티켓 공식 양도", "장르별 추천", "기획전", "바로가기",
+    ).forEach { heading ->
+      composeRule.onNodeWithTag("home-list").performScrollToNode(hasText(heading))
+      composeRule.onNodeWithText(heading).assertIsDisplayed()
+    }
+
+    listOf(
+      "home-ranking-more" to "ranking-screen",
+      "home-open-more" to "open-calendar-screen",
+      "home-resale-pool" to "resale-screen",
+      "home-genre-콘서트" to "collection-screen-콘서트",
+      "home-editorial-1" to "collection-screen-기획전",
+      "home-region-all" to "region-screen-전체 지역",
+    ).forEach { (sourceTag, destinationTag) ->
+      composeRule.onNodeWithTag("home-list")
+        .performScrollToNode(androidx.compose.ui.test.hasTestTag(sourceTag))
+      composeRule.onNodeWithTag(sourceTag).performScrollTo().assertHasClickAction().performClick()
+      composeRule.onNodeWithTag(destinationTag).assertIsDisplayed()
+      composeRule.runOnIdle { viewModel.navigate(AppDestination.Home) }
+    }
+  }
+
+  @Test
+  fun rankingRoute_exposesCanonicalDestination() = assertCustomerRoute("ranking-screen") {
+    it.openRanking(listOf(event()))
+  }
+
+  @Test
+  fun regionRoute_exposesCanonicalDestination() = assertCustomerRoute("region-screen-전체 지역") {
+    it.openRegion("전체 지역", listOf(event()))
+  }
+
+  @Test
+  fun venueRoute_exposesCanonicalDestination() = assertCustomerRoute("venue-screen-venue-1") {
+    it.openVenue(event())
+  }
+
+  @Test
+  fun artistRoute_exposesCanonicalDestination() = assertCustomerRoute("artist-screen-artist-1") {
+    it.openArtist(event())
+  }
+
+  @Test
+  fun bookingRoute_exposesCanonicalProgressWithoutSuccessCopy() = assertCustomerRoute("booking-progress") {
+    it.openBooking(BookingProgress.Waiting("queue-1", 3))
+  }
+
+  @Test
+  fun bookingProgress_exposesExpiredConflictAndRetryWithoutSuccessCopy() {
+    var retried = 0
+    var progress by mutableStateOf<BookingProgress>(BookingProgress.Expired("만료됨"))
+    composeRule.setContent { TicketGroundTheme { BookingProgressScreen(BookingProgressState(progress, false), { retried += 1 }, {}, {}) } }
+    composeRule.onNodeWithTag("booking-expired").assertIsDisplayed()
+    composeRule.onNodeWithTag("booking-retry").performClick()
+    composeRule.runOnIdle { progress = BookingProgress.Conflict("충돌") }
+    composeRule.onNodeWithTag("booking-conflict").assertIsDisplayed()
+    composeRule.onNodeWithText("예매 완료", substring = true).assertDoesNotExist()
+    composeRule.runOnIdle { assertEquals(1, retried) }
+  }
+
+  @Test
+  fun bookingProgress_disablesRetryWhileBookingIsInFlight() {
+    composeRule.setContent {
+      TicketGroundTheme {
+        BookingProgressScreen(BookingProgressState(BookingProgress.Error("네트워크 오류"), true), {}, {}, {})
+      }
+    }
+
+    composeRule.onNodeWithTag("booking-retry").assertIsNotEnabled()
+  }
+
+  @Test
+  fun bookingProgress_waitingRefreshIsAccessibleAndDisabledWhilePending() {
+    var refreshed = 0
+    var pending by mutableStateOf(false)
+    composeRule.setContent {
+      TicketGroundTheme {
+        BookingProgressScreen(
+          BookingProgressState(BookingProgress.Waiting("queue-1", 3), pending),
+          {},
+          { refreshed += 1 },
+          {},
+        )
+      }
+    }
+
+    composeRule.onNodeWithTag("booking-refresh-queue")
+      .assertIsDisplayed()
+      .assertHasClickAction()
+      .assertHeightIsEqualTo(48.dp)
+      .performClick()
+    composeRule.runOnIdle { pending = true }
+    composeRule.onNodeWithTag("booking-refresh-queue").assertIsNotEnabled()
+    composeRule.runOnIdle { assertEquals(1, refreshed) }
+  }
+
+  @Test
+  fun reservationRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("reservation-detail") {
+    it.openReservation()
+  }
+
+  @Test
+  fun cancellationRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("cancellation-request") {
+    it.openCancellation()
+  }
+
+  @Test
+  fun resaleLifecycleRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("resale-lifecycle") {
+    it.openResaleLifecycle()
+  }
+
+  @Test
+  fun trustedDeviceRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("trusted-device") {
+    it.openTrustedDevice()
+  }
+
+  @Test
+  fun pushRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("push-notifications") {
+    it.openPushNotifications()
+  }
+
+  @Test
+  fun accountSubroutes_renderIndependentAuthenticatedStateSurfaces() {
+    val repository = ComposeCustomerRepository(signedIn = true)
+    val viewModel = CustomerAppViewModel(repository)
+    composeRule.setContent { TicketGroundTheme { TicketGroundCustomerApp(viewModel) } }
+    composeRule.runOnIdle { viewModel.openReservation() }
+    composeRule.onNodeWithTag("reservation-ticket-ticket-1").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openCancellation() }
+    composeRule.onNodeWithTag("cancellation-state").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openResaleLifecycle() }
+    composeRule.onNodeWithTag("account-resale-state").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openTrustedDevice() }
+    composeRule.onNodeWithTag("trusted-device-active").assertIsDisplayed()
+    composeRule.runOnIdle { viewModel.openPushNotifications() }
+    composeRule.onNodeWithTag("push-active").assertIsDisplayed()
+    composeRule.onNodeWithTag("lifecycle-overview-list").assertDoesNotExist()
+  }
+
+  @Test
+  fun inquiryRoute_exposesCanonicalSignedOutDestination() = assertCustomerRoute("support-inquiry-signed-out") {
+    it.openInquiry()
   }
 
   @Test
@@ -360,6 +583,209 @@ class TicketGroundAppShellTest {
     assertTextRangeOnOneLine("expanded-event-summary", "라이브 공연입니다.")
   }
 
+  @Test
+  fun publicResale_keepsFinalPredicateTogetherAtPhoneWidth() {
+    val copy = "공개 화면에서는 안전 정책만 확인할 수 있습니다. 등록과 구매 상태는 실제 처리 결과가 확인된 뒤에만 반영됩니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(411.dp)) { PublicResaleScreen(onMyPage = {}) }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "실제")
+    assertTextRangeOnOneLineForText(copy, "반영됩니다.")
+  }
+
+  @Test
+  fun support_keepsSemanticPredicatesTogetherAtPhoneWidth() {
+    val noticeBody = "로그인 세션의 본인 문의만 조회하고 작성할 수 있습니다."
+    val faqAnswer = "로그인 후 마이페이지의 예매내역에서 확인할 수 있습니다."
+    val content = HomeContent(
+      events = emptyList(),
+      calendar = emptyList(),
+      faq = listOf(SupportFaq("faq-1", "예매 내역은 어디에서 확인하나요?", faqAnswer)),
+      notices = listOf(SupportNotice("notice-1", "안전한 1:1 문의", noticeBody)),
+    )
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(411.dp)) { SupportScreen(content) }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(noticeBody, "작성할 수 있습니다.")
+    assertTextRangeOnOneLineForText(faqAnswer, "확인할 수 있습니다.")
+  }
+
+  @Test
+  fun supportCopy_keepsFastSubmissionPhraseTogetherAtAcceptedPhoneWidth() {
+    val copy = "예매·입장·환불 문의는 카카오톡 채널에서 빠르게 접수해 주세요."
+    var bodySmallFontSize = TextUnit.Unspecified
+    composeRule.setContent {
+      TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
+        Box(Modifier.width(390.dp).height(720.dp)) { SupportScreen(null) }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "빠르게")
+    assertTextLinesBreakOnSafeBoundaries(copy)
+    assertCardBodyUsesReadableTokens(copy, "support-contact-card", bodySmallFontSize)
+  }
+
+  @Test
+  fun tossBlockedCopy_keepsPaymentWordTogetherAtAcceptedPhoneWidth() {
+    val request = kr.ticketground.app.data.TossCheckoutRequest(
+      "draft-1", "ticket-1", "A구역 1열 1번", 122000, kr.ticketground.app.data.TossPaymentMethod.CREDIT_CARD,
+      "test_ck_widget", "instrumentation-payment",
+    )
+    val copy = "서버가 확인한 좌석 홀드와 예매 초안입니다. 결제 승인 전에는 예매가 완료되지 않습니다."
+    var bodySmallFontSize = TextUnit.Unspecified
+    composeRule.setContent {
+      TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
+        Box(Modifier.width(390.dp).height(720.dp)) {
+          BookingProgressScreen(BookingProgressState(BookingProgress.Held("seat-1", "A구역 1열 1번", 122000, request), false), {}, {}, {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "결제")
+    assertTextRangeOnOneLineForText(copy, "예매가 완료되지 않습니다")
+    assertTextLinesBreakOnSafeBoundaries(copy)
+    assertAccessibleTextEquals(copy)
+    assertCardBodyUsesReadableTokens(copy, "booking-progress-card", bodySmallFontSize)
+  }
+
+  @Test
+  fun pushCopy_keepsNoInferencePhraseTogetherAtAcceptedPhoneWidth() {
+    val copy = "알림 권한과 FCM 토큰을 확인한 뒤 서버 등록을 요청합니다. 실제 전송 성공을 앱에서 추정하지 않습니다."
+    var bodySmallFontSize = TextUnit.Unspecified
+    composeRule.setContent {
+      TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
+        Box(Modifier.width(390.dp).height(720.dp)) {
+          PushNotificationsScreen(AsyncContent.Ready(AccountOverview(signedIn = true)), false, null, {}, {}, {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "추정하지 않습니다")
+    assertTextRangeOnOneLineForText(copy, "전송")
+    assertTextRangeOnOneLineForText(copy, "실제 전송 성공")
+    assertTextLinesBreakOnSafeBoundaries(copy)
+    assertAccessibleTextEquals(copy)
+    assertCardBodyUsesReadableTokens(copy, "push-notifications-card", bodySmallFontSize)
+  }
+
+  @Test
+  fun trustedDeviceCopy_keepsCompletedConditionTogetherAtAcceptedPhoneWidth() {
+    val copy = "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다."
+    var bodySmallFontSize = TextUnit.Unspecified
+    composeRule.setContent {
+      TicketGroundTheme {
+        bodySmallFontSize = MaterialTheme.typography.bodySmall.fontSize
+        Box(Modifier.width(390.dp).height(720.dp)) {
+          kr.ticketground.app.ui.TrustedDeviceScreen(
+            AsyncContent.Ready(AccountOverview(signedIn = true, trustedDevice = true)),
+            false,
+            null,
+            {},
+            {},
+            {},
+          )
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(copy, "경우에만")
+    assertTextRangeOnOneLineForText(copy, "서버가 등록합니다")
+    assertTextLinesBreakOnSafeBoundaries(copy)
+    assertAccessibleTextEquals(copy)
+    assertCardBodyUsesReadableTokens(copy, "trusted-device-card", bodySmallFontSize)
+  }
+
+  @Test
+  fun signedOutMyPage_keepsPolitePredicateTogetherAtPhoneWidth() {
+    val body = "보유 티켓과 계정 기능은 로그인 후 이용할 수 있습니다."
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(411.dp).height(920.dp)) {
+          LifecycleOverviewScreen(AsyncContent.Ready(AccountOverview(signedIn = false)), onRetry = {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(body, "있습니다.")
+  }
+
+  @Test
+  fun genreCard_keepsKoreanWordTogetherAtPhoneWidth() {
+    val title = "브레드이발소 여름방학 특별전"
+    val recommendation = GenreRecommendation(
+      label = "콘서트",
+      events = listOf(event().copy(title = title)),
+      destination = CustomerRoute.Collection("콘서트", emptyList()),
+    )
+    composeRule.setContent {
+      TicketGroundTheme {
+        Box(Modifier.width(390.dp).padding(20.dp)) {
+          HomeGenreSection(listOf(recommendation), onCollection = {}, onEvent = {})
+        }
+      }
+    }
+
+    assertTextRangeOnOneLineForText(title, "방학")
+  }
+
+  @Test
+  fun homeParityGeometry_followsSharedLayoutTokens() {
+    val catalogEvent = event()
+    composeRule.setContent {
+      TicketGroundTheme {
+        Column(Modifier.width(411.dp)) {
+          HomeOpeningSection(
+            OpeningPresentation(
+              entries = listOf(OpenCalendarEntry("2026-08-14T20:00:00+09:00", event = catalogEvent)),
+              destination = CustomerRoute.OpenCalendar,
+            ),
+            onOpenCalendar = {},
+            onEvent = {},
+          )
+          HomeEditorialSection(
+            cards = listOf(
+              EditorialCard(
+                order = 1,
+                title = "Ticketground Day",
+                slug = "ticketground-day",
+                events = listOf(catalogEvent),
+                destination = CustomerRoute.Collection("기획전", listOf(catalogEvent)),
+              ),
+            ),
+            onCollection = {},
+          )
+          HomeGenreSection(
+            groups = listOf(
+              GenreRecommendation(
+                label = "콘서트",
+                events = listOf(catalogEvent),
+                destination = CustomerRoute.Collection("콘서트", listOf(catalogEvent)),
+              ),
+            ),
+            onCollection = {},
+            onEvent = {},
+          )
+        }
+      }
+    }
+
+    composeRule.onNodeWithTag("home-opening-event-1")
+      .assertWidthIsEqualTo(TicketGroundLayout.homeOpeningCardWidth)
+    composeRule.onNodeWithTag("home-editorial-1")
+      .assertWidthIsEqualTo(TicketGroundLayout.homeEditorialCardWidth)
+    composeRule.onNodeWithTag("home-genre-poster-event-1", useUnmergedTree = true)
+      .assertHeightIsEqualTo(TicketGroundLayout.homeGenrePosterHeight)
+  }
+
   private fun assertTextRangeOnOneLine(tag: String, phrase: String) {
     val results = mutableListOf<TextLayoutResult>()
     composeRule.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
@@ -372,8 +798,69 @@ class TicketGroundAppShellTest {
     }
   }
 
+  private fun assertCustomerRoute(destinationTag: String, open: (CustomerAppViewModel) -> Unit) {
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
+    composeRule.setContent {
+      TicketGroundTheme { Box(Modifier.width(390.dp).height(920.dp)) { TicketGroundCustomerApp(viewModel) } }
+    }
+    composeRule.runOnIdle { open(viewModel) }
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag(destinationTag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(destinationTag).assertIsDisplayed()
+  }
+
+  private fun assertTextRangeOnOneLineForText(
+    text: String,
+    phrase: String,
+    index: Int = 0,
+    substring: Boolean = false,
+  ) {
+    val results = mutableListOf<TextLayoutResult>()
+    composeRule.onAllNodesWithText(text, substring = substring, useUnmergedTree = true)[index]
+      .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+    val result = results.single()
+    val start = result.layoutInput.text.text.indexOf(phrase)
+    check(start >= 0 && result.getLineForOffset(start) == result.getLineForOffset(start + phrase.length - 1)) {
+      "$phrase must remain on one line"
+    }
+  }
+
+  private fun assertTextLinesBreakOnSafeBoundaries(text: String) {
+    val results = mutableListOf<TextLayoutResult>()
+    composeRule.onAllNodesWithText(text, useUnmergedTree = true)[0]
+      .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+    val result = results.single()
+    for (line in 0 until result.lineCount - 1) {
+      val boundary = result.getLineEnd(line, visibleEnd = true)
+      if (boundary >= text.length) continue
+      val previous = text[boundary - 1]
+      val next = text[boundary]
+      check(previous.isWhitespace() || next.isWhitespace() || previous in ".,!?·:;。！？" || next in ".,!?·:;。！？") {
+        "line $line splits Korean prose between '$previous' and '$next' in '$text'"
+      }
+    }
+  }
+
+  private fun assertAccessibleTextEquals(text: String) {
+    val semanticsText = composeRule.onAllNodesWithText(text)[0]
+      .fetchSemanticsNode().config[SemanticsProperties.Text]
+      .joinToString(separator = "") { it.text }
+    assertEquals(text, semanticsText)
+  }
+
+  private fun assertCardBodyUsesReadableTokens(text: String, cardTag: String, bodySmallFontSize: TextUnit) {
+    val node = composeRule.onAllNodesWithText(text, useUnmergedTree = true)[0]
+    val results = mutableListOf<TextLayoutResult>()
+    node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+    assertEquals(bodySmallFontSize, results.single().layoutInput.style.fontSize)
+    composeRule.onNodeWithTag(cardTag).assertLeftPositionInRootIsEqualTo(TicketGroundSpacing.sm)
+    node.assertLeftPositionInRootIsEqualTo(TicketGroundSpacing.sm + TicketGroundSpacing.sm)
+  }
+
   private fun event() = CatalogEvent(
-    id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42,
+    id = "event-1", title = "서울 콘서트", venueId = "venue-1", venue = "잠실주경기장",
+    artistSlug = "artist-1", casts = listOf("테스트 아티스트"), soldCount = 42,
   )
 
   private fun seatMap(image: String = "") = SeatMap(
@@ -398,18 +885,35 @@ class TicketGroundAppShellTest {
   )
 }
 
-private class ComposeCustomerRepository : CustomerRepository {
-  private val event = CatalogEvent(id = "event-1", title = "서울 콘서트", venue = "잠실주경기장", soldCount = 42)
+private class ComposeCustomerRepository(private val signedIn: Boolean = false) : CustomerRepository {
+  private val event = CatalogEvent(
+    id = "event-1", category = "콘서트", title = "서울 콘서트", venueId = "venue-1",
+    venue = "잠실주경기장", artistSlug = "artist-1", casts = listOf("테스트 아티스트"), soldCount = 42,
+  )
+  private val musical = event.copy(
+    id = "event-2", category = "뮤지컬", title = "뮤지컬 별빛", venue = "예술의전당", soldCount = 31,
+  )
   override suspend fun home() = HomeContent(
-    events = listOf(event),
-    calendar = listOf(OpenCalendarEntry("2026-08-14 20:00", event = event)),
+    events = listOf(event, musical),
+    calendar = listOf(
+      OpenCalendarEntry("2026-08-14T20:00:00+09:00", event = event),
+      OpenCalendarEntry("2026-08-16T14:00:00+09:00", event = musical),
+    ),
     faq = listOf(SupportFaq("faq-1", "배송 문의", "모바일 티켓으로 제공됩니다.")),
     notices = listOf(SupportNotice("notice-1", "예매 안내", "좌석도에서 선택해 주세요.")),
   )
   override suspend fun seatMap(eventId: String, performanceDateId: String?) = error("not used")
   override suspend fun watchlist(): List<WatchlistItem> = emptyList()
-  override suspend fun accountOverview() = AccountOverview(signedIn = false)
-  override suspend fun book(performanceDateId: String, seatId: String, seatLabel: String, amount: Int): BookingProgress = error("not used")
+  override suspend fun accountOverview() = if (!signedIn) AccountOverview(signedIn = false) else AccountOverview(
+    signedIn = true,
+    tickets = listOf(AccountTicketOverview("ticket-1", "서울 콘서트", "A구역 1열 1번", true, 80_000, 120_000, "입장 가능")),
+    trustedDevice = true,
+    trustedDeviceId = "device-1",
+    pushSuffix = "4821",
+    cancellationPending = true,
+    resaleState = "OPEN",
+  )
+  override suspend fun book(request: BookingRequest): BookingProgress = error("not used")
   override suspend fun requestCancellation(ticketId: String, reason: String) = Unit
   override suspend fun listForResale(ticketId: String, price: Int) = Unit
   override suspend fun addToWatchlist(eventId: String) = Unit

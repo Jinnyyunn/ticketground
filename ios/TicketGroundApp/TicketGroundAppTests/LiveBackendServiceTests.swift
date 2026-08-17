@@ -1409,6 +1409,32 @@ final class LiveBackendServiceTests: XCTestCase {
         )
     }
 
+    func testLiveHomePreservesAdmittedEmptyCatalogSignalWhenStateIsAvailable() async {
+        LiveBackendServiceURLProtocol.responses = [
+            "/api/health": Data(#"{"ok":true,"data":{"status":"UP","time":"2026-07-28T00:00:00Z","version":"78b3c7c"}}"#.utf8),
+            "/api/state": Data(#"{"ok":true,"data":{"events":[],"venues":[],"users":[],"tickets":[],"resalePools":[],"backendSummary":{"events":0,"tickets":0},"ledger":{"verified":true,"totalEntries":0}}}"#.utf8),
+            "/api/catalog?limit=1": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8),
+            "/api/catalog?limit=50": Data(#"{"ok":true,"data":{"events":[]}}"#.utf8)
+        ]
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LiveBackendServiceURLProtocol.self]
+        let client = LiveAPIClient(
+            baseURL: URL(string: "http://ticketground.test/")!,
+            assetBaseURL: URL(string: "http://ticketground.test/")!,
+            credentialStore: InMemoryCredentialStore(),
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await DiscoveryFixtureLoader.loadLive(using: client)
+            XCTFail("Expected an admitted empty catalog to remain an explicit empty state")
+        } catch let error as VirtualFixtureDecodeError {
+            XCTAssertEqual(error, .emptyResponse)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testCatalogAdmissionRejectsHealthTimeoutWithoutCatalogDispatch() async {
         LiveBackendServiceURLProtocol.errors["/api/health"] = .timedOut
         let configuration = URLSessionConfiguration.ephemeral

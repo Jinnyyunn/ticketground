@@ -95,8 +95,27 @@ struct DiscoveryOpeningSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
-            DiscoverySectionHeading(title: "티켓오픈 예정", subtitle: "오픈 시간과 회차를 확인하고 알림을 준비하세요.")
-            ForEach(openingSoon, id: \.title) { item in
+            HStack(alignment: .bottom) {
+                DiscoverySectionHeading(title: "티켓오픈 예정", subtitle: "오픈 시간과 회차를 확인하고 알림을 준비하세요.")
+                Spacer(minLength: TicketgroundSpacing.sm)
+                NavigationLink(value: AppRoute.open) {
+                    Text("더보기")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityIdentifier("discovery-open-more")
+            }
+            if openingSoon.isEmpty {
+                TicketgroundEmptySurface(
+                    title: "티켓오픈 일정이 없습니다.",
+                    message: "새로운 오픈 일정이 등록되면 이곳에 표시됩니다.",
+                    actionTitle: nil,
+                    action: nil
+                )
+                .accessibilityIdentifier("discovery-opening-empty")
+            } else {
+                ForEach(openingSoon, id: \.title) { item in
                 NavigationLink(value: item.route) {
                     HStack(alignment: .top, spacing: TicketgroundSpacing.md) {
                         VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
@@ -132,6 +151,7 @@ struct DiscoveryOpeningSection: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("discovery-opening-\(item.day)")
+                }
             }
             NavigationLink(value: AppRoute.open) {
                 Text("전체 오픈 캘린더 보기")

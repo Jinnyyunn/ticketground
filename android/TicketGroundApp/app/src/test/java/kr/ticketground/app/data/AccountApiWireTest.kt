@@ -71,18 +71,23 @@ class AccountApiWireTest : ApiTestSupport() {
   fun `queue mutations use principal resource paths and stable keys`() = runTest {
     server.enqueue(success(healthWithCapabilities()))
     server.enqueue(success(queueJson()))
+    server.enqueue(success(queueJson()))
     server.enqueue(success("""{"id":"queue-1","status":"LEFT"}"""))
     val api = createHttpsApi()
 
     api.account().enterQueue("performance-1", "queue-enter-key")
+    api.account().queueEntry("queue-1")
     api.account().leaveQueue("queue-1", "queue-leave-key")
 
     server.takeRequest()
     val enter = server.takeRequest()
+    val refresh = server.takeRequest()
     val leave = server.takeRequest()
     assertEquals("/api/me/queue-entries", enter.path)
     assertEquals("{\"performanceDateId\":\"performance-1\"}", enter.body.readUtf8())
     assertEquals("queue-enter-key", enter.getHeader("X-Idempotency-Key"))
+    assertEquals("GET", refresh.method)
+    assertEquals("/api/me/queue-entries/queue-1", refresh.path)
     assertEquals("DELETE", leave.method)
     assertEquals("/api/me/queue-entries/queue-1", leave.path)
     assertEquals("queue-leave-key", leave.getHeader("X-Idempotency-Key"))

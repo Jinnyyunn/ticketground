@@ -4,7 +4,8 @@ final class TicketGroundAppUITests: XCTestCase {
     func testHomeScreenIsReady() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.navigationBars["홈"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Ticketground"].exists)
+        XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
+        XCTAssertTrue(app.buttons["tab-home"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["tab-home"].isSelected)
     }
 }

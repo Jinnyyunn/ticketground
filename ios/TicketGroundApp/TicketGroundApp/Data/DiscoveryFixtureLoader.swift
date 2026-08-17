@@ -28,6 +28,8 @@ enum DiscoveryFixtureLoader {
                 let catalog = try await service.getCatalog()
                 guard !catalog.events.isEmpty else { throw VirtualFixtureDecodeError.emptyResponse }
                 return .catalog(try map(catalog.events, using: apiClient))
+            } catch VirtualFixtureDecodeError.emptyResponse {
+                throw VirtualFixtureDecodeError.emptyResponse
             } catch {
                 guard probe.capabilities.state(for: .state) == .available else { throw error }
                 return .stateOnly(try await service.getState())
