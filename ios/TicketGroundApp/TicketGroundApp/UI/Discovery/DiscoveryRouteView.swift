@@ -21,8 +21,12 @@ struct DiscoveryRouteView: View {
             DiscoverySearchView(content: content)
         case .login:
             DiscoveryLoginView()
-        case .menu, .mypage:
+        case .menu:
             DiscoveryMenuView()
+        case .mypage:
+            DiscoveryMypageView()
+        case .watchlist:
+            DiscoveryWatchlistEmptyView()
         case .capabilityLedger:
             CapabilityLedgerView()
         case .open:
@@ -38,20 +42,12 @@ struct DiscoveryRouteView: View {
         case .event(let slug):
             DiscoveryEditorialDestinationView(slug: slug)
         default:
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-                Text("이동한 화면")
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(TicketgroundColor.accent)
-                Text(route.id)
-                    .font(.title.weight(.black))
-                    .foregroundStyle(TicketgroundColor.ink)
-                    .accessibilityIdentifier("route-\(route.id)")
-                Text("이 화면은 다음 discovery 단계에서 콘텐츠를 연결합니다.")
-                    .font(.body)
-                    .foregroundStyle(TicketgroundColor.inkMuted)
-            }
-            .padding(TicketgroundSpacing.xl)
-            .navigationTitle(route.id)
+            // No fixture-mode destination is wired up for this route yet
+            // (e.g. the booking queue behind the home hero banner). Rather
+            // than leak the raw internal route id on screen, show a graceful
+            // "coming soon" state — the identifier below stays so existing
+            // navigation/connectivity tests can still target this screen.
+            DiscoveryComingSoonView(route: route)
         }
     }
 }
@@ -151,6 +147,8 @@ struct DiscoveryLoginView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TicketgroundSpacing.xl) {
+                LoginHeroBanner()
+
                 VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
                     Text("로그인")
                         .font(.caption.weight(.black))
@@ -246,6 +244,8 @@ struct DiscoveryLoginView: View {
                     .accessibilityIdentifier("login-google-session")
                 }
 
+                LoginBenefitsCard()
+
                 NavigationLink(value: AppRoute.signup) {
                     HStack {
                         Text("아직 계정이 없나요?")
@@ -263,6 +263,8 @@ struct DiscoveryLoginView: View {
                 .buttonStyle(.plain)
                 .padding(.horizontal, TicketgroundSpacing.sm)
                 .accessibilityIdentifier("login-signup")
+
+                LoginFooter()
             }
             .padding(.horizontal, TicketgroundSpacing.xl)
             .padding(.vertical, TicketgroundSpacing.lg)
@@ -424,6 +426,214 @@ struct DiscoveryLoginView: View {
 
     private func externalOAuthMessage(for provider: Provider) -> String {
         "\(provider.name) 로그인은 HTTPS API와 외부 OAuth 인증 단계(E3) 연결이 모두 필요합니다. 현재 앱은 인증 정보를 수집하거나 계정을 만들지 않습니다."
+    }
+}
+
+/// Brand hero art for the top of the login screen, matching the tone of the
+/// home hero banner (dark gradient, wordmark, short tagline) without
+/// depending on any specific event image.
+private struct LoginHeroBanner: View {
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: [TicketgroundColor.ink, TicketgroundColor.accent.opacity(0.82)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                HStack(spacing: 2) {
+                    Text("Ticketground")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(.white)
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 6, height: 6)
+                }
+                Text("공연을 발견하고, 예매하고, 안전하게 관리하세요.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+            }
+            .padding(TicketgroundSpacing.lg)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 132)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.large))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("login-hero-banner")
+    }
+}
+
+/// Short trust-signal bullets beneath the social login buttons — fills the
+/// login screen's previously empty lower half with reasons to sign in rather
+/// than an onboarding carousel (out of scope per the improvement plan).
+private struct LoginBenefitsCard: View {
+    private let benefits: [(icon: String, title: String)] = [
+        ("bolt.fill", "실시간 좌석 확보"),
+        ("lock.shield.fill", "안전한 결제"),
+        ("qrcode", "빠른 티켓 확인")
+    ]
+
+    var body: some View {
+        TicketgroundSurface(tone: .muted) {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+                ForEach(benefits, id: \.title) { benefit in
+                    HStack(spacing: TicketgroundSpacing.md) {
+                        Image(systemName: benefit.icon)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(TicketgroundColor.accent)
+                            .frame(width: 24)
+                            .accessibilityHidden(true)
+                        Text(benefit.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(TicketgroundColor.ink)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("login-benefits")
+    }
+}
+
+/// Footer with legal links and the app version, anchoring the bottom of the
+/// login screen.
+private struct LoginFooter: View {
+    var body: some View {
+        VStack(spacing: TicketgroundSpacing.sm) {
+            HStack(spacing: TicketgroundSpacing.sm) {
+                Link("이용약관", destination: URL(string: "https://ticketground.co.kr/terms")!)
+                Text("·")
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+                Link("개인정보처리방침", destination: URL(string: "https://ticketground.co.kr/privacy")!)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(TicketgroundColor.inkMuted)
+            .accessibilityIdentifier("login-footer-legal")
+
+            Text("버전 \(Self.appVersionString)")
+                .font(.caption2)
+                .foregroundStyle(TicketgroundColor.inkMuted)
+                .accessibilityIdentifier("login-footer-version")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, TicketgroundSpacing.sm)
+    }
+
+    private static var appVersionString: String {
+        let shortVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "\(shortVersion) (\(buildNumber))"
+    }
+}
+
+/// Fixture/demo-mode mypage tab. Distinct from `DiscoveryMenuView` (the
+/// hamburger menu) — this is a focused login prompt, since fixture mode has
+/// no live account to show account details for.
+private struct DiscoveryMypageView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text("마이페이지")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                    .accessibilityIdentifier("mypage-screen-title")
+
+                VStack(alignment: .leading, spacing: TicketgroundSpacing.md) {
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 40))
+                        .foregroundStyle(TicketgroundColor.accent)
+                        .accessibilityHidden(true)
+                    Text("로그인하면 마이페이지를 이용할 수 있어요")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(TicketgroundColor.ink)
+                    Text("예매 내역, 관심공연 알림, 결제 수단을 마이페이지에서 한 번에 관리할 수 있습니다.")
+                        .font(.body)
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                    NavigationLink(value: AppRoute.login) {
+                        Text("로그인")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(TicketgroundColor.accent)
+                    .accessibilityIdentifier("mypage-login-cta")
+                }
+                .padding(TicketgroundSpacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(TicketgroundColor.surfaceMuted)
+                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+            }
+            .padding(TicketgroundSpacing.xl)
+        }
+        .navigationTitle("마이페이지")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Fixture/demo-mode watchlist tab empty state — replaces the raw route id
+/// placeholder with an icon + short explanation, consistent with the other
+/// empty states in the app (`TicketgroundEmptySurface`).
+private struct DiscoveryWatchlistEmptyView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text("찜")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                    .accessibilityIdentifier("watchlist-screen-title")
+                TicketgroundEmptySurface(
+                    title: "관심공연이 없습니다",
+                    message: "관심 공연을 찜하면 여기에 모아볼 수 있어요.",
+                    actionTitle: nil,
+                    action: nil,
+                    icon: "heart"
+                )
+            }
+            .padding(TicketgroundSpacing.xl)
+        }
+        .navigationTitle("찜")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("route-watchlist")
+    }
+}
+
+/// Graceful fallback for fixture-mode routes without a wired-up destination
+/// yet (e.g. the booking queue behind the home hero banner). Never displays
+/// the raw internal route id — the identifier is kept for existing
+/// navigation/connectivity tests, but only as an accessibility identifier,
+/// never as on-screen text.
+private struct DiscoveryComingSoonView: View {
+    let route: AppRoute
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
+                Text("준비 중")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(TicketgroundColor.accent)
+                VStack(spacing: TicketgroundSpacing.sm) {
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 36))
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                        .accessibilityHidden(true)
+                    Text("아직 준비 중인 기능입니다")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(TicketgroundColor.ink)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("route-\(route.id)")
+                    Text("빠른 시일 내에 이용하실 수 있도록 준비하고 있습니다.")
+                        .font(.body)
+                        .foregroundStyle(TicketgroundColor.inkMuted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TicketgroundSpacing.xl)
+            }
+            .padding(TicketgroundSpacing.xl)
+        }
+        .navigationTitle("준비 중")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -1894,6 +2104,8 @@ private struct LiveCheckoutRouteView: View {
     @State private var submitting = false
     @State private var purchaseError: String?
     @State private var purchasedTicket: TosspaymentsPurchaseResult.Ticket?
+    @State private var purchaseSuccessFeedback = 0
+    @State private var purchaseErrorFeedback = 0
 
     var body: some View {
         Group {
@@ -1921,7 +2133,10 @@ private struct LiveCheckoutRouteView: View {
         .onChange(of: model.failResult) { _, result in
             guard let result else { return }
             purchaseError = result.errorMessage
+            purchaseErrorFeedback += 1
         }
+        .sensoryFeedback(.success, trigger: purchaseSuccessFeedback)
+        .sensoryFeedback(.error, trigger: purchaseErrorFeedback)
     }
 
     private func resolveGate() {
@@ -2057,9 +2272,11 @@ private struct LiveCheckoutRouteView: View {
             )
             submitting = false
             purchasedTicket = result.ticket
+            purchaseSuccessFeedback += 1
         } catch {
             submitting = false
             purchaseError = (error as? LocalizedError)?.errorDescription ?? "결제 승인 처리에 실패했습니다."
+            purchaseErrorFeedback += 1
         }
     }
 }
@@ -2341,6 +2558,7 @@ private struct LiveWatchlistCTA: View {
     @State private var isMutating = false
     @State private var errorMessage: String?
     @State private var reloadID = 0
+    @State private var toggleFeedbackTrigger = 0
 
     var body: some View {
         Group {
@@ -2381,6 +2599,7 @@ private struct LiveWatchlistCTA: View {
         .task(id: "\(container.environment.sessionStore.revision)-\(reloadID)") {
             await loadWatchlistState()
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: toggleFeedbackTrigger)
     }
 
     @MainActor
@@ -2485,6 +2704,7 @@ private struct LiveWatchlistCTA: View {
             reloadID: reloadID
         )
         isWatched.toggle()
+        toggleFeedbackTrigger += 1
         isMutating = true
         errorMessage = nil
         defer { isMutating = false }
