@@ -1,10 +1,21 @@
 # Task 9 final cross-platform verification report
 
 Date: 2026-08-17
-Qualified product source: `44f9ae59874544823ecb7a0683183b7566e82f54`
-Status: **PASS for repository and local web/Simulator/Emulator qualification. GitHub delivery and external production/provider gates were not performed or claimed.**
+Qualified product source: `73d263a0818e5bcd171b319e79f2e63841b897f6`
+Status: **The original Task 9 run passed at `44f9ae5`; final-review corrections are implemented and their exact-SHA requalification is recorded under `.omo/evidence/task9/fix-round1/`. GitHub delivery and external production/provider gates were not performed or claimed.**
 
-## Clean snapshot and serial verification
+## Final-review correction round 1
+
+The code-quality review at `.omo/evidence/final-review-code-fd5c162.md` found two route/state defects after the original Task 9 qualification. These product fixes supersede the original source SHA without changing rendered layout, so no visual recapture was required.
+
+| Scenario | RED observable | Corrective implementation | Focused GREEN artifact |
+| --- | --- | --- | --- |
+| iOS editorial destinations | Distinct `.event("summer-festival")` and `.goods("autumn-concert")` fixtures both resolved to `.event("ticketground-day")`; 1/1 failed | `9135a79de1ad966f7edabc320ae3754d8041265c` preserves each already-validated `DiscoveryFeatured.route`; malformed or missing fixture routes continue to fail at the existing throwing loader boundary | `.omo/evidence/task9/fix-round1/ios/editorial-route-{red,green}.{log,exit}` |
+| Android discovery overlap | Controlled ranking then artist/retry completions failed 3/3 when the older success/error overwrote the newer state | `73d263a0818e5bcd171b319e79f2e63841b897f6` assigns every discovery invocation an immutable generation and publishes only the latest generation; correctness does not depend on coroutine cancellation | `.omo/evidence/task9/fix-round1/android/discovery-generation-{red,green}.{log,exit}` and `customer-viewmodel-green.log` |
+
+The retained home fixture still routes the first editorial control to `ticketground-day`, preserving its accessibility identifier and existing destination/Back UI evidence. The new unit coverage additionally proves that non-default editorial items keep distinct typed destinations. Android focused coverage includes late old success, late old error, and retry supersession; the full ViewModel class executed 28 tests with no failures.
+
+## Original clean snapshot and serial verification
 
 The run started from branch `Jinnyyunn/mobile-web-parity`, exact HEAD `44f9ae59874544823ecb7a0683183b7566e82f54`, and a clean worktree. Receipt: `evidence/task9/receipts/initial-snapshot.txt`.
 
