@@ -373,7 +373,7 @@ class CustomerAppViewModelTest {
   }
 
   @Test
-  fun `rapid repeated booking retry starts one repository call and publishes pending immediately`() = runTest(dispatcher) {
+  fun `rapid repeated booking retry is a no-op and preserves the admitted request`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository(bookError = ApiError.Transport(java.io.IOException("offline")))
     val viewModel = CustomerAppViewModel(repository)
     advanceUntilIdle()
@@ -383,6 +383,7 @@ class CustomerAppViewModelTest {
     viewModel.selectSeat("seat-a1")
     viewModel.book(event, "performance-1")
     advanceUntilIdle()
+    val admittedRequest = repository.bookingRequests.single()
     repository.bookError = null
     val retry = repository.deferBooking()
 
@@ -392,9 +393,49 @@ class CustomerAppViewModelTest {
     runCurrent()
 
     assertEquals(2, repository.bookCalls)
-    retry.complete(repository.heldBooking())
+    assertEquals(2, repository.bookingRequests.size)
+    assertSame(admittedRequest, repository.bookingRequests[1])
+    retry.completeExceptionally(ApiError.Transport(java.io.IOException("still offline")))
     advanceUntilIdle()
     assertTrue(!viewModel.bookingPending.value)
+
+    viewModel.retryBooking()
+    advanceUntilIdle()
+
+    assertEquals(3, repository.bookCalls)
+    assertSame(admittedRequest, repository.bookingRequests[2])
+  }
+
+  @Test
+  fun `rapid repeated initial booking preserves the admitted request through retry`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val firstBooking = repository.deferBooking()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    val event = repository.homeValue.events.single()
+    viewModel.openSeatMap(event, "performance-1")
+    advanceUntilIdle()
+    viewModel.selectSeat("seat-a1")
+
+    viewModel.book(event, "performance-1")
+    viewModel.book(event, "performance-1")
+    runCurrent()
+
+    assertTrue(viewModel.bookingPending.value)
+    assertEquals(1, repository.bookCalls)
+    assertEquals(1, repository.bookingRequests.size)
+    val admittedRequest = repository.bookingRequests.single()
+
+    firstBooking.completeExceptionally(ApiError.Transport(java.io.IOException("offline")))
+    advanceUntilIdle()
+    assertTrue((viewModel.route.value as CustomerRoute.Booking).progress is BookingProgress.Error)
+
+    viewModel.retryBooking()
+    advanceUntilIdle()
+
+    assertEquals(2, repository.bookCalls)
+    assertSame(admittedRequest, repository.bookingRequests[1])
+    assertSame(admittedRequest.operationKeys, repository.bookingRequests[1].operationKeys)
   }
 
   @Test

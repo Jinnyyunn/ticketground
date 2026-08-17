@@ -232,23 +232,24 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
       mutableActionMessage.value = "예매 회차를 확인할 수 없습니다. 공연 상세에서 회차를 다시 선택해 주세요."
       return
     }
-    val request = BookingRequest.create(
-      performance,
-      seat.id,
-      seat.displayCode.ifBlank { seat.label },
-      seat.price,
-    )
-    lastBookingAttempt = BookingAttempt(request)
-    performBooking(request)
+    performBooking {
+      BookingRequest.create(
+        performance,
+        seat.id,
+        seat.displayCode.ifBlank { seat.label },
+        seat.price,
+      ).also { lastBookingAttempt = BookingAttempt(it) }
+    }
   }
 
   fun retryBooking() {
     val attempt = lastBookingAttempt ?: return
-    performBooking(attempt.request)
+    performBooking { attempt.request }
   }
 
-  private fun performBooking(request: BookingRequest) {
+  private fun performBooking(requestFactory: () -> BookingRequest) {
     if (!mutableBookingPending.compareAndSet(expect = false, update = true)) return
+    val request = requestFactory()
     val generation = ++bookingGeneration
     mutableActionMessage.value = null
     viewModelScope.launch {
