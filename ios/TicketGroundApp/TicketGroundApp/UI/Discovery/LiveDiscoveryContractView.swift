@@ -214,6 +214,19 @@ struct LiveDiscoveryContractView: View {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         guard let date = formatter.date(from: value) else { return value }
-        return date.formatted(date: .long, time: .shortened)
+        // `.formatted(date:time:)` follows the device's system locale (e.g.
+        // "April 13, 2026 at 7:30 PM" on an English-locale device), but every
+        // other date display in the app uses the fixed Korean "yyyy.MM.dd
+        // HH:mm" style (matching the Android app's `openingDateFormatter` in
+        // CustomerHomeParitySections.kt for the same 티켓오픈 concept), so
+        // format explicitly instead of deferring to the system locale.
+        return koreanDateTimeFormatter.string(from: date)
     }
+
+    private static let koreanDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "yyyy.MM.dd HH:mm"
+        return formatter
+    }()
 }
