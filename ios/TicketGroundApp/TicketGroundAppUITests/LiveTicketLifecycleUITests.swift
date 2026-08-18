@@ -13,6 +13,7 @@ final class LiveTicketLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["lifecycle-open-trusted-device"].exists)
         XCTAssertTrue(app.buttons["lifecycle-open-push-notifications"].exists)
         XCTAssertTrue(app.buttons["lifecycle-open-admission-qr"].exists)
+        XCTAssertTrue(app.buttons["lifecycle-share-ticket"].isHittable)
     }
 
     func testTrustedDeviceExposesCanonicalStateSurface() {

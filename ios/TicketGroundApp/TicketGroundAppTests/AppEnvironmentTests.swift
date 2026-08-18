@@ -247,6 +247,72 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertNil(RouteResolver.resolve(path: "/contents/genre/"))
     }
 
+    // MARK: - Universal Links / native share (Phase 2)
+
+    func testPublicShareURLUsesAssociatedDomainsHostAndRoundTripsThroughRouteResolver() {
+        let url = PublicShareURL.event(slug: "neon-stage")
+
+        XCTAssertEqual(url.scheme, "https")
+        XCTAssertEqual(url.host, PublicShareURL.universalLinkHost)
+        XCTAssertEqual(url.path, "/event/neon-stage")
+        // The exact URL a real device hands to onContinueUserActivity(.browsingWeb) for a
+        // Universal Link tap must resolve back to the same route ShareLink advertised -
+        // otherwise sharing an event and then tapping the shared link would silently land
+        // somewhere else (or nowhere).
+        XCTAssertEqual(RouteResolver.resolve(url), .event(slug: "neon-stage"))
+    }
+
+    func testTicketgroundTabRootTabMapsOnlyThePrimaryTabRoutes() {
+        XCTAssertEqual(TicketgroundTab.rootTab(for: .home), .home)
+        XCTAssertEqual(TicketgroundTab.rootTab(for: .search), .search)
+        XCTAssertEqual(TicketgroundTab.rootTab(for: .watchlist), .watchlist)
+        XCTAssertEqual(TicketgroundTab.rootTab(for: .mypage), .mypage)
+        XCTAssertNil(TicketgroundTab.rootTab(for: .event(slug: "neon-stage")))
+        XCTAssertNil(TicketgroundTab.rootTab(for: .menu))
+        XCTAssertNil(TicketgroundTab.rootTab(for: .login))
+    }
+
+    func testApplyPublicURLForTabRootRouteSwitchesNativeTabAndClearsItsStack() {
+        let container = AppContainer.fixture()
+        container.watchlistPath = [.help]
+        container.selectedTab = .home
+
+        container.applyPublicURL(URL(string: "ticketground:///watchlist")!)
+
+        // A Universal Link / deep link to a primary tab should land on that tab natively -
+        // matching the tab bar's own selection state - rather than pushing a duplicate
+        // watchlist screen with no visible tab bar (the bug this Phase 2 round fixes).
+        XCTAssertEqual(container.selectedTab, .watchlist)
+        XCTAssertTrue(container.watchlistPath.isEmpty)
+    }
+
+    func testApplyPublicURLForContentRouteAlwaysLandsOnHomeTabWithoutDisturbingOtherTabs() {
+        let container = AppContainer.fixture()
+        container.selectedTab = .search
+        container.searchPath = [.help]
+
+        container.applyPublicURL(URL(string: "ticketground:///event/neon-stage")!)
+
+        XCTAssertEqual(container.selectedTab, .home)
+        XCTAssertEqual(container.homePath, [.event(slug: "neon-stage")])
+        // Each tab owns an independent back-stack; landing a content route on Home must not
+        // clear or otherwise touch whatever the user was doing on another tab.
+        XCTAssertEqual(container.searchPath, [.help])
+    }
+
+    func testPushSoftAskStorageDefaultsToNotPresentedAndPersistsAcrossReads() {
+        let originalValue = PushSoftAskStorage.hasBeenPresented
+        addTeardownBlock { PushSoftAskStorage.hasBeenPresented = originalValue }
+
+        PushSoftAskStorage.hasBeenPresented = false
+        XCTAssertFalse(PushSoftAskStorage.hasBeenPresented)
+
+        PushSoftAskStorage.hasBeenPresented = true
+        // Re-read (not just re-check the same in-memory value) so this actually exercises the
+        // UserDefaults round-trip the "only ever show once per install" guarantee depends on.
+        XCTAssertTrue(PushSoftAskStorage.hasBeenPresented)
+    }
+
     func testOpenURLGivesGoogleCallbackPriority() {
         let container = AppContainer.fixture()
         container.navigationPath = [.menu]

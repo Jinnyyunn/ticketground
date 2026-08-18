@@ -474,6 +474,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
         app.buttons["discovery-featured-cta"].tap()
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["live-share-event"].isHittable)
         app.buttons["live-seat-map-link"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 10))
         let marker = app.buttons["live-seat-marker-R-1"]
