@@ -1,8 +1,11 @@
 package kr.ticketground.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -17,6 +20,9 @@ import androidx.compose.material3.TextButton
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -88,8 +94,27 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private var lastBookingAttempt: BookingAttempt? = null
   private var bookingGeneration = 0L
   private var discoveryGeneration = 0L
+  private var navigationListener: ((AppDestination, CustomerRoute) -> Unit)? = null
 
   init { loadHome() }
+
+  /**
+   * Optional hook the Compose layer uses to mirror route/destination changes into the real
+   * NavController back stack (see TicketGroundCustomerApp). Invoked synchronously from inside
+   * the same function call that mutates [route]/[destination] -- not from a recomposition-driven
+   * effect -- so NavController is always updated in the exact same call frame as the ViewModel
+   * state, regardless of whether the caller is a UI click, a test calling a ViewModel method
+   * directly, or a coroutine callback (booking progress advancing after a network call). Relying
+   * purely on Compose recomposition to notice the state change and react a pass later was flaky
+   * under device load in practice.
+   */
+  fun setNavigationListener(listener: (AppDestination, CustomerRoute) -> Unit) {
+    navigationListener = listener
+  }
+
+  private fun notifyNavigation() {
+    navigationListener?.invoke(mutableDestination.value, mutableRoute.value)
+  }
 
   /**
    * Minimal manual back stack for the hand-rolled navigator (interim fix ahead of the Phase 2
@@ -105,6 +130,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private fun pushRoute(newRoute: CustomerRoute) {
     if (mutableRoute.value != newRoute) pushSnapshot()
     mutableRoute.value = newRoute
+    notifyNavigation()
   }
 
   fun navigate(destination: AppDestination) {
@@ -113,6 +139,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     }
     mutableDestination.value = destination
     mutableRoute.value = CustomerRoute.Tab
+    notifyNavigation()
     when (destination) {
       AppDestination.Home, AppDestination.Search -> if (mutableHome.value is AsyncContent.Error) loadHome()
       AppDestination.Watchlist -> loadWatchlist()
@@ -134,6 +161,23 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun openEvent(event: CatalogEvent) { pushRoute(CustomerRoute.Event(event)) }
+
+  /**
+   * Entry point for App Links / deep links that only carry an event slug or id (e.g. a shared
+   * `https://ticketground.co.kr/booking/{slug}` URL opened cold, before the catalog has loaded).
+   * Looks the event up in whatever catalog is already cached, otherwise fetches it fresh; falls
+   * back to the home tab rather than failing closed if the event can't be resolved.
+   */
+  fun openEventDeepLink(slugOrId: String) = viewModelScope.launch {
+    val cached = (mutableHome.value as? AsyncContent.Ready)?.value?.events
+      ?.firstOrNull { it.slug == slugOrId || it.id == slugOrId }
+    val event = cached ?: runCatching { repository.home() }.getOrNull()?.events
+      ?.firstOrNull { it.slug == slugOrId || it.id == slugOrId }
+    if (event != null) openEvent(event) else navigate(AppDestination.Home)
+  }
+
+  /** Deep link entry point for the `/watchlist` web route. */
+  fun openWatchlistDeepLink() { navigate(AppDestination.Watchlist) }
 
   fun openCollection(title: String, events: List<CatalogEvent>) {
     pushRoute(CustomerRoute.Collection(title, events))
@@ -188,6 +232,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     // single back press returns to the seat map instead of stepping through every queue poll.
     if (mutableRoute.value !is CustomerRoute.Booking) pushSnapshot()
     mutableRoute.value = CustomerRoute.Booking(progress)
+    notifyNavigation()
   }
 
   fun openReservation() { openAccountRoute(CustomerRoute.Reservation) }
@@ -210,6 +255,11 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   fun openResale() { pushRoute(CustomerRoute.Resale) }
 
   fun closeRoute() {
+    // Deliberately does NOT call notifyNavigation(): the Compose layer's BackHandler already
+    // pops the NavController's own back stack explicitly (a real pop, restoring whatever entry
+    // was already there) right alongside this call. Calling the listener here too would instead
+    // navigate() to the previous route's key -- pushing a fresh/duplicate entry instead of
+    // popping -- which fights the BackHandler's own pop for the same back-press.
     if (mutableBookingPending.value) bookingGeneration += 1
     val previous = backStack.removeLastOrNull()
     if (previous != null) {
@@ -480,6 +530,39 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private data class BookingAttempt(val request: BookingRequest)
 }
 
+/**
+ * Stable string key for the NavHost graph. [CustomerAppViewModel.route]/[CustomerAppViewModel.destination]
+ * remain the single source of truth for *which* screen is showing and *what data* it renders
+ * (an event, a discovery list, a booking draft, ...) — those flows are exercised directly by
+ * [CustomerAppViewModelTest] with no Compose/NavController involved, and complex payloads
+ * (CatalogEvent, TossCheckoutRequest, BookingProgress) are read from that state rather than
+ * threaded through NavHost arguments. NavHost is the real back-stack/rendering backbone: every
+ * forward push mirrors into a `navController.navigate(key)` call keyed by this function, and
+ * every content lambda below is keyed identically, so NavHost always shows the composable that
+ * matches the ViewModel's current route.
+ */
+private fun navKeyFor(destination: AppDestination, route: CustomerRoute): String = when (route) {
+  CustomerRoute.Tab -> "tab_${destination.name.lowercase()}"
+  is CustomerRoute.Event -> "event"
+  is CustomerRoute.Collection -> "collection"
+  CustomerRoute.Ranking -> "ranking"
+  is CustomerRoute.Region -> "region"
+  is CustomerRoute.Venue -> "venue"
+  is CustomerRoute.Artist -> "artist"
+  CustomerRoute.OpenCalendar -> "calendar"
+  CustomerRoute.Resale -> "resale"
+  is CustomerRoute.SeatMapRoute -> "seatmap"
+  is CustomerRoute.Booking -> "booking"
+  is CustomerRoute.Checkout -> "checkout"
+  CustomerRoute.Support -> "support"
+  CustomerRoute.Reservation -> "reservation"
+  CustomerRoute.Cancellation -> "cancellation"
+  CustomerRoute.ResaleLifecycle -> "resaleLifecycle"
+  CustomerRoute.TrustedDevice -> "trustedDevice"
+  CustomerRoute.PushNotifications -> "pushNotifications"
+  CustomerRoute.Inquiry -> "inquiry"
+}
+
 @Composable
 fun TicketGroundCustomerApp(
   viewModel: CustomerAppViewModel,
@@ -504,54 +587,124 @@ fun TicketGroundCustomerApp(
   val admissionQr by viewModel.admissionQr.collectAsStateWithLifecycle()
   val inquiries by viewModel.inquiries.collectAsStateWithLifecycle()
 
-  BackHandler(
-    enabled = canGoBack,
-    onBack = viewModel::closeRoute,
-  )
+  val navController = rememberNavController()
+
+  // Authoritative forward-navigation sync: CustomerAppViewModel calls this listener synchronously
+  // from inside pushRoute()/navigate()/openBooking() -- the exact same function call that mutates
+  // route/destination -- so NavController is always updated in that same call frame regardless of
+  // whether the caller is a UI click, a coroutine callback (booking progress advancing after a
+  // network call), or a test calling a ViewModel method directly. Registered once per viewModel
+  // instance. Relying purely on a Compose effect that reacts to route/destination a composition
+  // pass later proved flaky on real devices under load (two ViewModel pushes issued close
+  // together, e.g. reservation -> cancellation, could have the second navigate() land while
+  // NavHost was still settling the first, and NavHost silently dropped it).
+  remember(viewModel) {
+    viewModel.setNavigationListener { destination, route ->
+      val key = navKeyFor(destination, route)
+      if (navController.currentDestination?.route != key) {
+        navController.navigate(key) { launchSingleTop = true }
+      }
+    }
+    true
+  }
+
+  // Thin convenience wrapper so UI click handlers read the same way they did before this
+  // listener existed. Functionally redundant with the listener above (which already runs inside
+  // the ViewModel call `action()` makes) but harmless -- navController.navigate() with
+  // launchSingleTop is a documented no-op when already at that destination.
+  fun push(key: String, action: () -> Unit) {
+    action()
+    navController.navigate(key) { launchSingleTop = true }
+  }
 
   BoxWithConstraints(Modifier.fillMaxSize()) {
     val expandedLayout = maxWidth >= TicketGroundLayout.expandedBreakpoint
-    TicketGroundNavigation(destination, maxWidth, viewModel::navigate) {
-      when (val current = route) {
-        CustomerRoute.Tab -> when (destination) {
-          AppDestination.Home -> if (expandedLayout) {
-            ExpandedHomeScreen(
-              state = home,
-              onRetry = viewModel::loadHome,
-              onEvent = viewModel::openEvent,
-              onSearch = { viewModel.navigate(AppDestination.Search) },
-              onCategory = viewModel::openCategory,
-              onCollection = viewModel::openCollection,
-              onRanking = viewModel::openRanking,
-              onRegion = viewModel::openRegion,
-              onOpenCalendar = viewModel::openCalendar,
-              onOpenResale = viewModel::openResale,
-              onSupport = viewModel::openSupport,
-              onLogin = openLogin,
-              onMenu = { showMenu = true },
+    TicketGroundNavigation(
+      selected = destination,
+      width = maxWidth,
+      onNavigate = { d -> push(navKeyFor(d, CustomerRoute.Tab)) { viewModel.navigate(d) } },
+    ) {
+      // Snapshot the ViewModel's CURRENT route/destination at mount time rather than hardcoding
+      // Home/Tab: callers (production and tests alike) sometimes navigate the ViewModel before
+      // TicketGroundCustomerApp is ever composed (e.g. VisualCaptureTest builds a ViewModel and
+      // calls openSeatMap()/navigate() on it before passing it to setContent). The navigation
+      // listener above is only registered once composition starts, so it can't retroactively
+      // sync a push that already happened -- NavHost has to start on the right destination
+      // itself instead of always starting at Home and hoping something corrects it later.
+      val initialNavKey = remember(viewModel) { navKeyFor(destination, route) }
+      NavHost(
+        navController = navController,
+        startDestination = initialNavKey,
+        // Instant swaps, no crossfade: content is driven by ViewModel state (see the navigation
+        // listener above), and a multi-frame animated transition left a window where a second
+        // navigate() arriving before the first transition settled could be dropped by NavHost --
+        // this showed up as flaky "destination tag not displayed" failures on real devices when
+        // two navigations happened back to back (e.g. reservation -> cancellation). Matches the
+        // old when()-based screen swap's instant, single-frame behavior anyway.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
+      ) {
+        composable("tab_home") {
+          Column(Modifier.fillMaxSize()) {
+            // First-reach soft-ask: a one-time explanation card before the real system
+            // POST_NOTIFICATIONS prompt (Android 13+), rather than cold-prompting. Rendered as
+            // its own banner ABOVE the scrollable home content (not a floating overlay on top of
+            // it) -- an overlay positioned over the list intercepted clicks meant for whatever
+            // list content happened to be scrolled underneath it (e.g. the shortcut cards at the
+            // bottom of the list), which is a real, confirmed click-stealing bug, not just a
+            // cosmetic concern.
+            PushPermissionSoftAskCard(
+              modifier = Modifier.padding(horizontal = TicketGroundSpacing.lg, vertical = TicketGroundSpacing.sm),
             )
-          } else {
-            HomeScreen(
-              state = home,
-              onRetry = viewModel::loadHome,
-              onEvent = viewModel::openEvent,
-              onSearch = { viewModel.navigate(AppDestination.Search) },
-              onCategory = viewModel::openCategory,
-              onCollection = viewModel::openCollection,
-              onRanking = viewModel::openRanking,
-              onRegion = viewModel::openRegion,
-              onOpenCalendar = viewModel::openCalendar,
-              onOpenResale = viewModel::openResale,
-              onSupport = viewModel::openSupport,
-              onLogin = openLogin,
-              onMenu = { showMenu = true },
-            )
+            Box(Modifier.weight(1f)) {
+              if (expandedLayout) {
+                ExpandedHomeScreen(
+                  state = home,
+                  onRetry = viewModel::loadHome,
+                  onEvent = { e -> push("event") { viewModel.openEvent(e) } },
+                  onSearch = { push("tab_search") { viewModel.navigate(AppDestination.Search) } },
+                  onCategory = { c -> push("tab_search") { viewModel.openCategory(c) } },
+                  onCollection = { title, events -> push("collection") { viewModel.openCollection(title, events) } },
+                  onRanking = { events -> push("ranking") { viewModel.openRanking(events) } },
+                  onRegion = { name, events -> push("region") { viewModel.openRegion(name, events) } },
+                  onOpenCalendar = { push("calendar") { viewModel.openCalendar() } },
+                  onOpenResale = { push("resale") { viewModel.openResale() } },
+                  onSupport = { push("support") { viewModel.openSupport() } },
+                  onLogin = openLogin,
+                  onMenu = { showMenu = true },
+                )
+              } else {
+                HomeScreen(
+                  state = home,
+                  onRetry = viewModel::loadHome,
+                  onEvent = { e -> push("event") { viewModel.openEvent(e) } },
+                  onSearch = { push("tab_search") { viewModel.navigate(AppDestination.Search) } },
+                  onCategory = { c -> push("tab_search") { viewModel.openCategory(c) } },
+                  onCollection = { title, events -> push("collection") { viewModel.openCollection(title, events) } },
+                  onRanking = { events -> push("ranking") { viewModel.openRanking(events) } },
+                  onRegion = { name, events -> push("region") { viewModel.openRegion(name, events) } },
+                  onOpenCalendar = { push("calendar") { viewModel.openCalendar() } },
+                  onOpenResale = { push("resale") { viewModel.openResale() } },
+                  onSupport = { push("support") { viewModel.openSupport() } },
+                  onLogin = openLogin,
+                  onMenu = { showMenu = true },
+                )
+              }
+            }
           }
-          AppDestination.Search -> AsyncSurface(home, viewModel::loadHome, loadingContent = { EventListLoadingSkeleton() }) {
-            SearchScreen(it.events, viewModel::openEvent, searchQuery)
+        }
+        composable("tab_search") {
+          AsyncSurface(home, viewModel::loadHome, loadingContent = { EventListLoadingSkeleton() }) {
+            SearchScreen(it.events, { e -> push("event") { viewModel.openEvent(e) } }, searchQuery)
           }
-          AppDestination.Watchlist -> WatchlistScreen(watchlist, viewModel::loadWatchlist, openLogin)
-          AppDestination.MyPage -> LifecycleOverviewScreen(
+        }
+        composable("tab_watchlist") {
+          WatchlistScreen(watchlist, viewModel::loadWatchlist, openLogin)
+        }
+        composable("tab_mypage") {
+          LifecycleOverviewScreen(
             state = account,
             onRetry = viewModel::loadAccount,
             pending = pending,
@@ -564,98 +717,165 @@ fun TicketGroundCustomerApp(
             onTicketSelected = viewModel::selectOwnedTicket,
             admissionQr = admissionQr,
             onLogin = openLogin,
-            onReservationRoute = viewModel::openReservation,
-            onCancellationRoute = viewModel::openCancellation,
-            onResaleRoute = viewModel::openResaleLifecycle,
-            onTrustedDeviceRoute = viewModel::openTrustedDevice,
-            onPushRoute = viewModel::openPushNotifications,
-            onInquiryRoute = viewModel::openInquiry,
+            onReservationRoute = { push("reservation") { viewModel.openReservation() } },
+            onCancellationRoute = { push("cancellation") { viewModel.openCancellation() } },
+            onResaleRoute = { push("resaleLifecycle") { viewModel.openResaleLifecycle() } },
+            onTrustedDeviceRoute = { push("trustedDevice") { viewModel.openTrustedDevice() } },
+            onPushRoute = { push("pushNotifications") { viewModel.openPushNotifications() } },
+            onInquiryRoute = { push("inquiry") { viewModel.openInquiry() } },
           )
         }
-        is CustomerRoute.Event -> EventDetailScreen(
-          current.event,
-          onSeatMap = { viewModel.openSeatMap(current.event, it) },
-          onWatchlist = { viewModel.addToWatchlist(current.event) },
-          onVenue = { viewModel.openVenue(current.event) },
-          onArtist = { viewModel.openArtist(current.event) },
-          actionMessage = actionMessage,
-        )
-        is CustomerRoute.Collection -> Box(
-          Modifier.fillMaxSize().testTag("collection-screen-${current.title}"),
-        ) {
-          EventListScreen(
-            title = current.title,
-            state = AsyncContent.Ready(current.events),
-            expanded = expandedLayout,
-            onRetry = {},
-            onEvent = viewModel::openEvent,
-          )
-        }
-        CustomerRoute.Ranking -> Box(Modifier.fillMaxSize().testTag("ranking-screen")) {
-          EventListScreen("실시간 예매 랭킹", discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent, ranking = true)
-        }
-        is CustomerRoute.Region -> Box(Modifier.fillMaxSize().testTag("region-screen-${current.name}")) {
-          EventListScreen("${current.name} 공연", discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent)
-        }
-        is CustomerRoute.Venue -> Box(Modifier.fillMaxSize().testTag("venue-screen-${current.venueId ?: current.venueName}")) {
-          EventListScreen(current.venueName, discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent)
-        }
-        is CustomerRoute.Artist -> Box(Modifier.fillMaxSize().testTag("artist-screen-${current.artistSlug ?: "unknown"}")) {
-          EventListScreen(current.artistNames.firstOrNull() ?: "아티스트 공연", discovery, expandedLayout, viewModel::retryDiscovery, viewModel::openEvent)
-        }
-        CustomerRoute.OpenCalendar -> AsyncSurface(home, viewModel::loadHome) {
-          OpenCalendarScreen(it.calendar, viewModel::openEvent)
-        }
-        CustomerRoute.Resale -> PublicResaleScreen {
-          viewModel.navigate(AppDestination.MyPage)
-        }
-        is CustomerRoute.SeatMapRoute -> {
-          GraphicalSeatMapScreen(
-            state = seatMap,
-            selectedSeatId = selectedSeatId,
-            heldSeatIds = heldSeatIds,
-            pending = pending,
-            onRetry = { viewModel.loadSeatMap(current.event.id, current.performanceDateId) },
-            onSeatSelected = viewModel::selectSeat,
-            onBook = { viewModel.book(current.event, current.performanceDateId) },
-          )
-          actionMessage?.let { StateBanner(it) }
-        }
-        is CustomerRoute.Booking -> BookingProgressScreen(
-          BookingProgressState(current.progress, pending),
-          viewModel::retryBooking,
-          viewModel::refreshBooking,
-          viewModel::continueToCheckout,
-        )
-        is CustomerRoute.Checkout -> {
-          CheckoutHandoffScreen(current.request, pending, current.seatLabel, current.amount) { result ->
-            viewModel.completeCheckout(current.request, result)
+        composable("event") {
+          (route as? CustomerRoute.Event)?.let { current ->
+            EventDetailScreen(
+              current.event,
+              onSeatMap = { performanceId -> push("seatmap") { viewModel.openSeatMap(current.event, performanceId) } },
+              onWatchlist = { viewModel.addToWatchlist(current.event) },
+              onVenue = { push("venue") { viewModel.openVenue(current.event) } },
+              onArtist = { push("artist") { viewModel.openArtist(current.event) } },
+              actionMessage = actionMessage,
+            )
           }
-          actionMessage?.let { StateBanner(it) }
         }
-        CustomerRoute.Support -> AsyncSurface(home, viewModel::loadHome) { SupportScreen(it) }
-        CustomerRoute.Reservation -> ReservationDetailScreen(account, viewModel::loadAccount, openLogin, viewModel::selectOwnedTicket)
-        CustomerRoute.Cancellation -> CancellationRequestScreen(
-          account, pending, actionMessage, viewModel::loadAccount, viewModel::requestCancellation, openLogin,
-        )
-        CustomerRoute.ResaleLifecycle -> AccountResaleLifecycleScreen(
-          account, pending, actionMessage, viewModel::loadAccount, viewModel::listForResale, openLogin,
-        )
-        CustomerRoute.TrustedDevice -> TrustedDeviceScreen(
-          account, pending, actionMessage, viewModel::loadAccount, viewModel::trustThisDevice, openLogin,
-        )
-        CustomerRoute.PushNotifications -> PushNotificationsScreen(
-          account, pending, actionMessage, viewModel::loadAccount, viewModel::registerPush, openLogin,
-        )
-        CustomerRoute.Inquiry -> InquiryScreen(
-          accountState = account,
-          inquiryState = inquiries,
-          pending = pending,
-          actionMessage = actionMessage,
-          onRetry = viewModel::loadInquiries,
-          onSubmit = viewModel::submitInquiry,
-          onLogin = openLogin,
-        )
+        composable("collection") {
+          (route as? CustomerRoute.Collection)?.let { current ->
+            Box(Modifier.fillMaxSize().testTag("collection-screen-${current.title}")) {
+              EventListScreen(
+                title = current.title,
+                state = AsyncContent.Ready(current.events),
+                expanded = expandedLayout,
+                onRetry = {},
+                onEvent = { e -> push("event") { viewModel.openEvent(e) } },
+              )
+            }
+          }
+        }
+        composable("ranking") {
+          Box(Modifier.fillMaxSize().testTag("ranking-screen")) {
+            EventListScreen(
+              "실시간 예매 랭킹", discovery, expandedLayout, viewModel::retryDiscovery,
+              { e -> push("event") { viewModel.openEvent(e) } }, ranking = true,
+            )
+          }
+        }
+        composable("region") {
+          (route as? CustomerRoute.Region)?.let { current ->
+            Box(Modifier.fillMaxSize().testTag("region-screen-${current.name}")) {
+              EventListScreen(
+                "${current.name} 공연", discovery, expandedLayout, viewModel::retryDiscovery,
+                { e -> push("event") { viewModel.openEvent(e) } },
+              )
+            }
+          }
+        }
+        composable("venue") {
+          (route as? CustomerRoute.Venue)?.let { current ->
+            Box(Modifier.fillMaxSize().testTag("venue-screen-${current.venueId ?: current.venueName}")) {
+              EventListScreen(
+                current.venueName, discovery, expandedLayout, viewModel::retryDiscovery,
+                { e -> push("event") { viewModel.openEvent(e) } },
+              )
+            }
+          }
+        }
+        composable("artist") {
+          (route as? CustomerRoute.Artist)?.let { current ->
+            Box(Modifier.fillMaxSize().testTag("artist-screen-${current.artistSlug ?: "unknown"}")) {
+              EventListScreen(
+                current.artistNames.firstOrNull() ?: "아티스트 공연", discovery, expandedLayout, viewModel::retryDiscovery,
+                { e -> push("event") { viewModel.openEvent(e) } },
+              )
+            }
+          }
+        }
+        composable("calendar") {
+          AsyncSurface(home, viewModel::loadHome) {
+            OpenCalendarScreen(it.calendar) { e -> push("event") { viewModel.openEvent(e) } }
+          }
+        }
+        composable("resale") {
+          PublicResaleScreen { push(navKeyFor(AppDestination.MyPage, CustomerRoute.Tab)) { viewModel.navigate(AppDestination.MyPage) } }
+        }
+        composable("seatmap") {
+          (route as? CustomerRoute.SeatMapRoute)?.let { current ->
+            GraphicalSeatMapScreen(
+              state = seatMap,
+              selectedSeatId = selectedSeatId,
+              heldSeatIds = heldSeatIds,
+              pending = pending,
+              onRetry = { viewModel.loadSeatMap(current.event.id, current.performanceDateId) },
+              onSeatSelected = viewModel::selectSeat,
+              onBook = { viewModel.book(current.event, current.performanceDateId) },
+            )
+            actionMessage?.let { StateBanner(it) }
+          }
+        }
+        composable("booking") {
+          (route as? CustomerRoute.Booking)?.let { current ->
+            BookingProgressScreen(
+              BookingProgressState(current.progress, pending),
+              viewModel::retryBooking,
+              viewModel::refreshBooking,
+              { held -> push("checkout") { viewModel.continueToCheckout(held) } },
+            )
+          }
+        }
+        composable("checkout") {
+          (route as? CustomerRoute.Checkout)?.let { current ->
+            CheckoutHandoffScreen(current.request, pending, current.seatLabel, current.amount) { result ->
+              viewModel.completeCheckout(current.request, result)
+            }
+            actionMessage?.let { StateBanner(it) }
+          }
+        }
+        composable("support") {
+          AsyncSurface(home, viewModel::loadHome) { SupportScreen(it) }
+        }
+        composable("reservation") {
+          ReservationDetailScreen(account, viewModel::loadAccount, openLogin, viewModel::selectOwnedTicket)
+        }
+        composable("cancellation") {
+          CancellationRequestScreen(
+            account, pending, actionMessage, viewModel::loadAccount, viewModel::requestCancellation, openLogin,
+          )
+        }
+        composable("resaleLifecycle") {
+          AccountResaleLifecycleScreen(
+            account, pending, actionMessage, viewModel::loadAccount, viewModel::listForResale, openLogin,
+          )
+        }
+        composable("trustedDevice") {
+          TrustedDeviceScreen(
+            account, pending, actionMessage, viewModel::loadAccount, viewModel::trustThisDevice, openLogin,
+          )
+        }
+        composable("pushNotifications") {
+          PushNotificationsScreen(
+            account, pending, actionMessage, viewModel::loadAccount, viewModel::registerPush, openLogin,
+          )
+        }
+        composable("inquiry") {
+          InquiryScreen(
+            accountState = account,
+            inquiryState = inquiries,
+            pending = pending,
+            actionMessage = actionMessage,
+            onRetry = viewModel::loadInquiries,
+            onSubmit = viewModel::submitInquiry,
+            onLogin = openLogin,
+          )
+        }
+      }
+      // Declared after NavHost so it wins priority on the OnBackPressedDispatcher's LIFO stack
+      // (Compose registers back callbacks in composition order; the most recently added enabled
+      // callback intercepts first). System back stays routed through the already-tested
+      // ViewModel.closeRoute()/canGoBack contract, and we pop the mirrored NavController entry in
+      // the same handler so both stacks stay in lockstep. When canGoBack is false this handler is
+      // disabled and the event falls through to the default Activity back behavior (exits to the
+      // launcher at the Home tab root), matching the Phase 1-verified baseline.
+      BackHandler(enabled = canGoBack) {
+        viewModel.closeRoute()
+        navController.popBackStack()
       }
     }
   }
@@ -681,10 +901,10 @@ fun TicketGroundCustomerApp(
       title = { androidx.compose.material3.Text("전체 메뉴") },
       text = {
         androidx.compose.foundation.layout.Column {
-          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.Home) }, modifier = androidx.compose.ui.Modifier.testTag("menu-home")) { androidx.compose.material3.Text("홈") }
-          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.Search) }, modifier = androidx.compose.ui.Modifier.testTag("menu-search")) { androidx.compose.material3.Text("공연 검색") }
-          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.Watchlist) }, modifier = androidx.compose.ui.Modifier.testTag("menu-watchlist")) { androidx.compose.material3.Text("관심공연") }
-          TextButton(onClick = { showMenu = false; viewModel.navigate(AppDestination.MyPage) }, modifier = androidx.compose.ui.Modifier.testTag("menu-mypage")) { androidx.compose.material3.Text("마이페이지") }
+          TextButton(onClick = { showMenu = false; push(navKeyFor(AppDestination.Home, CustomerRoute.Tab)) { viewModel.navigate(AppDestination.Home) } }, modifier = androidx.compose.ui.Modifier.testTag("menu-home")) { androidx.compose.material3.Text("홈") }
+          TextButton(onClick = { showMenu = false; push(navKeyFor(AppDestination.Search, CustomerRoute.Tab)) { viewModel.navigate(AppDestination.Search) } }, modifier = androidx.compose.ui.Modifier.testTag("menu-search")) { androidx.compose.material3.Text("공연 검색") }
+          TextButton(onClick = { showMenu = false; push(navKeyFor(AppDestination.Watchlist, CustomerRoute.Tab)) { viewModel.navigate(AppDestination.Watchlist) } }, modifier = androidx.compose.ui.Modifier.testTag("menu-watchlist")) { androidx.compose.material3.Text("관심공연") }
+          TextButton(onClick = { showMenu = false; push(navKeyFor(AppDestination.MyPage, CustomerRoute.Tab)) { viewModel.navigate(AppDestination.MyPage) } }, modifier = androidx.compose.ui.Modifier.testTag("menu-mypage")) { androidx.compose.material3.Text("마이페이지") }
         }
       },
       confirmButton = { TextButton(onClick = { showMenu = false }) { androidx.compose.material3.Text("닫기") } },

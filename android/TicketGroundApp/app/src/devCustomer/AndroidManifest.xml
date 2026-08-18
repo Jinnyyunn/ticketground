@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App Links for the dev customer app, mirroring the same pattern as prodCustomer but pointed at
+  the dev environment's own domain (matching BuildConfig.API_BASE_URL for this flavor). This lets
+  App Links be exercised end-to-end against dev.ticketground.co.kr without touching production
+  verification. Requires dev.ticketground.co.kr/.well-known/assetlinks.json to be hosted with a
+  debug or dev-signing certificate fingerprint (separate from the production placeholder) if the
+  operator wants dev-flavor App Links to actually verify; otherwise the intent filter still works
+  for direct `adb shell am start -a android.intent.action.VIEW -d https://dev...` testing even
+  without verification.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <activity android:name=".MainActivity" android:exported="true">
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="https" android:host="dev.ticketground.co.kr" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

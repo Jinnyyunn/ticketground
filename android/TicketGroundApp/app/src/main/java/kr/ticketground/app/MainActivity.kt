@@ -65,12 +65,14 @@ class MainActivity : AppCompatActivity() {
       }
     }
     handleNativeCallback(intent)
+    handleDeepLink(intent)
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
     handleNativeCallback(intent)
+    handleDeepLink(intent)
   }
 
   private fun startSocialLogin(provider: String) {
@@ -97,6 +99,30 @@ class MainActivity : AppCompatActivity() {
     }
     customerViewModel?.completeNativeLogin(provider, code)
   }
+
+  /**
+   * Android App Links entry point (see AndroidManifest's `prodCustomer`/`devCustomer` intent
+   * filters and `assetlinks.json` at the web app's `/.well-known/` route). Only a couple of
+   * routes are mapped — the home route is a no-op (the app already opens to home) and the event
+   * detail / watchlist routes hand off to the ViewModel, which resolves an event slug against
+   * whatever catalog is cached (or fetches it) and falls back to the home tab rather than
+   * failing closed if a route can't be resolved.
+   */
+  private fun handleDeepLink(intent: Intent?) {
+    if (BuildConfig.GATE_APP) return
+    val data = intent?.data ?: return
+    if (data.scheme != "https") return
+    val path = data.path.orEmpty()
+    when {
+      path.isBlank() || path == "/" -> Unit
+      path == "/watchlist" || path.startsWith("/watchlist/") -> customerViewModel?.openWatchlistDeepLink()
+      path.startsWith("/booking/") -> deepLinkSlug(path, "/booking/")?.let { customerViewModel?.openEventDeepLink(it) }
+      path.startsWith("/goods/") -> deepLinkSlug(path, "/goods/")?.let { customerViewModel?.openEventDeepLink(it) }
+    }
+  }
+
+  private fun deepLinkSlug(path: String, prefix: String): String? =
+    path.removePrefix(prefix).substringBefore('/').takeIf { it.isNotBlank() }
 
   private fun customerViewModelFactory(): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {

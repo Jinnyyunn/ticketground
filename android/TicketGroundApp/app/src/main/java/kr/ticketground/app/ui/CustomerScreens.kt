@@ -92,6 +92,7 @@ import kr.ticketground.app.data.SupportThread
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import com.tosspayments.paymentsdk.PaymentWidget
 import com.tosspayments.paymentsdk.model.PaymentCallback
 import com.tosspayments.paymentsdk.model.TossPaymentResult
@@ -644,9 +645,16 @@ fun EventDetailScreen(
   var selectedPerformanceId by remember(event.id, performances) {
     mutableStateOf(performances.singleOrNull()?.id)
   }
+  val context = LocalContext.current
   LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.lg), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
     item {
-      Text(event.title, style = MaterialTheme.typography.headlineSmall)
+      Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+        Text(event.title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        OutlinedButton(
+          onClick = { shareEvent(context, event) },
+          modifier = Modifier.testTag("event-share"),
+        ) { Text("공유") }
+      }
       OutlinedButton(onClick = onVenue, modifier = Modifier.testTag("event-venue")) { Text(event.venue) }
       if (event.artistSlug != null || !event.casts.isNullOrEmpty()) {
         OutlinedButton(onClick = onArtist, modifier = Modifier.testTag("event-artist")) {
@@ -819,6 +827,7 @@ fun LifecycleOverviewScreen(
       var refundAcknowledged by remember { mutableStateOf(false) }
       var resalePrice by remember { mutableStateOf("") }
       val parsedPrice = resalePrice.toIntOrNull()
+      val context = LocalContext.current
       LazyColumn(
         modifier = Modifier.testTag(routeTag),
         contentPadding = PaddingValues(TicketGroundSpacing.lg),
@@ -855,7 +864,19 @@ fun LifecycleOverviewScreen(
         }
         item {
           SurfaceCard {
-            Text(account.ticketTitle ?: "보유 티켓이 없습니다", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+              Text(
+                account.ticketTitle ?: "보유 티켓이 없습니다",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+              )
+              account.selectedTicket?.let { ticket ->
+                OutlinedButton(
+                  onClick = { shareTicket(context, ticket) },
+                  modifier = Modifier.testTag("ticket-share"),
+                ) { Text("공유") }
+              }
+            }
             account.seatLabel?.let { Text(it) }
             Text(account.qrState, color = MaterialTheme.colorScheme.onSurfaceVariant)
           }
@@ -1290,6 +1311,29 @@ private fun SectionTitle(title: String) {
 }
 
 internal fun Int.krw(): String = String.format("%,d", this)
+
+/** Public event URL used for both deep-link resolution (see MainActivity) and native share. */
+internal fun eventShareUrl(event: CatalogEvent): String =
+  "${BuildConfig.API_BASE_URL.trimEnd('/')}/booking/${event.slug ?: event.id}"
+
+private fun shareEvent(context: Context, event: CatalogEvent) {
+  val intent = Intent(Intent.ACTION_SEND).apply {
+    type = "text/plain"
+    putExtra(Intent.EXTRA_SUBJECT, event.title)
+    putExtra(Intent.EXTRA_TEXT, "${event.title} - ${eventShareUrl(event)}")
+  }
+  context.startActivity(Intent.createChooser(intent, "공연 공유하기"))
+}
+
+private fun shareTicket(context: Context, ticket: AccountTicketOverview) {
+  val url = "${BuildConfig.API_BASE_URL.trimEnd('/')}/reservation/${ticket.id}"
+  val intent = Intent(Intent.ACTION_SEND).apply {
+    type = "text/plain"
+    putExtra(Intent.EXTRA_SUBJECT, ticket.title)
+    putExtra(Intent.EXTRA_TEXT, "${ticket.title} · ${ticket.seatLabel} - $url")
+  }
+  context.startActivity(Intent.createChooser(intent, "티켓 공유하기"))
+}
 
 private fun AppDestination.navigationIcon(): ImageVector = when (this) {
   AppDestination.Home -> Icons.Default.Home
