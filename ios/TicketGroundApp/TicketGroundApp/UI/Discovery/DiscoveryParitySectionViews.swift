@@ -194,7 +194,7 @@ struct DiscoveryEditorialSection: View {
                     NavigationLink(value: card.destination) {
                         HStack(spacing: TicketgroundSpacing.md) {
                             TicketgroundMediaImage(
-                                resource: nil,
+                                resource: card.imageResource,
                                 role: .poster,
                                 accessibilityLabel: "\(card.title) 기획전 이미지",
                                 accessibilitySuffix: "home-editorial-\(card.order)"

@@ -590,9 +590,16 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
 
         app.buttons["live-seat-map-link"].tap()
-        XCTAssertTrue(anyElement(app, identifier: "media-fallback-seat-map-live-seat-booking").waitForExistence(timeout: 15))
+        // The seat map used to fall back to TicketgroundMediaImage's own
+        // icon+caption fallback here, which rendered underneath the dense
+        // seat-marker grid and was effectively invisible. It now promotes
+        // the same top-anchored "STAGE" placeholder used when there's no
+        // image reference at all, so that buried fallback identifier should
+        // no longer appear - the legend and seat markers below already
+        // confirm the seat map itself still renders and stays interactive.
         XCTAssertTrue(app.staticTexts["좌석 등급"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["live-seat-marker-R-1"].waitForExistence(timeout: 10))
+        XCTAssertFalse(anyElement(app, identifier: "media-fallback-seat-map-live-seat-booking").exists)
     }
 
     func testAdmittedLiveCatalogExposesVersionedDiscoveryRoutes() {

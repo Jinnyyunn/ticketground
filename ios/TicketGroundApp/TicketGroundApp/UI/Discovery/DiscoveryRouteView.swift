@@ -2229,6 +2229,33 @@ private struct LiveCheckoutRouteView: View {
             Text("좌석 \(ticket.seatLabel)의 결제가 완료되었습니다.")
                 .font(.body)
                 .foregroundStyle(TicketgroundColor.inkSecondary)
+            VStack(spacing: TicketgroundSpacing.sm) {
+                Button {
+                    container.navigationPath.append(.reservation(id: ticket.id))
+                } label: {
+                    Text("티켓 확인하기")
+                        .frame(maxWidth: .infinity, minHeight: TicketgroundLayout.primaryActionMinimumHeight)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(TicketgroundColor.accent)
+                .accessibilityIdentifier("live-checkout-success-view-ticket")
+                Button {
+                    // Replacing the whole path (rather than popping) matches
+                    // the pattern already used to return to 마이페이지 from the
+                    // ticket-lifecycle flow (see LiveTicketLifecycleView) -
+                    // it discards the checkout/seat-map stack entirely and
+                    // constructs a fresh `LiveAccountRouteView`, so its ticket
+                    // list `.task` reliably re-fetches instead of reusing a
+                    // preserved instance that may still hold pre-purchase data.
+                    container.navigationPath = [.mypage]
+                } label: {
+                    Text("마이페이지로 이동")
+                        .frame(maxWidth: .infinity, minHeight: TicketgroundLayout.primaryActionMinimumHeight)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("live-checkout-success-go-mypage")
+            }
+            .padding(.top, TicketgroundSpacing.sm)
         }
         .padding(TicketgroundSpacing.xl)
     }
@@ -2421,7 +2448,7 @@ private struct LiveAccountRouteView: View {
             LiveAccountCapabilitySurface(
                 state: capability,
                 title: "계정 정보를 표시할 수 없습니다",
-                loginMessage: "마이페이지를 보려면 실제 로그인 세션이 필요합니다.",
+                loginMessage: "마이페이지를 보려면 로그인이 필요합니다.",
                 identifier: "live-account",
                 retry: { reloadID += 1 }
             )
@@ -2837,7 +2864,7 @@ private struct LiveWatchlistRouteView: View {
                             LiveAccountCapabilitySurface(
                                 state: capability,
                                 title: "관심공연을 표시할 수 없습니다",
-                                loginMessage: "관심공연은 실제 로그인 세션이 필요합니다.",
+                                loginMessage: "관심공연은 로그인이 필요합니다.",
                                 identifier: "live-watchlist",
                                 retry: { reloadID += 1 }
                             )

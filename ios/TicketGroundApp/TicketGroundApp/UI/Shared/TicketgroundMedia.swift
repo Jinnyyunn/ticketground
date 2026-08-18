@@ -407,6 +407,12 @@ struct TicketgroundMediaImage: View {
     let accessibilityLabel: String
     var accessibilitySuffix: String? = nil
     var contentMode: ContentMode = .fill
+    /// Optional hook for callers that need to react when this view is
+    /// showing (or stops showing) its own fallback state - e.g. to swap in a
+    /// caller-specific placeholder instead of leaving this view's centered
+    /// icon+caption fallback to render underneath other overlaid content.
+    /// Fires once on appear and again whenever the fallback state changes.
+    var onFallbackStateChange: ((Bool) -> Void)? = nil
 
     @State private var phase: RemotePhase = .loading
 
@@ -425,6 +431,8 @@ struct TicketgroundMediaImage: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(currentAccessibilityLabel)
         .accessibilityIdentifier(currentIdentifier)
+        .onAppear { onFallbackStateChange?(isFallback) }
+        .onChange(of: phase) { _, _ in onFallbackStateChange?(isFallback) }
         .task(id: loadableSource) {
             guard localRasterImage == nil, let loadableSource else { return }
             phase = .loading
@@ -553,10 +561,23 @@ struct TicketgroundMediaImage: View {
         return accessibilityLabel
     }
 
-    private enum RemotePhase {
+    private enum RemotePhase: Equatable {
         case loading
         case loaded(UIImage)
         case failed
+
+        // `UIImage` isn't `Equatable`, so this only distinguishes cases
+        // (not individual images) - sufficient for driving `.onChange(of:)`,
+        // which only needs to know when the phase transitions, e.g. into or
+        // out of `.failed`.
+        static func == (lhs: RemotePhase, rhs: RemotePhase) -> Bool {
+            switch (lhs, rhs) {
+            case (.loading, .loading), (.loaded, .loaded), (.failed, .failed):
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     private enum LoadableSource: Hashable {
