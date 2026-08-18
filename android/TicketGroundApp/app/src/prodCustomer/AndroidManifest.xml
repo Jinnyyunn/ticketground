@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android App Links for the production customer app. `autoVerify="true"` makes the OS attempt
+  Digital Asset Links verification against `https://ticketground.co.kr/.well-known/assetlinks.json`
+  (see src/app/.well-known/assetlinks.json/route.ts in the web app) the first time the app is
+  installed/updated. Verification will not succeed until that file's `sha256_cert_fingerprints`
+  is filled in with the real release-signing certificate fingerprint — see the placeholder and
+  comment in that route handler.
+
+  Scoped to the prodCustomer variant only (this source set is not merged into prodGate) so the
+  venue-scanning app never registers as a handler for customer-facing web links.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <activity android:name=".MainActivity" android:exported="true">
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="https" android:host="ticketground.co.kr" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
