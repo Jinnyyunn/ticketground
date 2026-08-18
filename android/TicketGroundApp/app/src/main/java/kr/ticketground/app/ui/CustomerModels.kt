@@ -191,6 +191,14 @@ interface CustomerRepository {
   suspend fun issueAdmissionQr(ticketId: String): AdmissionQr = throw ExternalProviderError.PlayIntegrityUnavailable
   suspend fun completeNativeLogin(provider: String, code: String): AccountSession =
     throw ApiError.Transport(IllegalStateException("Native login is unavailable"))
+
+  /**
+   * Clears the persisted session. Default is a no-op (not a throwing stub like the other
+   * capability-gated defaults above): logging out when there is nothing to log out of should
+   * always succeed silently rather than surface an error, and fakes that don't care about logout
+   * shouldn't need to override it just to compile.
+   */
+  suspend fun logOut(): Unit = Unit
 }
 
 class TypedCustomerRepository(
@@ -210,6 +218,8 @@ class TypedCustomerRepository(
 ) : CustomerRepository {
   override suspend fun completeNativeLogin(provider: String, code: String): AccountSession =
     client.completeNativeLogin(provider, code)
+
+  override suspend fun logOut() = client.logout()
   override suspend fun home(): HomeContent {
     val catalog = publicApi.catalog()
     val calendar = publicApi.openCalendar()

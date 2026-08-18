@@ -572,6 +572,27 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     mutableActionMessage.value = message
   }
 
+  /**
+   * Logs the user out: clears the persisted bearer credential via [CustomerRepository.logOut]
+   * (SessionVault.clear() underneath, already implemented but unused before this) and resets
+   * every piece of in-memory state that is scoped to the signed-in account, so mypage/watchlist
+   * don't keep showing the previous account's data to whoever uses the app next. `home` is
+   * deliberately left alone -- the catalog is public, not account-scoped. Safe to call with no
+   * session present (repository.logOut() is a no-op then) and safe to call from the biometric
+   * lock screen with no prior confirmation, since logging out doesn't require proof of identity.
+   */
+  fun logOut() = viewModelScope.launch {
+    runCatching { repository.logOut() }
+    mutableAccount.value = AsyncContent.Ready(AccountOverview(signedIn = false))
+    mutableWatchlist.value = AsyncContent.Ready(WatchlistOverview(signedIn = false))
+    mutableAdmissionQr.value = null
+    mutableInquiries.value = AsyncContent.Loading
+    mutableSelectedSeatId.value = null
+    mutableHeldSeatIds.value = emptySet()
+    navigate(AppDestination.Home)
+    mutableActionMessage.value = "로그아웃되었습니다."
+  }
+
   private data class BookingAttempt(val request: BookingRequest)
 }
 
@@ -772,6 +793,7 @@ fun TicketGroundCustomerApp(
             onTrustedDeviceRoute = { push("trustedDevice") { viewModel.openTrustedDevice() } },
             onPushRoute = { push("pushNotifications") { viewModel.openPushNotifications() } },
             onInquiryRoute = { push("inquiry") { viewModel.openInquiry() } },
+            onLogout = viewModel::logOut,
           )
         }
         composable("event") {

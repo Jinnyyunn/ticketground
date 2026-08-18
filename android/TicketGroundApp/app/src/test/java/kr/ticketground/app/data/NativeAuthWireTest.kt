@@ -25,4 +25,24 @@ class NativeAuthWireTest : ApiTestSupport() {
     assertEquals("account-1", user.id)
     assertEquals("native-bearer", vault.read()?.accessToken)
   }
+
+  @Test
+  fun `logout clears the persisted bearer credential without any network call`() = runTest {
+    val api = createHttpsApi(storeCredential = true)
+    assertEquals("secret-bearer", vault.read()?.accessToken)
+
+    api.logout()
+
+    assertEquals(null, vault.read())
+    assertEquals(0, server.requestCount)
+  }
+
+  @Test
+  fun `logout is safe to call when no session is stored`() = runTest {
+    val api = createHttpsApi(storeCredential = false)
+
+    api.logout()
+
+    assertEquals(null, vault.read())
+  }
 }

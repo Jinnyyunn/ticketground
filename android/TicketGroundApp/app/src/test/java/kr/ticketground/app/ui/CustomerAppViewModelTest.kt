@@ -32,6 +32,7 @@ import kr.ticketground.app.data.SupportThread
 import kr.ticketground.app.AppDestination
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -222,6 +223,93 @@ class CustomerAppViewModelTest {
     assertEquals(CustomerRoute.Login, viewModel.route.value)
     assertEquals("네트워크 연결을 확인한 뒤 다시 시도해 주세요.", viewModel.actionMessage.value)
     assertEquals(0, repository.watchlistCalls)
+  }
+
+  // --- logOut(): P0-3, operator-requested addition to the protected login/session boundary. ---
+
+  @Test
+  fun `logOut clears the session and every signed-in scoped state, returning to home`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(accountValue = accountOverview())
+    val viewModel = CustomerAppViewModel(repository)
+    viewModel.navigate(AppDestination.MyPage)
+    advanceUntilIdle()
+    assertTrue((viewModel.account.value as AsyncContent.Ready).value.signedIn)
+    viewModel.issueAdmissionQr()
+    advanceUntilIdle()
+    assertTrue(viewModel.admissionQr.value != null)
+
+    viewModel.logOut()
+    advanceUntilIdle()
+
+    assertEquals(1, repository.logOutCalls)
+    assertFalse((viewModel.account.value as AsyncContent.Ready).value.signedIn)
+    assertFalse((viewModel.watchlist.value as AsyncContent.Ready).value.signedIn)
+    assertEquals(null, viewModel.admissionQr.value)
+    assertEquals(AppDestination.Home, viewModel.destination.value)
+    assertEquals(CustomerRoute.Tab, viewModel.route.value)
+    assertEquals("로그아웃되었습니다.", viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `logOut still clears local state even if the repository call fails`() = runTest(dispatcher) {
+    // The biometric lock screen's logout escape hatch must work for a user who can no longer
+    // authenticate at all -- it cannot depend on a network call succeeding first.
+    val repository = FakeCustomerRepository(logOutError = IllegalStateException("boom"))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.logOut()
+    advanceUntilIdle()
+
+    assertEquals(1, repository.logOutCalls)
+    assertFalse((viewModel.account.value as AsyncContent.Ready).value.signedIn)
+    assertEquals(AppDestination.Home, viewModel.destination.value)
+  }
+
+  // --- actionMessage no longer bleeds across unrelated screens: P1-4. ---
+
+  @Test
+  fun `pushing a new route clears a stale action message left by the previous screen`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    viewModel.addToWatchlist(repository.homeValue.events.single())
+    advanceUntilIdle()
+    assertEquals("관심공연에 추가했습니다.", viewModel.actionMessage.value)
+
+    viewModel.openCalendar()
+
+    assertEquals(null, viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `switching tabs clears a stale action message left by the previous screen`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    viewModel.addToWatchlist(repository.homeValue.events.single())
+    advanceUntilIdle()
+    assertEquals("관심공연에 추가했습니다.", viewModel.actionMessage.value)
+
+    viewModel.navigate(AppDestination.Search)
+
+    assertEquals(null, viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `back navigation clears a stale action message left by the screen just left`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(accountValue = accountOverview())
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    viewModel.openCancellation()
+    advanceUntilIdle()
+    viewModel.requestCancellation("사유")
+    advanceUntilIdle()
+    assertEquals("취소 요청이 접수되어 검토 중입니다.", viewModel.actionMessage.value)
+
+    viewModel.closeRoute()
+
+    assertEquals(null, viewModel.actionMessage.value)
   }
 
   @Test
@@ -676,7 +764,9 @@ private class FakeCustomerRepository(
   private var refreshBookingError: Throwable? = null,
   private val inquiryValue: List<SupportThread> = emptyList(),
   private var nativeLoginError: Throwable? = null,
+  private var logOutError: Throwable? = null,
 ) : CustomerRepository {
+  var logOutCalls = 0
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
   private val rankingDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
   private val artistDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
@@ -740,6 +830,10 @@ private class FakeCustomerRepository(
     return AccountSession("account-1", "테스트 사용자", SecurityStatus.ACTIVE, 90, true)
   }
   override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: accountValue
+  override suspend fun logOut() {
+    logOutCalls += 1
+    logOutError?.let { throw it }
+  }
   override suspend fun book(request: BookingRequest): BookingProgress {
     bookCalls += 1
     bookingRequests += request

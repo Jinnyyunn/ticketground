@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -247,12 +248,20 @@ private fun LoginFooter() {
  * exists and the user opted into protecting it, so unlocking is required before revealing it.
  * Never shown during the initial OAuth grant itself: there is nothing to protect until a session
  * is stored, so the gate only ever engages on reentry.
+ *
+ * [onLogout] is this screen's escape hatch: a user who opted into the gate and then loses
+ * biometric enrollment (an ordinary Settings action, with no DEVICE_CREDENTIAL fallback wired up)
+ * would otherwise be locked out on every future launch with no in-app recovery. It deliberately
+ * requires no successful biometric confirmation first -- logging out doesn't need proof of
+ * identity, only *staying* logged in behind the gate does -- and stays available in every state
+ * (including mid-unlock or after a failed attempt) so it is never itself the thing blocking escape.
  */
 @Composable
 fun LoginReentryLockScreen(
   onUnlock: () -> Unit,
   unlocking: Boolean,
   failed: Boolean,
+  onLogout: () -> Unit = {},
 ) {
   Box(Modifier.fillMaxSize().testTag("login-gate-lock-screen"), contentAlignment = Alignment.Center) {
     Column(
@@ -285,6 +294,9 @@ fun LoginReentryLockScreen(
         Button(onClick = onUnlock, modifier = Modifier.fillMaxWidth().testTag("login-gate-unlock")) {
           Text("잠금 해제")
         }
+      }
+      TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().testTag("login-gate-logout")) {
+        Text("로그아웃", color = MaterialTheme.colorScheme.error)
       }
     }
   }

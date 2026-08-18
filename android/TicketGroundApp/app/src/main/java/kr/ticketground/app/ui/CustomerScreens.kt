@@ -815,6 +815,7 @@ fun LifecycleOverviewScreen(
   onTrustedDeviceRoute: () -> Unit = {},
   onPushRoute: () -> Unit = {},
   onInquiryRoute: () -> Unit = {},
+  onLogout: () -> Unit = {},
   routeTag: String = "lifecycle-overview-list",
 ) {
   AsyncSurface(state, onRetry) { account ->
@@ -939,6 +940,13 @@ fun LifecycleOverviewScreen(
               modifier = Modifier.fillMaxWidth(),
             ) { Text("입장 QR 발급") }
           }
+        }
+        item {
+          OutlinedButton(
+            onClick = onLogout,
+            enabled = !pending,
+            modifier = Modifier.fillMaxWidth().testTag("mypage-logout"),
+          ) { Text("로그아웃") }
         }
       }
     }
