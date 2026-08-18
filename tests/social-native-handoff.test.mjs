@@ -13,8 +13,12 @@ import {
   redirected,
 } from "./social-auth-test-helpers.mjs";
 
-async function startIosLogin(baseUrl, provider) {
-  const response = await fetch(`${baseUrl}/api/auth/${provider}/start?client=ios`, {
+// "ios" and "android" are both native clients: the backend treats them identically, selecting the
+// same ticketground:// deep-link handoff branch (see NATIVE_CLIENTS in backend/social-oauth.js).
+// These helpers default to "ios" so every existing call site below keeps testing exactly what it
+// tested before; the native-client-parity tests further down call them explicitly with "android".
+async function startIosLogin(baseUrl, provider, client = "ios") {
+  const response = await fetch(`${baseUrl}/api/auth/${provider}/start?client=${client}`, {
     redirect: "manual",
   });
   const authorizeUrl = new URL(await redirected(response));
@@ -24,8 +28,8 @@ async function startIosLogin(baseUrl, provider) {
   };
 }
 
-async function completeIosLogin(baseUrl, provider) {
-  const { cookie, state } = await startIosLogin(baseUrl, provider);
+async function completeIosLogin(baseUrl, provider, client = "ios") {
+  const { cookie, state } = await startIosLogin(baseUrl, provider, client);
   assert.ok(state, `${provider} state is present`);
   const response = await fetch(
     `${baseUrl}/api/auth/${provider}/callback?code=${PROVIDERS[provider].code}&state=${encodeURIComponent(state)}`,
@@ -276,4 +280,84 @@ test("iOS provider callback failure returns through the fixed app callback", asy
 
   // Then: the app receives a safe callback failure without a handoff code.
   assertAppFailureLocation(response.redirect, "kakao", "callback_failed");
+});
+
+// Regression coverage for the client-detection landmine: backend/social-oauth.js used to special-
+// case the literal string "ios" in three separate places. If Android were "fixed" to pass its own
+// honest client label without also updating the backend, it would silently fall through to the
+// browser cookie-session branch built for the website instead of the native deep-link handoff --
+// exactly the bug class these tests guard against.
+test("Android client completes the same native deep-link handoff as iOS", async (t) => {
+  // Given: a configured Kakao OAuth flow started explicitly for Android.
+  configureSocialEnv(t, true);
+  const dataDir = await mkdtemp(path.join(tmpdir(), "ticketground-social-handoff-android-"));
+  const dbPath = path.join(dataDir, "db.json");
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const server = await startServer(t, { dbPath });
+
+  // When: the state-verified provider callback completes for the "android" client.
+  const code = await completeIosLogin(server.baseUrl, "kakao", "android");
+
+  // Then: it gets the identical ticketground:// handoff (asserted inside completeIosLogin) and the
+  // code exchanges through the same native handoff endpoint as an iOS-originated code.
+  const exchanged = await api(server.baseUrl, "/api/auth/native/handoff", {
+    provider: "kakao",
+    code,
+  });
+  assert.equal(exchanged.data.user.name, PROVIDERS.kakao.userName);
+  assert.equal(typeof exchanged.data.session.credential, "string");
+
+  // And: nothing web-branch-specific (a browser cookie session) was ever issued.
+  const persisted = JSON.parse(await readFile(dbPath, "utf8"));
+  assert.equal(persisted.nativeAuthHandoffs.length, 1);
+});
+
+test("Android provider denial returns through the same fixed app callback as iOS", async (t) => {
+  // Given: a signed, cookie-bound Naver Android flow.
+  configureSocialEnv(t, true);
+  const server = await startServer(t);
+  const { cookie, state } = await startIosLogin(server.baseUrl, "naver", "android");
+
+  // When: the provider denies access and returns the signed state.
+  const response = await fetch(
+    `${server.baseUrl}/api/auth/naver/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+    { headers: { cookie }, redirect: "manual" },
+  );
+
+  // Then: the app receives the same safe provider-specific denial callback iOS would.
+  await assertAppFailureCallback(response, "naver", "denied");
+});
+
+test("an unrecognized or missing client value falls back to the web cookie-session branch, not the native deep link", async (t) => {
+  configureSocialEnv(t, true);
+  const { baseUrl } = await startServer(t);
+
+  for (const client of [null, "bogus", "Android", "IOS"]) {
+    // Given: OAuth started with no client param, or a value that isn't exactly "ios"/"android".
+    const startUrl = client === null
+      ? `${baseUrl}/api/auth/kakao/start`
+      : `${baseUrl}/api/auth/kakao/start?client=${client}`;
+    const start = await fetch(startUrl, { redirect: "manual" });
+    const authorizeUrl = new URL(await redirected(start));
+    const state = authorizeUrl.searchParams.get("state");
+    assert.ok(state, `state is present for client=${client}`);
+
+    // When: the callback completes.
+    const callback = await fetch(
+      `${baseUrl}/api/auth/kakao/callback?code=${PROVIDERS.kakao.code}&state=${encodeURIComponent(state)}`,
+      { headers: { cookie: cookieHeaderFromSetCookie(start.headers.get("set-cookie")) }, redirect: "manual" },
+    );
+
+    // Then: it lands on the website's /login route with a browser bridge cookie, never the
+    // ticketground:// deep link -- unrecognized values must fail closed to the web branch, not
+    // silently be treated as native.
+    const callbackLocation = new URL(await redirected(callback), baseUrl);
+    assert.equal(callbackLocation.protocol, "http:", `client=${client} does not redirect to a native deep link`);
+    assert.equal(callbackLocation.pathname, "/login", `client=${client} lands on the web login route`);
+    assert.equal(callbackLocation.searchParams.get("socialProvider"), "kakao");
+    assert.ok(
+      callback.headers.get("set-cookie")?.includes("tig_social_session_kakao="),
+      `client=${client} sets the web browser bridge cookie`,
+    );
+  }
 });
