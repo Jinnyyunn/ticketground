@@ -12,6 +12,7 @@ struct LiveSeatBookingView: View {
     @State private var holdIdempotencyKey: String?
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var seatMapImageFailed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
@@ -69,7 +70,14 @@ struct LiveSeatBookingView: View {
 
     @ViewBuilder
     private var seatMapBackground: some View {
-        if seatMap.map.image.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        // `TicketgroundMediaImage`'s own icon+caption fallback is centered in
+        // its frame, which is exactly where the seat-marker grid is densest -
+        // rendered underneath the ZStack's seat layer it becomes invisible.
+        // So whenever the image can't be shown (empty reference, resolution
+        // fails to an approved URL, or the async load itself fails), fall
+        // back to the same top-anchored "STAGE" placeholder used for the
+        // empty-reference case instead of letting that buried view render.
+        if showStagePlaceholder {
             VStack(spacing: TicketgroundSpacing.md) {
                 Text("STAGE")
                     .font(.caption.weight(.black))
@@ -85,13 +93,30 @@ struct LiveSeatBookingView: View {
             .accessibilityHidden(true)
         } else {
             TicketgroundMediaImage(
-                resource: container.environment.apiClient.resolveResource(seatMap.map.image),
+                resource: resolvedSeatMapImage,
                 role: .seatMap,
                 accessibilityLabel: "\(seatMap.map.title) 좌석 배치도",
                 accessibilitySuffix: "live-seat-booking",
-                contentMode: .fit
+                contentMode: .fit,
+                onFallbackStateChange: { isFallback in
+                    if isFallback { seatMapImageFailed = true }
+                }
             )
         }
+    }
+
+    /// `resolveResource` returns `nil` when the reference can't be resolved
+    /// to an approved absolute URL (unapproved host, malformed path, etc.) -
+    /// that failure is synchronous and detectable before ever handing the
+    /// value to `TicketgroundMediaImage`.
+    private var resolvedSeatMapImage: String? {
+        container.environment.apiClient.resolveResource(seatMap.map.image)
+    }
+
+    private var showStagePlaceholder: Bool {
+        seatMap.map.image.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || resolvedSeatMapImage == nil
+            || seatMapImageFailed
     }
 
     private var legend: some View {
@@ -100,8 +125,12 @@ struct LiveSeatBookingView: View {
                 .font(.headline.weight(.black))
             ForEach(seatMap.zones, id: \.id) { zone in
                 HStack {
+                    // Matches the seat marker fill in `seatMarker(...)` below:
+                    // available seats render in `success` (green), so the
+                    // legend must use the same color or it misleads readers
+                    // about what the map's dots mean.
                     Circle()
-                        .fill(zone.available > 0 ? TicketgroundColor.accent : TicketgroundColor.inkMuted)
+                        .fill(zone.available > 0 ? TicketgroundColor.success : TicketgroundColor.inkMuted)
                         .frame(width: 10, height: 10)
                     Text(zone.name)
                         .font(.subheadline.weight(.semibold))
