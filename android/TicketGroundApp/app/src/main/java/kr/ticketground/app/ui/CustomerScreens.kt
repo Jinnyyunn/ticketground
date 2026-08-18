@@ -725,7 +725,12 @@ fun SearchScreen(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit, in
 }
 
 @Composable
-fun WatchlistScreen(state: AsyncContent<WatchlistOverview>, onRetry: () -> Unit, onLogin: () -> Unit) {
+fun WatchlistScreen(
+  state: AsyncContent<WatchlistOverview>,
+  onRetry: () -> Unit,
+  onLogin: () -> Unit,
+  onEvent: (String) -> Unit = {},
+) {
   AsyncSurface(state, onRetry) { overview ->
     if (!overview.signedIn) {
       SignedOutCard(onLogin = onLogin, loginTestTag = "watchlist-login", modifier = Modifier.testTag("watchlist-signed-out")) {
@@ -735,7 +740,9 @@ fun WatchlistScreen(state: AsyncContent<WatchlistOverview>, onRetry: () -> Unit,
       LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.xl), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
         item { SectionTitle("관심공연·알림") }
         items(overview.items, key = { it.id }) { entry ->
-          SurfaceCard {
+          SurfaceCard(
+            modifier = Modifier.clickable { onEvent(entry.eventId) }.testTag("watchlist-item-${entry.id}"),
+          ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
               EventPosterThumbnail(imageUrl = null, title = entry.event?.title ?: "공연", modifier = Modifier.size(56.dp))
               Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {

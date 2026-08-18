@@ -212,6 +212,23 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   /** Deep link entry point for the `/watchlist` web route. */
   fun openWatchlistDeepLink() { navigate(AppDestination.Watchlist) }
 
+  /**
+   * Tapping a watchlist entry. `WatchlistItem.event` is a lightweight `WatchlistEvent`
+   * (title/venue/category only) -- not the full `CatalogEvent` the detail screen needs
+   * (schedules, prices, notices, image) -- so this resolves the real event from whatever catalog
+   * is already cached first (the common case: home loads eagerly at startup) and only falls back
+   * to a fresh fetch on a cache miss, the same two-step strategy [openEventDeepLink] uses. Called
+   * directly rather than through the Compose layer's push() wrapper: navigation should only fire
+   * once an event is actually found, and [openEvent] already calls [pushRoute] (which synchronously
+   * drives the NavController listener) so no separate nav call is needed here either way.
+   */
+  fun openWatchlistEvent(eventId: String) = viewModelScope.launch {
+    val cached = (mutableHome.value as? AsyncContent.Ready)?.value?.events?.firstOrNull { it.id == eventId }
+    val event = cached ?: runCatching { repository.home() }.getOrNull()?.events?.firstOrNull { it.id == eventId }
+    if (event != null) openEvent(event)
+    else mutableActionMessage.value = "공연 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+  }
+
   fun openCollection(title: String, events: List<CatalogEvent>) {
     pushRoute(CustomerRoute.Collection(title, events))
   }
@@ -771,7 +788,7 @@ fun TicketGroundCustomerApp(
           }
         }
         composable("tab_watchlist") {
-          WatchlistScreen(watchlist, viewModel::loadWatchlist, openLogin)
+          WatchlistScreen(watchlist, viewModel::loadWatchlist, openLogin, onEvent = viewModel::openWatchlistEvent)
         }
         composable("tab_mypage") {
           LifecycleOverviewScreen(
