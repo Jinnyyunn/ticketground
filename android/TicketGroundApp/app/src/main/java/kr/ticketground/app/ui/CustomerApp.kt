@@ -433,7 +433,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
       onFailure = { error ->
         // Same not-logged-in detection as loadAccount(): surface the calm signed-out state
         // instead of the generic error card so the two tabs read consistently.
-        if (safeUiMessage(error).startsWith("로그인이 필요한")) AsyncContent.Ready(WatchlistOverview(signedIn = false))
+        if (isSignInRequired(error)) AsyncContent.Ready(WatchlistOverview(signedIn = false))
         else AsyncContent.Error(safeUiMessage(error))
       },
     )
@@ -449,7 +449,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
         AsyncContent.Ready(overview.copy(selectedTicketId = selected))
       },
       onFailure = { error ->
-        if (safeUiMessage(error).startsWith("로그인이 필요한")) AsyncContent.Ready(AccountOverview(signedIn = false))
+        if (isSignInRequired(error)) AsyncContent.Ready(AccountOverview(signedIn = false))
         else AsyncContent.Error(safeUiMessage(error))
       },
     )
