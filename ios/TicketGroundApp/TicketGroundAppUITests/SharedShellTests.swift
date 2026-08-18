@@ -27,6 +27,27 @@ final class SharedShellTests: XCTestCase {
         assertHittable(app.buttons["tab-mypage"])
     }
 
+    func testBottomNavigationTabBarSurvivesSwitchingToAnotherTab() {
+        // The whole point of Phase 2's migration to a native `TabView` (each
+        // tab owning its own `NavigationStack`) was to fix the previous
+        // custom `HStack` tab bar disappearing whenever a screen was pushed
+        // - see `ContentView.swift`. Confirm the regression this was meant
+        // to fix doesn't resurface: after switching to a non-Home tab, the
+        // tab bar (all four tab buttons) must still be present and hittable,
+        // not just immediately after launch on the Home tab.
+        let app = UITestBootstrap.fixtureApp(scenario: .happy)
+        app.launch()
+
+        XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
+        assertHittable(app.buttons["tab-search"])
+        app.buttons["tab-search"].tap()
+        XCTAssertTrue(app.staticTexts["search-screen-title"].waitForExistence(timeout: 10))
+        assertHittable(app.buttons["tab-home"])
+        assertHittable(app.buttons["tab-search"])
+        assertHittable(app.buttons["tab-watchlist"])
+        assertHittable(app.buttons["tab-mypage"])
+    }
+
     func testLargeTextAndReducedMotion() {
         let app = UITestBootstrap.fixtureApp(scenario: .empty)
         app.launchArguments.append("-reduce-motion")
