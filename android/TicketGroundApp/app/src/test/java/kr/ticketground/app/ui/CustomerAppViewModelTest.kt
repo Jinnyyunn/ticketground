@@ -182,6 +182,40 @@ class CustomerAppViewModelTest {
   }
 
   @Test
+  fun `tapping a watchlist entry resolves the full event from the cached catalog and opens its own detail`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    // home() has already loaded eagerly by this point (CustomerAppViewModel.init), so this
+    // resolves from cache without a second network call -- confirms the common-case path, not
+    // just the fallback fetch.
+    val callsBeforeTap = repository.homeCalls
+
+    viewModel.openWatchlistEvent("event-1")
+    advanceUntilIdle()
+
+    val opened = viewModel.route.value as CustomerRoute.Event
+    assertEquals("event-1", opened.event.id)
+    assertEquals("서울 콘서트", opened.event.title)
+    assertEquals(callsBeforeTap, repository.homeCalls)
+  }
+
+  @Test
+  fun `tapping a watchlist entry for an event missing from the catalog surfaces a message instead of a blank screen`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+
+    viewModel.openWatchlistEvent("does-not-exist")
+    advanceUntilIdle()
+
+    // Stays on whatever screen the user was already on (the watchlist tab) instead of silently
+    // no-opping or navigating to a blank/wrong "event" screen.
+    assertEquals(CustomerRoute.Tab, viewModel.route.value)
+    assertEquals("공연 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", viewModel.actionMessage.value)
+  }
+
+  @Test
   fun `successful native login refreshes both mypage and watchlist and returns from the login screen`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository()
     val viewModel = CustomerAppViewModel(repository)
@@ -767,6 +801,7 @@ private class FakeCustomerRepository(
   private var logOutError: Throwable? = null,
 ) : CustomerRepository {
   var logOutCalls = 0
+  var homeCalls = 0
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
   private val rankingDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
   private val artistDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
@@ -802,7 +837,10 @@ private class FakeCustomerRepository(
     ),
   )
 
-  override suspend fun home(): HomeContent = homeError?.let { throw it } ?: homeValue
+  override suspend fun home(): HomeContent {
+    homeCalls += 1
+    return homeError?.let { throw it } ?: homeValue
+  }
   override suspend fun ranking(): List<CatalogEvent> {
     rankingCalls += 1
     if (rankingDeferreds.isNotEmpty()) return rankingDeferreds.removeFirst().await()

@@ -278,7 +278,7 @@ fun EventListScreen(
   beforeList: @Composable () -> Unit = {},
   afterList: @Composable () -> Unit = {},
   ranking: Boolean = false,
-  onRankingMore: () -> Unit = {},
+  onRankingMore: (() -> Unit)? = null,
 ) {
   AsyncSurface(state, onRetry, loadingContent = { EventListLoadingSkeleton() }) { events ->
     if (events.isEmpty()) {
@@ -508,19 +508,25 @@ private fun HeroEventCard(event: CatalogEvent, onEvent: (CatalogEvent) -> Unit) 
 }
 
 @Composable
-private fun RankingSection(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit, onMore: () -> Unit) {
+private fun RankingSection(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit, onMore: (() -> Unit)? = null) {
   Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {
     Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
       Column(Modifier.weight(1f)) {
         Text("실시간 예매 랭킹 TOP10", style = MaterialTheme.typography.headlineSmall)
         Text("지금 가장 빠르게 움직이는 공연입니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
-      Text(
-        "더보기",
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.labelLarge,
-        modifier = Modifier.clickable(onClick = onMore).testTag("home-ranking-more"),
-      )
+      // Only rendered where "더보기" actually leads somewhere new (the home preview, which links
+      // to this same full ranking screen). The dedicated ranking screen itself reuses this same
+      // composable to render its Top 10 carousel -- without this guard it showed its own
+      // "더보기" link with nowhere further to go, a dead tap with no onMore callback wired up.
+      if (onMore != null) {
+        Text(
+          "더보기",
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.labelLarge,
+          modifier = Modifier.clickable(onClick = onMore).testTag("home-ranking-more"),
+        )
+      }
     }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
       val ranked = events.sortedWith(compareBy<CatalogEvent> { it.pinnedRank ?: Int.MAX_VALUE }.thenByDescending { it.soldCount }).take(10)
@@ -725,7 +731,12 @@ fun SearchScreen(events: List<CatalogEvent>, onEvent: (CatalogEvent) -> Unit, in
 }
 
 @Composable
-fun WatchlistScreen(state: AsyncContent<WatchlistOverview>, onRetry: () -> Unit, onLogin: () -> Unit) {
+fun WatchlistScreen(
+  state: AsyncContent<WatchlistOverview>,
+  onRetry: () -> Unit,
+  onLogin: () -> Unit,
+  onEvent: (String) -> Unit = {},
+) {
   AsyncSurface(state, onRetry) { overview ->
     if (!overview.signedIn) {
       SignedOutCard(onLogin = onLogin, loginTestTag = "watchlist-login", modifier = Modifier.testTag("watchlist-signed-out")) {
@@ -735,7 +746,9 @@ fun WatchlistScreen(state: AsyncContent<WatchlistOverview>, onRetry: () -> Unit,
       LazyColumn(contentPadding = PaddingValues(TicketGroundSpacing.xl), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
         item { SectionTitle("관심공연·알림") }
         items(overview.items, key = { it.id }) { entry ->
-          SurfaceCard {
+          SurfaceCard(
+            modifier = Modifier.clickable { onEvent(entry.eventId) }.testTag("watchlist-item-${entry.id}"),
+          ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md)) {
               EventPosterThumbnail(imageUrl = null, title = entry.event?.title ?: "공연", modifier = Modifier.size(56.dp))
               Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.xs)) {

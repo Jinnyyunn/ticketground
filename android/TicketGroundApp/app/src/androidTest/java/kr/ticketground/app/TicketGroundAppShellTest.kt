@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -76,6 +77,8 @@ import kr.ticketground.app.ui.BookingProgressState
 import kr.ticketground.app.ui.BookingProgressScreen
 import kr.ticketground.app.ui.BookingRequest
 import kr.ticketground.app.ui.TicketGroundTheme
+import kr.ticketground.app.data.NotificationJob
+import kr.ticketground.app.data.WatchlistEvent
 import kr.ticketground.app.data.WatchlistItem
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -220,6 +223,52 @@ class TicketGroundAppShellTest {
   @Test
   fun rankingRoute_exposesCanonicalDestination() = assertCustomerRoute("ranking-screen") {
     it.openRanking(listOf(event()))
+  }
+
+  @Test
+  fun rankingRoute_hasNoDeadMoreLinkOnItsOwnFullList() {
+    // The dedicated ranking screen (reached via home's "home-ranking-more" link) reuses the same
+    // Top 10 carousel composable the home preview uses, which used to always render its own
+    // "더보기" link too -- a dead tap once you're already on the full list, with no onRankingMore
+    // wired up for this route. See CustomerScreens.kt's RankingSection onMore-nullability comment.
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
+    composeRule.setContent {
+      TicketGroundTheme { Box(Modifier.width(390.dp).height(920.dp)) { TicketGroundCustomerApp(viewModel) } }
+    }
+    composeRule.runOnIdle { viewModel.openRanking(listOf(event())) }
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag("ranking-screen").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("ranking-screen").assertIsDisplayed()
+    composeRule.onAllNodesWithTag("home-ranking-more").assertCountEquals(0)
+  }
+
+  @Test
+  fun watchlistEntry_opensItsOwnEventDetailInsteadOfNoOpping() {
+    // Watchlist entries only carried a lightweight WatchlistEvent (no schedules/prices/notices),
+    // and the row had no clickable modifier at all -- tapping a watchlist item was a silent
+    // no-op. See CustomerApp.kt's openWatchlistEvent() and CustomerScreens.kt's WatchlistScreen.
+    val watchlistItem = WatchlistItem(
+      id = "watch-1", eventId = "event-1", channels = listOf("PUSH"),
+      calendarEnabled = true, notificationEnabled = true,
+      event = WatchlistEvent(id = "event-1", title = "서울 콘서트", venueId = "venue-1", category = "콘서트", saleState = "OPEN"),
+      notificationJobs = emptyList<NotificationJob>(),
+    )
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository(signedIn = true, watchlistItems = listOf(watchlistItem)))
+    composeRule.setContent {
+      TicketGroundTheme { Box(Modifier.width(390.dp).height(920.dp)) { TicketGroundCustomerApp(viewModel) } }
+    }
+    composeRule.runOnIdle { viewModel.navigate(AppDestination.Watchlist) }
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag("watchlist-item-watch-1").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("watchlist-item-watch-1").assertHasClickAction().performClick()
+
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag("event-venue").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("event-venue").assertIsDisplayed()
+    composeRule.onNodeWithText("서울 콘서트").assertIsDisplayed()
   }
 
   @Test
@@ -885,7 +934,10 @@ class TicketGroundAppShellTest {
   )
 }
 
-private class ComposeCustomerRepository(private val signedIn: Boolean = false) : CustomerRepository {
+private class ComposeCustomerRepository(
+  private val signedIn: Boolean = false,
+  private val watchlistItems: List<WatchlistItem> = emptyList(),
+) : CustomerRepository {
   private val event = CatalogEvent(
     id = "event-1", category = "콘서트", title = "서울 콘서트", venueId = "venue-1",
     venue = "잠실주경기장", artistSlug = "artist-1", casts = listOf("테스트 아티스트"), soldCount = 42,
@@ -903,7 +955,7 @@ private class ComposeCustomerRepository(private val signedIn: Boolean = false) :
     notices = listOf(SupportNotice("notice-1", "예매 안내", "좌석도에서 선택해 주세요.")),
   )
   override suspend fun seatMap(eventId: String, performanceDateId: String?) = error("not used")
-  override suspend fun watchlist(): List<WatchlistItem> = emptyList()
+  override suspend fun watchlist(): List<WatchlistItem> = watchlistItems
   override suspend fun accountOverview() = if (!signedIn) AccountOverview(signedIn = false) else AccountOverview(
     signedIn = true,
     tickets = listOf(AccountTicketOverview("ticket-1", "서울 콘서트", "A구역 1열 1번", true, 80_000, 120_000, "입장 가능")),
