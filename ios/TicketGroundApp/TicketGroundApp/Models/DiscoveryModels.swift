@@ -192,4 +192,5 @@ struct DiscoveryEditorialCard: Equatable {
     let order: Int
     let title: String
     let destination: AppRoute
+    let imageResource: String?
 }

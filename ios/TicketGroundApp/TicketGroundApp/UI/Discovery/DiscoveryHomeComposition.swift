@@ -15,7 +15,8 @@ enum DiscoveryHomeComposition {
                     DiscoveryEditorialCard(
                         order: index + 1,
                         title: featured.title,
-                        destination: featured.route
+                        destination: featured.route,
+                        imageResource: featured.imageResource
                     )
                 }
         )
