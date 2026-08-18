@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -222,6 +223,24 @@ class TicketGroundAppShellTest {
   @Test
   fun rankingRoute_exposesCanonicalDestination() = assertCustomerRoute("ranking-screen") {
     it.openRanking(listOf(event()))
+  }
+
+  @Test
+  fun rankingRoute_hasNoDeadMoreLinkOnItsOwnFullList() {
+    // The dedicated ranking screen (reached via home's "home-ranking-more" link) reuses the same
+    // Top 10 carousel composable the home preview uses, which used to always render its own
+    // "더보기" link too -- a dead tap once you're already on the full list, with no onRankingMore
+    // wired up for this route. See CustomerScreens.kt's RankingSection onMore-nullability comment.
+    val viewModel = CustomerAppViewModel(ComposeCustomerRepository())
+    composeRule.setContent {
+      TicketGroundTheme { Box(Modifier.width(390.dp).height(920.dp)) { TicketGroundCustomerApp(viewModel) } }
+    }
+    composeRule.runOnIdle { viewModel.openRanking(listOf(event())) }
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithTag("ranking-screen").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("ranking-screen").assertIsDisplayed()
+    composeRule.onAllNodesWithTag("home-ranking-more").assertCountEquals(0)
   }
 
   @Test
