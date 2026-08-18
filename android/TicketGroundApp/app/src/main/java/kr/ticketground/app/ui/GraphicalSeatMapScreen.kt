@@ -3,6 +3,7 @@ package kr.ticketground.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,8 +36,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -80,12 +83,13 @@ fun GraphicalSeatMapScreen(
     var zoom by remember { mutableFloatStateOf(1f) }
     var panX by remember { mutableFloatStateOf(0f) }
     var panY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
     Column(
       Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(TicketGroundSpacing.lg),
       verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.md),
     ) {
       Text(seatMap.event.title, style = MaterialTheme.typography.titleLarge)
-      Text("좌석도에서 구매할 좌석을 직접 선택하세요")
+      Text("좌석도에서 구매할 좌석을 직접 선택하세요 · 손가락으로 확대·축소·이동할 수 있어요")
       Row(horizontalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
         OutlinedButton(onClick = { zoom = (zoom + TicketGroundLayout.zoomStep).coerceAtMost(2f) }) { Text("확대") }
         OutlinedButton(onClick = { zoom = (zoom - TicketGroundLayout.zoomStep).coerceAtLeast(1f) }) { Text("축소") }
@@ -103,7 +107,21 @@ fun GraphicalSeatMapScreen(
           .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(TicketGroundRadius.medium))
           .border(TicketGroundLayout.outlineWidth, MaterialTheme.colorScheme.outline, RoundedCornerShape(TicketGroundRadius.medium))
           .clip(RoundedCornerShape(TicketGroundRadius.medium))
-          .testTag("graphical-seat-map"),
+          .testTag("graphical-seat-map")
+          // Primary interaction: pinch-zoom-pan. detectTransformGestures only consumes pointer
+          // input once movement exceeds touch slop, so a plain tap on a seat marker underneath
+          // still reaches that seat's own clickable() untouched -- the 7 buttons above remain a
+          // fully-equivalent fallback for switch-control / limited-dexterity users per the plan's
+          // explicit accessibility caution, they are not replaced.
+          .pointerInput(Unit) {
+            detectTransformGestures { _, pan, gestureZoom, _ ->
+              zoom = (zoom * gestureZoom).coerceIn(1f, 2f)
+              with(density) {
+                panX += pan.x.toDp().value
+                panY += pan.y.toDp().value
+              }
+            }
+          },
       ) {
         val mapWidth = maxWidth
         val mapHeight = maxHeight
