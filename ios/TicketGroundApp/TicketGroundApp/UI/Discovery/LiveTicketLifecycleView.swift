@@ -184,6 +184,17 @@ struct LiveTicketLifecycleRouteView: View {
                 ])
             }
 
+            ShareLink(
+                item: PublicShareURL.event(slug: ticket.eventId),
+                subject: Text(ticket.event?.title ?? "Ticketground"),
+                message: Text(ticket.event?.title ?? "Ticketground")
+            ) {
+                Label("공연 공유", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity, minHeight: TicketgroundLayout.minimumTouchTarget)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("lifecycle-share-ticket")
+
             if LiveLifecycleDisplay.isActionEligible(ticket) {
                 HStack(spacing: TicketgroundSpacing.sm) {
                 NavigationLink(value: AppRoute.cancel) {

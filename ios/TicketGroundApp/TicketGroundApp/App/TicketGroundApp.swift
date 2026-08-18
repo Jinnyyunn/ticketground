@@ -1,14 +1,20 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct TicketGroundApp: App {
     @UIApplicationDelegateAdaptor(TicketGroundAppDelegate.self) private var appDelegate
     @State private var container = AppContainer.configured()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             configuredContent
                 .onOpenURL { url in
+                    Self.handleOpenURL(url, container: container, googleHandler: GoogleSignInProvider.handle)
+                }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
+                    guard let url = userActivity.webpageURL else { return }
                     Self.handleOpenURL(url, container: container, googleHandler: GoogleSignInProvider.handle)
                 }
                 .task {
@@ -17,6 +23,20 @@ struct TicketGroundApp: App {
                         sessionStore: container.environment.sessionStore
                     ).validateRestoredSession()
                 }
+                .task {
+                    // No push-driven badge count is wired up yet (that
+                    // needs a real backend signal - see `LiveAccountRouteView`
+                    // for the best-effort count derived from already-fetched
+                    // ticket data). This just makes sure a stale badge from a
+                    // previous install/session never lingers on cold launch.
+                    try? await UNUserNotificationCenter.current().setBadgeCount(0)
+                }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task {
+                try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            }
         }
     }
 

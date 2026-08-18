@@ -143,6 +143,43 @@ struct RouteResolver {
     }
 }
 
+/// Builds the public https URL for a route, using the same host declared in
+/// the Associated Domains entitlement (`applinks:ticketground.co.kr` - see
+/// `TicketGroundApp.debug/release.entitlements`) so native `ShareLink`
+/// shares resolve back into the app via Universal Links. Falls back to the
+/// app's existing custom `ticketground://` scheme (already parsed by
+/// `RouteResolver`/`onOpenURL`) if a valid https URL can't be built.
+enum PublicShareURL {
+    static let universalLinkHost = "ticketground.co.kr"
+
+    static func url(for route: AppRoute) -> URL {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = universalLinkHost
+        components.path = path(for: route)
+        return components.url ?? fallbackURL(for: route)
+    }
+
+    static func event(slug: String) -> URL {
+        url(for: .event(slug: slug))
+    }
+
+    private static func path(for route: AppRoute) -> String {
+        switch route {
+        case .home: return "/"
+        case .event(let slug): return "/event/\(slug)"
+        case .place(let slug): return slug.map { "/place/\($0)" } ?? "/place"
+        case .artist(let slug): return "/artist/\(slug)"
+        case .goods(let slug): return "/goods/\(slug)"
+        default: return "/\(route.id)"
+        }
+    }
+
+    private static func fallbackURL(for route: AppRoute) -> URL {
+        URL(string: "ticketground://\(path(for: route))") ?? URL(string: "ticketground://")!
+    }
+}
+
 enum APIRequestMethod: String, Equatable, Hashable {
     case get = "GET"
     case post = "POST"
@@ -962,19 +999,66 @@ struct AppEnvironment {
 @Observable
 final class AppContainer {
     let environment: AppEnvironment
-    var navigationPath: [AppRoute] = []
+
+    // Native TabView adoption (iOS Android 앱 UI 개선 계획서.md §4 Phase 2)
+    // needs one independent back-stack per tab so the bottom tab bar stays
+    // visible while browsing inside a tab, matching standard native
+    // behavior. Every existing call site in the app already treats
+    // `navigationPath` as a single flat array (append/removeAll/removeLast/
+    // count/subscript) - rather than touching every one of those call
+    // sites, `navigationPath` stays the public shape they use, backed by
+    // whichever tab is currently selected.
+    var selectedTab: TicketgroundTab = .home
+    var homePath: [AppRoute] = []
+    var searchPath: [AppRoute] = []
+    var watchlistPath: [AppRoute] = []
+    var mypagePath: [AppRoute] = []
 
     init(environment: AppEnvironment) {
         self.environment = environment
+    }
+
+    var navigationPath: [AppRoute] {
+        get { path(for: selectedTab) }
+        set { setPath(newValue, for: selectedTab) }
+    }
+
+    func path(for tab: TicketgroundTab) -> [AppRoute] {
+        switch tab {
+        case .home: return homePath
+        case .search: return searchPath
+        case .watchlist: return watchlistPath
+        case .mypage: return mypagePath
+        }
+    }
+
+    func setPath(_ path: [AppRoute], for tab: TicketgroundTab) {
+        switch tab {
+        case .home: homePath = path
+        case .search: searchPath = path
+        case .watchlist: watchlistPath = path
+        case .mypage: mypagePath = path
+        }
     }
 
     func completeLoginNavigation() {
         navigationPath.removeAll()
     }
 
+    /// Deep link / Universal Link entry point. Routes that are one of the
+    /// four primary tabs land on that *native tab* at its root (rather than
+    /// pushing a duplicate screen with no visible tab bar); every other
+    /// route is pushed on the Home tab's stack, since content routes
+    /// (event/place/artist/...) aren't tied to a specific tab.
     func applyPublicURL(_ url: URL) {
         guard let route = RouteResolver.resolve(url) else { return }
-        navigationPath = route == .home ? [] : [route]
+        if let tab = TicketgroundTab.rootTab(for: route) {
+            selectedTab = tab
+            setPath([], for: tab)
+            return
+        }
+        selectedTab = .home
+        setPath([route], for: .home)
     }
 
     static func fixture(credentialStore: CredentialStore = InMemoryCredentialStore()) -> AppContainer {
