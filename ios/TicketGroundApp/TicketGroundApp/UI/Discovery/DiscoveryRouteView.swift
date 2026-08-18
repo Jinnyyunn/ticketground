@@ -496,32 +496,42 @@ private struct LoginBenefitsCard: View {
     }
 }
 
-/// Footer with legal links and the app version, anchoring the bottom of the
-/// login screen.
+/// URL derivation for the login footer's legal links, pulled out of
+/// `LoginFooter` as a pure function so it's unit-testable without
+/// instantiating a SwiftUI view.
 ///
-/// The terms/privacy links are derived from the app's configured API host
-/// (`baseURL`) rather than a hardcoded apex domain: `ticketground.co.kr` has
-/// no DNS record (mail-only, MX record only) and was a dead link in every
-/// build. Deriving from `baseURL` keeps the link on whatever host the app is
-/// actually configured against (e.g. `dev.ticketground.co.kr` in Debug).
-private struct LoginFooter: View {
-    let baseURL: URL?
-
-    private var termsURL: URL {
+/// The links are derived from the app's configured API host (`baseURL`)
+/// rather than a hardcoded apex domain: `ticketground.co.kr` has no DNS
+/// record (mail-only, MX record only) and was a dead link in every build
+/// ("Safari can't open the page because the server can't be found"),
+/// confirmed by tapping through the login screen and by `curl` (000 for
+/// ticketground.co.kr and www., 200 for dev.ticketground.co.kr). Deriving
+/// from `baseURL` keeps the link on whatever host the app is actually
+/// configured against (e.g. dev.ticketground.co.kr in Debug), and falls
+/// back to the previous hardcoded URL when no base URL is configured
+/// (fixture/disabled live mode) to avoid changing behavior there.
+enum LoginLegalLinks {
+    static func termsURL(baseURL: URL?) -> URL {
         baseURL?.appendingPathComponent("terms") ?? URL(string: "https://ticketground.co.kr/terms")!
     }
 
-    private var privacyURL: URL {
+    static func privacyURL(baseURL: URL?) -> URL {
         baseURL?.appendingPathComponent("privacy") ?? URL(string: "https://ticketground.co.kr/privacy")!
     }
+}
+
+/// Footer with legal links and the app version, anchoring the bottom of the
+/// login screen.
+private struct LoginFooter: View {
+    let baseURL: URL?
 
     var body: some View {
         VStack(spacing: TicketgroundSpacing.sm) {
             HStack(spacing: TicketgroundSpacing.sm) {
-                Link("이용약관", destination: termsURL)
+                Link("이용약관", destination: LoginLegalLinks.termsURL(baseURL: baseURL))
                 Text("·")
                     .foregroundStyle(TicketgroundColor.inkMuted)
-                Link("개인정보처리방침", destination: privacyURL)
+                Link("개인정보처리방침", destination: LoginLegalLinks.privacyURL(baseURL: baseURL))
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(TicketgroundColor.inkMuted)
