@@ -1307,7 +1307,7 @@ private struct LiveDiscoveryRouteView: View {
                 } else if isDetailRoute {
                     TicketgroundEmptySurface(
                         title: routeTitle,
-                        message: "요청한 공연을 GET /api/catalog 결과에서 찾을 수 없습니다.",
+                        message: LiveDiscoveryCopy.catalogNotFound,
                         actionTitle: "다시 시도",
                         action: retry
                     )
@@ -1326,7 +1326,7 @@ private struct LiveDiscoveryRouteView: View {
                 } else if events.isEmpty {
                     TicketgroundEmptySurface(
                         title: routeTitle,
-                        message: "GET /api/catalog 결과에 표시할 공연이 없습니다.",
+                        message: LiveDiscoveryCopy.catalogEmpty,
                         actionTitle: "다시 시도",
                         action: retry
                     )
@@ -1483,7 +1483,7 @@ private struct LiveCatalogUnavailableRouteView: View {
                 Text("공연 목록, 검색, 상세와 좌석도는 아직 사용할 수 없습니다.")
                     .font(.body)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
-                Text("GET /api/catalog 계약이 확인되지 않아 공연 정보를 추정하거나 표시하지 않습니다.")
+                Text(LiveDiscoveryCopy.catalogUnavailableReason)
                     .font(.body)
                     .foregroundStyle(TicketgroundColor.inkSecondary)
                 Text("공개 상태는 홈 화면에서 확인할 수 있습니다.")
@@ -3919,7 +3919,7 @@ private struct LiveUnsupportedRouteView: View {
                     .font(.caption.weight(.black))
                     .foregroundStyle(TicketgroundColor.accent)
                     .accessibilityIdentifier("live-unsupported-capability")
-                Text("현재 백엔드에서 확인된 공개 GET 범위에 포함되지 않은 화면입니다.")
+                Text(LiveDiscoveryCopy.unsupportedRouteHeadline)
                     .font(.title3.weight(.black))
                     .foregroundStyle(TicketgroundColor.ink)
                 Text(reason)
@@ -3969,20 +3969,7 @@ private struct LiveUnsupportedRouteView: View {
     }
 
     private var reason: String {
-        switch route {
-        case .signup:
-            return "회원가입 POST endpoint가 LiveBackendService에 없어 계정을 만들지 않습니다."
-        case .queue, .booking, .resale, .transfer, .cancel, .reservation:
-            return "해당 거래/예약 mutation 또는 조회 endpoint가 현재 공개 backend contract에 없어 작업을 실행하지 않습니다."
-        case .artist:
-            return "아티스트 전용 공개 GET endpoint가 현재 확인되지 않아 catalog에 포함된 공연만 표시할 수 있습니다."
-        case .region:
-            return "GET /api/catalog에는 지역 필드가 없어 지역별 공연을 추정하거나 임의로 분류하지 않습니다."
-        case .open:
-            return "현재 확인된 공개 GET contract에 티켓오픈 캘린더 데이터가 없어 catalog 공연을 오픈 일정으로 표시하지 않습니다."
-        default:
-            return "이 route에 대응하는 공개 backend capability가 현재 확인되지 않았습니다."
-        }
+        LiveDiscoveryCopy.unsupportedReason(for: route)
     }
 }
 
