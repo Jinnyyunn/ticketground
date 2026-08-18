@@ -21,10 +21,10 @@ final class SharedShellTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
-        assertHittable(app.buttons["tab-home"])
-        assertHittable(app.buttons["tab-search"])
-        assertHittable(app.buttons["tab-watchlist"])
-        assertHittable(app.buttons["tab-mypage"])
+        assertHittable(app.tabBarButton("tab-home"))
+        assertHittable(app.tabBarButton("tab-search"))
+        assertHittable(app.tabBarButton("tab-watchlist"))
+        assertHittable(app.tabBarButton("tab-mypage"))
     }
 
     func testBottomNavigationTabBarSurvivesSwitchingToAnotherTab() {
@@ -39,13 +39,13 @@ final class SharedShellTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
-        assertHittable(app.buttons["tab-search"])
-        app.buttons["tab-search"].tap()
+        assertHittable(app.tabBarButton("tab-search"))
+        app.tabBarButton("tab-search").tap()
         XCTAssertTrue(app.staticTexts["search-screen-title"].waitForExistence(timeout: 10))
-        assertHittable(app.buttons["tab-home"])
-        assertHittable(app.buttons["tab-search"])
-        assertHittable(app.buttons["tab-watchlist"])
-        assertHittable(app.buttons["tab-mypage"])
+        assertHittable(app.tabBarButton("tab-home"))
+        assertHittable(app.tabBarButton("tab-search"))
+        assertHittable(app.tabBarButton("tab-watchlist"))
+        assertHittable(app.tabBarButton("tab-mypage"))
     }
 
     func testLargeTextAndReducedMotion() {
@@ -57,10 +57,10 @@ final class SharedShellTests: XCTestCase {
         XCTAssertTrue(UITestBootstrap.waitForHome(app).exists)
         XCTAssertTrue(app.staticTexts["상태: 데이터 없음"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.otherElements["reduced-motion-safe"].waitForExistence(timeout: 10))
-        assertHittable(app.buttons["tab-home"])
-        assertHittable(app.buttons["tab-search"])
-        assertHittable(app.buttons["tab-watchlist"])
-        assertHittable(app.buttons["tab-mypage"])
+        assertHittable(app.tabBarButton("tab-home"))
+        assertHittable(app.tabBarButton("tab-search"))
+        assertHittable(app.tabBarButton("tab-watchlist"))
+        assertHittable(app.tabBarButton("tab-mypage"))
     }
 
     private func assertHittable(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
