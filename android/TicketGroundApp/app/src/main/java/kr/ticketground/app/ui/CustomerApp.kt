@@ -131,6 +131,14 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private fun pushRoute(newRoute: CustomerRoute) {
     if (mutableRoute.value != newRoute) pushSnapshot()
     mutableRoute.value = newRoute
+    // A message set on the screen being left (an error, a success toast) is about that screen's
+    // action, not the one being entered -- ~10 screens read this same shared actionMessage
+    // StateFlow (see CustomerApp.kt's NavHost composables), so without clearing it here a stale
+    // message keeps bleeding forward across every unrelated screen the user visits next until
+    // some other action happens to overwrite it. completeNativeLogin()'s success message is the
+    // one deliberate exception: it sets the message and then calls returnFromLogin() directly
+    // (not pushRoute()), so that carry-forward keeps working.
+    mutableActionMessage.value = null
     notifyNavigation()
   }
 
@@ -140,6 +148,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     }
     mutableDestination.value = destination
     mutableRoute.value = CustomerRoute.Tab
+    mutableActionMessage.value = null // see pushRoute()'s comment -- same reasoning for tab switches
     notifyNavigation()
     when (destination) {
       AppDestination.Home, AppDestination.Search -> if (mutableHome.value is AsyncContent.Error) loadHome()
@@ -289,6 +298,11 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     if (previous != null) {
       mutableDestination.value = previous.destination
       mutableRoute.value = previous.route
+      // Same reasoning as pushRoute()/navigate(): back navigation leaves the current screen too,
+      // and several of the screens a back-press can land on (e.g. mypage) read this same shared
+      // actionMessage StateFlow, so an uncleared message from the screen just left would bleed
+      // backward onto whatever screen the user returns to.
+      mutableActionMessage.value = null
     }
     mutableCanGoBack.value = backStack.isNotEmpty()
   }
