@@ -8,19 +8,27 @@ import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import kr.ticketground.app.data.TicketGroundApiClient
 import kr.ticketground.app.data.GoogleFirebaseTokenSource
 import kr.ticketground.app.data.GooglePlayIntegrityTokenRequester
 import kr.ticketground.app.data.AndroidDeviceOwnerAuthenticator
+import kr.ticketground.app.data.AndroidLoginGateAuthenticator
 import kr.ticketground.app.data.PlatformProviderFactory
 import kr.ticketground.app.data.PersistentCheckoutRetryStore
 import kr.ticketground.app.data.SharedPreferencesCheckoutRetryPersistence
+import kr.ticketground.app.data.biometricAuthenticationAvailable
 import kr.ticketground.app.foundation.KeystoreSessionVault
 import kr.ticketground.app.foundation.KeystoreDeviceTokenStore
+import kr.ticketground.app.foundation.LoginReentryGateController
+import kr.ticketground.app.foundation.SharedPreferencesBiometricLoginGatePreference
 import kr.ticketground.app.ui.CustomerAppViewModel
+import kr.ticketground.app.ui.LoginReentryLockScreen
 import kr.ticketground.app.ui.TicketGroundCustomerApp
 import kr.ticketground.app.ui.TicketGroundTheme
 import kr.ticketground.app.ui.TypedCustomerRepository
@@ -32,12 +40,35 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kr.ticketground.app.gate.GateScannerViewModel
 import kr.ticketground.app.gate.TicketGroundGateApp
 
+/**
+ * Rotation-survivable holder for the login-reentry biometric gate's UI state (see
+ * [LoginReentryGateController] for the framework-free decision logic this wraps). A plain
+ * Activity field would reset every time the Activity is recreated for a configuration change
+ * (e.g. rotation), which would re-lock the screen on every rotation even though the user never
+ * left the app -- an AndroidX ViewModel is the standard tool for state that must survive
+ * recreation-for-config-change but not a fresh process, matching this feature's intended scope
+ * exactly (see MainActivity#onStop's isChangingConfigurations guard for the other half of this).
+ */
+class LoginGateViewModel : ViewModel() {
+  var initialized: Boolean = false
+  val locked = mutableStateOf(false)
+  val unlocking = mutableStateOf(false)
+  val unlockFailed = mutableStateOf(false)
+  val biometricGateEnabled = mutableStateOf(false)
+}
+
 class MainActivity : AppCompatActivity() {
   private var customerViewModel: CustomerAppViewModel? = null
+  private var loginGateViewModel: LoginGateViewModel? = null
   private lateinit var gateViewModel: GateScannerViewModel
   private val scannerLauncher = registerForActivityResult(ScanContract()) { result ->
     if (::gateViewModel.isInitialized && result.contents != null) gateViewModel.verify(gateViewModel.gateToken, result.contents)
   }
+  private val sessionVault by lazy { KeystoreSessionVault(applicationContext) }
+  private val biometricGatePreference by lazy { SharedPreferencesBiometricLoginGatePreference(applicationContext) }
+  private val loginGateController by lazy { LoginReentryGateController(sessionVault, biometricGatePreference) }
+  private val biometricGateAvailable by lazy { biometricAuthenticationAvailable(applicationContext) }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     window.setFlags(
@@ -49,6 +80,19 @@ class MainActivity : AppCompatActivity() {
     }
     if (!BuildConfig.GATE_APP) {
       customerViewModel = ViewModelProvider(this, customerViewModelFactory())[CustomerAppViewModel::class.java]
+      val gate = ViewModelProvider(this)[LoginGateViewModel::class.java]
+      loginGateViewModel = gate
+      // Only ever compute the starting lock state once per ViewModel instance (i.e. once per
+      // process, not once per onCreate call) -- onCreate also runs after a rotation recreates the
+      // Activity, and re-deriving from "does a session exist" at that point would re-lock a
+      // screen the user never actually left.
+      if (!gate.initialized) {
+        gate.initialized = true
+        lifecycleScope.launch {
+          gate.biometricGateEnabled.value = biometricGatePreference.isEnabled()
+          gate.locked.value = loginGateController.shouldLock()
+        }
+      }
     }
     setContent {
       TicketGroundTheme {
@@ -59,7 +103,22 @@ class MainActivity : AppCompatActivity() {
             }
           } else {
             val viewModel = requireNotNull(customerViewModel)
-            TicketGroundCustomerApp(viewModel, ::startSocialLogin)
+            val gate = requireNotNull(loginGateViewModel)
+            if (gate.locked.value) {
+              LoginReentryLockScreen(
+                onUnlock = { attemptLoginGateUnlock(gate) },
+                unlocking = gate.unlocking.value,
+                failed = gate.unlockFailed.value,
+              )
+            } else {
+              TicketGroundCustomerApp(
+                viewModel,
+                ::startSocialLogin,
+                biometricLoginGateAvailable = biometricGateAvailable,
+                biometricLoginGateEnabled = gate.biometricGateEnabled.value,
+                onToggleBiometricLoginGate = { enable -> toggleBiometricLoginGate(gate, enable) },
+              )
+            }
           }
         }
       }
@@ -75,8 +134,64 @@ class MainActivity : AppCompatActivity() {
     handleDeepLink(intent)
   }
 
+  /**
+   * Login re-entry gate only -- never the initial OAuth grant. Re-checks whenever the app leaves
+   * the foreground for a real reason (backgrounded, not a rotation): if the user opted in and a
+   * session already exists, the next time this Activity becomes visible it shows the lock screen
+   * instead of the app's normal content. `isChangingConfigurations` excludes the
+   * destroy-then-immediately-recreate cycle a rotation triggers -- without that guard, every
+   * rotation would relock the screen even though the user never actually left the app.
+   */
+  override fun onStop() {
+    super.onStop()
+    if (BuildConfig.GATE_APP || isChangingConfigurations) return
+    val gate = loginGateViewModel ?: return
+    lifecycleScope.launch {
+      if (loginGateController.shouldLock()) gate.locked.value = true
+    }
+  }
+
+  private fun attemptLoginGateUnlock(gate: LoginGateViewModel) {
+    if (gate.unlocking.value) return
+    gate.unlocking.value = true
+    gate.unlockFailed.value = false
+    lifecycleScope.launch {
+      val confirmed = AndroidLoginGateAuthenticator(this@MainActivity).authenticate()
+      gate.unlocking.value = false
+      if (confirmed) gate.locked.value = false else gate.unlockFailed.value = true
+    }
+  }
+
+  /**
+   * Togglable setting living next to "trust this device" (TrustedDeviceScreen) -- not forced on
+   * for everyone. Turning it ON requires a successful biometric confirmation first (proves the
+   * enrollment actually works before relying on it); turning it OFF is a plain settings flip with
+   * no extra friction, consistent with how a settings toggle reads elsewhere.
+   */
+  private fun toggleBiometricLoginGate(gate: LoginGateViewModel, enable: Boolean) {
+    if (!enable) {
+      lifecycleScope.launch {
+        biometricGatePreference.setEnabled(false)
+        gate.biometricGateEnabled.value = false
+      }
+      return
+    }
+    lifecycleScope.launch {
+      val confirmed = AndroidLoginGateAuthenticator(this@MainActivity).authenticate()
+      if (confirmed) {
+        biometricGatePreference.setEnabled(true)
+        gate.biometricGateEnabled.value = true
+      }
+    }
+  }
+
   private fun startSocialLogin(provider: String) {
-    val uri = Uri.parse("${BuildConfig.API_BASE_URL.trimEnd('/')}/api/auth/$provider/start?client=ios")
+    // "android" is an honest client label the backend treats identically to "ios" -- both select
+    // the native ticketground:// deep-link handoff branch in backend/social-oauth.js rather than
+    // the browser cookie-session branch built for the website. This used to hardcode "ios" (a
+    // landmine for anyone "fixing" it without also updating the backend); see social-oauth.js's
+    // NATIVE_CLIENTS set for the other side of this contract.
+    val uri = Uri.parse("${BuildConfig.API_BASE_URL.trimEnd('/')}/api/auth/$provider/start?client=android")
     startActivity(Intent(Intent.ACTION_VIEW, uri))
   }
 
@@ -129,7 +244,7 @@ class MainActivity : AppCompatActivity() {
       @Suppress("UNCHECKED_CAST")
       override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass == CustomerAppViewModel::class.java)
-        val client = TicketGroundApiClient.create(KeystoreSessionVault(applicationContext))
+        val client = TicketGroundApiClient.create(sessionVault)
         val checkoutStore = PersistentCheckoutRetryStore(
           SharedPreferencesCheckoutRetryPersistence(
             applicationContext.getSharedPreferences("ticketground_checkout", MODE_PRIVATE),
@@ -158,7 +273,7 @@ class MainActivity : AppCompatActivity() {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass == GateScannerViewModel::class.java)
-      return GateScannerViewModel(TicketGroundApiClient.create(KeystoreSessionVault(applicationContext)).gate()) as T
+      return GateScannerViewModel(TicketGroundApiClient.create(sessionVault).gate()) as T
     }
   }
 

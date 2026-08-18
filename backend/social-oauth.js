@@ -17,6 +17,22 @@ import { issueNativeAuthHandoff } from "./native-auth-handoff.js";
 const STATE_MAX_AGE_MS = 10 * 60 * 1000;
 const SOCIAL_FETCH_TIMEOUT_MS = 8000;
 
+// Both native apps open this same browser-based OAuth start and complete through the same
+// ticketground:// deep-link handoff (see nativeHandoffRedirect/nativeFailureRedirect below) -
+// there is no behavioral difference between them, only the client label carried through `state`
+// for honesty/telemetry. Anything outside this set (missing, "web", or an unrecognized value)
+// falls through to the browser cookie-session branch built for the website. Mirrors the
+// ["ios", "android"] platform-detection pattern already used in app-attest.js/mobile-admin.js.
+const NATIVE_CLIENTS = new Set(["ios", "android"]);
+
+function normalizeClient(rawClient) {
+  return NATIVE_CLIENTS.has(rawClient) ? rawClient : "web";
+}
+
+function isNativeClient(client) {
+  return NATIVE_CLIENTS.has(client);
+}
+
 function base64Url(value) {
   return Buffer.from(value, "utf8").toString("base64url");
 }
@@ -223,7 +239,7 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
     const config = providerConfig(provider, req, "start");
     if (!config) return loginRedirect({ socialError: `${provider}_not_configured` });
     const requestUrl = new URL(req.url || "/", `http://${req.headers.host}`);
-    const client = requestUrl.searchParams.get("client") === "ios" ? "ios" : "web";
+    const client = normalizeClient(requestUrl.searchParams.get("client"));
     const state = createState(provider, client, hmac, currentTimeMs);
     const secureCookie = isSecureRequest(req);
     const url = new URL(config.authorizeUrl);
@@ -251,7 +267,7 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
     const trustedStatePayload = statePayload
       || verifyState(provider, cookieState, cookieState, hmac, currentTimeMs);
     const failureRedirect = (error) => {
-      if (trustedStatePayload?.client === "ios") {
+      if (isNativeClient(trustedStatePayload?.client)) {
         return nativeFailureRedirect(provider, error, clearCookie);
       }
       return loginRedirect({ socialError: `${provider}_${error}` }, clearCookie);
@@ -271,7 +287,7 @@ export function createSocialOAuthBackend({ appendLedger, currentTimeMs, hmac, ht
         provider,
         authenticatedAt: now()
       });
-      if (statePayload.client === "ios") {
+      if (isNativeClient(statePayload.client)) {
         return nativeHandoffRedirect(
           provider,
           issueNativeAuthHandoff(db, provider, user.id, now),
