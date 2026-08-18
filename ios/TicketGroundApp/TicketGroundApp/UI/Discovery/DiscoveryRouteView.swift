@@ -1823,7 +1823,7 @@ private struct LiveCatalogEventRow: View {
     @Environment(AppContainer.self) private var container
 
     var body: some View {
-        NavigationLink(value: AppRoute.goods(slug: event.slug ?? event.id)) {
+        NavigationLink(value: AppRoute.event(slug: event.slug ?? event.id)) {
             HStack(alignment: .top, spacing: TicketgroundSpacing.md) {
                 TicketgroundMediaImage(
                     resource: container.environment.apiClient.resolveResource(event.image),

@@ -126,7 +126,7 @@ enum DiscoveryFixtureLoader {
             venue: event.venue,
             date: event.period ?? formattedDate(event.date),
             cta: "공연 상세 보기",
-            route: .goods(slug: event.slug ?? event.id),
+            route: .event(slug: event.slug ?? event.id),
             imageResource: apiClient.resolveResource(event.image)
         )
     }
@@ -140,7 +140,7 @@ enum DiscoveryFixtureLoader {
             date: formattedDate(event.date),
             movement: .same,
             delta: "-",
-            route: .goods(slug: event.slug ?? event.id),
+            route: .event(slug: event.slug ?? event.id),
             imageResource: apiClient.resolveResource(event.image)
         )
     }
