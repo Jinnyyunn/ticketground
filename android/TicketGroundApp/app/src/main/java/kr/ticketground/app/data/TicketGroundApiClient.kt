@@ -101,6 +101,16 @@ class TicketGroundApiClient private constructor(
     return response.user
   }
 
+  /**
+   * Clears the locally persisted bearer credential. There is no server-side session to revoke --
+   * the backend issues a bearer token, not a server-tracked session -- so logging out is purely a
+   * local operation: drop the credential this client would otherwise keep sending. Uses
+   * [SessionVault.clear], which was already fully implemented but had no caller before this.
+   */
+  internal suspend fun logout() {
+    sessionVault.clear()
+  }
+
   internal suspend fun <T> execute(request: ApiRequest, serializer: KSerializer<T>): T {
     val httpRequest = buildRequest(request)
     val responseBody = try {

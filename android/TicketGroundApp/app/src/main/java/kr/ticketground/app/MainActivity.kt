@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -104,20 +105,42 @@ class MainActivity : AppCompatActivity() {
           } else {
             val viewModel = requireNotNull(customerViewModel)
             val gate = requireNotNull(loginGateViewModel)
+            // The lock/unlock branch below fully removes one composable from composition and
+            // adds the other -- TicketGroundCustomerApp's rememberNavController() is NOT hoisted
+            // above this if/else, so a bare if/else would tear the NavController down and rebuild
+            // it from scratch on every lock<->unlock swap, discarding its back stack. That leaves
+            // the NavController with a single entry while CustomerAppViewModel's own back-stack
+            // tracking (canGoBack) still remembers the real depth, so the very next back-press
+            // pops a NavController that has nothing left to pop -- the screen goes blank because
+            // NavHost's current entry no longer matches the ViewModel's route.
+            //
+            // rememberSaveableStateHolder() is the standard Compose fix for exactly this shape
+            // (mutually-exclusive branches that must each preserve their own rememberSaveable
+            // state across being fully removed and re-added, the same pattern used for
+            // bottom-navigation tab content). rememberNavController() itself is implemented with
+            // rememberSaveable(saver = NavControllerSaver(...)), so keyed SaveableStateProvider
+            // blocks are enough to restore the NavController's back stack on unlock without
+            // hoisting the controller out of TicketGroundCustomerApp or changing its signature.
+            val lockStateHolder = rememberSaveableStateHolder()
             if (gate.locked.value) {
-              LoginReentryLockScreen(
-                onUnlock = { attemptLoginGateUnlock(gate) },
-                unlocking = gate.unlocking.value,
-                failed = gate.unlockFailed.value,
-              )
+              lockStateHolder.SaveableStateProvider("login-reentry-locked") {
+                LoginReentryLockScreen(
+                  onUnlock = { attemptLoginGateUnlock(gate) },
+                  unlocking = gate.unlocking.value,
+                  failed = gate.unlockFailed.value,
+                  onLogout = { logOut(gate) },
+                )
+              }
             } else {
-              TicketGroundCustomerApp(
-                viewModel,
-                ::startSocialLogin,
-                biometricLoginGateAvailable = biometricGateAvailable,
-                biometricLoginGateEnabled = gate.biometricGateEnabled.value,
-                onToggleBiometricLoginGate = { enable -> toggleBiometricLoginGate(gate, enable) },
-              )
+              lockStateHolder.SaveableStateProvider("customer-app") {
+                TicketGroundCustomerApp(
+                  viewModel,
+                  ::startSocialLogin,
+                  biometricLoginGateAvailable = biometricGateAvailable,
+                  biometricLoginGateEnabled = gate.biometricGateEnabled.value,
+                  onToggleBiometricLoginGate = { enable -> toggleBiometricLoginGate(gate, enable) },
+                )
+              }
             }
           }
         }
@@ -149,6 +172,25 @@ class MainActivity : AppCompatActivity() {
     lifecycleScope.launch {
       if (loginGateController.shouldLock()) gate.locked.value = true
     }
+  }
+
+  /**
+   * Logs the user out, callable both from mypage (normal in-app entry point) and directly from
+   * [LoginReentryLockScreen]'s escape hatch with no biometric confirmation required first --
+   * logging out doesn't need proof-of-identity, only *staying* logged in behind the gate does. A
+   * user who loses biometric enrollment (an ordinary Settings action) with no DEVICE_CREDENTIAL
+   * fallback would otherwise be locked out permanently with no in-app recovery.
+   *
+   * [CustomerAppViewModel.logOut] clears the persisted session (SessionVault.clear(), already
+   * implemented but unused before this) and all signed-in-scoped in-memory state; this function
+   * additionally drops the lock screen immediately rather than waiting for the next onStop/resume
+   * cycle to notice there is no session left to protect.
+   */
+  private fun logOut(gate: LoginGateViewModel) {
+    customerViewModel?.logOut()
+    gate.locked.value = false
+    gate.unlocking.value = false
+    gate.unlockFailed.value = false
   }
 
   private fun attemptLoginGateUnlock(gate: LoginGateViewModel) {

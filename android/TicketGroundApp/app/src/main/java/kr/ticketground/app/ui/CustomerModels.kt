@@ -8,6 +8,7 @@ import kr.ticketground.app.data.AccountSession
 import kr.ticketground.app.data.ApiError
 import kr.ticketground.app.data.BookingApi
 import kr.ticketground.app.data.CatalogEvent
+import kr.ticketground.app.data.CatalogSchedule
 import kr.ticketground.app.data.LifecycleApi
 import kr.ticketground.app.data.LifecyclePolicy
 import kr.ticketground.app.data.LifecycleStatus
@@ -44,6 +45,19 @@ sealed interface AsyncContent<out T> {
   data class Error(val message: String) : AsyncContent<Nothing>
   data class Ready<T>(val value: T) : AsyncContent<T>
 }
+
+/**
+ * Performances a customer can actually select to start booking.
+ *
+ * The catalog API returns two parallel lists per event: `dates` carries the real
+ * performance id booking needs (to open the seat map and enter the queue), while
+ * `schedules` is a display-only duplicate (label/date/times) that never carries an id.
+ * Both lists expose the same `label` text, so preferring `dates` loses no display
+ * information; `schedules` is kept only as a fallback for events that omit `dates`.
+ * Entries without a usable id are dropped since they cannot be booked.
+ */
+fun bookablePerformances(event: CatalogEvent): List<CatalogSchedule> =
+  (event.dates ?: event.schedules).orEmpty().filter { !it.id.isNullOrBlank() }
 
 data class HomeContent(
   val events: List<CatalogEvent>,
@@ -177,6 +191,14 @@ interface CustomerRepository {
   suspend fun issueAdmissionQr(ticketId: String): AdmissionQr = throw ExternalProviderError.PlayIntegrityUnavailable
   suspend fun completeNativeLogin(provider: String, code: String): AccountSession =
     throw ApiError.Transport(IllegalStateException("Native login is unavailable"))
+
+  /**
+   * Clears the persisted session. Default is a no-op (not a throwing stub like the other
+   * capability-gated defaults above): logging out when there is nothing to log out of should
+   * always succeed silently rather than surface an error, and fakes that don't care about logout
+   * shouldn't need to override it just to compile.
+   */
+  suspend fun logOut(): Unit = Unit
 }
 
 class TypedCustomerRepository(
@@ -196,6 +218,8 @@ class TypedCustomerRepository(
 ) : CustomerRepository {
   override suspend fun completeNativeLogin(provider: String, code: String): AccountSession =
     client.completeNativeLogin(provider, code)
+
+  override suspend fun logOut() = client.logout()
   override suspend fun home(): HomeContent {
     val catalog = publicApi.catalog()
     val calendar = publicApi.openCalendar()
@@ -391,13 +415,27 @@ class TypedCustomerRepository(
   }
 }
 
+/**
+ * True for the two [ApiError] variants that mean "sign in to use this" -- callers that need to
+ * branch on that condition (e.g. loadAccount()/loadWatchlist() switching to a calm signed-out
+ * card instead of a generic error card) should check this directly rather than pattern-matching
+ * [safeUiMessage]'s translated Korean copy: that string is UI-facing and free to reword, and
+ * coupling control flow to its exact prefix is exactly what silently broke this detection the
+ * last time the copy changed.
+ */
+fun isSignInRequired(error: Throwable): Boolean =
+  error is ApiError.MissingCredential || error is ApiError.Unauthorized
+
 fun safeUiMessage(error: Throwable): String = when (error) {
   is BookingPreparationFailure -> when (val progress = error.progress) {
     is BookingProgress.Expired -> progress.message
     is BookingProgress.Conflict -> progress.message
     else -> "요청을 완료하지 못했습니다. 다시 시도해 주세요."
   }
-  is ApiError.MissingCredential, is ApiError.Unauthorized -> "로그인이 필요한 기능입니다. 웹 또는 iOS에서 로그인한 계정의 연결을 확인해 주세요."
+  // Previously presumed a pre-existing web/iOS session ("웹 또는 iOS에서 로그인한 계정의 연결을
+  // 확인해 주세요") -- most Android users hitting this path have no such session, especially now
+  // that Android has its own real native login. Plain "sign in" copy, no cross-platform assumption.
+  is ApiError.MissingCredential, is ApiError.Unauthorized -> "로그인이 필요합니다. 로그인 후 다시 이용해 주세요."
   is ApiError.Transport, is ApiError.Retryable -> "네트워크 연결을 확인한 뒤 다시 시도해 주세요."
   is ApiError.IncompatibleContract -> "현재 앱과 서버 버전이 맞지 않습니다. 잠시 후 다시 시도해 주세요."
   ExternalProviderError.PlayIntegrityUnavailable -> "이 기기에서는 Play Integrity 확인을 완료할 수 없습니다. 설정을 확인해 주세요."

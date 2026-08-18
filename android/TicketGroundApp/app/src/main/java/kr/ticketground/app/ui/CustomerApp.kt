@@ -131,6 +131,14 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private fun pushRoute(newRoute: CustomerRoute) {
     if (mutableRoute.value != newRoute) pushSnapshot()
     mutableRoute.value = newRoute
+    // A message set on the screen being left (an error, a success toast) is about that screen's
+    // action, not the one being entered -- ~10 screens read this same shared actionMessage
+    // StateFlow (see CustomerApp.kt's NavHost composables), so without clearing it here a stale
+    // message keeps bleeding forward across every unrelated screen the user visits next until
+    // some other action happens to overwrite it. completeNativeLogin()'s success message is the
+    // one deliberate exception: it sets the message and then calls returnFromLogin() directly
+    // (not pushRoute()), so that carry-forward keeps working.
+    mutableActionMessage.value = null
     notifyNavigation()
   }
 
@@ -140,6 +148,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     }
     mutableDestination.value = destination
     mutableRoute.value = CustomerRoute.Tab
+    mutableActionMessage.value = null // see pushRoute()'s comment -- same reasoning for tab switches
     notifyNavigation()
     when (destination) {
       AppDestination.Home, AppDestination.Search -> if (mutableHome.value is AsyncContent.Error) loadHome()
@@ -289,6 +298,11 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     if (previous != null) {
       mutableDestination.value = previous.destination
       mutableRoute.value = previous.route
+      // Same reasoning as pushRoute()/navigate(): back navigation leaves the current screen too,
+      // and several of the screens a back-press can land on (e.g. mypage) read this same shared
+      // actionMessage StateFlow, so an uncleared message from the screen just left would bleed
+      // backward onto whatever screen the user returns to.
+      mutableActionMessage.value = null
     }
     mutableCanGoBack.value = backStack.isNotEmpty()
   }
@@ -419,7 +433,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
       onFailure = { error ->
         // Same not-logged-in detection as loadAccount(): surface the calm signed-out state
         // instead of the generic error card so the two tabs read consistently.
-        if (safeUiMessage(error).startsWith("로그인이 필요한")) AsyncContent.Ready(WatchlistOverview(signedIn = false))
+        if (isSignInRequired(error)) AsyncContent.Ready(WatchlistOverview(signedIn = false))
         else AsyncContent.Error(safeUiMessage(error))
       },
     )
@@ -435,7 +449,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
         AsyncContent.Ready(overview.copy(selectedTicketId = selected))
       },
       onFailure = { error ->
-        if (safeUiMessage(error).startsWith("로그인이 필요한")) AsyncContent.Ready(AccountOverview(signedIn = false))
+        if (isSignInRequired(error)) AsyncContent.Ready(AccountOverview(signedIn = false))
         else AsyncContent.Error(safeUiMessage(error))
       },
     )
@@ -556,6 +570,27 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
 
   fun nativeLoginFailed(message: String) {
     mutableActionMessage.value = message
+  }
+
+  /**
+   * Logs the user out: clears the persisted bearer credential via [CustomerRepository.logOut]
+   * (SessionVault.clear() underneath, already implemented but unused before this) and resets
+   * every piece of in-memory state that is scoped to the signed-in account, so mypage/watchlist
+   * don't keep showing the previous account's data to whoever uses the app next. `home` is
+   * deliberately left alone -- the catalog is public, not account-scoped. Safe to call with no
+   * session present (repository.logOut() is a no-op then) and safe to call from the biometric
+   * lock screen with no prior confirmation, since logging out doesn't require proof of identity.
+   */
+  fun logOut() = viewModelScope.launch {
+    runCatching { repository.logOut() }
+    mutableAccount.value = AsyncContent.Ready(AccountOverview(signedIn = false))
+    mutableWatchlist.value = AsyncContent.Ready(WatchlistOverview(signedIn = false))
+    mutableAdmissionQr.value = null
+    mutableInquiries.value = AsyncContent.Loading
+    mutableSelectedSeatId.value = null
+    mutableHeldSeatIds.value = emptySet()
+    navigate(AppDestination.Home)
+    mutableActionMessage.value = "로그아웃되었습니다."
   }
 
   private data class BookingAttempt(val request: BookingRequest)
@@ -758,6 +793,7 @@ fun TicketGroundCustomerApp(
             onTrustedDeviceRoute = { push("trustedDevice") { viewModel.openTrustedDevice() } },
             onPushRoute = { push("pushNotifications") { viewModel.openPushNotifications() } },
             onInquiryRoute = { push("inquiry") { viewModel.openInquiry() } },
+            onLogout = viewModel::logOut,
           )
         }
         composable("event") {
