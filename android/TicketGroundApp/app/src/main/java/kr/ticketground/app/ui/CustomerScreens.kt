@@ -641,7 +641,7 @@ fun EventDetailScreen(
   onArtist: () -> Unit = {},
   actionMessage: String? = null,
 ) {
-  val performances = (event.schedules ?: event.dates).orEmpty().filter { !it.id.isNullOrBlank() }
+  val performances = bookablePerformances(event)
   var selectedPerformanceId by remember(event.id, performances) {
     mutableStateOf(performances.singleOrNull()?.id)
   }

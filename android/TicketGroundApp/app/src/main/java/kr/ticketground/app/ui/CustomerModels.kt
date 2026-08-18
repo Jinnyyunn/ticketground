@@ -8,6 +8,7 @@ import kr.ticketground.app.data.AccountSession
 import kr.ticketground.app.data.ApiError
 import kr.ticketground.app.data.BookingApi
 import kr.ticketground.app.data.CatalogEvent
+import kr.ticketground.app.data.CatalogSchedule
 import kr.ticketground.app.data.LifecycleApi
 import kr.ticketground.app.data.LifecyclePolicy
 import kr.ticketground.app.data.LifecycleStatus
@@ -44,6 +45,19 @@ sealed interface AsyncContent<out T> {
   data class Error(val message: String) : AsyncContent<Nothing>
   data class Ready<T>(val value: T) : AsyncContent<T>
 }
+
+/**
+ * Performances a customer can actually select to start booking.
+ *
+ * The catalog API returns two parallel lists per event: `dates` carries the real
+ * performance id booking needs (to open the seat map and enter the queue), while
+ * `schedules` is a display-only duplicate (label/date/times) that never carries an id.
+ * Both lists expose the same `label` text, so preferring `dates` loses no display
+ * information; `schedules` is kept only as a fallback for events that omit `dates`.
+ * Entries without a usable id are dropped since they cannot be booked.
+ */
+fun bookablePerformances(event: CatalogEvent): List<CatalogSchedule> =
+  (event.dates ?: event.schedules).orEmpty().filter { !it.id.isNullOrBlank() }
 
 data class HomeContent(
   val events: List<CatalogEvent>,
