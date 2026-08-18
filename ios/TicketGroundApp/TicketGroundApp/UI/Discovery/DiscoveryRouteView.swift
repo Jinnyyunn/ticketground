@@ -264,7 +264,7 @@ struct DiscoveryLoginView: View {
                 .padding(.horizontal, TicketgroundSpacing.sm)
                 .accessibilityIdentifier("login-signup")
 
-                LoginFooter()
+                LoginFooter(baseURL: container.environment.apiClient.baseURL)
             }
             .padding(.horizontal, TicketgroundSpacing.xl)
             .padding(.vertical, TicketgroundSpacing.lg)
@@ -498,14 +498,30 @@ private struct LoginBenefitsCard: View {
 
 /// Footer with legal links and the app version, anchoring the bottom of the
 /// login screen.
+///
+/// The terms/privacy links are derived from the app's configured API host
+/// (`baseURL`) rather than a hardcoded apex domain: `ticketground.co.kr` has
+/// no DNS record (mail-only, MX record only) and was a dead link in every
+/// build. Deriving from `baseURL` keeps the link on whatever host the app is
+/// actually configured against (e.g. `dev.ticketground.co.kr` in Debug).
 private struct LoginFooter: View {
+    let baseURL: URL?
+
+    private var termsURL: URL {
+        baseURL?.appendingPathComponent("terms") ?? URL(string: "https://ticketground.co.kr/terms")!
+    }
+
+    private var privacyURL: URL {
+        baseURL?.appendingPathComponent("privacy") ?? URL(string: "https://ticketground.co.kr/privacy")!
+    }
+
     var body: some View {
         VStack(spacing: TicketgroundSpacing.sm) {
             HStack(spacing: TicketgroundSpacing.sm) {
-                Link("이용약관", destination: URL(string: "https://ticketground.co.kr/terms")!)
+                Link("이용약관", destination: termsURL)
                 Text("·")
                     .foregroundStyle(TicketgroundColor.inkMuted)
-                Link("개인정보처리방침", destination: URL(string: "https://ticketground.co.kr/privacy")!)
+                Link("개인정보처리방침", destination: privacyURL)
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(TicketgroundColor.inkMuted)
