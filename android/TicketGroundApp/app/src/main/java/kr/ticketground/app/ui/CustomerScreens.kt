@@ -1028,20 +1028,47 @@ fun AccountResaleLifecycleScreen(
 fun TrustedDeviceScreen(
   state: AsyncContent<AccountOverview>, pending: Boolean, actionMessage: String?, onRetry: () -> Unit,
   onRegister: () -> Unit, onLogin: () -> Unit,
+  biometricGateAvailable: Boolean = false,
+  biometricGateEnabled: Boolean = false,
+  onToggleBiometricGate: (Boolean) -> Unit = {},
 ) = AccountDestinationSurface("trusted-device", state, onRetry, onLogin) { account ->
   Box(Modifier.fillMaxSize().padding(TicketGroundSpacing.sm), contentAlignment = Alignment.Center) {
-    SurfaceCard(
-      modifier = Modifier.testTag("trusted-device-card"),
-      contentPadding = PaddingValues(TicketGroundSpacing.sm),
-    ) {
-      SectionTitle("신뢰 기기")
-      Text(if (account.trustedDevice) "이 계정에 신뢰 기기가 등록되어 있습니다." else "등록된 신뢰 기기가 없습니다.", modifier = Modifier.testTag(if (account.trustedDevice) "trusted-device-active" else "trusted-device-empty"))
-      SemanticPhraseText(
-        text = "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.",
-        phrase = "서버가 등록합니다.",
-      )
-      Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("trusted-device-register")) { Text("이 기기 확인") }
-      actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+    Column(verticalArrangement = Arrangement.spacedBy(TicketGroundSpacing.sm)) {
+      SurfaceCard(
+        modifier = Modifier.testTag("trusted-device-card"),
+        contentPadding = PaddingValues(TicketGroundSpacing.sm),
+      ) {
+        SectionTitle("신뢰 기기")
+        Text(if (account.trustedDevice) "이 계정에 신뢰 기기가 등록되어 있습니다." else "등록된 신뢰 기기가 없습니다.", modifier = Modifier.testTag(if (account.trustedDevice) "trusted-device-active" else "trusted-device-empty"))
+        SemanticPhraseText(
+          text = "Play Integrity 도전과 기기 소유 확인이 완료된 경우에만 서버가 등록합니다.",
+          phrase = "서버가 등록합니다.",
+        )
+        Button(onClick = onRegister, enabled = !pending, modifier = Modifier.fillMaxWidth().testTag("trusted-device-register")) { Text("이 기기 확인") }
+        actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+      }
+      // Login re-entry only: gates unlocking an already-established session when the app is
+      // reopened, never the initial OAuth grant (see LoginReentryGateController). Only shown when
+      // the device actually has a usable biometric/device-credential enrollment -- otherwise this
+      // would be a dead-end toggle. Mirrors the trusted-device card's own pattern above (a
+      // one-shot Button reflecting current state, not a Switch -- this codebase has no existing
+      // Switch-driven settings toggle, so a button stays consistent with what's already here).
+      if (biometricGateAvailable) {
+        SurfaceCard(
+          modifier = Modifier.testTag("biometric-login-gate-card"),
+          contentPadding = PaddingValues(TicketGroundSpacing.sm),
+        ) {
+          SectionTitle("생체 인증 잠금")
+          Text(
+            if (biometricGateEnabled) "앱을 다시 열 때 생체 인증으로 로그인 정보를 보호합니다." else "앱을 다시 열 때 별도 인증 없이 로그인 상태가 유지됩니다.",
+            modifier = Modifier.testTag(if (biometricGateEnabled) "biometric-login-gate-active" else "biometric-login-gate-inactive"),
+          )
+          Button(
+            onClick = { onToggleBiometricGate(!biometricGateEnabled) },
+            modifier = Modifier.fillMaxWidth().testTag("biometric-login-gate-toggle"),
+          ) { Text(if (biometricGateEnabled) "생체 인증 잠금 끄기" else "생체 인증 잠금 켜기") }
+        }
+      }
     }
   }
 }

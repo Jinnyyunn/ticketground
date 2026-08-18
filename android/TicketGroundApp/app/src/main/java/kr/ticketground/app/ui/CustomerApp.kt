@@ -37,6 +37,7 @@ import kr.ticketground.app.data.SupportThread
 
 sealed interface CustomerRoute {
   data object Tab : CustomerRoute
+  data object Login : CustomerRoute
   data class Event(val event: CatalogEvent) : CustomerRoute
   data class Collection(val title: String, val events: List<CatalogEvent>) : CustomerRoute
   data object Ranking : CustomerRoute
@@ -145,6 +146,29 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
       AppDestination.Watchlist -> loadWatchlist()
       AppDestination.MyPage -> loadAccount()
     }
+  }
+
+  /**
+   * Opens the dedicated login screen as a normal pushed route (unlike the AlertDialog it
+   * replaced, this participates in the same back stack as every other screen -- system back
+   * closes it like anything else).
+   */
+  fun openLoginScreen() { pushRoute(CustomerRoute.Login) }
+
+  /**
+   * Returns from the login screen to whatever screen was showing before it was opened. Distinct
+   * from [closeRoute]: that one is deliberately UI-driven (paired with the Compose layer's own
+   * NavController.popBackStack() call from the hardware back handler -- see its doc comment).
+   * This one fires from inside a coroutine after an async login completes, with no UI-layer pop
+   * counterpart, so it mirrors the forward-navigation convention instead and calls
+   * [notifyNavigation] itself so NavHost follows.
+   */
+  private fun returnFromLogin() {
+    val previous = backStack.removeLastOrNull() ?: return
+    mutableDestination.value = previous.destination
+    mutableRoute.value = previous.route
+    mutableCanGoBack.value = backStack.isNotEmpty()
+    notifyNavigation()
   }
 
   fun openCategory(category: String) {
@@ -517,7 +541,14 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
     runCatching { repository.completeNativeLogin(provider, code) }
       .onSuccess {
         mutableActionMessage.value = "로그인되었습니다."
+        // Both mypage and watchlist read account-scoped state that was signed-out until this
+        // exact moment -- neither screen polls, and the login screen is reached from either one
+        // (or from the home header, unrelated to both), so both need an explicit refresh here or
+        // whichever of the two the user isn't currently looking at silently stays stale until a
+        // manual pull-to-refresh.
         loadAccount()
+        loadWatchlist()
+        if (mutableRoute.value == CustomerRoute.Login) returnFromLogin()
       }
       .onFailure { mutableActionMessage.value = safeUiMessage(it) }
     mutableBookingPending.value = false
@@ -543,6 +574,7 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
  */
 private fun navKeyFor(destination: AppDestination, route: CustomerRoute): String = when (route) {
   CustomerRoute.Tab -> "tab_${destination.name.lowercase()}"
+  CustomerRoute.Login -> "login"
   is CustomerRoute.Event -> "event"
   is CustomerRoute.Collection -> "collection"
   CustomerRoute.Ranking -> "ranking"
@@ -567,10 +599,11 @@ private fun navKeyFor(destination: AppDestination, route: CustomerRoute): String
 fun TicketGroundCustomerApp(
   viewModel: CustomerAppViewModel,
   onStartLogin: (String) -> Unit = {},
+  biometricLoginGateAvailable: Boolean = false,
+  biometricLoginGateEnabled: Boolean = false,
+  onToggleBiometricLoginGate: (Boolean) -> Unit = {},
 ) {
-  var showLoginChoices by remember { mutableStateOf(false) }
   var showMenu by remember { mutableStateOf(false) }
-  val openLogin = { showLoginChoices = true }
   val destination by viewModel.destination.collectAsStateWithLifecycle()
   val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
   val route by viewModel.route.collectAsStateWithLifecycle()
@@ -616,6 +649,8 @@ fun TicketGroundCustomerApp(
     action()
     navController.navigate(key) { launchSingleTop = true }
   }
+
+  val openLogin = { push("login") { viewModel.openLoginScreen() } }
 
   BoxWithConstraints(Modifier.fillMaxSize()) {
     val expandedLayout = maxWidth >= TicketGroundLayout.expandedBreakpoint
@@ -844,9 +879,18 @@ fun TicketGroundCustomerApp(
             account, pending, actionMessage, viewModel::loadAccount, viewModel::listForResale, openLogin,
           )
         }
+        composable("login") {
+          LoginScreen(
+            onProviderSelected = onStartLogin,
+            onClose = { viewModel.closeRoute(); navController.popBackStack() },
+          )
+        }
         composable("trustedDevice") {
           TrustedDeviceScreen(
             account, pending, actionMessage, viewModel::loadAccount, viewModel::trustThisDevice, openLogin,
+            biometricGateAvailable = biometricLoginGateAvailable,
+            biometricGateEnabled = biometricLoginGateEnabled,
+            onToggleBiometricGate = onToggleBiometricLoginGate,
           )
         }
         composable("pushNotifications") {
@@ -878,22 +922,6 @@ fun TicketGroundCustomerApp(
         navController.popBackStack()
       }
     }
-  }
-  if (showLoginChoices) {
-    AlertDialog(
-      onDismissRequest = { showLoginChoices = false },
-      title = { androidx.compose.material3.Text("로그인") },
-      text = { androidx.compose.material3.Text("로그인할 서비스를 선택해 주세요.") },
-      confirmButton = {
-        TextButton(onClick = { showLoginChoices = false; onStartLogin("kakao") }, modifier = androidx.compose.ui.Modifier.testTag("login-kakao")) { androidx.compose.material3.Text("카카오톡") }
-      },
-      dismissButton = {
-        androidx.compose.foundation.layout.Row {
-          TextButton(onClick = { showLoginChoices = false; onStartLogin("naver") }, modifier = androidx.compose.ui.Modifier.testTag("login-naver")) { androidx.compose.material3.Text("네이버") }
-          TextButton(onClick = { showLoginChoices = false }) { androidx.compose.material3.Text("취소") }
-        }
-      },
-    )
   }
   if (showMenu) {
     AlertDialog(

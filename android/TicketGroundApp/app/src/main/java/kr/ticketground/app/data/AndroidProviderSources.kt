@@ -45,43 +45,74 @@ class GoogleFirebaseTokenSource : FirebaseTokenSource {
   }
 }
 
+private fun biometricAuthenticators(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+  BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+} else {
+  BiometricManager.Authenticators.BIOMETRIC_STRONG
+}
+
+/** Whether this device currently has a usable biometric/device-credential enrollment at all. */
+fun biometricAuthenticationAvailable(context: Context): Boolean =
+  BiometricManager.from(context).canAuthenticate(biometricAuthenticators()) == BiometricManager.BIOMETRIC_SUCCESS
+
+/**
+ * Shared BiometricPrompt plumbing behind both [AndroidDeviceOwnerAuthenticator] (trusted-device
+ * registration) and [AndroidLoginGateAuthenticator] (login-reentry unlock) -- same API, same
+ * authenticator set, only the displayed title/subtitle differ per call site.
+ */
+private suspend fun promptBiometricAuthentication(
+  activity: FragmentActivity,
+  title: String,
+  subtitle: String,
+): Boolean = suspendCancellableCoroutine { continuation ->
+  val authenticators = biometricAuthenticators()
+  if (BiometricManager.from(activity).canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) {
+    continuation.resume(false)
+    return@suspendCancellableCoroutine
+  }
+  val prompt = BiometricPrompt(
+    activity,
+    ContextCompat.getMainExecutor(activity),
+    object : BiometricPrompt.AuthenticationCallback() {
+      override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+        if (continuation.isActive) continuation.resume(true)
+      }
+
+      override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+        if (continuation.isActive) continuation.resume(false)
+      }
+    },
+  )
+  val info = BiometricPrompt.PromptInfo.Builder()
+    .setTitle(title)
+    .setSubtitle(subtitle)
+    .setAllowedAuthenticators(authenticators)
+    .apply {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) setNegativeButtonText("취소")
+    }
+    .build()
+  continuation.invokeOnCancellation { prompt.cancelAuthentication() }
+  prompt.authenticate(info)
+}
+
 class AndroidDeviceOwnerAuthenticator(
   private val activity: FragmentActivity,
 ) : DeviceOwnerAuthenticator {
-  override suspend fun authenticate(): Boolean = suspendCancellableCoroutine { continuation ->
-    val authenticators = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-      BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
-    } else {
-      BiometricManager.Authenticators.BIOMETRIC_STRONG
-    }
-    if (BiometricManager.from(activity).canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) {
-      continuation.resume(false)
-      return@suspendCancellableCoroutine
-    }
-    val prompt = BiometricPrompt(
-      activity,
-      ContextCompat.getMainExecutor(activity),
-      object : BiometricPrompt.AuthenticationCallback() {
-        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-          if (continuation.isActive) continuation.resume(true)
-        }
+  override suspend fun authenticate(): Boolean =
+    promptBiometricAuthentication(activity, "기기 소유자 확인", "신뢰 기기 등록을 계속하려면 인증해 주세요")
+}
 
-        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-          if (continuation.isActive) continuation.resume(false)
-        }
-      },
-    )
-    val info = BiometricPrompt.PromptInfo.Builder()
-      .setTitle("기기 소유자 확인")
-      .setSubtitle("신뢰 기기 등록을 계속하려면 인증해 주세요")
-      .setAllowedAuthenticators(authenticators)
-      .apply {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) setNegativeButtonText("취소")
-      }
-      .build()
-    continuation.invokeOnCancellation { prompt.cancelAuthentication() }
-    prompt.authenticate(info)
-  }
+/**
+ * Login-reentry unlock prompt (see [kr.ticketground.app.foundation.LoginReentryGateController]) --
+ * same BiometricPrompt pattern and authenticator set as [AndroidDeviceOwnerAuthenticator], reused
+ * rather than reinvented, just with copy appropriate to unlocking an already-established session
+ * instead of registering a trusted device.
+ */
+class AndroidLoginGateAuthenticator(
+  private val activity: FragmentActivity,
+) : DeviceOwnerAuthenticator {
+  override suspend fun authenticate(): Boolean =
+    promptBiometricAuthentication(activity, "잠금 해제", "로그인 정보를 보려면 인증해 주세요")
 }
 
 private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->

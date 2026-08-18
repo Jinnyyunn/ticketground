@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kr.ticketground.app.data.AccountSession
 import kr.ticketground.app.data.ApiError
 import kr.ticketground.app.data.CatalogEvent
 import kr.ticketground.app.data.Seat
@@ -24,6 +25,7 @@ import kr.ticketground.app.data.TossWidgetResult
 import kr.ticketground.app.data.CheckoutOutcome
 import kr.ticketground.app.data.CheckoutError
 import kr.ticketground.app.data.OwnedTicket
+import kr.ticketground.app.data.SecurityStatus
 import kr.ticketground.app.data.AdmissionQr
 import kr.ticketground.app.data.DisplayStatus
 import kr.ticketground.app.data.SupportThread
@@ -176,6 +178,50 @@ class CustomerAppViewModelTest {
 
     assertEquals("event-1", repository.watchlistedEventId)
     assertEquals("관심공연에 추가했습니다.", viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `successful native login refreshes both mypage and watchlist and returns from the login screen`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    // Given: the user opened the login screen from the home header (any screen works the same way
+    // -- watchlist and mypage below are the two screens whose state actually depends on the
+    // session that login establishes).
+    viewModel.openLoginScreen()
+    advanceUntilIdle()
+    assertEquals(CustomerRoute.Login, viewModel.route.value)
+
+    // When: native login completes successfully.
+    viewModel.completeNativeLogin("kakao", "one-use-code")
+    advanceUntilIdle()
+
+    // Then: the repository received the provider/code pair,
+    assertEquals(listOf("kakao" to "one-use-code"), repository.nativeLoginRequests)
+    // both account-scoped screens that were signed-out until this moment are refreshed without a
+    // manual pull-to-refresh (loadAccount() alone was not enough -- watchlist has its own
+    // independent signed-out state, see CustomerApp.kt's loadWatchlist()/loadAccount() comment),
+    assertEquals(1, repository.watchlistCalls)
+    assertTrue((viewModel.account.value as AsyncContent.Ready).value.signedIn)
+    // and the login screen itself is left automatically, back to wherever the user came from.
+    assertEquals(CustomerRoute.Tab, viewModel.route.value)
+    assertEquals("로그인되었습니다.", viewModel.actionMessage.value)
+  }
+
+  @Test
+  fun `failed native login keeps the login screen open and surfaces a message`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository(nativeLoginError = ApiError.Transport(java.io.IOException("offline")))
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    viewModel.openLoginScreen()
+    advanceUntilIdle()
+
+    viewModel.completeNativeLogin("naver", "one-use-code")
+    advanceUntilIdle()
+
+    assertEquals(CustomerRoute.Login, viewModel.route.value)
+    assertEquals("네트워크 연결을 확인한 뒤 다시 시도해 주세요.", viewModel.actionMessage.value)
+    assertEquals(0, repository.watchlistCalls)
   }
 
   @Test
@@ -629,6 +675,7 @@ private class FakeCustomerRepository(
   var discoveryError: Throwable? = null,
   private var refreshBookingError: Throwable? = null,
   private val inquiryValue: List<SupportThread> = emptyList(),
+  private var nativeLoginError: Throwable? = null,
 ) : CustomerRepository {
   val homeValue = HomeContent(listOf(event()), emptyList(), emptyList(), emptyList())
   private val rankingDeferreds = ArrayDeque<CompletableDeferred<List<CatalogEvent>>>()
@@ -638,6 +685,8 @@ private class FakeCustomerRepository(
   var bookedSeatId: String? = null
   var trustCalls = 0
   var pushCalls = 0
+  var watchlistCalls = 0
+  val nativeLoginRequests = mutableListOf<Pair<String, String>>()
   var qrTicketId: String? = null
   var completedPaymentKey: String? = null
   var watchlistedEventId: String? = null
@@ -681,7 +730,15 @@ private class FakeCustomerRepository(
     return homeValue.events
   }
   override suspend fun seatMap(eventId: String, performanceDateId: String?): SeatMap = seatMapFixture()
-  override suspend fun watchlist(): List<WatchlistItem> = emptyList()
+  override suspend fun watchlist(): List<WatchlistItem> {
+    watchlistCalls += 1
+    return emptyList()
+  }
+  override suspend fun completeNativeLogin(provider: String, code: String): AccountSession {
+    nativeLoginRequests += provider to code
+    nativeLoginError?.let { throw it }
+    return AccountSession("account-1", "테스트 사용자", SecurityStatus.ACTIVE, 90, true)
+  }
   override suspend fun accountOverview(): AccountOverview = accountError?.let { throw it } ?: accountValue
   override suspend fun book(request: BookingRequest): BookingProgress {
     bookCalls += 1
