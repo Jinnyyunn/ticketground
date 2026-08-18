@@ -1754,44 +1754,14 @@ private struct LiveCatalogDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TicketgroundSpacing.lg) {
-            TicketgroundMediaImage(
-                resource: container.environment.apiClient.resolveResource(event.image),
-                role: .poster,
-                accessibilityLabel: "\(event.title) 포스터",
-                accessibilitySuffix: "live-detail"
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: 320)
-            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
-
-            VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
-                Text(event.title)
-                    .font(.title.weight(.black))
-                    .foregroundStyle(TicketgroundColor.ink)
-                    .accessibilityIdentifier("live-catalog-event")
-                let venueRoute = event.venueID ?? event.venue
-                NavigationLink(value: AppRoute.place(slug: venueRoute)) {
-                        Label(event.venue, systemImage: "building.columns")
-                            .font(.headline)
-                            .foregroundStyle(TicketgroundColor.inkSecondary)
-                }
-                .accessibilityIdentifier("discovery-venue-\(venueRoute)")
-                Text(event.period ?? event.date ?? "일정 미정")
-                    .font(.subheadline)
-                    .foregroundStyle(TicketgroundColor.inkMuted)
-                if let sale = event.sale {
-                    Text([sale.label, sale.note].compactMap { $0 }.joined(separator: " · "))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(TicketgroundColor.accent)
-                }
-                Text("판매 집계: \(event.soldCount)")
-                    .font(.caption)
-                    .foregroundStyle(TicketgroundColor.inkMuted)
+            posterHeader
+            infoCard
+            if let prices = event.prices, !prices.isEmpty {
+                priceCard(prices)
             }
-            .padding(TicketgroundSpacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TicketgroundColor.surfaceMuted)
-            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+            if let summary = event.summary, !summary.isEmpty {
+                noteCard(title: "공연 소개", body: summary)
+            }
 
             LiveWatchlistCTA(event: event)
 
@@ -1816,6 +1786,135 @@ private struct LiveCatalogDetailView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var posterHeader: some View {
+        ZStack(alignment: .topLeading) {
+            TicketgroundMediaImage(
+                resource: container.environment.apiClient.resolveResource(event.image),
+                role: .poster,
+                accessibilityLabel: "\(event.title) 포스터",
+                accessibilitySuffix: "live-detail"
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 320)
+            .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.large))
+
+            if let badge = event.badge, !badge.isEmpty {
+                Text(badge)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, TicketgroundSpacing.md)
+                    .frame(minHeight: 28)
+                    .background(TicketgroundColor.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+                    .padding(TicketgroundSpacing.md)
+            }
+        }
+    }
+
+    private var infoCard: some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text(event.title)
+                .font(.title.weight(.black))
+                .foregroundStyle(TicketgroundColor.ink)
+                .accessibilityIdentifier("live-catalog-event")
+
+            let venueRoute = event.venueID ?? event.venue
+            NavigationLink(value: AppRoute.place(slug: venueRoute)) {
+                    Label(event.venue, systemImage: "building.columns")
+                        .font(.headline)
+                        .foregroundStyle(TicketgroundColor.inkSecondary)
+            }
+            .accessibilityIdentifier("discovery-venue-\(venueRoute)")
+
+            Label(event.period ?? event.date ?? "일정 미정", systemImage: "calendar")
+                .font(.subheadline)
+                .foregroundStyle(TicketgroundColor.inkMuted)
+
+            if let runtime = event.runtime, !runtime.isEmpty {
+                Label(runtime, systemImage: "clock")
+                    .font(.subheadline)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+            }
+
+            if let ageLimit = event.ageLimit, !ageLimit.isEmpty {
+                Label(ageLimit, systemImage: "person.badge.shield.checkmark")
+                    .font(.subheadline)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+            }
+
+            Rectangle()
+                .fill(TicketgroundColor.line)
+                .frame(height: 1)
+                .padding(.vertical, TicketgroundSpacing.xs)
+
+            HStack(alignment: .center, spacing: TicketgroundSpacing.sm) {
+                if let sale = event.sale {
+                    LiveSaleStatusPill(sale: sale)
+                }
+                Spacer(minLength: TicketgroundSpacing.sm)
+                Text("판매 집계 \(event.soldCount)건")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+            }
+
+            if let note = event.sale?.note, !note.isEmpty {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(TicketgroundColor.inkMuted)
+            }
+        }
+        .padding(TicketgroundSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TicketgroundColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+        .overlay {
+            RoundedRectangle(cornerRadius: TicketgroundRadius.medium)
+                .stroke(TicketgroundColor.line, lineWidth: 1)
+        }
+    }
+
+    private func priceCard(_ prices: [LiveCatalogPrice]) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text("가격 안내")
+                .font(.headline.weight(.black))
+                .foregroundStyle(TicketgroundColor.ink)
+            ForEach(Array(prices.enumerated()), id: \.offset) { _, price in
+                HStack {
+                    Text(price.grade ?? price.seat ?? "등급 정보 없음")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(TicketgroundColor.inkSecondary)
+                    Spacer(minLength: TicketgroundSpacing.sm)
+                    if let priceValue = price.price {
+                        Text("\(priceValue.formatted())원")
+                            .font(.subheadline.weight(.black))
+                            .foregroundStyle(TicketgroundColor.ink)
+                    }
+                }
+            }
+        }
+        .padding(TicketgroundSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TicketgroundColor.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+    }
+
+    private func noteCard(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: TicketgroundSpacing.sm) {
+            Text(title)
+                .font(.headline.weight(.black))
+                .foregroundStyle(TicketgroundColor.ink)
+            Text(body)
+                .font(.body)
+                .foregroundStyle(TicketgroundColor.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(TicketgroundSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TicketgroundColor.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+    }
 }
 
 private struct LiveCatalogEventRow: View {
@@ -1830,30 +1929,83 @@ private struct LiveCatalogEventRow: View {
                     role: .poster,
                     accessibilityLabel: "\(event.title) 포스터"
                 )
-                .frame(width: 76, height: 104)
-                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.small))
+                .frame(width: 92, height: 124)
+                .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
 
                 VStack(alignment: .leading, spacing: TicketgroundSpacing.xs) {
+                    if let category = event.category, !category.isEmpty {
+                        Text(liveCatalogDisplayGenre(category))
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(TicketgroundColor.accent)
+                    }
                     Text(event.title)
                         .font(.headline.weight(.bold))
                         .foregroundStyle(TicketgroundColor.ink)
+                        .lineLimit(2)
                         .accessibilityIdentifier("live-catalog-event")
                     Text(event.venue)
                         .font(.subheadline)
-                        .foregroundStyle(TicketgroundColor.inkMuted)
+                        .foregroundStyle(TicketgroundColor.inkSecondary)
+                        .lineLimit(1)
                     Text(event.period ?? event.date ?? "일정 미정")
                         .font(.caption)
                         .foregroundStyle(TicketgroundColor.inkMuted)
+                    Spacer(minLength: TicketgroundSpacing.xs)
+                    HStack(spacing: TicketgroundSpacing.sm) {
+                        if let sale = event.sale {
+                            LiveSaleStatusPill(sale: sale, compact: true)
+                        }
+                        if let lowestPrice = (event.prices ?? []).compactMap(\.price).min() {
+                            Text("\(lowestPrice.formatted())원~")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(TicketgroundColor.ink)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(TicketgroundSpacing.md)
-            .background(TicketgroundColor.surfaceMuted)
+            .background(TicketgroundColor.surface)
             .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
+            .overlay {
+                RoundedRectangle(cornerRadius: TicketgroundRadius.medium)
+                    .stroke(TicketgroundColor.line, lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("live-catalog-event-link-\(event.id)")
+    }
+}
+
+private struct LiveSaleStatusPill: View {
+    let sale: LiveCatalogSale
+    var compact: Bool = false
+
+    var body: some View {
+        let bookable = sale.state == "ON_SALE"
+        Text(sale.label ?? "판매 정보 확인 중")
+            .font(compact ? .caption2.weight(.black) : .caption.weight(.black))
+            .foregroundStyle(.white)
+            .padding(.horizontal, compact ? TicketgroundSpacing.sm : TicketgroundSpacing.md)
+            .frame(minHeight: compact ? 20 : 26)
+            .background(bookable ? TicketgroundColor.success : TicketgroundColor.inkMuted)
+            .clipShape(Capsule())
+    }
+}
+
+private func liveCatalogDisplayGenre(_ category: String) -> String {
+    switch category.lowercased() {
+    case "concert": return "콘서트"
+    case "musical": return "뮤지컬"
+    case "play", "theater": return "연극"
+    case "classic": return "클래식"
+    case "exhibition": return "전시"
+    case "child", "children", "family": return "아동"
+    case "sports": return "스포츠"
+    case "event": return "행사"
+    default: return category
     }
 }
 
