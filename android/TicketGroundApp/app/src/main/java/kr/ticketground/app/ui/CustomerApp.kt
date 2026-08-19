@@ -60,7 +60,17 @@ sealed interface CustomerRoute {
 
 private data class NavSnapshot(val destination: AppDestination, val route: CustomerRoute)
 
-class CustomerAppViewModel(private val repository: CustomerRepository) : ViewModel() {
+class CustomerAppViewModel(
+  private val repository: CustomerRepository,
+  // Last background-synced catalog snapshot (see CatalogSyncWorker/CatalogCacheStore) so the home
+  // feed can paint instantly on a cold start instead of a blank skeleton while the real
+  // repository.home() call is still in flight. Pre-decoded by the caller (MainActivity) rather
+  // than read here so this ViewModel stays free of any Context/file-storage dependency -- the
+  // exact same reasoning CatalogCacheStore's own doc comment already gave for why this wasn't
+  // wired in yet. Only ever a *seed*: loadHome() below still always issues the real network call,
+  // this only changes what's on screen until that call resolves.
+  cachedHomeEvents: List<CatalogEvent>? = null,
+) : ViewModel() {
   private val mutableDestination = MutableStateFlow(AppDestination.Home)
   val destination = mutableDestination.asStateFlow()
   private val mutableSearchQuery = MutableStateFlow("")
@@ -70,7 +80,11 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   private val backStack = ArrayDeque<NavSnapshot>()
   private val mutableCanGoBack = MutableStateFlow(false)
   val canGoBack = mutableCanGoBack.asStateFlow()
-  private val mutableHome = MutableStateFlow<AsyncContent<HomeContent>>(AsyncContent.Loading)
+  private val mutableHome = MutableStateFlow<AsyncContent<HomeContent>>(
+    cachedHomeEvents?.takeIf { it.isNotEmpty() }
+      ?.let { AsyncContent.Ready(HomeContent(it, emptyList(), emptyList(), emptyList())) }
+      ?: AsyncContent.Loading,
+  )
   val home = mutableHome.asStateFlow()
   private val mutableSeatMap = MutableStateFlow<AsyncContent<SeatMap>>(AsyncContent.Loading)
   val seatMap = mutableSeatMap.asStateFlow()
@@ -186,11 +200,18 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
   }
 
   fun loadHome() = viewModelScope.launch {
-    mutableHome.value = AsyncContent.Loading
-    mutableHome.value = runCatching { repository.home() }.fold(
-      onSuccess = { if (it.events.isEmpty()) AsyncContent.Empty("공연이 없습니다", "새로운 공연이 등록되면 알려드릴게요.") else AsyncContent.Ready(it) },
-      onFailure = { AsyncContent.Error(safeUiMessage(it)) },
-    )
+    // Only drop to the Loading skeleton when there's nothing worth keeping on screen -- a
+    // cache-seeded or previously-successful Ready state stays visible while this call is in
+    // flight (both on the initial cold-start load and on any later retry/refresh), and a failure
+    // here doesn't blow away perfectly good (if slightly stale) content the user can already see
+    // and use. Only surfaces Error when there was truly nothing to show already.
+    val hadContent = mutableHome.value is AsyncContent.Ready
+    if (!hadContent) mutableHome.value = AsyncContent.Loading
+    runCatching { repository.home() }
+      .onSuccess {
+        mutableHome.value = if (it.events.isEmpty()) AsyncContent.Empty("공연이 없습니다", "새로운 공연이 등록되면 알려드릴게요.") else AsyncContent.Ready(it)
+      }
+      .onFailure { if (!hadContent) mutableHome.value = AsyncContent.Error(safeUiMessage(it)) }
   }
 
   fun openEvent(event: CatalogEvent) { pushRoute(CustomerRoute.Event(event)) }
@@ -566,6 +587,11 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
 
   fun openSupport() { pushRoute(CustomerRoute.Support) }
 
+  // P0-3, operator-requested (this round's settings/preferences audit explicitly asked to check
+  // "FCM token registration timing relative to login/logout"): completeNativeLogin() is protected
+  // login-flow code, so this addition is called out here rather than folded in silently, per the
+  // same protected-boundary convention prior rounds used for logOut(). See
+  // registerPushSilently()'s own doc comment below for what it does and why.
   fun completeNativeLogin(provider: String, code: String) = viewModelScope.launch {
     mutableBookingPending.value = true
     mutableActionMessage.value = null
@@ -579,10 +605,32 @@ class CustomerAppViewModel(private val repository: CustomerRepository) : ViewMod
         // manual pull-to-refresh.
         loadAccount()
         loadWatchlist()
+        registerPushSilently()
         if (mutableRoute.value == CustomerRoute.Login) returnFromLogin()
       }
       .onFailure { mutableActionMessage.value = safeUiMessage(it) }
     mutableBookingPending.value = false
+  }
+
+  /**
+   * Best-effort push-token registration right after a successful login. FCM issues a device token
+   * the first time the app ever starts, well before any login -- onNewToken() in
+   * TicketGroundFirebaseMessagingService only fires again on token *rotation*, which is rare. Without
+   * this call, that pre-login token is never associated with the account server-side (POST
+   * /api/me/push-tokens is bearer-authenticated) unless the user happens to separately visit
+   * mypage -> 푸시 알림 and taps "알림 등록 요청" -- so a newly-logged-in user could go without any
+   * push notification tied to their account indefinitely.
+   *
+   * Deliberately NOT routed through registerPush()/mutatePlatform(): that path sets bookingPending
+   * and overwrites actionMessage with either a success or failure toast, which would silently
+   * clobber the "로그인되었습니다." message the user just saw. This mirrors the same fail-closed,
+   * no-toast, no-retry-loop pattern TicketGroundFirebaseMessagingService.onNewToken() already uses
+   * for token rotation -- a failure here (permission not granted yet, FCM unavailable) isn't
+   * something the user needs interrupted right after signing in; registerPush() is still there as
+   * an explicit, user-visible retry path from mypage.
+   */
+  private fun registerPushSilently() = viewModelScope.launch {
+    runCatching { repository.registerPush() }
   }
 
   fun nativeLoginFailed(message: String) {

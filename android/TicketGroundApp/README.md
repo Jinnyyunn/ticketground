@@ -16,12 +16,12 @@ Run commands from this directory:
 ```bash
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
-./gradlew assembleDevDebug --no-daemon
-./gradlew testDevDebugUnitTest --no-daemon
-./gradlew lintDevDebug --no-daemon
+./gradlew assembleDevCustomerDebug --no-daemon
+./gradlew testDevCustomerDebugUnitTest --no-daemon
+./gradlew lintDevCustomerDebug --no-daemon
 ```
 
-The build has explicit `dev` and `prod` flavors. `devDebug` uses `https://dev.ticketground.co.kr` and application ID `kr.ticketground.app.dev`; production builds use `https://ticketground.co.kr`. Release builds enable R8 and resource shrinking. Both variants disable cleartext traffic.
+The build has two flavor dimensions. `environment` (`dev`/`prod`) picks the API origin: `dev` uses `https://dev.ticketground.co.kr` and appends application ID suffix `.dev`; `prod` uses `https://ticketground.co.kr`. `role` (`customer`/`gate`) picks which app this is: `customer` is the ticket-buyer app documented in this file; `gate` is the separate internal admission-scanner app and appends application ID suffix `.gate`. Combine both, e.g. `devCustomerDebug`, `prodCustomerRelease`, `devGateDebug`. Release builds enable R8 and resource shrinking. All variants disable cleartext traffic.
 
 ## Security boundary
 

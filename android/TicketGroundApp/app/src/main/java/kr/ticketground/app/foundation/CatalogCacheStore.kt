@@ -10,9 +10,10 @@ private const val KEY_SYNCED_AT = "synced_at_epoch_ms"
  * Minimal on-disk snapshot of the last background-synced public catalog (see
  * [kr.ticketground.app.work.CatalogSyncWorker]). Plain SharedPreferences, not a database --
  * intentionally small since this is a single bounded background-sync addition, not a caching
- * subsystem. Not currently read by CustomerAppViewModel.loadHome() (that init path is covered
- * directly by CustomerAppViewModelTest with no Android Context available); wiring it in for an
- * instant cold-start paint is a natural, separately-scoped follow-up.
+ * subsystem. Read at cold start by MainActivity's CustomerAppViewModel factory (decoded there,
+ * not inside the ViewModel itself, so CustomerAppViewModel.loadHome()'s own init path stays
+ * exercisable directly by CustomerAppViewModelTest with no Android Context available) and passed
+ * in as a seed for an instant cold-start home paint instead of a blank Loading skeleton.
  */
 class CatalogCacheStore(context: Context) {
   private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

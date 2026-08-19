@@ -70,6 +70,46 @@ class CustomerAppViewModelTest {
   }
 
   @Test
+  fun `cached home events seed an instant paint before the network call resolves, then yield to fresh server data`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val cachedEvent = CatalogEvent(
+      id = "cached-event", title = "캐시된 공연", venue = "캐시 공연장", soldCount = 0,
+    )
+    val viewModel = CustomerAppViewModel(repository, cachedHomeEvents = listOf(cachedEvent))
+
+    // Before the test dispatcher advances, init{}'s loadHome() coroutine hasn't run yet -- the
+    // cache seed is what CustomerAppViewModel exposes cold, with no network round trip needed.
+    assertEquals("캐시된 공연", (viewModel.home.value as AsyncContent.Ready).value.events.single().title)
+
+    advanceUntilIdle()
+
+    // The real repository.home() call still always runs and its result still wins once it lands.
+    assertEquals("서울 콘서트", (viewModel.home.value as AsyncContent.Ready).value.events.single().title)
+  }
+
+  @Test
+  fun `an empty or missing catalog cache falls back to the Loading skeleton exactly as before`() = runTest(dispatcher) {
+    val viewModel = CustomerAppViewModel(FakeCustomerRepository(), cachedHomeEvents = emptyList())
+
+    assertTrue(viewModel.home.value is AsyncContent.Loading)
+  }
+
+  @Test
+  fun `a failed refresh keeps showing already-loaded home content instead of replacing it with an error screen`() = runTest(dispatcher) {
+    val repository = FakeCustomerRepository()
+    val viewModel = CustomerAppViewModel(repository)
+    advanceUntilIdle()
+    assertEquals("서울 콘서트", (viewModel.home.value as AsyncContent.Ready).value.events.single().title)
+
+    repository.homeError = ApiError.Transport(java.io.IOException("offline"))
+    viewModel.loadHome()
+    advanceUntilIdle()
+
+    // Home already had content to show; a background refresh failing shouldn't blow that away.
+    assertEquals("서울 콘서트", (viewModel.home.value as AsyncContent.Ready).value.events.single().title)
+  }
+
+  @Test
   fun `seat selection books backend coordinate and opens configured checkout request`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository()
     val viewModel = CustomerAppViewModel(repository)
@@ -238,13 +278,19 @@ class CustomerAppViewModelTest {
     // independent signed-out state, see CustomerApp.kt's loadWatchlist()/loadAccount() comment),
     assertEquals(1, repository.watchlistCalls)
     assertTrue((viewModel.account.value as AsyncContent.Ready).value.signedIn)
+    // a best-effort push-token registration fires silently in the background (P0-3, operator-
+    // requested -- see completeNativeLogin()'s own doc comment for why this doesn't route through
+    // the user-visible registerPush()/mutatePlatform() path),
+    assertEquals(1, repository.pushCalls)
     // and the login screen itself is left automatically, back to wherever the user came from.
     assertEquals(CustomerRoute.Tab, viewModel.route.value)
+    // the login success toast is what's left on screen, not silently overwritten by the
+    // background push registration succeeding or failing.
     assertEquals("로그인되었습니다.", viewModel.actionMessage.value)
   }
 
   @Test
-  fun `failed native login keeps the login screen open and surfaces a message`() = runTest(dispatcher) {
+  fun `failed native login keeps the login screen open, surfaces a message, and never attempts push registration`() = runTest(dispatcher) {
     val repository = FakeCustomerRepository(nativeLoginError = ApiError.Transport(java.io.IOException("offline")))
     val viewModel = CustomerAppViewModel(repository)
     advanceUntilIdle()
@@ -257,6 +303,7 @@ class CustomerAppViewModelTest {
     assertEquals(CustomerRoute.Login, viewModel.route.value)
     assertEquals("네트워크 연결을 확인한 뒤 다시 시도해 주세요.", viewModel.actionMessage.value)
     assertEquals(0, repository.watchlistCalls)
+    assertEquals(0, repository.pushCalls)
   }
 
   // --- logOut(): P0-3, operator-requested addition to the protected login/session boundary. ---
