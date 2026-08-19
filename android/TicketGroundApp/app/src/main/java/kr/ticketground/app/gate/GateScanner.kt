@@ -37,13 +37,20 @@ class GateScannerViewModel(
       mutableState.value = GateScanState(GateScanState.Status.ERROR, "게이트 토큰을 먼저 입력하세요.")
       return
     }
+    // Persist as soon as the operator has committed to a non-blank token by
+    // attempting a scan with it - independent of whether this particular QR
+    // parses. A malformed/misread QR (camera glitch, wrong barcode) is the
+    // single most common scan outcome at a real gate; persisting only after
+    // a successful QR parse would mean the token is effectively never saved
+    // in practice, since the operator would have to get a *valid* scan
+    // through before their correctly-typed token was ever remembered.
+    viewModelScope.launch { tokenVault.store(this@GateScannerViewModel.gateToken) }
     val payload = runCatching { GateQrPayload.parse(rawQr) }.getOrElse {
       mutableState.value = GateScanState(GateScanState.Status.ERROR, "입장 QR 형식이 올바르지 않습니다.")
       return
     }
     mutableState.value = GateScanState(GateScanState.Status.VERIFYING, "입장 확인 중…")
     viewModelScope.launch {
-      tokenVault.store(this@GateScannerViewModel.gateToken)
       runCatching { api.verify(gateToken, payload) }
         .onSuccess { mutableState.value = GateScanState.result(it) }
         .onFailure { mutableState.value = GateScanState(GateScanState.Status.ERROR, it.message ?: "게이트 서버에 연결할 수 없습니다.") }

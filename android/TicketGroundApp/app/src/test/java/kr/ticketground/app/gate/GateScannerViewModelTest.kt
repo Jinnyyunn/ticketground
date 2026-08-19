@@ -81,4 +81,18 @@ class GateScannerViewModelTest {
 
     assertEquals("device-gate-token", runBlocking { vault.read() })
   }
+
+  @Test
+  fun `a malformed QR still persists the token - a misread scan is the common case, not the exception`() = runTest(dispatcher) {
+    val vault = InMemoryGateTokenVault()
+    val viewModel = GateScannerViewModel(gateApi(), vault)
+    advanceUntilIdle()
+
+    viewModel.verify("device-gate-token", "not a ticket at all")
+    advanceUntilIdle()
+
+    assertEquals(GateScanState.Status.ERROR, viewModel.state.value.status)
+    assertEquals("device-gate-token", runBlocking { vault.read() })
+    assertEquals("a malformed QR must not reach the network at all", 0, server.requestCount)
+  }
 }
