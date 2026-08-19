@@ -91,6 +91,12 @@ fun TicketGroundGateApp(viewModel: GateScannerViewModel, onScan: () -> Unit) {
       GateResultTone.DANGER -> Icons.Default.Cancel
       GateResultTone.NEUTRAL -> Icons.Default.QrCodeScanner
     }
+    val resultIconDescription = when (tone) {
+      GateResultTone.SUCCESS -> "입장 확인됨"
+      GateResultTone.WARNING -> "중복 스캔 경고"
+      GateResultTone.DANGER -> "입장 거부"
+      GateResultTone.NEUTRAL -> "QR 스캐너"
+    }
     Card(modifier = Modifier.fillMaxWidth(), colors = cardColors) {
       Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Terminal results (pass/duplicate/fail) render at a larger, bolder
@@ -100,7 +106,7 @@ fun TicketGroundGateApp(viewModel: GateScannerViewModel, onScan: () -> Unit) {
         val isTerminal = tone != GateResultTone.NEUTRAL
         Icon(
           resultIcon,
-          contentDescription = "QR 스캐너",
+          contentDescription = resultIconDescription,
           modifier = if (isTerminal) Modifier.padding(bottom = 4.dp) else Modifier,
         )
         Text(
