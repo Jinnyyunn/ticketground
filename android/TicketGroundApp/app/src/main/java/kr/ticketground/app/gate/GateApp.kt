@@ -46,9 +46,21 @@ private val ReplayOnContainer = Color(0xFFFFF3E0)
 @Composable
 fun TicketGroundGateApp(viewModel: GateScannerViewModel, onScan: () -> Unit) {
   val state by viewModel.state.collectAsStateWithLifecycle()
+  val restoredToken by viewModel.restoredToken.collectAsStateWithLifecycle()
   var gateToken by remember { mutableStateOf("") }
   var rawQr by remember { mutableStateOf("") }
   val haptics = LocalHapticFeedback.current
+
+  // Fill in the persisted device token once, on first restore - if the
+  // operator has already started typing a (possibly different) token by the
+  // time this lands, don't clobber it.
+  LaunchedEffect(restoredToken) {
+    val restored = restoredToken
+    if (restored != null && gateToken.isBlank()) {
+      gateToken = restored
+      viewModel.setGateToken(restored)
+    }
+  }
 
   // A gate operator is watching the crowd, not the screen - the confirm/deny
   // buzz has to fire the instant a terminal result lands, without requiring

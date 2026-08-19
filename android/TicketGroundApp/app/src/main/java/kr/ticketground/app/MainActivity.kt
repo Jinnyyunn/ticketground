@@ -28,6 +28,7 @@ import kr.ticketground.app.data.biometricAuthenticationAvailable
 import kr.ticketground.app.foundation.CatalogCacheStore
 import kr.ticketground.app.foundation.KeystoreSessionVault
 import kr.ticketground.app.foundation.KeystoreDeviceTokenStore
+import kr.ticketground.app.foundation.KeystoreGateTokenVault
 import kr.ticketground.app.foundation.LoginReentryGateController
 import kr.ticketground.app.foundation.SharedPreferencesBiometricLoginGatePreference
 import kr.ticketground.app.ui.CustomerAppViewModel
@@ -325,7 +326,10 @@ class MainActivity : AppCompatActivity() {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass == GateScannerViewModel::class.java)
-      return GateScannerViewModel(TicketGroundApiClient.create(sessionVault).gate()) as T
+      return GateScannerViewModel(
+        TicketGroundApiClient.create(sessionVault).gate(),
+        KeystoreGateTokenVault(applicationContext),
+      ) as T
     }
   }
 
