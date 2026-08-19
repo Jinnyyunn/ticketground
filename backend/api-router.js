@@ -10,6 +10,7 @@ import {
 
 export function createApiRouter({
   accountTicketsForUser,
+  addPrincipalSupportMessage,
   addSupportMessage,
   addSupportMessageForPrincipal,
   authenticateNativeSession,
@@ -25,9 +26,13 @@ export function createApiRouter({
   authenticateSellerAccount,
   changeSellerPassword,
   cancelTosspaymentsPayment,
+  challenge,
   confirmTosspaymentsPayment,
   createAdminAccount,
+  createDraft,
+  createHold,
   createPushCampaign,
+  createPrincipalSupportThread,
   cancelResaleListing,
   cancelResalePoolForPrincipal,
   createCancellationRequestForPrincipal,
@@ -60,16 +65,19 @@ export function createApiRouter({
   SERVICE_FEE_PER_SEAT,
   issueGateSession,
   issueAppAttestChallenge,
+  issueMobileQr,
   issueQr,
   issueNativeSession,
   issueSellerAccount,
   joinPool,
+  joinQueue,
   joinResalePoolForPrincipal,
   leaveQueue,
   listForResale,
   listGateSessions,
   listCancellationRequestsForPrincipal,
   listDevicesForPrincipal,
+  listMobileTickets,
   listPushTokensForPrincipal,
   listResalePoolsForPrincipal,
   listSellerEvents,
@@ -79,6 +87,9 @@ export function createApiRouter({
   nativeSession,
   optionalAuthenticateNativeSession,
   purchaseResale,
+  putPushToken,
+  putSettings,
+  queue,
   readBusinessRegistrationFile,
   releaseSeatHold,
   requireGateSession,
@@ -122,12 +133,15 @@ export function createApiRouter({
   requireIdempotencyKey,
   requireNativePrincipal,
   seatMap,
+  seats,
   startNiceVerification,
   submitGroupBookingRequest,
   supportThreadForUser,
   supportThreadsForPrincipal,
   isWebhookSignatureValid,
+  testPayload,
   tosspaymentsConfig,
+  trust,
   trustDevice,
   updateEventSale,
   updateMaintenance,
@@ -244,7 +258,13 @@ function requireDemoWatchlistAPI() {
   if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
 }
 
-function parseIdempotencyKey(req) {
+// These legacy (X-Idempotency-Key) helpers back the older userId-keyed demo
+// and "ForPrincipal" routes below. They are intentionally distinct from the
+// requireIdempotencyKey destructured above (from request-principal.js, which
+// reads the Idempotency-Key header) so the two conventions never shadow one
+// another - a same-named local declaration here previously did exactly that
+// and silently broke every native-principal route's idempotency-key check.
+function parseLegacyIdempotencyKey(req) {
   const value = String(req.headers["x-idempotency-key"] || "").trim();
   if (!value) return null;
   if (value.length > 200) {
@@ -253,8 +273,8 @@ function parseIdempotencyKey(req) {
   return value;
 }
 
-function requireIdempotencyKey(req) {
-  const value = parseIdempotencyKey(req);
+function requireLegacyIdempotencyKey(req) {
+  const value = parseLegacyIdempotencyKey(req);
   if (!value) throw httpError(400, "IDEMPOTENCY_KEY_REQUIRED", "유효한 재시도 키가 필요합니다.");
   return value;
 }
@@ -314,6 +334,10 @@ async function handleApi(req, res, db, surface) {
   const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
   const bookingHoldMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)$/);
   const bookingHoldRenewMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)\/renew$/);
+  const bookingQueueDetailMatch = url.pathname.match(/^\/api\/me\/booking\/queues\/([^/]+)$/);
+  const bookingSeatsMatch = url.pathname.match(/^\/api\/me\/booking\/events\/([^/]+)\/performances\/([^/]+)\/seats$/);
+  const bookingDraftDetailMatch = url.pathname.match(/^\/api\/me\/booking\/drafts\/([^/]+)$/);
+  const principalReservationMatch = url.pathname.match(/^\/api\/me\/reservations\/([^/]+)$/);
   const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
   const principalResalePoolMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)$/);
   const principalResaleJoinMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)\/join$/);
@@ -335,6 +359,7 @@ async function handleApi(req, res, db, surface) {
     return kakaoChannelWebhook(body, req);
   }
   if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
+  if (req.method === "GET" && url.pathname === "/api/support/v1/public") return publicSupport();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") {
     const rawLimit = url.searchParams.get("limit");
@@ -392,7 +417,7 @@ async function handleApi(req, res, db, surface) {
       authenticateNativeSession(db, req).user.id,
       decodeEventId(principalWatchlistMatch[1]),
       body,
-      parseIdempotencyKey(req)
+      parseLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "DELETE" && principalWatchlistMatch) {
@@ -400,7 +425,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       decodeEventId(principalWatchlistMatch[1]),
-      parseIdempotencyKey(req)
+      parseLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && url.pathname === "/api/me/queue-entries") {
@@ -408,7 +433,7 @@ async function handleApi(req, res, db, surface) {
     return enterQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
       performanceDateId: body.performanceDateId,
-      idempotencyKey: parseIdempotencyKey(req)
+      idempotencyKey: parseLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && queueEntryMatch) {
@@ -421,7 +446,7 @@ async function handleApi(req, res, db, surface) {
     return leaveQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
       entryId: queueEntryMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/seat-holds") {
@@ -430,7 +455,7 @@ async function handleApi(req, res, db, surface) {
       userId: authenticateNativeSession(db, req).user.id,
       performanceDateId: body.performanceDateId,
       ticketIds: body.ticketIds,
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && seatHoldMatch && !seatHoldExtendMatch) {
@@ -443,14 +468,14 @@ async function handleApi(req, res, db, surface) {
     return extendSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
       holdId: seatHoldExtendMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "DELETE" && seatHoldMatch) {
     return releaseSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
       holdId: seatHoldMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/reservation-drafts") {
@@ -458,7 +483,7 @@ async function handleApi(req, res, db, surface) {
     return createReservationDraft(db, {
       userId: authenticateNativeSession(db, req).user.id,
       holdId: body.holdId,
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && reservationDraftMatch) {
@@ -471,7 +496,7 @@ async function handleApi(req, res, db, surface) {
     return cancelReservationDraft(db, {
       userId: authenticateNativeSession(db, req).user.id,
       draftId: reservationDraftMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && url.pathname === "/api/me/resale-pools") {
@@ -483,7 +508,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && principalResaleJoinMatch) {
@@ -491,7 +516,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       principalResaleJoinMatch[1],
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "DELETE" && principalResalePoolMatch) {
@@ -499,7 +524,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       principalResalePoolMatch[1],
-      parseIdempotencyKey(req)
+      parseLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "GET" && url.pathname === "/api/me/cancellation-requests") {
@@ -511,7 +536,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "GET" && url.pathname === "/api/me/devices") {
@@ -543,7 +568,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
@@ -551,7 +576,7 @@ async function handleApi(req, res, db, surface) {
     return updateDemoProfile(db, {
       userId: authenticateNativeSession(db, req).user.id,
       name: body.name,
-      idempotencyKey: parseIdempotencyKey(req)
+      idempotencyKey: parseLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && url.pathname === "/api/me/support/threads") {
@@ -563,7 +588,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && url.pathname === "/api/me/support/messages") {
@@ -572,7 +597,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "GET" && url.pathname === "/api/payments/tosspayments/config") return tosspaymentsConfig();
@@ -689,6 +714,16 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["eventId", "performanceId"]);
     return joinQueue(db, principal, requireIdempotencyKey(req), body);
   }
+  if (req.method === "GET" && bookingQueueDetailMatch) {
+    return queue(db, requireNativePrincipal(db, req), decodeURIComponent(bookingQueueDetailMatch[1]));
+  }
+  if (req.method === "GET" && bookingSeatsMatch) {
+    return seats(db, requireNativePrincipal(db, req), {
+      eventId: decodeURIComponent(bookingSeatsMatch[1]),
+      performanceId: decodeURIComponent(bookingSeatsMatch[2]),
+      queueId: url.searchParams.get("queueId")
+    });
+  }
   if (req.method === "POST" && url.pathname === "/api/me/devices/challenges") {
     const principal = requireNativePrincipal(db, req);
     requireBody(body, ["deviceId"]);
@@ -714,6 +749,9 @@ async function handleApi(req, res, db, surface) {
     const principal = requireNativePrincipal(db, req);
     requireBody(body, ["watchlistOpen", "reservationUpdates"]);
     return putSettings(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/notification-settings") {
+    return settings(db, requireNativePrincipal(db, req));
   }
   if (req.method === "POST" && principalTestPayloadMatch) {
     return testPayload(db, requireNativePrincipal(db, req), decodeURIComponent(principalTestPayloadMatch[1]));
@@ -743,6 +781,15 @@ async function handleApi(req, res, db, surface) {
     const principal = requireNativePrincipal(db, req);
     requireBody(body, ["holdId"]);
     return createDraft(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "GET" && bookingDraftDetailMatch) {
+    return draft(db, requireNativePrincipal(db, req), decodeURIComponent(bookingDraftDetailMatch[1]));
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/reservations") {
+    return reservations(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "GET" && principalReservationMatch) {
+    return reservationDetail(db, requireNativePrincipal(db, req), decodeURIComponent(principalReservationMatch[1]));
   }
   if (req.method === "POST" && principalSupportMessageMatch) {
     requireBody(body, ["message"]);
@@ -880,12 +927,12 @@ async function handleApi(req, res, db, surface) {
       userId: resolvePurchaseUserId(db, req, body),
       ticketId: body.ticketId,
       paymentMethod: body.paymentMethod,
-      idempotencyKey: parseIdempotencyKey(req)
+      idempotencyKey: parseLegacyIdempotencyKey(req)
     }));
   }
   if (req.method === "POST" && url.pathname === "/api/payments/tosspayments/purchase") {
     requireBody(body, ["userId", "ticketId", "paymentMethod", "tossPaymentKey"]);
-    const idempotencyKey = requireIdempotencyKey(req);
+    const idempotencyKey = requireLegacyIdempotencyKey(req);
     const purchaseUserId = resolvePurchaseUserId(db, req, body);
 
     // A retry with the same idempotency key must not re-confirm payment with
