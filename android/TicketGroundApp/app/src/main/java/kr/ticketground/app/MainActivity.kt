@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kr.ticketground.app.data.Catalog
 import kr.ticketground.app.data.TicketGroundApiClient
 import kr.ticketground.app.data.GoogleFirebaseTokenSource
 import kr.ticketground.app.data.GooglePlayIntegrityTokenRequester
@@ -24,6 +25,7 @@ import kr.ticketground.app.data.PlatformProviderFactory
 import kr.ticketground.app.data.PersistentCheckoutRetryStore
 import kr.ticketground.app.data.SharedPreferencesCheckoutRetryPersistence
 import kr.ticketground.app.data.biometricAuthenticationAvailable
+import kr.ticketground.app.foundation.CatalogCacheStore
 import kr.ticketground.app.foundation.KeystoreSessionVault
 import kr.ticketground.app.foundation.KeystoreDeviceTokenStore
 import kr.ticketground.app.foundation.LoginReentryGateController
@@ -296,6 +298,13 @@ class MainActivity : AppCompatActivity() {
           Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID),
           Build.MODEL.ifBlank { "Android" },
         )
+        // Best-effort only: a missing cache (fresh install, never synced yet) or a corrupt/
+        // schema-mismatched blob just falls back to null -- exactly what CustomerAppViewModel
+        // already treats as "no seed, start on the Loading skeleton like before."
+        val cachedHomeEvents = runCatching {
+          CatalogCacheStore(applicationContext).readCatalogJson()
+            ?.let { TicketGroundApiClient.JSON.decodeFromString(Catalog.serializer(), it).events }
+        }.getOrNull()
         return CustomerAppViewModel(
           TypedCustomerRepository(
             client.public(), client.account(), client.lifecycle(), client,
@@ -306,6 +315,7 @@ class MainActivity : AppCompatActivity() {
             KeystoreDeviceTokenStore(applicationContext),
             AndroidDeviceOwnerAuthenticator(this@MainActivity),
           ),
+          cachedHomeEvents = cachedHomeEvents,
         ) as T
       }
     }
