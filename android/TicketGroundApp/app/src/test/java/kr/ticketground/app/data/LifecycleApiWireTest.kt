@@ -1,6 +1,7 @@
 package kr.ticketground.app.data
 
 import kotlinx.coroutines.test.runTest
+import kr.ticketground.app.BuildConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -72,7 +73,13 @@ class LifecycleApiWireTest : ApiTestSupport() {
     assertEquals("/api/tickets/qr", qr.path)
     assertEquals(true, qrBody.contains("\"challengeId\":\"challenge-1\""))
     assertEquals(true, qrBody.contains("\"integrityToken\":\"raw-integrity-proof\""))
-    assertEquals(true, qrBody.contains("\"packageName\":\"kr.ticketground.app.dev\""))
+    // BuildConfig.APPLICATION_ID varies per flavor (e.g. kr.ticketground.app.dev
+    // for devCustomer, kr.ticketground.app.dev.gate for devGate) since this
+    // wire test lives in the shared src/test source set and runs under every
+    // flavor's *DebugUnitTest task - it must assert against whatever
+    // APPLICATION_ID the variant under test actually resolves, not a
+    // hardcoded customer-flavor string.
+    assertEquals(true, qrBody.contains("\"packageName\":\"${BuildConfig.APPLICATION_ID}\""))
     assertFalse(qrBody.contains("userId"))
   }
 
