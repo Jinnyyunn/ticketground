@@ -61,11 +61,26 @@ export function createNativeSessionBackend({ currentTimeMs, findUser, hash, http
     return { user: publicSessionUser(user) };
   }
 
+  // Derives the acting userId from the authenticated bearer session only -- never from
+  // req.body/req.params. A native client naming a different userId in its request payload
+  // must not be able to act as that user; only a valid, unrevoked session credential can.
+  function nativeSessionPrincipal(db, req) {
+    const { session } = authenticateNativeSession(db, req);
+    return { userId: session.userId };
+  }
+
   function nativeLogout(db, req) {
     const session = matchingSession(db, bearerCredential(req));
     session.revokedAt = now();
     return { revoked: true };
   }
 
-  return { authenticateNativeSession, issueNativeSession, nativeLogout, nativeSession, optionalAuthenticateNativeSession };
+  return {
+    authenticateNativeSession,
+    issueNativeSession,
+    nativeLogout,
+    nativeSession,
+    nativeSessionPrincipal,
+    optionalAuthenticateNativeSession
+  };
 }

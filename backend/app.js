@@ -14,6 +14,7 @@ import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
 import { createNativeSessionBackend } from "./native-session.js";
+import { createRequestPrincipal } from "./request-principal.js";
 import { createMobileLifecycleBackend } from "./mobile-lifecycle.js";
 import { createMobileAdminBackend } from "./mobile-admin.js";
 import { createPersistence } from "./persistence.js";
@@ -176,6 +177,10 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     randomHex: runtime.randomHex
   });
+  const requestPrincipal = createRequestPrincipal({
+    httpError: runtime.httpError,
+    nativeSessionPrincipal: nativeSession.nativeSessionPrincipal
+  });
   const session = createSessionBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
@@ -265,6 +270,7 @@ export async function createTicketgroundApp(options) {
     ...mobileLifecycle,
     ...mobileAdmin,
     ...nativeSession,
+    ...requestPrincipal,
     ...sellerApplications,
     ...sellerAccounts,
     ...sellerEvents,
