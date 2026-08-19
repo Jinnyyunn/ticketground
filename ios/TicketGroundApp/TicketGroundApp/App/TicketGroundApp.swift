@@ -5,7 +5,6 @@ import UserNotifications
 struct TicketGroundApp: App {
     @UIApplicationDelegateAdaptor(TicketGroundAppDelegate.self) private var appDelegate
     @State private var container = AppContainer.configured()
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -29,14 +28,20 @@ struct TicketGroundApp: App {
                     // for the best-effort count derived from already-fetched
                     // ticket data). This just makes sure a stale badge from a
                     // previous install/session never lingers on cold launch.
+                    //
+                    // Intentionally NOT mirrored on `scenePhase` becoming
+                    // `.active`: that fires on every foreground (unlock,
+                    // app switch, incoming call dismissal - not just cold
+                    // launch), which previously zeroed out the ticket-count
+                    // badge `LiveAccountRouteView` sets almost immediately
+                    // after it was computed, making the "best-effort app
+                    // icon badge reflecting owned tickets" feature
+                    // effectively never visible. `.task` here only runs
+                    // once per process launch, which is the actual "stale
+                    // badge from a previous install/session" case this
+                    // guards against.
                     try? await UNUserNotificationCenter.current().setBadgeCount(0)
                 }
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase == .active else { return }
-            Task {
-                try? await UNUserNotificationCenter.current().setBadgeCount(0)
-            }
         }
     }
 

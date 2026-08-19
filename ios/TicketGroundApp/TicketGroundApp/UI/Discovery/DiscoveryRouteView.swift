@@ -2521,6 +2521,7 @@ private struct LiveAccountRouteView: View {
     @State private var profileSaveError: String?
     @State private var admittedAccountCapabilityMap: LiveCapabilityMap?
     @State private var showPushSoftAsk = false
+    @State private var isLoggingOut = false
 
     var body: some View {
         Group {
@@ -2566,6 +2567,17 @@ private struct LiveAccountRouteView: View {
                             }
                             .buttonStyle(.bordered)
                             .accessibilityIdentifier("live-mypage-kakao-channel-add")
+                            if case .loaded = state {
+                                Button(role: .destructive) {
+                                    Task { await logout() }
+                                } label: {
+                                    Text(isLoggingOut ? "로그아웃 처리 중" : "로그아웃")
+                                        .frame(maxWidth: .infinity, minHeight: 46)
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(isLoggingOut)
+                                .accessibilityIdentifier("live-mypage-logout")
+                            }
                         }
                     }
                     .padding(TicketgroundSpacing.xl)
@@ -2737,6 +2749,31 @@ private struct LiveAccountRouteView: View {
             .clipShape(RoundedRectangle(cornerRadius: TicketgroundRadius.medium))
             .accessibilityIdentifier("live-account-data")
         }
+    }
+
+    // Signs the current user out from My Page directly, regardless of which
+    // provider (Google/Kakao/Naver) they originally signed in with -
+    // `GoogleNativeSessionClient.logout()` is not actually Google-specific
+    // despite its name: it revokes whatever `NativeSession` is currently
+    // stored via the shared `/api/auth/native/logout` endpoint and always
+    // clears the local session afterward (even if the server revoke call
+    // fails), matching the same fail-closed-locally behavior already used
+    // by the login screen's session card. Previously the only way to log
+    // out was to navigate to the Login screen and notice the "로그아웃"
+    // button buried inside its "로그인 완료" card - not discoverable from
+    // My Page or the full menu, which is where a user would expect it.
+    @MainActor
+    private func logout() async {
+        guard !isLoggingOut else { return }
+        isLoggingOut = true
+        defer { isLoggingOut = false }
+        let client = GoogleNativeSessionClient(
+            apiClient: container.environment.apiClient,
+            sessionStore: container.environment.sessionStore
+        )
+        try? await client.logout()
+        GoogleSignInProvider().signOut()
+        state = .capability(.loginRequired)
     }
 
     @MainActor
