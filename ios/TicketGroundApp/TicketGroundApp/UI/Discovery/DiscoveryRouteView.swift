@@ -1,5 +1,6 @@
 import SwiftUI
 import TossPayments
+import UserNotifications
 
 struct DiscoveryRouteView: View {
     @Environment(AppContainer.self) private var container
@@ -1811,6 +1812,19 @@ private struct LiveCatalogDetailView: View {
                 .accessibilityIdentifier("live-artist-link")
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                ShareLink(
+                    item: PublicShareURL.event(slug: event.slug ?? event.id),
+                    subject: Text(event.title),
+                    message: Text(event.title)
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("live-share-event")
+                .accessibilityLabel("공연 공유")
+            }
+        }
     }
 
     @ViewBuilder
@@ -2506,6 +2520,7 @@ private struct LiveAccountRouteView: View {
     @State private var isSavingProfile = false
     @State private var profileSaveError: String?
     @State private var admittedAccountCapabilityMap: LiveCapabilityMap?
+    @State private var showPushSoftAsk = false
 
     var body: some View {
         Group {
@@ -2559,6 +2574,15 @@ private struct LiveAccountRouteView: View {
         }
         .navigationTitle("마이페이지")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPushSoftAsk) {
+            PushSoftAskSheet(
+                onRequestPermission: {
+                    showPushSoftAsk = false
+                    Task { try? await PushRegistrationCoordinator.shared.requestToken() }
+                },
+                onDismiss: { showPushSoftAsk = false }
+            )
+        }
         .task(id: "\(container.environment.sessionStore.current?.userID ?? "")-\(reloadID)") {
             if let testState = RuntimeConfiguration.liveAccountCapabilityTestState {
                 state = .capability(testState)
@@ -2597,8 +2621,21 @@ private struct LiveAccountRouteView: View {
                 async let profile = service.getSession(userID: userID)
                 async let tickets = service.getTickets(userID: userID)
                 let loadedProfile = try await profile
+                let loadedTickets = try await tickets
                 profileName = loadedProfile.name
-                state = .loaded(loadedProfile, try await tickets)
+                state = .loaded(loadedProfile, loadedTickets)
+
+                // Best-effort app icon badge: reflects tickets the user
+                // currently owns (an "upcoming ticket" signal already
+                // fetched for this screen), not a fabricated number. There
+                // is no push-driven update path yet, so this only refreshes
+                // when My Page is (re)loaded - see `TicketGroundApp.swift`
+                // for the launch/foreground badge clear that keeps a stale
+                // count from lingering otherwise.
+                let activeTicketCount = loadedTickets.filter { $0.status == "OWNED" }.count
+                try? await UNUserNotificationCenter.current().setBadgeCount(activeTicketCount)
+
+                await presentPushSoftAskIfNeeded()
             } catch let error as APIClientError {
                 let resolvedState = LiveAccountCapabilityState.resolve(
                     for: .account,
@@ -2615,6 +2652,23 @@ private struct LiveAccountRouteView: View {
                 state = .capability(.retry)
             }
         }
+    }
+
+    /// Shows the push soft-ask sheet the first time an authenticated user
+    /// reaches My Page, but only if: it has never been shown before (see
+    /// `PushSoftAskStorage`), the system permission is still undetermined
+    /// (no point re-asking if it was already granted/denied elsewhere,
+    /// e.g. the manual button on the push-notifications lifecycle screen),
+    /// and this isn't a UI test run (deterministic, no OS permission
+    /// dialogs to fight with in CI).
+    @MainActor
+    private func presentPushSoftAskIfNeeded() async {
+        guard !PushSoftAskStorage.hasBeenPresented,
+              !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+        PushSoftAskStorage.hasBeenPresented = true
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .notDetermined else { return }
+        showPushSoftAsk = true
     }
 
     @ViewBuilder

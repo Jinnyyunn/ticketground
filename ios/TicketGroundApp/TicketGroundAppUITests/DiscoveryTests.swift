@@ -54,7 +54,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["BackButton"].waitForExistence(timeout: 10))
         app.buttons["BackButton"].tap()
         XCTAssertTrue(app.staticTexts["실시간 예매 랭킹 TOP10"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["tab-home"].isSelected)
+        XCTAssertTrue(app.tabBarButton("tab-home").isSelected)
 
         app.buttons["discovery-open-calendar"].tap()
         XCTAssertTrue(app.staticTexts["2026년 7월 월별 캘린더"].waitForExistence(timeout: 10))
@@ -329,9 +329,9 @@ final class DiscoveryTests: XCTestCase {
     func testBottomSearchTabNavigatesToFixtureSearch() {
         let app = UITestBootstrap.fixtureApp(scenario: .happy)
         app.launch()
-        XCTAssertTrue(app.buttons["tab-search"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["tab-search"].isHittable)
-        app.buttons["tab-search"].tap()
+        XCTAssertTrue(app.tabBarButton("tab-search").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBarButton("tab-search").isHittable)
+        app.tabBarButton("tab-search").tap()
         XCTAssertTrue(app.staticTexts["search-screen-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.textFields["search-input"].exists)
     }
@@ -450,8 +450,8 @@ final class DiscoveryTests: XCTestCase {
 
         let account = liveApp(homeScenario: "catalog")
         account.launch()
-        XCTAssertTrue(account.buttons["tab-mypage"].waitForExistence(timeout: 10))
-        account.buttons["tab-mypage"].tap()
+        XCTAssertTrue(account.tabBarButton("tab-mypage").waitForExistence(timeout: 10))
+        account.tabBarButton("tab-mypage").tap()
         XCTAssertTrue(anyElement(account, identifier: "live-account-https-required").waitForExistence(timeout: 10))
         XCTAssertFalse(account.staticTexts["live-menu-screen-title"].exists)
 
@@ -474,6 +474,7 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertTrue(app.buttons["discovery-featured-cta"].waitForExistence(timeout: 10))
         app.buttons["discovery-featured-cta"].tap()
         XCTAssertTrue(app.buttons["live-seat-map-link"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["live-share-event"].isHittable)
         app.buttons["live-seat-map-link"].tap()
         XCTAssertTrue(anyElement(app, identifier: "live-seat-map").waitForExistence(timeout: 10))
         let marker = app.buttons["live-seat-marker-R-1"]

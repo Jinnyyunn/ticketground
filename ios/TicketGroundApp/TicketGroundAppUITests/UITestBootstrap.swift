@@ -51,3 +51,36 @@ enum UITestBootstrap {
         return home
     }
 }
+
+extension XCUIApplication {
+    /// The four primary tabs, left to right - matches `TicketgroundTab.allCases`
+    /// (`ContentView`'s `TabView`) in the app target.
+    private static let tabBarIdentifierOrder = ["tab-home", "tab-search", "tab-watchlist", "tab-mypage"]
+
+    /// Looks up a bottom tab bar button by its `tab-home` / `tab-search` /
+    /// `tab-watchlist` / `tab-mypage` accessibility identifier, falling back to
+    /// a position-based lookup within `tabBars` when the identifier hasn't
+    /// resolved.
+    ///
+    /// This is a long-standing UIKit/XCUITest limitation on iPhone-style tab
+    /// bars (not something app code can force synchronously): a
+    /// `.accessibilityIdentifier` set on the `Label` inside SwiftUI's
+    /// `.tabItem` bridges to the underlying `UITabBarItem` asynchronously,
+    /// and a tab bar re-layout (triggered by a push/pop within a tab, or by
+    /// switching tabs) can transiently drop it until the next SwiftUI
+    /// re-render reattaches it. The button is still on screen with the
+    /// correct label the whole time - only the *identifier* lookup is
+    /// unreliable - so falling back to position within `tabBars.buttons`
+    /// (which iPhone always renders as a single `tabBars` element, one
+    /// button per tab, in tab order) finds the same button deterministically.
+    func tabBarButton(_ identifier: String, timeout: TimeInterval = 5) -> XCUIElement {
+        let byIdentifier = buttons[identifier].firstMatch
+        if byIdentifier.waitForExistence(timeout: timeout) {
+            return byIdentifier
+        }
+        guard let index = Self.tabBarIdentifierOrder.firstIndex(of: identifier) else {
+            return byIdentifier
+        }
+        return tabBars.buttons.element(boundBy: index)
+    }
+}

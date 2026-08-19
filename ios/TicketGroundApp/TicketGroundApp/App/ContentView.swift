@@ -1,9 +1,21 @@
 import SwiftUI
 
+// Phase 2 of iOS Android 앱 UI 개선 계획서.md §4: adopts a real SwiftUI
+// `TabView` for the four primary tabs (previously a custom `HStack` that
+// disappeared any time a screen was pushed - see git history for the old
+// `TicketgroundBottomNavigation`) and stops globally hiding the system
+// navigation bar (previously `.toolbar(.hidden, for: .navigationBar)` on
+// the single shared `NavigationStack`). Each tab now owns its own
+// `NavigationStack`/back-stack (`AppContainer.homePath` /
+// `.searchPath` / `.watchlistPath` / `.mypagePath`), so the tab bar stays
+// visible while browsing inside a tab, matching native behavior. Search,
+// Watchlist and My Page reuse the exact same `DiscoveryRouteView` bodies
+// that already existed for `.search`/`.watchlist`/`.mypage` (previously
+// only reachable by pushing those routes) - now they're also each tab's
+// root content, so nothing about their own internal logic changed.
 struct ContentView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectedTab: TicketgroundTab = .home
     @State private var discoveryContent: DiscoveryContent?
     @State private var liveState: LiveState?
     @State private var discoveryLoadFailed = false
@@ -14,17 +26,88 @@ struct ContentView: View {
 
     var body: some View {
         @Bindable var container = container
+        TabView(selection: $container.selectedTab) {
+            NavigationStack(path: $container.homePath) {
+                homeContent
+                    .navigationDestination(for: AppRoute.self) { route in
+                        DiscoveryRouteView(route: route, content: discoveryContent)
+                    }
+            }
+            .tabItem { tabLabel(.home) }
+            .tag(TicketgroundTab.home)
+
+            NavigationStack(path: $container.searchPath) {
+                DiscoveryRouteView(route: .search, content: discoveryContent)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        DiscoveryRouteView(route: route, content: discoveryContent)
+                    }
+            }
+            .tabItem { tabLabel(.search) }
+            .tag(TicketgroundTab.search)
+
+            NavigationStack(path: $container.watchlistPath) {
+                DiscoveryRouteView(route: .watchlist, content: discoveryContent)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        DiscoveryRouteView(route: route, content: discoveryContent)
+                    }
+            }
+            .tabItem { tabLabel(.watchlist) }
+            .tag(TicketgroundTab.watchlist)
+
+            NavigationStack(path: $container.mypagePath) {
+                DiscoveryRouteView(route: .mypage, content: discoveryContent)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        DiscoveryRouteView(route: route, content: discoveryContent)
+                    }
+            }
+            .tabItem { tabLabel(.mypage) }
+            .tag(TicketgroundTab.mypage)
+        }
+        .task(id: discoveryReloadRequest) {
+            guard discoveryContent == nil, liveState == nil, !discoveryLoadFailed, !discoveryLoadEmpty else { return }
+            discoveryLoadRequestCount += 1
+            do {
+                if container.environment.mode == .fixture {
+                    discoveryContent = try DiscoveryFixtureLoader.load()
+                } else {
+                    switch try await DiscoveryFixtureLoader.loadLive(using: container.environment.apiClient) {
+                    case .catalog(let content):
+                        discoveryContent = content
+                    case .stateOnly(let state):
+                        liveState = state
+                    }
+                }
+            } catch VirtualFixtureDecodeError.emptyResponse {
+                discoveryLoadEmpty = true
+            } catch {
+                discoveryLoadFailed = true
+                discoveryFailurePresentation = PublicReadPresentation.resolve(error)
+            }
+        }
+    }
+
+    private func tabLabel(_ tab: TicketgroundTab) -> some View {
+        // `.accessibilityIdentifier` must be set here, on the Label inside
+        // the `.tabItem` closure itself - chaining it on the tab's content
+        // view (after `.tag(...)`) does not propagate to the underlying
+        // UITabBarItem, so `app.buttons["tab-home"]` etc. would not resolve
+        // in XCUITest even though the button renders correctly on screen.
+        Label(tab.title, systemImage: tab.systemImage)
+            .accessibilityIdentifier(tab.accessibilityIdentifier)
+    }
+
+    @ViewBuilder
+    private var homeContent: some View {
         let scenario = FixtureScenario.current
-        NavigationStack(path: $container.navigationPath) {
-            GeometryReader { geometry in
-                VStack(spacing: 0) {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
                 if reduceMotion || FixtureScenario.reduceMotionRequested {
                     Color.clear
                         .frame(width: 1, height: 1)
                         .accessibilityIdentifier("reduced-motion-safe")
                 }
                 SiteHeader(
-                    onSearch: { container.navigationPath.append(.search) }
+                    onSearch: { container.selectedTab = .search }
                 )
                     .containerRelativeFrame(.horizontal)
                 ScrollView {
@@ -85,74 +168,43 @@ struct ContentView: View {
                                 DiscoveryEmptyCalendarView(action: { container.navigationPath.removeAll() })
                             }
                         }
-                        }
+                    }
                     .padding(.horizontal, TicketgroundSpacing.lg)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .containerRelativeFrame(.horizontal)
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                TicketgroundBottomNavigation(
-                    selectedTab: $selectedTab,
-                    visuallyHidden: false,
-                    onSelect: { tab in
-                        switch tab {
-                        case .home:
-                            container.navigationPath.removeAll()
-                        case .search:
-                            container.navigationPath = [.search]
-                        case .watchlist:
-                            container.navigationPath = [.watchlist]
-                        case .mypage:
-                            container.navigationPath = [.mypage]
-                        }
-                    }
-                )
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: AppRoute.self) { route in
-                DiscoveryRouteView(route: route, content: discoveryContent)
-            }
             .background(TicketgroundColor.surface.ignoresSafeArea())
             .frame(width: geometry.size.width)
-            }
         }
-        .task(id: discoveryReloadRequest) {
-            guard discoveryContent == nil, liveState == nil, !discoveryLoadFailed, !discoveryLoadEmpty else { return }
-            discoveryLoadRequestCount += 1
-            do {
-                if container.environment.mode == .fixture {
-                    discoveryContent = try DiscoveryFixtureLoader.load()
-                } else {
-                    switch try await DiscoveryFixtureLoader.loadLive(using: container.environment.apiClient) {
-                    case .catalog(let content):
-                        discoveryContent = content
-                    case .stateOnly(let state):
-                        liveState = state
-                    }
-                }
-            } catch VirtualFixtureDecodeError.emptyResponse {
-                discoveryLoadEmpty = true
-            } catch {
-                discoveryLoadFailed = true
-                discoveryFailurePresentation = PublicReadPresentation.resolve(error)
-            }
-        }
-        .onChange(of: container.navigationPath) { _, path in
-            if path.isEmpty {
-                selectedTab = .home
-            } else if let rootTab = path.reversed().compactMap({ tab(for: $0) }).first {
-                selectedTab = rootTab
-            }
-        }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { homeToolbar }
     }
 
-    private func tab(for route: AppRoute) -> TicketgroundTab? {
-        switch route {
-        case .search: return .search
-        case .watchlist: return .watchlist
-        case .mypage: return .mypage
-        default: return nil
+    @ToolbarContentBuilder
+    private var homeToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                container.navigationPath.append(.login)
+            } label: {
+                Text("로그인")
+                    .font(.caption.weight(.semibold))
+            }
+            .accessibilityIdentifier("header-login")
+            .accessibilityLabel("로그인")
+            .accessibilityHint("로그인 옵션을 확인합니다")
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                container.navigationPath.append(.menu)
+            } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(.body.weight(.semibold))
+            }
+            .accessibilityIdentifier("header-menu")
+            .accessibilityLabel("전체 메뉴")
+            .accessibilityHint("전체 메뉴를 엽니다")
         }
     }
 
