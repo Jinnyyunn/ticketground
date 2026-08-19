@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import {
   adminApi,
   api,
@@ -10,6 +13,7 @@ import {
   issueIosAppAttestProof,
   nativeGoogleLogin,
   startAttestedServer,
+  startServer,
   trustIosDevice,
   verifyNativeIdentity
 } from "./backend-test-utils.mjs";
@@ -116,6 +120,43 @@ test("gate verification rejects a superseded QR even though its signature is sti
 
   const freshAttempt = await api(baseUrl, "/api/gate/verify", freshQr.data, 200, { "x-gate-token": gateToken });
   assert.equal(freshAttempt.data.valid, true, "the currently active QR is still accepted");
+});
+
+test("gate verification rejects a QR strictly by the server's own clock once its signed 20s TTL has elapsed", async (t) => {
+  // expiresAt travels inside the signed payload (hmac(ticketId:ownerId:expiresAt:nonce)),
+  // so a captured QR can't be kept "alive" by resubmitting it with a
+  // different expiresAt - that would just break the signature. The only way
+  // to test that the TTL is actually enforced server-side (not merely
+  // displayed client-side) is to leave the captured payload completely
+  // untouched and move the *server's* clock past the expiresAt it already
+  // signed, then confirm verification fails for expiry - not because the
+  // credential was consumed (alreadyUsed) or superseded by a later issuance.
+  const dataDir = await mkdtemp(path.join(tmpdir(), "ticketground-qr-ttl-"));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const dbPath = path.join(dataDir, "db.json");
+
+  const server = await startAttestedServer(t, { dbPath, now: "2026-09-19T17:00:00+09:00" });
+  const login = await nativeGoogleLogin(server.baseUrl);
+  const { ticket } = await buyFirstNativeTicket(server.baseUrl, login);
+  const device = await trustIosDevice(server.baseUrl, login, {
+    deviceId: "iphone-ttl",
+    deviceName: "TTL iPhone"
+  });
+  const admissionQr = await issueIosAdmissionQr(server.baseUrl, login, {
+    ticketId: ticket.id,
+    deviceId: "iphone-ttl",
+    deviceToken: device.data.deviceToken
+  });
+  assert.equal(admissionQr.data.expiresAt, "2026-09-19T08:00:20.000Z");
+  const gateToken = await issueGateToken(server, "GATE-TTL");
+
+  // A later server process reads the same persisted db.json - the captured
+  // QR fields are forwarded byte-for-byte, only the server's clock moved.
+  const laterServer = await startServer(t, { dbPath, now: "2026-09-19T17:00:21+09:00" });
+  const expiredAttempt = await api(laterServer.baseUrl, "/api/gate/verify", admissionQr.data, 200, { "x-gate-token": gateToken });
+  assert.equal(expiredAttempt.data.valid, false, "a QR past its own signed expiresAt must be rejected");
+  assert.equal(expiredAttempt.data.alreadyUsed, false, "rejection must be attributed to expiry, not a prior consumption");
+  assert.equal(expiredAttempt.data.eventScopeMismatch, false);
 });
 
 test("backend rejects web admission QR, early QR activation, and forged app attestations", async (t) => {

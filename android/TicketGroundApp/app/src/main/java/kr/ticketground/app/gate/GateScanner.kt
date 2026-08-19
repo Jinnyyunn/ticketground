@@ -6,12 +6,30 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kr.ticketground.app.data.GateApi
+import kr.ticketground.app.foundation.GateTokenVault
 
-class GateScannerViewModel(private val api: GateApi) : ViewModel() {
+class GateScannerViewModel(
+  private val api: GateApi,
+  private val tokenVault: GateTokenVault,
+) : ViewModel() {
   var gateToken: String = ""
     private set
   private val mutableState = MutableStateFlow(GateScanState.ready())
   val state = mutableState.asStateFlow()
+
+  // A device token issued for a gate is meant to stay valid "until the
+  // operator revokes it" (계획서 6장) - across app restarts, not just
+  // config changes - so it's restored once at startup rather than requiring
+  // the operator to retype a password-masked token every time the process
+  // is killed under memory pressure during a multi-hour event.
+  private val mutableRestoredToken = MutableStateFlow<String?>(null)
+  val restoredToken = mutableRestoredToken.asStateFlow()
+
+  init {
+    viewModelScope.launch {
+      mutableRestoredToken.value = tokenVault.read()
+    }
+  }
 
   fun verify(gateToken: String, rawQr: String) {
     this.gateToken = gateToken.trim()
@@ -19,6 +37,14 @@ class GateScannerViewModel(private val api: GateApi) : ViewModel() {
       mutableState.value = GateScanState(GateScanState.Status.ERROR, "게이트 토큰을 먼저 입력하세요.")
       return
     }
+    // Persist as soon as the operator has committed to a non-blank token by
+    // attempting a scan with it - independent of whether this particular QR
+    // parses. A malformed/misread QR (camera glitch, wrong barcode) is the
+    // single most common scan outcome at a real gate; persisting only after
+    // a successful QR parse would mean the token is effectively never saved
+    // in practice, since the operator would have to get a *valid* scan
+    // through before their correctly-typed token was ever remembered.
+    viewModelScope.launch { tokenVault.store(this@GateScannerViewModel.gateToken) }
     val payload = runCatching { GateQrPayload.parse(rawQr) }.getOrElse {
       mutableState.value = GateScanState(GateScanState.Status.ERROR, "입장 QR 형식이 올바르지 않습니다.")
       return

@@ -52,3 +52,17 @@ data class GateScanState(
     }
   }
 }
+
+// A gate operator scans hundreds of people an hour under time pressure and
+// needs to read pass/fail without reading the sentence - color/icon/haptic
+// tone has to be unambiguous at a glance. This is the single place that
+// decision is made so the UI layer and any test can agree on it instead of
+// re-deriving "is this good or bad" from the status enum separately.
+enum class GateResultTone { NEUTRAL, SUCCESS, WARNING, DANGER }
+
+fun GateScanState.Status.tone(): GateResultTone = when (this) {
+  GateScanState.Status.READY, GateScanState.Status.VERIFYING -> GateResultTone.NEUTRAL
+  GateScanState.Status.ADMITTED -> GateResultTone.SUCCESS
+  GateScanState.Status.REPLAY -> GateResultTone.WARNING
+  GateScanState.Status.REJECTED, GateScanState.Status.ERROR -> GateResultTone.DANGER
+}
