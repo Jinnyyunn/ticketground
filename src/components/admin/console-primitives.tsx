@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import type {
   AccountsWorkspace,
   AdminTicket,
@@ -65,13 +66,34 @@ type FieldProps = {
   readonly placeholder?: string;
   readonly type?: string;
   readonly required?: boolean;
+  readonly maxLength?: number;
+  readonly min?: number;
+  readonly max?: number;
+  readonly step?: number;
+  readonly hint?: string;
 };
 
-export function Field({ label, name, defaultValue, placeholder, type = "text", required = false }: FieldProps) {
+// `required` drives the real DOM attribute (not just aria-required) so browsers
+// stop the submit on the offending field instead of letting it round-trip to
+// the server and come back as one generic banner message.
+export function Field({ label, name, defaultValue, placeholder, type = "text", required = false, maxLength, min, max, step, hint }: FieldProps) {
   return (
     <label className="grid gap-1 text-sm font-bold text-ink-3">
       {label}
-      <input aria-required={required} className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={defaultValue} name={name} placeholder={placeholder} type={type} />
+      <input
+        aria-required={required}
+        className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink"
+        defaultValue={defaultValue}
+        max={max}
+        maxLength={maxLength}
+        min={min}
+        name={name}
+        placeholder={placeholder}
+        required={required}
+        step={step}
+        type={type}
+      />
+      {hint && <span className="text-xs font-bold text-ink-4">{hint}</span>}
     </label>
   );
 }
@@ -83,14 +105,32 @@ type TextareaFieldProps = {
   readonly placeholder?: string;
   readonly hint?: string;
   readonly rows?: number;
+  readonly required?: boolean;
+  readonly maxLength?: number;
 };
 
-export function TextareaField({ label, name, defaultValue, placeholder, hint, rows = 4 }: TextareaFieldProps) {
+export function TextareaField({ label, name, defaultValue, placeholder, hint, rows = 4, required = false, maxLength }: TextareaFieldProps) {
+  const [length, setLength] = useState(defaultValue?.length ?? 0);
   return (
     <label className="grid gap-1 text-sm font-bold text-ink-3">
       {label}
-      <textarea className="min-h-24 rounded-lg border border-line bg-background p-3 text-sm font-bold text-ink" defaultValue={defaultValue} name={name} placeholder={placeholder} rows={rows} />
-      {hint && <span className="text-xs font-bold text-ink-4">{hint}</span>}
+      <textarea
+        aria-required={required}
+        className="min-h-24 rounded-lg border border-line bg-background p-3 text-sm font-bold text-ink"
+        defaultValue={defaultValue}
+        maxLength={maxLength}
+        name={name}
+        onChange={maxLength ? (event) => setLength(event.currentTarget.value.length) : undefined}
+        placeholder={placeholder}
+        required={required}
+        rows={rows}
+      />
+      <span className="flex justify-between gap-2 text-xs font-bold text-ink-4">
+        {hint ? <span>{hint}</span> : <span />}
+        {/* Several of these fields are truncated server-side; show the budget so
+            the cut never happens silently after save. */}
+        {maxLength ? <span className={length >= maxLength ? "text-ticketground" : undefined}>{length}/{maxLength}자</span> : null}
+      </span>
     </label>
   );
 }
@@ -100,13 +140,14 @@ type SelectFieldProps = {
   readonly name: string;
   readonly defaultValue?: string;
   readonly options: readonly { readonly label: string; readonly value: string }[];
+  readonly required?: boolean;
 };
 
-export function SelectField({ label, name, defaultValue, options }: SelectFieldProps) {
+export function SelectField({ label, name, defaultValue, options, required = false }: SelectFieldProps) {
   return (
     <label className="grid gap-1 text-sm font-bold text-ink-3">
       {label}
-      <select className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={defaultValue} name={name}>
+      <select aria-required={required} className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" defaultValue={defaultValue} name={name} required={required}>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </label>
