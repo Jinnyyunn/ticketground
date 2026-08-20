@@ -1,8 +1,24 @@
 import { CalendarPlus, CheckCircle2, Ticket, UsersRound } from "lucide-react";
 import Link from "next/link";
 import type { ChangeEvent, FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "./admin-console";
+import {
+  digitsOnly,
+  emptyPriceRow,
+  emptyScheduleRow,
+  formatWon,
+  priceRowsToPayload,
+  scheduleRowsToPayload,
+  validatePriceRows,
+  validateScheduleRows,
+  validateZoneValues,
+  type DraftIssue,
+  type PriceRow,
+  type ScheduleRow,
+  type ZoneValue,
+} from "./event-draft";
+import { DraftIssueList, PriceRowsField, ScheduleRowsField } from "./event-form-rows";
 import {
   Field,
   hasEvents,
@@ -175,27 +191,133 @@ function pinnedRankFromForm(form: HTMLFormElement): number | null {
   return raw ? Number(raw) : null;
 }
 
-function pricesFromForm(form: HTMLFormElement): { grade: string; seat: string; price: number; seatCount: number }[] {
-  return linesFromForm(form, "prices").map((line) => {
-    const [grade, seat, price, seatCount] = line.split(",").map((part) => part.trim());
-    return { grade: grade || "", seat: seat || grade || "", price: Number(price) || 0, seatCount: Number(seatCount) || 12 };
-  });
+// Events are authored and displayed in KST; the datetime-local input yields a
+// bare "YYYY-MM-DDTHH:mm", so pin the offset explicitly rather than letting
+// Date.parse fall back to whatever timezone the server happens to run in.
+const kstOffset = "+09:00";
+
+function startsAtInputValue(value: string): string {
+  const candidate = value.slice(0, 16);
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(candidate) ? candidate : "";
 }
 
-function schedulesFromForm(form: HTMLFormElement): { label: string; date: string; times: string[] }[] {
-  return linesFromForm(form, "schedules").map((line) => {
-    const [label, date, times] = line.split("|").map((part) => part.trim());
-    return {
-      label: label || "",
-      date: date || "",
-      times: (times || "").split(",").map((time) => time.trim()).filter(Boolean),
-    };
-  });
+function startsAtFromForm(form: HTMLFormElement): string {
+  const raw = valueFromForm(form, "startsAt");
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) ? `${raw.slice(0, 16)}:00${kstOffset}` : "";
+}
+
+function priceRowsFromPrefill(prefill: CatalogWorkspace["sellerApplicationPrefill"]): PriceRow[] {
+  if (prefill?.seatGrades.length) {
+    return prefill.seatGrades.map((grade) => ({ ...emptyPriceRow(), grade: grade.gradeName, seat: grade.gradeName, price: String(grade.price), seatCount: String(grade.quantity) }));
+  }
+  return [
+    { ...emptyPriceRow(), grade: "VIP", seat: "VIP석", price: "154000" },
+    { ...emptyPriceRow(), grade: "R", seat: "R석", price: "121000" },
+    { ...emptyPriceRow(), grade: "S", seat: "S석", price: "99000" },
+  ];
+}
+
+function scheduleRowsFromPrefill(prefill: CatalogWorkspace["sellerApplicationPrefill"]): ScheduleRow[] {
+  if (prefill?.sessions.length) {
+    return prefill.sessions.map((session, index) => ({ ...emptyScheduleRow(), label: session.label || `${index + 1}회차`, date: session.date, times: session.times.length ? [...session.times] : [""] }));
+  }
+  return [{ ...emptyScheduleRow(), label: "1회차", date: "2026-12-24", times: ["19:30"] }];
+}
+
+function draftErrors(issues: readonly DraftIssue[]): readonly DraftIssue[] {
+  return issues.filter((issue) => issue.level === "error");
+}
+
+// Warnings never block the save, but they belong in the confirm dialog so the
+// operator sees them at the one moment they are still cheap to fix.
+function confirmWithWarnings(question: string, issues: readonly DraftIssue[]): boolean {
+  const warnings = issues.filter((issue) => issue.level === "warning");
+  if (!warnings.length) return window.confirm(question);
+  return window.confirm(`${question}\n\n확인이 필요한 항목 ${warnings.length}건:\n${warnings.map((issue) => `· ${issue.message}`).join("\n")}`);
+}
+
+const catalogDraftKey = "ticketground.admin.catalog-draft.v1";
+
+type CatalogDraft = { readonly savedAt: number; readonly fields: Record<string, string>; readonly prices: readonly PriceRow[]; readonly schedules: readonly ScheduleRow[] };
+
+function namedFormValues(form: HTMLFormElement): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const element of Array.from(form.elements)) {
+    if (element instanceof HTMLInputElement && element.name && element.type !== "file") fields[element.name] = element.value;
+    if ((element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) && element.name) fields[element.name] = element.value;
+  }
+  return fields;
+}
+
+// The console gates every workspace behind a client-side session fetch, so this
+// only ever runs in the browser well after hydration.
+function readCatalogDraft(): CatalogDraft | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(catalogDraftKey);
+  if (!raw) return null;
+  try {
+    const draft: CatalogDraft = JSON.parse(raw);
+    return draft?.fields && Array.isArray(draft.prices) && Array.isArray(draft.schedules) ? draft : null;
+  } catch {
+    window.localStorage.removeItem(catalogDraftKey);
+    return null;
+  }
+}
+
+function applyFormValues(form: HTMLFormElement, fields: Record<string, string>): void {
+  for (const [name, value] of Object.entries(fields)) {
+    const element = form.elements.namedItem(name);
+    if (element instanceof HTMLInputElement && element.type !== "file") element.value = value;
+    if (element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) element.value = value;
+  }
 }
 
 function CatalogWorkspace({ data, feedback, mutate, onLocalError }: { readonly data: CatalogWorkspace } & MutableWorkspaceProps) {
   const prefill = data.sellerApplicationPrefill;
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  const [priceRows, setPriceRows] = useState<readonly PriceRow[]>(() => priceRowsFromPrefill(prefill));
+  const [scheduleRows, setScheduleRows] = useState<readonly ScheduleRow[]>(() => scheduleRowsFromPrefill(prefill));
+  // Offer the previous draft instead of silently overwriting the form: the
+  // operator decides whether the unfinished registration is still wanted.
+  const [restorableDraft, setRestorableDraft] = useState<CatalogDraft | null>(readCatalogDraft);
+  const [dirty, setDirty] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const formRef = useRef<HTMLFormElement | null>(null);
+
+  const issues = [...validatePriceRows(priceRows), ...validateScheduleRows(scheduleRows)];
+  const errors = draftErrors(issues);
+
+  // A ~30-field registration is a lot to lose to a stray tab close, so mirror
+  // it into localStorage the way the seat designer already does for charts.
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = window.setTimeout(() => {
+      const form = formRef.current;
+      if (!form) return;
+      const draft: CatalogDraft = { savedAt: Date.now(), fields: namedFormValues(form), prices: priceRows, schedules: scheduleRows };
+      window.localStorage.setItem(catalogDraftKey, JSON.stringify(draft));
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [dirty, revision, priceRows, scheduleRows]);
+
+  const markEdited = (): void => {
+    setDirty(true);
+    setRestorableDraft(null);
+  };
+
+  const restoreDraft = (draft: CatalogDraft): void => {
+    if (formRef.current) applyFormValues(formRef.current, draft.fields);
+    setPriceRows(draft.prices);
+    setScheduleRows(draft.schedules);
+    setRestorableDraft(null);
+    setDirty(true);
+  };
+
+  const discardDraft = (): void => {
+    window.localStorage.removeItem(catalogDraftKey);
+    setRestorableDraft(null);
+  };
+
   const handlePosterChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const file = event.currentTarget.files?.[0];
     if (!file) {
@@ -209,6 +331,7 @@ function CatalogWorkspace({ data, feedback, mutate, onLocalError }: { readonly d
         onLocalError?.(error instanceof Error ? error.message : "포스터 이미지를 확인해주세요.");
       });
   };
+
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -224,6 +347,16 @@ function CatalogWorkspace({ data, feedback, mutate, onLocalError }: { readonly d
       focusInput(form, "venueId");
       return;
     }
+    const startsAt = startsAtFromForm(form);
+    if (!startsAt) {
+      onLocalError?.("시작 일시를 선택해주세요.");
+      focusInput(form, "startsAt");
+      return;
+    }
+    if (errors.length) {
+      onLocalError?.(`등록 전 확인 항목 ${errors.length}건을 먼저 해결해주세요.`);
+      return;
+    }
     let imageDataUrl: string;
     try {
       imageDataUrl = await readPoster(form);
@@ -231,12 +364,12 @@ function CatalogWorkspace({ data, feedback, mutate, onLocalError }: { readonly d
       onLocalError?.(error instanceof Error ? error.message : "포스터 이미지를 확인해주세요.");
       return;
     }
-    if (!window.confirm(`${title} 공연/티켓을 등록하시겠습니까?`)) return;
-    await mutate("/api/admin/events/create", {
+    if (!confirmWithWarnings(`${title} 공연/티켓을 등록하시겠습니까?`, issues)) return;
+    const created = await mutate("/api/admin/events/create", {
       title,
       category: valueFromForm(form, "category"),
-      startsAt: valueFromForm(form, "startsAt"),
-      venueId: valueFromForm(form, "venueId"),
+      startsAt,
+      venueId,
       saleState: valueFromForm(form, "saleState"),
       saleNote: valueFromForm(form, "saleNote"),
       checkoutNotice: valueFromForm(form, "checkoutNotice") || undefined,
@@ -248,22 +381,69 @@ function CatalogWorkspace({ data, feedback, mutate, onLocalError }: { readonly d
       artistSlug: valueFromForm(form, "artistSlug") || undefined,
       slug: valueFromForm(form, "slug") || undefined,
       summary: valueFromForm(form, "summary") || undefined,
-      prices: pricesFromForm(form),
-      schedules: schedulesFromForm(form),
+      prices: priceRowsToPayload(priceRows),
+      schedules: scheduleRowsToPayload(scheduleRows),
       casts: linesFromForm(form, "casts"),
       notices: linesFromForm(form, "notices"),
       sourceApplicationId: prefill?.applicationId,
       pinnedRank: pinnedRankFromForm(form),
       imageDataUrl,
     }, "신규 공연과 티켓이 생성되었습니다.");
+    if (created) {
+      window.localStorage.removeItem(catalogDraftKey);
+      setDirty(false);
+    }
   };
-  const pricesDefault = prefill?.seatGrades.length
-    ? prefill.seatGrades.map((grade) => `${grade.gradeName},${grade.gradeName},${grade.price},${grade.quantity}`).join("\n")
-    : "VIP,VIP석,154000\nR,R석,121000\nS,S석,99000";
-  const schedulesDefault = prefill?.sessions.length
-    ? prefill.sessions.map((session, index) => `${session.label || `${index + 1}회차`}|${session.date}|${session.times.join(",")}`).join("\n")
-    : "1회차|2026-12-24|19:30";
-  return <WorkspacePanel>{prefill ? <div className="mb-4 rounded-lg border border-ticketground bg-surface p-4"><p className="text-sm font-black text-ink">기업 판매자 신청서에서 넘어온 등록입니다</p><p className="mt-1 text-xs font-bold text-ink-3">아래 값은 신청서 내용으로 미리 채워졌습니다. 제안 공연장 &ldquo;{prefill.venueName}&rdquo;과 실제 공연장 목록이 다를 수 있으니 공연장은 직접 선택하고, 포스터도 제안 이미지를 참고해 다시 첨부해주세요.</p><div className="mt-3 flex items-center gap-3"><img alt="신청서 제안 포스터" className="h-24 w-16 rounded-lg border border-line object-cover" src={prefill.posterImageDataUrl} /><Link className="text-xs font-black text-ticketground underline" href="/console/seller-applications">신청서 상세로 돌아가기</Link></div></div> : null}<div className="flex items-center gap-2 border-b border-line pb-3"><CalendarPlus size={18} /><h2 className="text-base font-black">신규 공연/티켓 추가</h2></div><form className="mt-4 grid gap-3 md:grid-cols-2" noValidate onSubmit={submit}><Field defaultValue={prefill?.title} label="공연명" name="title" required /><Field label="짧은 제목 (선택)" name="shortTitle" /><SelectField label="카테고리" name="category" defaultValue={prefill?.category ?? "concert"} options={eventCategoryOptions} /><Field label="시작 일시" name="startsAt" defaultValue="2026-12-24T19:30:00+09:00" /><SelectField label="공연장" name="venueId" defaultValue={prefill ? "" : data.events[0]?.venueId} options={prefill ? [{ label: "공연장을 선택해주세요", value: "" }, ...data.venues.map((venue) => ({ label: venue.name, value: venue.id }))] : data.venues.map((venue) => ({ label: venue.name, value: venue.id }))} /><SelectField label="초기 판매 상태" name="saleState" defaultValue="OPEN_SOON" options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} /><Field label="운영 메모" name="saleNote" defaultValue="관리자 초안" /><Field defaultValue={prefill?.period} label="공연 기간 (선택)" name="period" placeholder="2026.12.24 ~ 2026.12.31" /><Field label="러닝타임 (선택)" name="runtime" placeholder="170분(인터미션 20분 포함)" /><Field label="관람 연령 (선택)" name="ageLimit" placeholder="전체 관람" /><Field label="배지 문구 (선택)" name="badge" placeholder="관리자 등록" /><Field label="아티스트 슬러그 (선택)" name="artistSlug" /><Field label="공연 슬러그 (선택, 영문/숫자/하이픈)" name="slug" /><Field label="고정 랭킹 1~10 (선택)" name="pinnedRank" type="number" /><label className="grid gap-1 text-sm font-bold text-ink-3 md:col-span-2">포스터 이미지<input accept="image/jpeg,image/png,image/webp" className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" name="poster" onChange={handlePosterChange} required type="file" /></label>{posterPreview && <div className="md:col-span-2"><img alt="포스터 미리보기" className="h-48 w-36 rounded-lg border border-line object-cover" src={posterPreview} /></div>}<p className="-mt-1 text-xs font-bold text-ink-3 md:col-span-2">PNG, JPEG, WebP · 최대 5MB · 등록 후 공개 웹 공연 카드와 상세 페이지에 표시됩니다.</p><div className="md:col-span-2"><TextareaField defaultValue={pricesDefault} hint="한 줄에 하나씩: 등급,좌석명,가격" label="좌석 가격" name="prices" rows={3} /></div><div className="md:col-span-2"><TextareaField defaultValue={schedulesDefault} hint="한 줄에 하나씩: 회차명|날짜(YYYY-MM-DD)|시간1,시간2" label="공연 일정" name="schedules" rows={3} /></div><div className="md:col-span-2"><TextareaField defaultValue={prefill?.castNotes} hint="한 줄에 한 명씩 (선택)" label="출연진" name="casts" rows={3} /></div><div className="md:col-span-2"><TextareaField defaultValue={prefill?.noticesDraft} hint="한 줄에 하나씩 (선택)" label="유의사항" name="notices" rows={3} /></div><div className="md:col-span-2"><TextareaField defaultValue={prefill?.summary} hint="공연 소개 (선택, 최대 400자)" label="공연 소개" name="summary" rows={3} /></div><button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink md:col-span-2" type="submit">공연/티켓 생성</button></form><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel>;
+
+  const venueOptions = data.venues.map((venue) => ({ label: venue.name, value: venue.id }));
+  return (
+    <WorkspacePanel>
+      {prefill ? <div className="mb-4 rounded-lg border border-ticketground bg-surface p-4"><p className="text-sm font-black text-ink">기업 판매자 신청서에서 넘어온 등록입니다</p><p className="mt-1 text-xs font-bold text-ink-3">아래 값은 신청서 내용으로 미리 채워졌습니다. 제안 공연장 &ldquo;{prefill.venueName}&rdquo;과 실제 공연장 목록이 다를 수 있으니 공연장은 직접 선택하고, 포스터도 제안 이미지를 참고해 다시 첨부해주세요.</p><div className="mt-3 flex items-center gap-3"><img alt="신청서 제안 포스터" className="h-24 w-16 rounded-lg border border-line object-cover" src={prefill.posterImageDataUrl} /><Link className="text-xs font-black text-ticketground underline" href="/console/seller-applications">신청서 상세로 돌아가기</Link></div></div> : null}
+      {restorableDraft ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm font-bold text-ink-3">
+            작성하다 중단한 등록 내용이 있습니다 · {new Date(restorableDraft.savedAt).toLocaleString("ko-KR")}
+            <span className="mt-1 block text-xs font-bold text-ink-4">포스터 이미지는 다시 첨부해야 합니다.</span>
+          </p>
+          <div className="flex gap-2">
+            <button className="h-9 rounded-lg bg-ink px-3 text-sm font-black text-on-ink" onClick={() => restoreDraft(restorableDraft)} type="button">이어서 작성</button>
+            <button className="h-9 rounded-lg border border-line px-3 text-sm font-black text-ink-3" onClick={discardDraft} type="button">삭제</button>
+          </div>
+        </div>
+      ) : null}
+      <div className="flex items-center gap-2 border-b border-line pb-3"><CalendarPlus size={18} /><h2 className="text-base font-black">신규 공연/티켓 추가</h2></div>
+      {/* noValidate keeps the browser's transient bubble from pre-empting the
+          submit handler: the checks below report into the aria-live Notice and
+          the checklist, which stay on screen while the operator fixes them. */}
+      <form className="mt-4 grid gap-3 md:grid-cols-2" noValidate onInput={() => { markEdited(); setRevision((value) => value + 1); }} onSubmit={submit} ref={formRef}>
+        <Field defaultValue={prefill?.title} label="공연명" maxLength={120} name="title" required />
+        <Field label="짧은 제목 (선택)" maxLength={120} name="shortTitle" />
+        <SelectField defaultValue={prefill?.category ?? "concert"} label="카테고리" name="category" options={eventCategoryOptions} />
+        <Field defaultValue="2026-12-24T19:30" label="시작 일시" name="startsAt" required type="datetime-local" />
+        <SelectField defaultValue={prefill ? "" : data.events[0]?.venueId} label="공연장" name="venueId" options={prefill ? [{ label: "공연장을 선택해주세요", value: "" }, ...venueOptions] : venueOptions} required />
+        <SelectField defaultValue="OPEN_SOON" label="초기 판매 상태" name="saleState" options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} />
+        <Field defaultValue="관리자 초안" label="운영 메모" maxLength={80} name="saleNote" />
+        <Field defaultValue={prefill?.period} label="공연 기간 (선택)" maxLength={120} name="period" placeholder="2026.12.24 ~ 2026.12.31" />
+        <Field label="러닝타임 (선택)" maxLength={120} name="runtime" placeholder="170분(인터미션 20분 포함)" />
+        <Field label="관람 연령 (선택)" maxLength={60} name="ageLimit" placeholder="전체 관람" />
+        <Field label="배지 문구 (선택)" maxLength={40} name="badge" placeholder="관리자 등록" />
+        <Field label="아티스트 슬러그 (선택)" maxLength={120} name="artistSlug" />
+        <Field hint="영문, 숫자, 하이픈만 사용할 수 있습니다." label="공연 슬러그 (선택)" maxLength={120} name="slug" />
+        <Field label="고정 랭킹 (선택)" max={10} min={1} name="pinnedRank" type="number" />
+        <label className="grid gap-1 text-sm font-bold text-ink-3 md:col-span-2">포스터 이미지<input accept="image/jpeg,image/png,image/webp" className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" name="poster" onChange={handlePosterChange} required type="file" /></label>
+        {posterPreview && <div className="md:col-span-2"><img alt="포스터 미리보기" className="h-48 w-36 rounded-lg border border-line object-cover" src={posterPreview} /></div>}
+        <p className="-mt-1 text-xs font-bold text-ink-3 md:col-span-2">PNG, JPEG, WebP · 최대 5MB · 등록 후 공개 웹 공연 카드와 상세 페이지에 표시됩니다.</p>
+        <div className="md:col-span-2"><PriceRowsField onChange={(rows) => { markEdited(); setPriceRows(rows); }} rows={priceRows} /></div>
+        <div className="md:col-span-2"><ScheduleRowsField onChange={(rows) => { markEdited(); setScheduleRows(rows); }} rows={scheduleRows} /></div>
+        <div className="md:col-span-2"><TextareaField defaultValue={prefill?.castNotes} hint="한 줄에 한 명씩 (선택)" label="출연진" name="casts" rows={3} /></div>
+        <div className="md:col-span-2"><TextareaField defaultValue={prefill?.noticesDraft} hint="한 줄에 하나씩 (선택)" label="유의사항" name="notices" rows={3} /></div>
+        <div className="md:col-span-2"><TextareaField defaultValue={prefill?.summary} hint="공연 소개 (선택)" label="공연 소개" maxLength={400} name="summary" rows={3} /></div>
+        <div className="md:col-span-2"><DraftIssueList issues={issues} /></div>
+        <button className="h-10 rounded-lg bg-ink px-4 text-sm font-black text-on-ink disabled:opacity-50 md:col-span-2" disabled={Boolean(errors.length)} type="submit">공연/티켓 생성</button>
+      </form>
+      <div className="mt-4"><Notice feedback={feedback} /></div>
+    </WorkspacePanel>
+  );
 }
 
 function dateFromEvent(event: AdminEvent): string {
@@ -274,11 +454,15 @@ function timeFromEvent(event: AdminEvent): string {
   return event.schedules?.[0]?.times[0] ?? (event.date.slice(11, 16) || "19:30");
 }
 
-function scheduleText(event: AdminEvent): string {
+function scheduleRowsFromEvent(event: AdminEvent): ScheduleRow[] {
   if (event.schedules?.length) {
-    return event.schedules.map((schedule) => `${schedule.label}|${schedule.date.replaceAll(".", "-")}|${schedule.times.join(",")}`).join("\n");
+    return event.schedules.map((schedule) => ({ ...emptyScheduleRow(), label: schedule.label, date: schedule.date.replaceAll(".", "-"), times: schedule.times.length ? [...schedule.times] : [""] }));
   }
-  return `1회차|${dateFromEvent(event)}|${timeFromEvent(event)}`;
+  return [{ ...emptyScheduleRow(), label: "1회차", date: dateFromEvent(event), times: [timeFromEvent(event)] }];
+}
+
+function zoneValuesFromEvent(event: AdminEvent): ZoneValue[] {
+  return event.zones.map((zone) => ({ id: zone.id, name: zone.name, price: String(zone.faceValue), seatCount: String(zone.seatCount ?? 12) }));
 }
 
 function EventPicker({
@@ -338,7 +522,19 @@ function EventPicker({
 function SalesWorkspace({ data, feedback, mutate, onLocalError, onSelectEvent }: { readonly data: CatalogWorkspace; readonly onSelectEvent: (eventId: string) => void } & MutableWorkspaceProps) {
   const event = data.events[0];
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  // The parent remounts this workspace per selected event (key={events[0].id}),
+  // so seeding state from props here stays in sync with the picker.
+  const [scheduleRows, setScheduleRows] = useState<readonly ScheduleRow[]>(() => event ? scheduleRowsFromEvent(event) : []);
+  const [zoneValues, setZoneValues] = useState<readonly ZoneValue[]>(() => event ? zoneValuesFromEvent(event) : []);
+  const [discountRate, setDiscountRate] = useState(() => String(event?.discountRate || 0));
   if (!event) return <WorkspacePanel><p className="text-sm font-bold text-ink-3">판매 설정할 공연이 없습니다.</p></WorkspacePanel>;
+  const discountIssues: DraftIssue[] = Number(discountRate) >= 0 && Number(discountRate) <= 90
+    ? []
+    // The server silently clamps this to 0–90, so an operator who types 950
+    // would otherwise walk away believing 950 was saved.
+    : [{ level: "error", message: "할인율은 0~90 사이로 입력해주세요." }];
+  const issues = [...validateZoneValues(zoneValues), ...validateScheduleRows(scheduleRows), ...discountIssues];
+  const errors = draftErrors(issues);
   const summaries = data.eventSummaries ?? data.events.map((item) => ({
     id: item.id,
     title: item.title,
@@ -371,9 +567,19 @@ function SalesWorkspace({ data, feedback, mutate, onLocalError, onSelectEvent }:
       focusInput(form, "title");
       return;
     }
-    if (!window.confirm(`${title} 판매 설정을 저장하시겠습니까?`)) return;
-    const prices = Object.fromEntries(event.zones.map((zone) => [zone.id, Number(valueFromForm(form, `${zone.id}:price`))]));
-    const seatCounts = Object.fromEntries(event.zones.map((zone) => [zone.id, Number(valueFromForm(form, `${zone.id}:seatCount`))]));
+    const startsAt = startsAtFromForm(form);
+    if (!startsAt) {
+      onLocalError?.("시작 일시를 선택해주세요.");
+      focusInput(form, "startsAt");
+      return;
+    }
+    if (errors.length) {
+      onLocalError?.(`저장 전 확인 항목 ${errors.length}건을 먼저 해결해주세요.`);
+      return;
+    }
+    if (!confirmWithWarnings(`${title} 판매 설정을 저장하시겠습니까?`, issues)) return;
+    const prices = Object.fromEntries(zoneValues.map((zone) => [zone.id, Number(digitsOnly(zone.price))]));
+    const seatCounts = Object.fromEntries(zoneValues.map((zone) => [zone.id, Number(zone.seatCount)]));
     void (async () => {
       let imageDataUrl: string | null;
       try {
@@ -386,22 +592,67 @@ function SalesWorkspace({ data, feedback, mutate, onLocalError, onSelectEvent }:
         eventId: event.id,
         title,
         category: valueFromForm(form, "category"),
-        startsAt: valueFromForm(form, "startsAt"),
+        startsAt,
         venueId: valueFromForm(form, "venueId"),
         saleState: valueFromForm(form, "saleState"),
         saleNote: valueFromForm(form, "saleNote"),
         checkoutNotice: valueFromForm(form, "checkoutNotice"),
-        discountRate: Number(valueFromForm(form, "discountRate")),
+        discountRate: Number(discountRate),
         badge: valueFromForm(form, "badge"),
         pinnedRank: pinnedRankFromForm(form),
         prices,
         seatCounts,
-        schedules: schedulesFromForm(form),
+        schedules: scheduleRowsToPayload(scheduleRows),
         ...(imageDataUrl ? { imageDataUrl } : {}),
       }, "판매 설정이 갱신되었습니다.");
     })();
   };
-  return <WorkspacePanel><div className="flex items-center gap-2 border-b border-line pb-3"><Ticket size={18} /><h2 className="text-base font-black">공연 판매 설정</h2></div><div className="mt-4"><EventPicker currentEventId={event.id} eventSummaries={summaries} onSelectEvent={onSelectEvent} /></div><form className="mt-4 grid gap-3 lg:grid-cols-3" noValidate onSubmit={submit}><Field label="공연명" name="title" defaultValue={event.title} required /><SelectField label="카테고리" name="category" defaultValue={event.category} options={eventCategoryOptions} /><SelectField label="판매 상태" name="saleState" defaultValue={event.saleState} options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} /><Field label="시작 일시" name="startsAt" defaultValue={event.date} /><SelectField label="공연장" name="venueId" defaultValue={event.venueId} options={data.venues.map((venue) => ({ label: venue.name, value: venue.id }))} /><Field label="할인율" name="discountRate" defaultValue={event.discountRate || 0} type="number" /><Field label="운영 메모" name="saleNote" defaultValue={event.saleNote || ""} /><Field label="배지 문구 (선택, 비우면 배지 없음)" name="badge" defaultValue={event.badge || ""} placeholder="단독판매" /><div className="lg:col-span-3"><Field label="예매 안내 문구 (사용자 페이지 예매 패널에 그대로 노출, 비우면 기본 문구)" name="checkoutNotice" defaultValue={event.checkoutNotice || ""} placeholder="티켓 예매 및 결제 전 NICE 휴대폰 본인인증이 필요합니다." /></div><Field label="고정 랭킹 1~10 (선택, 비우면 자동 랭킹)" name="pinnedRank" defaultValue={event.pinnedRank ?? undefined} type="number" /><label className="grid gap-1 text-sm font-bold text-ink-3 lg:col-span-3">포스터 교체<input accept="image/jpeg,image/png,image/webp" className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" name="poster" onChange={handlePosterChange} type="file" /></label>{posterPreview ? <div className="lg:col-span-3"><img alt="교체 포스터 미리보기" className="h-48 w-36 rounded-lg border border-line object-cover" src={posterPreview} /></div> : null}<div className="lg:col-span-3"><TextareaField defaultValue={scheduleText(event)} hint="한 줄에 하나씩: 회차명|날짜(YYYY-MM-DD)|시간1,시간2" label="공연 일정" name="schedules" rows={Math.max(3, event.schedules?.length ?? 1)} /></div>{event.zones.map((zone) => <div className="grid gap-3 rounded-lg border border-line p-3 md:grid-cols-2" key={zone.id}><Field defaultValue={zone.faceValue} label={`${zone.name} 가격`} name={`${zone.id}:price`} type="number" /><Field defaultValue={zone.seatCount ?? 12} label={`${zone.name} 판매 좌석 수`} name={`${zone.id}:seatCount`} type="number" /></div>)}<button className="h-10 rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink lg:col-span-3" type="submit">판매 설정 저장</button></form><div className="mt-4"><Notice feedback={feedback} /></div></WorkspacePanel>;
+  const updateZone = (id: string, patch: Partial<ZoneValue>): void => {
+    setZoneValues(zoneValues.map((zone) => zone.id === id ? { ...zone, ...patch } : zone));
+  };
+  return (
+    <WorkspacePanel>
+      <div className="flex items-center gap-2 border-b border-line pb-3"><Ticket size={18} /><h2 className="text-base font-black">공연 판매 설정</h2></div>
+      <div className="mt-4"><EventPicker currentEventId={event.id} eventSummaries={summaries} onSelectEvent={onSelectEvent} /></div>
+      <form className="mt-4 grid gap-3 lg:grid-cols-3" noValidate onSubmit={submit}>
+        <Field defaultValue={event.title} label="공연명" maxLength={120} name="title" required />
+        <SelectField defaultValue={event.category} label="카테고리" name="category" options={eventCategoryOptions} />
+        <SelectField defaultValue={event.saleState} label="판매 상태" name="saleState" options={saleStates.map((value) => ({ label: operatorLabel(value), value }))} />
+        <Field defaultValue={startsAtInputValue(event.date)} label="시작 일시" name="startsAt" required type="datetime-local" />
+        <SelectField defaultValue={event.venueId} label="공연장" name="venueId" options={data.venues.map((venue) => ({ label: venue.name, value: venue.id }))} required />
+        <label className="grid gap-1 text-sm font-bold text-ink-3">
+          할인율 (0~90%)
+          <input className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" max={90} min={0} onChange={(changed) => setDiscountRate(changed.currentTarget.value)} type="number" value={discountRate} />
+        </label>
+        <Field defaultValue={event.saleNote || ""} label="운영 메모" maxLength={80} name="saleNote" />
+        <Field defaultValue={event.badge || ""} label="배지 문구 (선택, 비우면 배지 없음)" maxLength={40} name="badge" placeholder="단독판매" />
+        <Field defaultValue={event.pinnedRank ?? undefined} label="고정 랭킹 (선택, 비우면 자동 랭킹)" max={10} min={1} name="pinnedRank" type="number" />
+        <div className="lg:col-span-3"><Field defaultValue={event.checkoutNotice || ""} hint="비우면 기본 문구가 노출됩니다. 최대 200자" label="예매 안내 문구 (사용자 페이지 예매 패널에 그대로 노출)" maxLength={200} name="checkoutNotice" placeholder="티켓 예매 및 결제 전 NICE 휴대폰 본인인증이 필요합니다." /></div>
+        <label className="grid gap-1 text-sm font-bold text-ink-3 lg:col-span-3">포스터 교체<input accept="image/jpeg,image/png,image/webp" className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 py-1 text-sm font-bold text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-2 file:py-1 file:text-sm file:font-bold" name="poster" onChange={handlePosterChange} type="file" /></label>
+        {posterPreview ? <div className="lg:col-span-3"><img alt="교체 포스터 미리보기" className="h-48 w-36 rounded-lg border border-line object-cover" src={posterPreview} /></div> : null}
+        <div className="lg:col-span-3"><ScheduleRowsField onChange={setScheduleRows} rows={scheduleRows} /></div>
+        <div className="grid gap-2 lg:col-span-3">
+          <span className="text-sm font-bold text-ink-3">구역별 가격 · 판매 좌석 수</span>
+          {zoneValues.map((zone) => (
+            <div className="grid gap-3 rounded-lg border border-line p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] md:items-end" key={zone.id}>
+              <p className="text-sm font-black text-ink">{zone.name}</p>
+              <label className="grid gap-1 text-xs font-bold text-ink-3">
+                가격 (원)
+                <input className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-right text-sm font-bold tabular-nums text-ink" inputMode="numeric" onChange={(changed) => updateZone(zone.id, { price: digitsOnly(changed.currentTarget.value) })} value={formatWon(zone.price)} />
+              </label>
+              <label className="grid gap-1 text-xs font-bold text-ink-3">
+                판매 좌석 수
+                <input className="h-10 min-w-0 rounded-lg border border-line bg-background px-3 text-sm font-bold text-ink" max={2000} min={1} onChange={(changed) => updateZone(zone.id, { seatCount: changed.currentTarget.value })} type="number" value={zone.seatCount} />
+              </label>
+            </div>
+          ))}
+        </div>
+        <div className="lg:col-span-3"><DraftIssueList issues={issues} /></div>
+        <button className="h-10 rounded-lg bg-ticketground px-4 text-sm font-black text-on-ink disabled:opacity-50 lg:col-span-3" disabled={Boolean(errors.length)} type="submit">판매 설정 저장</button>
+      </form>
+      <div className="mt-4"><Notice feedback={feedback} /></div>
+    </WorkspacePanel>
+  );
 }
 
 function InventoryWorkspace({
@@ -1360,6 +1611,9 @@ function SellerEventsWorkspace({ data, feedback, mutate, onLocalError }: { reado
 
   const publish = (): void => {
     if (!event) return;
+    // Publishing pushes the event straight onto the public home and search, so
+    // it gets the same confirm guard every other mutating action here has.
+    if (!window.confirm(`${event.title} 공연을 공개하시겠습니까?\n\n승인 즉시 홈과 검색에 노출됩니다.`)) return;
     void mutate(`/api/admin/seller-events/${event.id}/publish`, {}, `${event.title} 공연이 공개되었습니다.`);
   };
 
