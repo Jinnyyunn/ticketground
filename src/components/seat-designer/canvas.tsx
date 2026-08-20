@@ -7,6 +7,7 @@ import { polygonPath } from "@/lib/seat-designer/geometry";
 import { ko, toolLabel } from "@/lib/seat-designer/i18n";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import { cn } from "@/lib/utils";
+import { marqueeObjectSelection, sameTypeSelection } from "@/lib/seat-designer/selection";
 
 function categoryColor(
   chartCats: readonly { key: string; color: string }[],
@@ -87,9 +88,12 @@ function ObjectView({
     onBeginMove(obj.id, e);
   };
 
-  const wrap = (children: ReactNode) => (
-    <g transform={ox || oy ? `translate(${ox} ${oy})` : undefined}>{children}</g>
-  );
+  const center = objectCenter(obj);
+  const transforms = [
+    ox || oy ? `translate(${ox} ${oy})` : "",
+    obj.rotation ? `rotate(${obj.rotation} ${center.x} ${center.y})` : "",
+  ].filter(Boolean).join(" ");
+  const wrap = (children: ReactNode) => <g transform={transforms || undefined}>{children}</g>;
 
   if (obj.type === "section") {
     const fill = obj.fill ?? catColor;
@@ -306,7 +310,7 @@ function ObjectView({
     return wrap(
       <g onPointerDown={handlePointerDown} onClick={handle} className="cursor-pointer">
         {obj.href ? (
-          <image href={obj.href} x={obj.x} y={obj.y} width={obj.width} height={obj.height} preserveAspectRatio="xMidYMid meet" />
+          <image href={obj.href} x={obj.x} y={obj.y} width={obj.width} height={obj.height} opacity={obj.opacity ?? 1} preserveAspectRatio="xMidYMid meet" />
         ) : (
           <rect
             x={obj.x}
@@ -385,6 +389,8 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     commitTranslate,
     commitNodeMove,
     commitRowEndpoints,
+    addPolygonNode,
+    removePolygonNode,
   } = api;
   const { chart, viewport, settings, tool, selectedIds, selectedSeatIds, draftPoints, status, fitGeneration } =
     state;
@@ -396,6 +402,22 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
   const [liveNode, setLiveNode] = useState<{ objectId: string; index: number; point: { x: number; y: number } } | null>(
     null,
   );
+
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.code === "Space" && target?.tagName !== "INPUT" && target?.tagName !== "TEXTAREA") setSpacePan(true);
+    };
+    const up = (event: KeyboardEvent) => {
+      if (event.code === "Space") setSpacePan(false);
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
 
   // Center & fit chart when canvas size is known or a new chart is loaded
   useEffect(() => {
@@ -471,14 +493,14 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
   };
 
   const beginMove = (id: string, e: ReactPointerEvent) => {
+    const object = chart.objects.find((candidate) => candidate.id === id);
+    if (!object || !layerOk(object)) return;
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return;
     const world = screenToWorld(e.clientX, e.clientY, rect);
 
     if (tool === "selectSame") {
-      const obj = chart.objects.find((o) => o.id === id);
-      if (!obj) return;
-      dispatch({ type: "SELECT", ids: chart.objects.filter((o) => o.type === obj.type).map((o) => o.id) });
+      dispatch({ type: "SELECT", ids: [...sameTypeSelection(chart, id)] });
       return;
     }
 
@@ -564,7 +586,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
           if (Math.hypot(s.x - world.x, s.y - world.y) < 12) hit.push(s.id);
         }
       }
-      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: hit, additive: e.shiftKey });
+      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: hit, additive: e.shiftKey, remove: e.altKey });
       return;
     }
 
@@ -654,7 +676,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
           if (Math.hypot(s.x - world.x, s.y - world.y) < 12) hit.push(s.id);
         }
       }
-      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: hit, additive: true });
+      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: hit, additive: true, remove: e.altKey });
     }
   };
 
@@ -685,14 +707,13 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
       const minY = Math.min(marquee.y0, marquee.y1);
       const maxY = Math.max(marquee.y0, marquee.y1);
       if (maxX - minX > 4 || maxY - minY > 4) {
-        const ids = chart.objects
-          .filter(layerOk)
-          .filter((obj) => {
-            const c = objectCenter(obj);
-            return c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY;
-          })
-          .map((o) => o.id);
-        dispatch({ type: "SELECT", ids, additive: e.shiftKey });
+        const ids = marqueeObjectSelection(
+          chart,
+          { x: marquee.x0, y: marquee.y0 },
+          { x: marquee.x1, y: marquee.y1 },
+          settings.selectionLayer,
+        );
+        dispatch({ type: "SELECT", ids: [...ids], additive: e.shiftKey });
       }
     }
     if (drag?.mode === "draw" && marquee) {
@@ -710,14 +731,14 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
   };
 
   const onObjectSelect = (id: string, additive: boolean) => {
+    const object = chart.objects.find((candidate) => candidate.id === id);
+    if (!object || !layerOk(object)) return;
     if (tool === "selectSame") {
-      const obj = chart.objects.find((o) => o.id === id);
-      if (!obj) return;
-      const ids = chart.objects.filter((o) => o.type === obj.type).map((o) => o.id);
-      dispatch({ type: "SELECT", ids });
+      dispatch({ type: "SELECT", ids: [...sameTypeSelection(chart, id)] });
       return;
     }
     if (tool === "select" || tool === "node") {
+      if (chart.objects.find((object) => object.id === id)?.locked) return;
       dispatch({ type: "SELECT", ids: [id], additive });
     }
   };
@@ -739,6 +760,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
   return (
     <div
       ref={wrapRef}
+      data-testid="designer-canvas"
       className={cn(
         "relative min-h-0 min-w-0 flex-1 overflow-hidden",
         tool === "hand" || spacePan ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair",
@@ -801,56 +823,91 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
             floorObjects
               .filter((o) => o.layer === layer)
               .map((obj) => (
-                <ObjectView
-                  key={obj.id}
-                  obj={obj}
-                  chart={chart}
-                  selected={selectedIds.includes(obj.id)}
-                  selectedSeatIds={selectedSeatIds}
-                  showContents={settings.showSectionContents}
-                  showLabels={settings.alwaysShowLabels}
-                  dragOffset={selectedIds.includes(obj.id) ? dragOffset : null}
-                  onSelect={onObjectSelect}
-                  onSelectSeat={(sid, add) => dispatch({ type: "SELECT_SEATS", ids: [sid], additive: add })}
-                  onBeginMove={beginMove}
-                />
+                <g key={obj.id} data-object-id={obj.id} data-object-type={obj.type}>
+                  <ObjectView
+                    obj={obj}
+                    chart={chart}
+                    selected={selectedIds.includes(obj.id)}
+                    selectedSeatIds={selectedSeatIds}
+                    showContents={settings.showSectionContents}
+                    showLabels={settings.alwaysShowLabels}
+                    dragOffset={selectedIds.includes(obj.id) ? dragOffset : null}
+                    onSelect={onObjectSelect}
+                    onSelectSeat={(sid, add) => dispatch({ type: "SELECT_SEATS", ids: [sid], additive: add })}
+                    onBeginMove={beginMove}
+                  />
+                </g>
               )),
           )}
 
           {/* Node / row endpoint handles */}
           {nodeTargets.map((obj) => {
             if (obj.type === "section" || obj.type === "area") {
-              return obj.points.map((p, index) => {
-                const pt =
-                  liveNode && liveNode.objectId === obj.id && liveNode.index === index ? liveNode.point : p;
-                return (
-                  <circle
-                    key={`${obj.id}-n-${index}`}
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={6}
-                    fill="#fff"
-                    stroke="#0784fa"
-                    strokeWidth={2}
-                    className="cursor-move"
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
+              return (
+                <g key={`${obj.id}-nodes`}>
+                  <polyline
+                    points={[...obj.points, obj.points[0]].map((point) => `${point.x},${point.y}`).join(" ")}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={18}
+                    className="cursor-copy"
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
                       const rect = wrapRef.current?.getBoundingClientRect();
                       if (!rect) return;
-                      const world = screenToWorld(e.clientX, e.clientY, rect);
-                      dragRef.current = {
-                        mode: "node",
-                        startScreen: { x: e.clientX, y: e.clientY },
-                        startWorld: world,
-                        originViewport: { ...viewport },
-                        nodeObjectId: obj.id,
-                        nodeIndex: index,
-                      };
-                      setLiveNode({ objectId: obj.id, index, point: world });
+                      const point = screenToWorld(event.clientX, event.clientY, rect);
+                      let closestIndex = 0;
+                      let closestDistance = Infinity;
+                      for (let index = 0; index < obj.points.length; index += 1) {
+                        const first = obj.points[index];
+                        const second = obj.points[(index + 1) % obj.points.length];
+                        const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+                        const distance = Math.hypot(midpoint.x - point.x, midpoint.y - point.y);
+                        if (distance < closestDistance) {
+                          closestDistance = distance;
+                          closestIndex = index;
+                        }
+                      }
+                      addPolygonNode(obj.id, closestIndex + 1, point);
                     }}
                   />
-                );
-              });
+                  {obj.points.map((p, index) => {
+                    const pt = liveNode && liveNode.objectId === obj.id && liveNode.index === index ? liveNode.point : p;
+                    return (
+                      <circle
+                        key={`${obj.id}-n-${index}`}
+                        data-testid="node-handle"
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={6}
+                        fill="#fff"
+                        stroke="#0784fa"
+                        strokeWidth={2}
+                        className="cursor-move"
+                        onDoubleClick={(event) => {
+                          event.stopPropagation();
+                          removePolygonNode(obj.id, index);
+                        }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          const rect = wrapRef.current?.getBoundingClientRect();
+                          if (!rect) return;
+                          const world = screenToWorld(e.clientX, e.clientY, rect);
+                          dragRef.current = {
+                            mode: "node",
+                            startScreen: { x: e.clientX, y: e.clientY },
+                            startWorld: world,
+                            originViewport: { ...viewport },
+                            nodeObjectId: obj.id,
+                            nodeIndex: index,
+                          };
+                          setLiveNode({ objectId: obj.id, index, point: world });
+                        }}
+                      />
+                    );
+                  })}
+                </g>
+              );
             }
             if (obj.type === "row") {
               const ends = [
@@ -893,7 +950,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
           })}
 
           {chart.focalPoint && (
-            <g>
+            <g data-testid="chart-focal-point">
               <circle cx={chart.focalPoint.x} cy={chart.focalPoint.y} r={8} fill="none" stroke="#0784fa" strokeWidth={2} />
               <circle cx={chart.focalPoint.x} cy={chart.focalPoint.y} r={2.5} fill="#0784fa" />
             </g>

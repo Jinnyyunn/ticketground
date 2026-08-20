@@ -1,6 +1,6 @@
 import type { ChartDocument, ChartObject } from "@/types/seat-chart";
-import { countPlaces } from "./chart-ops";
-import { ko } from "./i18n";
+import { countPlaces } from "./chart-ops.ts";
+import { ko } from "./i18n.ts";
 
 export type ValidationItem = {
   readonly id: string;
@@ -31,13 +31,19 @@ export function validateChart(chart: ChartDocument): readonly ValidationItem[] {
     if (obj.type === "row") {
       for (const seat of obj.seats) {
         if (!seat.label?.trim()) unlabeled += 1;
-        else labels.set(seat.label, (labels.get(seat.label) ?? 0) + 1);
+        else {
+          const key = `${obj.id}:${seat.label}`;
+          labels.set(key, (labels.get(key) ?? 0) + 1);
+        }
       }
     }
     if (obj.type === "table") {
       for (const seat of obj.seats) {
         if (!seat.label?.trim()) unlabeled += 1;
-        else labels.set(seat.label, (labels.get(seat.label) ?? 0) + 1);
+        else {
+          const key = `${obj.id}:${seat.label}`;
+          labels.set(key, (labels.get(key) ?? 0) + 1);
+        }
       }
     }
     if (obj.type === "section" && obj.nestedRows) {
@@ -63,4 +69,8 @@ export function validateChart(chart: ChartDocument): readonly ValidationItem[] {
       ok: places > 0,
     },
   ];
+}
+
+export function blockingValidationItems(chart: ChartDocument): readonly ValidationItem[] {
+  return validateChart(chart).filter((item) => !item.ok && item.id !== "oneCat");
 }

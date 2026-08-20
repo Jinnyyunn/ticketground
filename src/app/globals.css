@@ -158,6 +158,45 @@
   }
 }
 
+@layer components {
+  .seat-designer-shell {
+    --editor-canvas: #ffffff;
+    --editor-panel: #f4f5f7;
+    --editor-surface: #ffffff;
+    --editor-text: #333333;
+    --editor-muted: #667085;
+    --editor-accent: #0784fa;
+    --editor-border: rgb(17 24 39 / 12%);
+    --editor-selection: #0784fa;
+    --editor-elevation: 0 8px 24px rgb(16 24 40 / 14%);
+    background: var(--editor-surface);
+    color: var(--editor-text);
+    font-family: Pretendard, Roboto, Helvetica, "Apple SD Gothic Neo", sans-serif;
+  }
+  .seat-designer-toolbar {
+    background: var(--editor-surface);
+    border-color: var(--editor-border);
+    scrollbar-width: thin;
+  }
+  .seat-designer-tool-rail {
+    background: var(--editor-panel);
+    border-color: var(--editor-border);
+  }
+  .seat-designer-control {
+    border-radius: 5px;
+    color: var(--editor-text);
+    transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+  }
+  .seat-designer-control:hover {
+    background: color-mix(in srgb, var(--editor-text) 6%, transparent);
+  }
+  .seat-designer-control[aria-pressed="true"],
+  .seat-designer-control[data-active="true"] {
+    color: var(--editor-accent);
+    box-shadow: inset 0 0 0 1px var(--editor-selection);
+  }
+}
+
 @layer utilities {
   .shell,
   .ticketground-container {

@@ -13,11 +13,50 @@ import { ChartSettingsDialog, FirstTimeTutorial, FloorsDialog } from "./chart-se
 import { TemplateRail } from "./template-rail";
 import { ToolPicker } from "./tool-picker";
 import { TopToolbar } from "./top-toolbar";
+import { NewChartDialog } from "./new-chart-dialog";
+import { ChartLibrary } from "./chart-library";
 
 export function SeatDesigner() {
   const api = useSeatEditor();
   const { state, dispatch, validation, allValid, loadTemplate } = api;
   const [layersOpen, setLayersOpen] = useState(false);
+  const [newChartOpen, setNewChartOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+
+  if (libraryOpen) {
+    return (
+      <div className="min-h-screen bg-[#f4f6f8] text-[#202124]" data-testid="seat-chart-library-screen">
+        <header className="flex h-14 items-center justify-between border-b border-black/10 bg-white px-5">
+          <div className="flex items-center gap-3">
+            <Link href="/console" aria-label="Ticketground 관리자 콘솔">
+              <BrandLogo className="h-5" />
+            </Link>
+            <span className="text-sm font-semibold">좌석 차트</span>
+          </div>
+          <button
+            type="button"
+            className="rounded-md bg-[#0784fa] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0674dc]"
+            onClick={() => {
+              setLibraryOpen(false);
+              setNewChartOpen(true);
+            }}
+          >
+            새 차트 만들기
+          </button>
+        </header>
+        <main className="mx-auto max-w-3xl p-6">
+          <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm">
+            <h1 className="text-xl font-bold">저장된 좌석 차트</h1>
+            <p className="mt-1 text-sm text-[#667085]">공연장별 초안과 게시 상태를 확인하고 다시 편집할 수 있습니다.</p>
+            <div className="mt-5">
+              <ChartLibrary api={api} onOpen={() => setLibraryOpen(false)} />
+            </div>
+          </section>
+        </main>
+        <NewChartDialog api={api} open={newChartOpen} onClose={() => setNewChartOpen(false)} />
+      </div>
+    );
+  }
 
   if (state.preview) {
     return (
@@ -31,17 +70,9 @@ export function SeatDesigner() {
             <span>
               {countPlaces(state.chart).toLocaleString("ko-KR")} {ko.places}
             </span>
-            {state.boundShowSlugs.map((slug) => (
-              <a
-                key={slug}
-                href={`/booking/${slug}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-md bg-white/10 px-3 py-1.5 hover:bg-white/15"
-              >
-                예매:{slug}
-              </a>
-            ))}
+            {state.boundVenue && (
+              <span className="rounded-md bg-white/10 px-3 py-1.5">{state.boundVenue.name}</span>
+            )}
             <button
               type="button"
               className="rounded-md bg-white/10 px-3 py-1.5 hover:bg-white/15"
@@ -58,7 +89,7 @@ export function SeatDesigner() {
             </button>
           </div>
         </div>
-        <div className="min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1">
           <DesignerCanvas
             api={{
               ...api,
@@ -76,8 +107,8 @@ export function SeatDesigner() {
 
   return (
     <div
-      className="flex h-screen flex-col bg-white text-[14px] text-[#333]"
-      style={{ fontFamily: "Pretendard, Roboto, Helvetica, Apple SD Gothic Neo, sans-serif" }}
+      className="seat-designer-shell flex h-screen flex-col text-[14px]"
+      data-testid="seat-designer-shell"
     >
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-black/5 bg-[#111] px-3 text-[12px] text-white/80">
         <div className="flex items-center gap-3">
@@ -89,10 +120,17 @@ export function SeatDesigner() {
         </div>
         <div className="flex items-center gap-3">
           {state.serverStatus && (
-            <span className="max-w-[280px] truncate text-[11px] text-white/60">{state.serverStatus}</span>
+            <span aria-live="polite" className="max-w-[280px] truncate text-[11px] text-white/60">{state.serverStatus}</span>
           )}
           <button type="button" className="hover:text-white" onClick={() => void api.saveToServer()}>
             서버 저장
+          </button>
+          <button
+            type="button"
+            className="hover:text-white"
+            onClick={() => void api.saveToServer().then((saved) => saved && setLibraryOpen(true))}
+          >
+            저장 후 나가기
           </button>
           <button type="button" className="hover:text-white" onClick={api.saveLocal}>
             {ko.save}
@@ -103,7 +141,7 @@ export function SeatDesigner() {
       <TopToolbar api={api} allValid={allValid} />
 
       <div className="relative flex min-h-0 flex-1">
-        <TemplateRail chart={state.chart} onSelect={loadTemplate} api={api} />
+        <TemplateRail chart={state.chart} onSelect={loadTemplate} onNewChart={() => setNewChartOpen(true)} api={api} />
         <ToolPicker
           tool={state.tool}
           onTool={(tool) => dispatch({ type: "SET_TOOL", tool })}
@@ -126,6 +164,7 @@ export function SeatDesigner() {
       <ChartSettingsDialog api={api} />
       <FloorsDialog api={api} />
       <FirstTimeTutorial api={api} />
+      <NewChartDialog api={api} open={newChartOpen} onClose={() => setNewChartOpen(false)} />
     </div>
   );
 }

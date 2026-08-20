@@ -5,18 +5,20 @@ import { X } from "lucide-react";
 import type { OverlayImage, VenueType } from "@/types/seat-chart";
 import { normalizeOverlay } from "@/lib/seat-designer/chart-ops";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
-import { listBindableShows, type BindableShow } from "@/lib/seat-charts/shows";
+import type { SeatChartVenue } from "@/lib/seat-charts/types";
+import { listBindableVenues } from "@/lib/seat-charts/venues";
+import { ServiceCredentialPanel } from "./service-credential-panel";
 
-function pickImage(onDone: (dataUrl: string) => void) {
+function pickImage(purpose: "reference" | "background", onDone: (url: string) => void) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onDone(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    void import("@/lib/seat-charts/client")
+      .then(({ apiUploadReferenceAsset }) => apiUploadReferenceAsset({ file, purpose }))
+      .then(({ url }) => onDone(url));
   };
   input.click();
 }
@@ -27,18 +29,18 @@ function defaultOverlay(href: string): OverlayImage {
 
 export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
   const { state, dispatch, updateChartMeta } = api;
-  const [showOptions, setShowOptions] = useState<readonly BindableShow[]>([]);
-  const [showOptionsError, setShowOptionsError] = useState("");
+  const [venueOptions, setVenueOptions] = useState<readonly SeatChartVenue[]>([]);
+  const [venueOptionsError, setVenueOptionsError] = useState("");
 
   useEffect(() => {
     if (!state.chartSettingsOpen) return;
     let cancelled = false;
-    void listBindableShows()
-      .then((shows) => {
-        if (!cancelled) setShowOptions(shows);
+    void listBindableVenues()
+      .then((venues) => {
+        if (!cancelled) setVenueOptions(venues);
       })
       .catch(() => {
-        if (!cancelled) setShowOptionsError("공연 목록을 불러오지 못했습니다.");
+        if (!cancelled) setVenueOptionsError("공연장 목록을 불러오지 못했습니다.");
       });
     return () => {
       cancelled = true;
@@ -61,36 +63,31 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
         </div>
 
         <section className="mb-5 space-y-2">
-          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#888]">예매 적용 공연</h3>
+          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#888]">공연장</h3>
           <p className="text-[12px] text-[#666]">
-            게시 시 이 차트가 연결된 공연의 좌석 선택 화면에 적용됩니다.
+            게시하면 이 차트가 선택한 공연장의 좌석 배치도로 바로 적용됩니다.
           </p>
           <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
-            {showOptions.map((s) => {
-              const on = state.boundShowSlugs.includes(s.slug);
+            {venueOptions.map((venue) => {
+              const on = state.boundVenue?.id === venue.id;
               return (
                 <button
-                  key={s.slug}
+                  key={venue.id}
                   type="button"
-                  title={s.venue}
+                  aria-pressed={on}
                   className={`rounded-full border px-3 py-1 text-[13px] ${
                     on ? "border-[#0784fa] bg-[#0784fa]/10 text-[#0784fa]" : "border-black/10"
                   }`}
-                  onClick={() => {
-                    const next = on
-                      ? state.boundShowSlugs.filter((x) => x !== s.slug)
-                      : [...state.boundShowSlugs, s.slug];
-                    dispatch({ type: "SET_BOUND_SHOWS", slugs: next });
-                  }}
+                  onClick={() => dispatch({ type: "SET_BOUND_VENUE", venue: on ? null : venue })}
                 >
-                  {s.label}
+                  {venue.name}
                 </button>
               );
             })}
           </div>
-          {showOptionsError && <p className="text-[12px] text-red-600">{showOptionsError}</p>}
-          {state.boundShowSlugs.length === 0 && (
-            <p className="text-[12px] text-amber-600">공연을 하나 이상 연결하세요. 미연결 시 게시해도 예매에 자동 연결되지 않을 수 있습니다.</p>
+          {venueOptionsError && <p className="text-[12px] text-red-600">{venueOptionsError}</p>}
+          {!state.boundVenue && (
+            <p className="text-[12px] text-amber-600">게시할 공연장을 선택하세요.</p>
           )}
         </section>
 
@@ -132,7 +129,7 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               type="button"
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
-                pickImage((href) =>
+                pickImage("background", (href) =>
                   updateChartMeta({ backgroundImage: bg ? { ...bg, href } : defaultOverlay(href) }),
                 )
               }
@@ -179,7 +176,7 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               type="button"
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
-                pickImage((href) =>
+                pickImage("reference", (href) =>
                   updateChartMeta({
                     referenceChart: ref ? { ...ref, href } : { ...defaultOverlay(href), opacity: 0.55 },
                   }),
@@ -235,7 +232,13 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
           <ul className="space-y-1 text-[13px]">
             {(chart.zones ?? []).map((z) => (
               <li key={z.id} className="flex items-center gap-2">
-                <span className="rounded bg-black/5 px-2 py-0.5">{z.name}</span>
+                <input
+                  className="min-w-0 flex-1 rounded border border-black/10 px-2 py-1"
+                  value={z.name}
+                  onChange={(event) => api.renameZone(z.id, event.target.value)}
+                  aria-label={`${z.name} 이름`}
+                />
+                <button type="button" className="text-[12px] text-red-600" onClick={() => api.removeZone(z.id)}>삭제</button>
               </li>
             ))}
             {(chart.zones ?? []).length === 0 && (
@@ -250,6 +253,8 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
             존 추가
           </button>
         </section>
+        <div className="my-5 border-t border-[var(--editor-border)]" />
+        <ServiceCredentialPanel active={state.chartSettingsOpen} />
       </div>
     </div>
   );
@@ -315,7 +320,7 @@ export function FirstTimeTutorial({ api }: { readonly api: SeatEditorApi }) {
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
         <h2 className="text-xl font-bold text-[#111]">좌석 배치 디자이너</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-[#555]">
-          seats.io 스타일 도구로 열·구역·테이블·부스를 그릴 수 있습니다. 고급 기능으로{" "}
+          정밀 좌석 설계 도구로 열·구역·테이블·부스를 그릴 수 있습니다. 고급 기능으로{" "}
           <strong>배경/참조 도면, 다층, 존, View from seat, 가변 점유 테이블, 게시</strong>를 지원합니다.
         </p>
         <ol className="mt-4 list-decimal space-y-1.5 pl-5 text-[13px] text-[#444]">

@@ -61,7 +61,6 @@ function baseChart(
   };
 }
 
-/** seats.io Small theatre — compact proscenium house */
 export function buildSmallTheatreChart(): ChartDocument {
   const cx = 500;
   const cy = 420;
@@ -168,7 +167,6 @@ export function buildSmallTheatreChart(): ChartDocument {
   return baseChart("chart_small_theatre", "소극장 차트", cats, objects, { x: cx, y: cy - 170 });
 }
 
-/** seats.io Gala dinner — round tables */
 export function buildGalaDinnerChart(): ChartDocument {
   const objects: ChartObject[] = [];
   const cats = [CAT.vip, CAT.table, CAT.standard];
@@ -235,7 +233,6 @@ export function buildGalaDinnerChart(): ChartDocument {
   return baseChart("chart_gala_dinner", "갈라 디너 차트", cats, objects, { x: 500, y: 90 }, "simple");
 }
 
-/** seats.io Trade show — booth grid */
 export function buildTradeShowChart(): ChartDocument {
   const objects: ChartObject[] = [];
   const cats = [CAT.boothA, CAT.boothB, CAT.boothC];

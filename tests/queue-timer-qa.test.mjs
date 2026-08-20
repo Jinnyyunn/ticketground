@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
+import { installPublishedChartFixture } from "./seat-chart-browser-fixture.mjs";
 
 test("queue transition and booking timer expiry preserve client-side state", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -21,6 +22,7 @@ async function assertFastQueueClientTransition(browser, baseUrl) {
   });
 
   try {
+    await installPublishedChartFixture(page, baseUrl, ["les-miserables"]);
     await page.goto(`${baseUrl}/queue/les-miserables?date=2026.05.13&time=19%3A30&testMode=fast`, { waitUntil: "networkidle" });
     const initialDocumentCount = documentRequests.length;
     const firstAhead = await numericText(page.locator("[data-queue-ahead]"));
@@ -33,6 +35,10 @@ async function assertFastQueueClientTransition(browser, baseUrl) {
     assert.equal(bookingDocumentRequests.length, 0, `fast queue used a document request for booking: ${bookingDocumentRequests.join(" | ")}`);
     assert.notEqual((await page.locator("[data-booking-timer]").textContent())?.trim(), "00:00");
     assert.equal(await page.locator("[data-booking-expired]").count(), 0);
+    await page.waitForFunction(() => {
+      const button = [...document.querySelectorAll("button")].find((candidate) => candidate.textContent?.includes("좌석 선택으로 이동"));
+      return button instanceof HTMLButtonElement && !button.disabled;
+    });
     assert.equal(await page.getByRole("button", { name: "좌석 선택으로 이동" }).isDisabled(), false);
   } finally {
     await page.close();
@@ -69,6 +75,7 @@ async function assertBookingTimerExpiresInPlace(browser, baseUrl) {
   });
 
   try {
+    await installPublishedChartFixture(page, baseUrl, ["les-miserables"]);
     await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30&timer=1`, { waitUntil: "networkidle" });
     const initialDocumentCount = documentRequests.length;
     const expiryLiveRegion = page.locator("[data-booking-expiry-live]");

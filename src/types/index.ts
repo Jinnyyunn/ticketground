@@ -60,6 +60,7 @@ export interface ReviewItem {
 export interface TicketShow {
   readonly slug: string;
   readonly backendEventId?: string;
+  readonly backendVenueId?: string;
   readonly backendPerformances: readonly {
     readonly id: string;
     readonly date: string;

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
+import { installPublishedChartFixture, publishedChartEnvelope } from "./seat-chart-browser-fixture.mjs";
 
 // The seat map is now the only selection surface. These tests exercise real
 // pointer coordinates, the horizontally scrolled edge, and keyboard input so
@@ -43,6 +44,7 @@ test("mobile selects tickets directly from the seat map without a duplicate list
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   t.after(() => page.close());
+  await installPublishedChartFixture(page, baseUrl, ["iu-world-tour"]);
 
   await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "9월 12일" }).click();
@@ -53,7 +55,7 @@ test("mobile selects tickets directly from the seat map without a duplicate list
   await seat.waitFor({ timeout: 10000 });
   assert.equal(await page.getByRole("heading", { name: "실제 구매 가능한 티켓 선택" }).count(), 0);
   assert.equal((await seat.textContent())?.trim(), "01");
-  await page.getByLabel("구역 범례").getByText(/VIP석 · 198,000원/).waitFor();
+  assert.match(await seat.getAttribute("aria-label"), /· [\d,]+원$/);
   await seat.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
   const seatBox = await seat.boundingBox();
   assert.ok(seatBox);
@@ -61,13 +63,15 @@ test("mobile selects tickets directly from the seat map without a duplicate list
   await page.touchscreen.tap(seatBox.x + seatBox.width / 2, seatBox.y + seatBox.height / 2);
   assert.equal(await seat.getAttribute("aria-pressed"), "true");
 
-  const scrollRegion = page.locator("[data-seat-map-scroll]");
+  const scrollRegion = page.locator("[data-chart-seat-scroll]");
   await scrollRegion.waitFor();
-  const describedBy = await scrollRegion.getAttribute("aria-describedby");
-  assert.ok(describedBy);
-  await page.locator(`#${describedBy}`).filter({ hasText: "좌우로 밀어" }).waitFor();
-  const mapHelper = page.getByText(/이 지도는 구역별 대략적인 위치를 보여주는 개략도/);
-  assert.equal(await mapHelper.evaluate((element) => getComputedStyle(element).wordBreak), "keep-all");
+  const scrollMetrics = await scrollRegion.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    overflowX: getComputedStyle(element).overflowX,
+  }));
+  assert.ok(scrollMetrics.scrollWidth > scrollMetrics.clientWidth);
+  assert.equal(scrollMetrics.overflowX, "auto");
   await seat.click();
   assert.equal(await seat.getAttribute("aria-pressed"), "false");
 
@@ -101,6 +105,7 @@ test("tablet selects tickets directly from the seat map without a duplicate list
   // isn't covered by the 390px mobile / 1293px desktop cases above.
   const page = await browser.newPage({ viewport: { width: 820, height: 1180 }, isMobile: true });
   t.after(() => page.close());
+  await installPublishedChartFixture(page, baseUrl, ["iu-world-tour"]);
 
   await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "9월 12일" }).click();
@@ -120,6 +125,7 @@ test("desktop selects tickets directly from the seat map without a duplicate lis
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1293, height: 1043 } });
   t.after(() => page.close());
+  await installPublishedChartFixture(page, baseUrl, ["iu-world-tour"]);
 
   await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "9월 12일" }).click();
@@ -139,6 +145,7 @@ test("venue seat map markers are the only selectable ticket surface", async (t) 
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1293, height: 1043 } });
   t.after(() => page.close());
+  await installPublishedChartFixture(page, baseUrl, ["iu-world-tour"]);
 
   await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "9월 12일" }).click();
@@ -191,7 +198,7 @@ test("published charts keep sold-seat spacing, visible labels, and reliable mobi
       ok: true,
       source: "published",
       chart: null,
-      record: { id: "dense-chart", name: "조밀 좌석 QA", boundShowSlugs: ["iu-world-tour"] },
+      record: { id: "dense-chart", name: "조밀 좌석 QA", boundVenue: { id: "venue-1", name: "예술의전당" } },
       inventory: { seats: chartSeats, bounds: { minX: 0, minY: 0, maxX: 180, maxY: 120 } },
     },
   }));
@@ -259,7 +266,7 @@ test("dense single-row published charts use page scrolling for reliable mobile t
       ok: true,
       source: "published",
       chart: null,
-      record: { id: "short-row-chart", name: "단일 조밀 행", boundShowSlugs: ["iu-world-tour"] },
+      record: { id: "short-row-chart", name: "단일 조밀 행", boundVenue: { id: "venue-1", name: "예술의전당" } },
       inventory: { seats: chartSeats, bounds: { minX: 0, minY: 0, maxX: 40, maxY: 40 } },
     },
   }));
@@ -314,7 +321,7 @@ test("wide shallow published charts use the touch grid instead of a massive hori
       ok: true,
       source: "published",
       chart: null,
-      record: { id: "wide-chart", name: "초광폭 좌석 QA", boundShowSlugs: ["iu-world-tour"] },
+      record: { id: "wide-chart", name: "초광폭 좌석 QA", boundVenue: { id: "venue-1", name: "예술의전당" } },
       inventory: { seats: chartSeats, bounds: { minX: 0, minY: 0, maxX: 10000, maxY: 40 } },
     },
   }));
@@ -328,7 +335,7 @@ test("wide shallow published charts use the touch grid instead of a massive hori
   assert.equal(await lastSeat.getAttribute("aria-pressed"), "true");
 });
 
-test("venue fallback keeps available markers anchored to the full seat layout", async (t) => {
+test("published venue chart keeps available markers anchored to the full seat layout", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -351,19 +358,18 @@ test("venue fallback keeps available markers anchored to the full seat layout", 
   ];
   await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
   await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
-    json: { ok: true, source: "fallback", chart: null, record: null, inventory: null },
+    json: publishedChartEnvelope(backendSeats, "전체 좌석 기준 배치도"),
   }));
 
   await openSeatStep(page, baseUrl);
-  const anchoredSeat = page.locator('[data-venue-seat-marker="open-middle"]');
+  const anchoredSeat = page.locator('[data-seat-map-seat="open-middle"]');
   await anchoredSeat.waitFor();
-  assert.equal(await page.locator('[data-venue-seat-marker="sold-middle"]').count(), 0);
-  const left = Number.parseFloat((await anchoredSeat.getAttribute("style"))?.match(/left:\s*([\d.]+)%/)?.[1] ?? "NaN");
-  assert.ok(Math.abs(left - 64) < 0.01, `remaining seat moved to ${left}%`);
-  const mapBox = await page.locator("[data-seat-map-scroll] > div").boundingBox();
+  assert.equal(await page.locator('[data-seat-map-seat="sold-middle"]').count(), 0);
+  await page.locator("[data-dense-chart-grid]").waitFor();
+  const mapBox = await page.locator("[data-chart-seat-scroll]").boundingBox();
   assert.ok(mapBox);
   assert.ok(mapBox.height < 700, `10,000-seat map grew to ${mapBox.height}px tall`);
-  assert.equal(await page.locator("[data-venue-seat-marker]").count(), 49);
+  assert.equal(await page.locator("[data-seat-map-seat]").count(), 200);
   assert.equal(await page.locator("[data-seat-map-seat=\"bulk-49\"]").count(), 1);
   const differentRow = page.locator('[data-seat-map-seat="bulk-49"]');
   await differentRow.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
@@ -375,12 +381,12 @@ test("venue fallback keeps available markers anchored to the full seat layout", 
   );
   assert.equal(await differentRow.getAttribute("aria-pressed"), "true");
   await page.getByRole("button", { name: "다음 좌석" }).click();
-  const nextPageSeat = page.locator('[data-seat-map-seat="bulk-50"]');
+  const nextPageSeat = page.locator('[data-seat-map-seat="bulk-201"]');
   await nextPageSeat.waitFor();
   assert.equal(await nextPageSeat.evaluate((element) => document.activeElement === element), true);
 });
 
-test("venue fallback skips unavailable-only seat pages", async (t) => {
+test("published venue chart omits unavailable seats before paging", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   t.after(() => browser.close());
@@ -393,14 +399,14 @@ test("venue fallback skips unavailable-only seat pages", async (t) => {
   });
   await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
   await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
-    json: { ok: true, source: "fallback", chart: null, record: null, inventory: null },
+    json: publishedChartEnvelope(backendSeats, "가용 좌석 페이지 배치도"),
   }));
 
   await openSeatStep(page, baseUrl);
   const firstSellableSeat = page.locator('[data-seat-map-seat="inventory-50"]');
   await firstSellableSeat.waitFor();
   assert.equal(await page.locator('[data-seat-map-seat="inventory-0"]').count(), 0);
-  assert.equal(await page.getByLabel("좌석 묶음").locator("option").count(), 5);
+  assert.equal((await page.locator("[data-chart-seat-page]").textContent())?.trim(), "1 / 2");
   await firstSellableSeat.click();
   assert.equal(await firstSellableSeat.getAttribute("aria-pressed"), "true");
 });
@@ -422,12 +428,15 @@ test("changing performances resets the upper seat map to its first page", async 
     return route.fulfill({ json: seatMapEnvelope(seats) });
   });
   await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
-    json: { ok: true, source: "fallback", chart: null, record: null, inventory: null },
+    json: publishedChartEnvelope(Array.from({ length: 251 }, (_, index) => {
+      const seat = apiSeat(`layout-${index}`, `R-${index + 1}`, 10 + (index % 5) * 10);
+      return { ...seat, mapPosition: { ...seat.mapPosition, y: 50 + Math.floor(index / 5) } };
+    }), "회차 전환 배치도"),
   }));
 
   await openSeatStep(page, baseUrl);
   await page.getByRole("button", { name: "다음 좌석" }).click();
-  await page.locator('[data-seat-map-seat="first-50"]').waitFor();
+  await page.locator('[data-seat-map-seat="first-200"]').waitFor();
 
   await page.getByRole("button", { name: "1. 날짜·회차" }).click();
   await page.getByRole("button", { name: "9월 13일" }).click();
@@ -435,8 +444,8 @@ test("changing performances resets the upper seat map to its first page", async 
   await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
 
   await page.locator('[data-seat-map-seat="second-0"]').waitFor();
-  assert.equal(await page.locator('[data-seat-map-seat="second-50"]').count(), 0);
-  assert.equal(await page.getByLabel("좌석 묶음", { exact: true }).inputValue(), "0");
+  assert.equal(await page.locator('[data-seat-map-seat="second-200"]').count(), 0);
+  assert.equal((await page.locator("[data-chart-seat-page]").textContent())?.trim(), "1 / 2");
 });
 
 test("sold-out seat maps show an explicit unavailable state", async (t) => {
@@ -454,11 +463,12 @@ test("sold-out seat maps show an explicit unavailable state", async (t) => {
   ));
   await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
   await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
-    json: { ok: true, source: "fallback", chart: null, record: null, inventory: null },
+    json: publishedChartEnvelope(backendSeats, "매진 배치도"),
   }));
 
-  await openSeatStep(page, baseUrl);
-  await page.getByRole("status").filter({ hasText: "선택 가능한 좌석이 없습니다." }).waitFor();
+  await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "9월 12일" }).click();
+  await page.getByRole("button", { name: "19:00" }).click();
+  assert.equal(await page.getByRole("button", { name: "좌석 선택으로 이동" }).isDisabled(), true);
   assert.equal(await page.locator("[data-seat-map-seat]").count(), 0);
-  assert.equal(await page.getByRole("button", { name: "결제하기", exact: true }).isDisabled(), true);
 });

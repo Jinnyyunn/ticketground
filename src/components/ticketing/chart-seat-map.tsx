@@ -70,7 +70,14 @@ function ChartSeatMapComponent({
         <span className="text-ink-4">· 배치도 기반 선택</span>
       </div>
       {useDenseGrid ? (
-        <div className="grid grid-cols-5 gap-2 rounded-lg bg-white p-3 sm:grid-cols-8 lg:grid-cols-10" data-chart-seat-scroll data-dense-chart-grid>
+        <div
+          className={cn(
+            "grid grid-cols-5 gap-2 rounded-lg bg-white p-3 sm:grid-cols-8 lg:grid-cols-10",
+            markerSeats.length >= 100 && "max-h-[min(70vh,640px)] overflow-y-auto",
+          )}
+          data-chart-seat-scroll
+          data-dense-chart-grid
+        >
           {markerSeats.map((seat, index) => {
             const isSelected = selected.has(seat.id);
             return (

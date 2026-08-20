@@ -73,7 +73,6 @@ function sectionWithRows(
   return createSection(points, label, categoryKey, fill, rows);
 }
 
-/** Procedural Large Theatre layout inspired by seats.io demoChartLargeTheatre2D. */
 export function buildLargeTheatreChart(): ChartDocument {
   const cx = 900;
   const cy = 820;

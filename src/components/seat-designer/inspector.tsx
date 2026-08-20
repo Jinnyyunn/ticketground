@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, Search, Settings2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Search, Settings2, X } from "lucide-react";
 import type { ChartObject } from "@/types/seat-chart";
 import { countPlaces } from "@/lib/seat-designer/chart-ops";
 import { ko } from "@/lib/seat-designer/i18n";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import type { ValidationItem } from "@/lib/seat-designer/validation";
 import { cn } from "@/lib/utils";
+import { DecorationInspector } from "./decoration-inspector";
 
 export function Inspector({
   api,
@@ -24,6 +25,8 @@ export function Inspector({
     patchTable,
     patchArea,
     patchAdvanced,
+    patchSelectedSeats,
+    patchDecoration,
     selectBySearch,
   } = api;
   const { chart, selectedIds, selectedSeatIds, searchQuery, searchOpen } = state;
@@ -116,6 +119,18 @@ export function Inspector({
               {selectedSeatIds.length}
               {ko.seatsSelected}
             </p>
+            <div className="mt-3 grid gap-2">
+              {([
+                ["accessible", "휠체어석"],
+                ["companion", "동반자석"],
+                ["restrictedView", "시야 제한석"],
+              ] as const).map(([property, label]) => (
+                <label key={property} className="flex items-center justify-between rounded-md border border-black/10 bg-white px-3 py-2 text-[12px]">
+                  {label}
+                  <input type="checkbox" onChange={(event) => patchSelectedSeats({ [property]: event.target.checked })} />
+                </label>
+              ))}
+            </div>
           </Panel>
         )}
 
@@ -332,6 +347,9 @@ export function Inspector({
                 />
               </label>
             )}
+            {(primary.type === "rectangle" || primary.type === "booth" || primary.type === "line" || primary.type === "text" || primary.type === "image" || primary.type === "icon") && (
+              <DecorationInspector object={primary} onChange={patchDecoration} />
+            )}
             {selected.length > 1 && (
               <p className="mt-2 text-[12px] text-[#888]">
                 +{selected.length - 1}
@@ -501,6 +519,32 @@ export function CategoryManagerDialog({ api }: { readonly api: SeatEditorApi }) 
                 }}
                 className="flex-1 rounded border border-black/10 px-2 py-1.5 text-sm"
               />
+              <button
+                type="button"
+                className="rounded p-1 text-[#667085] hover:bg-black/5 disabled:opacity-30"
+                aria-label={`${c.label} 위로 이동`}
+                disabled={index === 0}
+                onClick={() => {
+                  const next = [...state.chart.categories];
+                  [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                  updateCategories(next);
+                }}
+              >
+                <ArrowUp className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                className="rounded p-1 text-[#667085] hover:bg-black/5 disabled:opacity-30"
+                aria-label={`${c.label} 아래로 이동`}
+                disabled={index === state.chart.categories.length - 1}
+                onClick={() => {
+                  const next = [...state.chart.categories];
+                  [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                  updateCategories(next);
+                }}
+              >
+                <ArrowDown className="size-3.5" />
+              </button>
               <button
                 type="button"
                 className="text-[12px] text-red-500"

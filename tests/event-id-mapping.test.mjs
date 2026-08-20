@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { installPublishedChartFixture } from "./seat-chart-browser-fixture.mjs";
 
 test("booking pages fetch each show's mapped backend event", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -10,6 +11,7 @@ test("booking pages fetch each show's mapped backend event", async (t) => {
 
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   t.after(() => page.close());
+  await installPublishedChartFixture(page, baseUrl, ["les-miserables", "palette-festival", "hadestown"]);
 
   await assertBookingEventSource(page, baseUrl, {
     slug: "les-miserables",
