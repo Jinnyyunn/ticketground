@@ -58,6 +58,34 @@ Each chart record contains:
 
 Uploaded binaries are stored in the existing server-managed seat-map data boundary, not as base64 blobs inside chart JSON or Git. Inputs are type-sniffed, size-limited, metadata-stripped, and served only through authenticated admin or explicitly public published-asset routes.
 
+### 3.3 Chart keys and API access
+
+Use the useful part of the reference architecture — stable key-based chart retrieval — without placing one master secret in TIG browsers or apps.
+
+- Every chart receives an opaque, stable `chartKey`. A `chartKey` is an identifier, not a credential.
+- Every successful publish creates an immutable `revisionId`. A venue points atomically to one active `chartKey` and `revisionId` pair.
+- A performance resolves its venue on the server, then resolves that venue's active published chart. Shows and performances do not store a second chart binding.
+- Published geometry and static assets are fetched by immutable revision and may use ETag or content-hash caching.
+- Live price, availability, hold, and booking state remain performance-scoped and are never cached as part of the chart document.
+
+The first-party retrieval contract is:
+
+```text
+GET /api/venues/{venueId}/seat-chart
+GET /api/seat-charts/{chartKey}/versions/{revisionId}
+GET /api/performances/{performanceId}/seat-map
+```
+
+The venue endpoint returns the active published identifiers or the explicit not-ready state. The version endpoint returns only sanitized published geometry and public asset references. The performance endpoint combines the immutable published layout identity with current TIG pricing and availability.
+
+Access is separated by caller:
+
+- **Admin browser:** existing authenticated administrator session, seat-chart permission, and CSRF protection for create, edit, reset, asset, and publish operations. It does not use an API key.
+- **TIG web and mobile clients:** existing first-party session or public read boundary as appropriate. They receive chart identifiers, never an administrative secret.
+- **Optional external server integration:** separately issued `tig_sc_` service credentials with explicit environment, scope, expiry, rotation, revocation, rate limit, and audit metadata. Store only a cryptographic hash of each credential.
+
+Never place a service credential in a URL, query string, browser bundle, local storage, chart document, screenshot, or source repository. A leaked or revoked service credential must not affect administrator sessions or other service credentials.
+
 ## 4. New-chart and image-first workflow
 
 The new-chart flow matches the reference interaction sequence:
@@ -212,6 +240,8 @@ No feature can be marked complete from source inspection or a screenshot alone. 
 
 - Admin authorization and CSRF, asset validation, autosave revisions, stale conflict, draft/published separation, venue activation, rollback metadata, and missing-chart fail-closed behavior.
 - Only the public published lookup route is readable without admin privileges.
+- Stable opaque chart keys, immutable published revisions, venue-to-active-revision switching, ETag/content-hash behavior, and separation of static chart data from live performance state.
+- Optional service credentials cover scope denial, expiry, rotation, revocation, hashing at rest, rate limits, audit events, and rejection from URL/query-string transport.
 
 ### Browser interaction tests
 
