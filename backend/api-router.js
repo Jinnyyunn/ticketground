@@ -12,7 +12,6 @@ export function createApiRouter({
   accountTicketsForUser,
   addPrincipalSupportMessage,
   addSupportMessage,
-  addSupportMessageForPrincipal,
   authenticateNativeSession,
   adminHoldAdmissionCredential,
   acknowledgeOperatorAlerts,
@@ -39,7 +38,6 @@ export function createApiRouter({
   createReservationDraft,
   createSeatHold,
   createSupportThread,
-  createSupportThreadForPrincipal,
   createResalePoolForPrincipal,
   createEventDraft,
   cancelReservationDraft,
@@ -89,6 +87,9 @@ export function createApiRouter({
   purchaseResale,
   putPushToken,
   putSettings,
+  putWatchlist,
+  putWatchlistNotification,
+  deleteWatchlist,
   queue,
   readBusinessRegistrationFile,
   releaseSeatHold,
@@ -105,9 +106,9 @@ export function createApiRouter({
   publicResaleDrawResult,
   publicResalePool,
   publicState,
-  removeWatchlistForPrincipal,
   revokeDeviceForPrincipal,
   revokeDevice,
+  revokeDeviceRegistration,
   publicTicketsForUser,
   publicIdentityStatus,
   approveSellerApplication,
@@ -136,8 +137,9 @@ export function createApiRouter({
   seats,
   startNiceVerification,
   submitGroupBookingRequest,
+  supportThreadDetail,
   supportThreadForUser,
-  supportThreadsForPrincipal,
+  supportThreads,
   isWebhookSignatureValid,
   testPayload,
   tosspaymentsConfig,
@@ -149,6 +151,7 @@ export function createApiRouter({
   updateEventVenue,
   updateAdminAccount,
   updateDemoProfile,
+  updateProfile,
   updateSellerEvent,
   updateSupportStatus,
   updateSellerApplicationChecklist,
@@ -158,10 +161,8 @@ export function createApiRouter({
   updateUserStatuses,
   reviewCancellation,
   upsertWatchlist,
-  upsertWatchlistForPrincipal,
   upsertPushTokenForPrincipal,
   userWatchlist,
-  userWatchlistForPrincipal,
   venueMapForEvent,
   verifyAppAttestProof,
   verifyLedger,
@@ -328,7 +329,9 @@ async function handleApi(req, res, db, surface) {
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
   const principalWatchlistMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)$/);
+  const principalWatchlistNotificationMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)\/notification$/);
   const principalSupportMessageMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)\/messages$/);
+  const principalSupportThreadDetailMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)$/);
   const queueEntryMatch = url.pathname.match(/^\/api\/me\/queue-entries\/([^/]+)$/);
   const seatHoldMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)$/);
   const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
@@ -409,23 +412,32 @@ async function handleApi(req, res, db, surface) {
     return accountTicketsForUser(db, authenticateNativeSession(db, req).user.id);
   }
   if (req.method === "GET" && url.pathname === "/api/me/watchlist") {
-    return userWatchlistForPrincipal(db, authenticateNativeSession(db, req).user.id);
+    return watchlist(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "PUT" && principalWatchlistNotificationMatch) {
+    return putWatchlistNotification(
+      db,
+      requireNativePrincipal(db, req),
+      decodeEventId(principalWatchlistNotificationMatch[1]),
+      requireIdempotencyKey(req),
+      body
+    );
   }
   if (req.method === "PUT" && principalWatchlistMatch) {
-    return upsertWatchlistForPrincipal(
+    return putWatchlist(
       db,
-      authenticateNativeSession(db, req).user.id,
+      requireNativePrincipal(db, req),
       decodeEventId(principalWatchlistMatch[1]),
-      body,
-      parseLegacyIdempotencyKey(req)
+      requireIdempotencyKey(req),
+      body
     );
   }
   if (req.method === "DELETE" && principalWatchlistMatch) {
-    return removeWatchlistForPrincipal(
+    return deleteWatchlist(
       db,
-      authenticateNativeSession(db, req).user.id,
+      requireNativePrincipal(db, req),
       decodeEventId(principalWatchlistMatch[1]),
-      parseLegacyIdempotencyKey(req)
+      requireIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && url.pathname === "/api/me/queue-entries") {
@@ -553,11 +565,21 @@ async function handleApi(req, res, db, surface) {
     });
   }
   if (req.method === "DELETE" && principalDeviceMatch) {
-    return revokeDeviceForPrincipal(
-      db,
-      authenticateNativeSession(db, req).user.id,
-      principalDeviceMatch[1]
-    );
+    // Two independent device-trust systems share this path: App Attest/Play
+    // Integrity trusted devices (db.trustedDevices, registered through
+    // POST /api/devices/trust) and the native-principal simulator trust
+    // flow (db.deviceRegistrations, registered through
+    // POST /api/me/devices/trust). IDs are drawn from separate id()
+    // sequences so they cannot collide. Route on existence of the id alone
+    // (not ownership) - each revoke function already enforces ownership
+    // itself and returns its own 404 for a foreign or unknown id, so
+    // routing by owner here would misroute a foreign caller's request into
+    // the wrong store instead of getting that 404.
+    const deviceId = decodeURIComponent(principalDeviceMatch[1]);
+    if (db.trustedDevices.some((item) => item.id === deviceId)) {
+      return revokeDeviceForPrincipal(db, authenticateNativeSession(db, req).user.id, deviceId);
+    }
+    return revokeDeviceRegistration(db, requireNativePrincipal(db, req), deviceId, requireIdempotencyKey(req));
   }
   if (req.method === "GET" && url.pathname === "/api/me/push-tokens") {
     return listPushTokensForPrincipal(db, authenticateNativeSession(db, req).user.id);
@@ -572,32 +594,16 @@ async function handleApi(req, res, db, surface) {
     );
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
-    requireBody(body, ["name"]);
-    return updateDemoProfile(db, {
-      userId: authenticateNativeSession(db, req).user.id,
-      name: body.name,
-      idempotencyKey: parseLegacyIdempotencyKey(req)
-    });
+    return updateProfile(db, requireNativePrincipal(db, req), requireIdempotencyKey(req), body);
   }
   if (req.method === "GET" && url.pathname === "/api/me/support/threads") {
-    return supportThreadsForPrincipal(db, authenticateNativeSession(db, req).user.id);
+    return supportThreads(db, requireNativePrincipal(db, req));
   }
-  if (req.method === "POST" && url.pathname === "/api/me/support/threads") {
-    requireBody(body, ["message"]);
-    return createSupportThreadForPrincipal(
+  if (req.method === "GET" && principalSupportThreadDetailMatch) {
+    return supportThreadDetail(
       db,
-      authenticateNativeSession(db, req).user.id,
-      body,
-      requireLegacyIdempotencyKey(req)
-    );
-  }
-  if (req.method === "POST" && url.pathname === "/api/me/support/messages") {
-    requireBody(body, ["threadId", "message"]);
-    return addSupportMessageForPrincipal(
-      db,
-      authenticateNativeSession(db, req).user.id,
-      body,
-      requireLegacyIdempotencyKey(req)
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalSupportThreadDetailMatch[1])
     );
   }
   if (req.method === "GET" && url.pathname === "/api/payments/tosspayments/config") return tosspaymentsConfig();
@@ -741,9 +747,6 @@ async function handleApi(req, res, db, surface) {
   }
   if (req.method === "DELETE" && principalPushTokenMatch) {
     return revokePushToken(db, requireNativePrincipal(db, req), decodeURIComponent(principalPushTokenMatch[1]), requireIdempotencyKey(req));
-  }
-  if (req.method === "DELETE" && principalDeviceMatch) {
-    return revokeDevice(db, requireNativePrincipal(db, req), decodeURIComponent(principalDeviceMatch[1]), requireIdempotencyKey(req));
   }
   if (req.method === "PUT" && url.pathname === "/api/me/notification-settings") {
     const principal = requireNativePrincipal(db, req);
