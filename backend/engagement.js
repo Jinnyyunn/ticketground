@@ -93,7 +93,10 @@ export function createEngagementBackend({
     const jobs = db.notificationJobs.filter((job) => job.watchlistId === watch.id);
     for (const job of jobs) {
       if (job.status === "SCHEDULED") {
-        job.status = "CANCELED";
+        // Matches watchlist-contract.js's deleteWatchlist, the other place a
+        // watchlist notification job gets canceled - both must agree on this
+        // spelling since native-principal clients only see one contract.
+        job.status = "CANCELLED";
         job.updatedAt = now();
       }
     }
@@ -135,7 +138,7 @@ export function createEngagementBackend({
       channels: cleanChannels,
       calendarEnabled: watch.calendarEnabled,
       scheduledJobs: jobs.filter((job) => job.status === "SCHEDULED").length,
-      canceledJobs: jobs.filter((job) => job.status === "CANCELED").length
+      canceledJobs: jobs.filter((job) => job.status === "CANCELLED").length
     });
     return { watchlist: watch, event, notificationJobs: jobs };
   }

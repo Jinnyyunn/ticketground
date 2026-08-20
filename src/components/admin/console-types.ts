@@ -394,6 +394,7 @@ const operatorLabels: Record<string, string> = {
   REFUNDED: "환불 완료",
   MATCHED: "거래 완료",
   CANCELED: "취소됨",
+  CANCELLED: "취소됨",
   sports: "스포츠",
   TICKET_QR: "티켓/QR",
   theater: "연극",

@@ -118,7 +118,11 @@ export function createDeviceRegistration({ currentTimeMs, executeIdempotent, has
     });
   }
 
-  function revokeDevice(db, principal, deviceId, key) {
+  // Named distinctly from mobile-admin.js's unrelated admin-facing
+  // revokeDevice(db, body, actor) - both were spread into the same
+  // createApiRouter dependency object in app.js, and a shared name there
+  // means whichever spread runs last silently wins for every caller.
+  function revokeDeviceRegistration(db, principal, deviceId, key) {
     return executeIdempotent(db, { actorId: principal.userId, operation: `DEVICE_REVOKE:${deviceId}`, key, payload: { deviceId } }, () => {
       const device = ownedDevice(db, principal, deviceId);
       device.status = "REVOKED";
@@ -168,5 +172,5 @@ export function createDeviceRegistration({ currentTimeMs, executeIdempotent, has
     return { aps: { alert: { body: "알림 수신 준비가 완료되었습니다.", title: "Ticketground" }, sound: "default" }, kind: "DEVICE_TEST" };
   }
 
-  return { challenge, putPushToken, putSettings, revokeDevice, revokePushToken, settings, testPayload, trust };
+  return { challenge, putPushToken, putSettings, revokeDeviceRegistration, revokePushToken, settings, testPayload, trust };
 }
