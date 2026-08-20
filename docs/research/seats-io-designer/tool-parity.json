@@ -3,58 +3,1051 @@
   "capturedAt": "2026-08-21T00:00:00+09:00",
   "reference": "https://www.seats.io/demos/designer/demoChartLargeTheatre2D",
   "rows": [
-    {"id":"start.blank","referenceState":"New chart mode chooser","actions":["Choose Simple, Sections and floors, or Zones"],"expected":["A blank draft opens in the selected venue model"],"tigTest":"new-chart-blank","evidence":["docs/design-references/seats-io-designer/new-chart-mode.png"],"status":"reference-captured"},
-    {"id":"start.template","referenceState":"TIG new-chart dialog","actions":["Choose a TIG-owned template"],"expected":["A detached editable draft is created"],"tigTest":"new-chart-template","evidence":["docs/superpowers/specs/2026-08-21-native-seat-designer-parity-design.md"],"status":"reference-captured"},
-    {"id":"start.image-jpg","referenceState":"Simple chart import panel","actions":["Upload a JPG reference chart"],"expected":["The image is sanitized and becomes a trace overlay"],"tigTest":"reference-import-jpg","evidence":["aside:2026-08-21:logged-in-simple-import"],"status":"reference-captured"},
-    {"id":"start.image-png","referenceState":"Simple chart import panel","actions":["Upload a PNG reference chart"],"expected":["The image is sanitized and becomes a trace overlay"],"tigTest":"reference-import-png","evidence":["aside:2026-08-21:logged-in-simple-import"],"status":"reference-captured"},
-    {"id":"start.document-pdf","referenceState":"Simple chart import panel","actions":["Upload a PDF and choose a page"],"expected":["The chosen page becomes a trace overlay"],"tigTest":"reference-import-pdf","evidence":["aside:2026-08-21:logged-in-simple-import"],"status":"reference-captured"},
-    {"id":"scanner.configure","referenceState":"Scan a reference chart entry","actions":["Upload a supported chart image","Adjust recognition parameters"],"expected":["Candidate detection settings are previewed without changing the chart"],"tigTest":"scanner-configure","evidence":["aside:2026-08-21:scanner-entry"],"status":"reference-captured"},
-    {"id":"scanner.detect","referenceState":"Scanner analysis","actions":["Run seat detection"],"expected":["Candidates include confidence and rejection reasons"],"tigTest":"scanner-detect","evidence":["aside:2026-08-21:scanner-entry"],"status":"reference-captured"},
-    {"id":"scanner.review","referenceState":"Scanner review","actions":["Include and exclude detected rows"],"expected":["Only reviewed candidates remain staged"],"tigTest":"scanner-review","evidence":["aside:2026-08-21:scanner-entry"],"status":"reference-captured"},
-    {"id":"scanner.accept","referenceState":"Scanner review","actions":["Accept reviewed rows"],"expected":["Rows are added as one undoable chart transaction"],"tigTest":"scanner-accept","evidence":["aside:2026-08-21:scanner-entry"],"status":"reference-captured"},
-    {"id":"global.save-exit","referenceState":"Logged-in editor top bar","actions":["Click Save and exit"],"expected":["The draft is persisted and the chart library opens"],"tigTest":"save-exit","evidence":["docs/design-references/seats-io-designer/editor-default.png"],"status":"reference-captured"},
-    {"id":"global.preview","referenceState":"Editor top bar","actions":["Click Preview"],"expected":["Buyer-facing preview opens without changing the draft"],"tigTest":"preview","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"global.theme","referenceState":"Editor top bar","actions":["Toggle color scheme"],"expected":["Editor chrome switches theme while chart content stays unchanged"],"tigTest":"theme-toggle","evidence":["docs/design-references/seats-io-designer/editor-default.png"],"status":"reference-captured"},
-    {"id":"history.undo","referenceState":"Top toolbar after a mutation","actions":["Click Undo or press platform shortcut"],"expected":["One committed transaction is reverted"],"tigTest":"history-undo","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"history.redo","referenceState":"Top toolbar after undo","actions":["Click Redo or press platform shortcut"],"expected":["One reverted transaction is restored"],"tigTest":"history-redo","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"viewport.zoom","referenceState":"Canvas HUD","actions":["Use plus, minus, wheel, and fit"],"expected":["Viewport changes without changing document geometry"],"tigTest":"viewport-zoom","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"viewport.pan","referenceState":"Hand tool","actions":["Hold Space or select Hand and drag"],"expected":["Viewport pans without selecting or moving objects"],"tigTest":"viewport-pan","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"viewport.snap","referenceState":"Top toolbar","actions":["Toggle Snap to grid"],"expected":["Creation and drag previews align to grid when enabled"],"tigTest":"viewport-snap","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"viewport.section-contents","referenceState":"Top toolbar","actions":["Toggle Show section contents"],"expected":["Nested rows appear or collapse without data loss"],"tigTest":"section-contents","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"viewport.labels","referenceState":"Top toolbar","actions":["Toggle Always show labels"],"expected":["Technical and displayed labels follow the selected visibility state"],"tigTest":"labels-toggle","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"selection.select","referenceState":"Select tool V","actions":["Click, shift-click, and drag a marquee"],"expected":["Objects are selected with handles and inspector state"],"tigTest":"select-objects","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"selection.seats","referenceState":"Select seats tool X","actions":["Press X and select individual seats"],"expected":["Seat selection is independent from parent object selection"],"tigTest":"select-seats","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"selection.brush","referenceState":"Selection brush C","actions":["Drag across objects and seats"],"expected":["Brush adds or removes intersected targets"],"tigTest":"selection-brush","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"selection.same-type","referenceState":"Select same type Z","actions":["Choose an object type and expand selection"],"expected":["All eligible objects of the same type are selected"],"tigTest":"select-same-type","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"selection.node","referenceState":"Node tool A","actions":["Select, add, move, and remove polygon nodes"],"expected":["Geometry updates transactionally"],"tigTest":"node-edit","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"structure.focal-point","referenceState":"Focal point F","actions":["Place or move the focal point"],"expected":["The chart has one focal point used for orientation"],"tigTest":"focal-point","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"create.row","referenceState":"Row tool R inside a compatible chart level","actions":["Drag a row and adjust seat count, direction, and curve"],"expected":["A labeled row with generated seats is created"],"tigTest":"create-row","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"create.section","referenceState":"Section tool S","actions":["Draw polygon nodes and close the polygon"],"expected":["A section container is created and can own nested rows"],"tigTest":"create-section","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"create.round-table","referenceState":"Round table tool E in a compatible chart level","actions":["Drag a table and adjust seats"],"expected":["A round table with occupancy options is created"],"tigTest":"create-round-table","evidence":["docs/design-references/seats-io-designer/new-chart-mode.png"],"status":"reference-captured"},
-    {"id":"create.booth","referenceState":"Booth tool B in a compatible chart level","actions":["Drag a booth rectangle"],"expected":["A labeled bookable booth is created"],"tigTest":"create-booth","evidence":["docs/design-references/seats-io-designer/new-chart-mode.png"],"status":"reference-captured"},
-    {"id":"create.rectangular-area","referenceState":"Rectangular Area G","actions":["Drag an area and set capacity"],"expected":["A general-admission area is created"],"tigTest":"create-area","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"create.rectangle","referenceState":"Rectangle H","actions":["Drag a decorative rectangle"],"expected":["A styled decoration is created on the active layer"],"tigTest":"create-rectangle","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"create.line","referenceState":"Line L","actions":["Drag from start to end"],"expected":["A styled line decoration is created"],"tigTest":"create-line","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"create.text","referenceState":"Text T","actions":["Place text and edit copy and typography"],"expected":["A text decoration is created"],"tigTest":"create-text","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"create.image","referenceState":"Image I","actions":["Upload and place an image"],"expected":["A sanitized image object is created"],"tigTest":"create-image","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"create.icon","referenceState":"Icon O","actions":["Choose and place an icon"],"expected":["A TIG-owned icon object is created"],"tigTest":"create-icon","evidence":["aside:2026-08-21:public-demo-tool-sweep"],"status":"reference-captured"},
-    {"id":"context.align","referenceState":"Multi-selection toolbar","actions":["Choose an alignment mode"],"expected":["Relative object geometry is preserved on the other axis"],"tigTest":"context-align","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"context.flip-horizontal","referenceState":"Selection toolbar","actions":["Flip horizontally"],"expected":["Selected nested geometry mirrors around selection center"],"tigTest":"flip-horizontal","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"context.flip-vertical","referenceState":"Selection toolbar","actions":["Flip vertically"],"expected":["Selected nested geometry mirrors around selection center"],"tigTest":"flip-vertical","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"context.duplicate","referenceState":"Selection toolbar","actions":["Duplicate or press the platform shortcut"],"expected":["A translated independent copy is created"],"tigTest":"duplicate","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"context.copy-paste","referenceState":"Selection toolbar","actions":["Copy then paste"],"expected":["Copied objects paste with new IDs and preserved relative geometry"],"tigTest":"copy-paste","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"context.delete","referenceState":"Selection toolbar","actions":["Delete selected objects"],"expected":["One undoable delete transaction is committed"],"tigTest":"delete-selection","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"layers.all","referenceState":"Selection layer menu","actions":["Choose All objects"],"expected":["Every unlocked layer can be selected"],"tigTest":"layer-all","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"layers.foreground","referenceState":"Selection layer menu","actions":["Choose Foreground decorations"],"expected":["Only foreground decorations can be selected"],"tigTest":"layer-foreground","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"layers.interactive","referenceState":"Selection layer menu","actions":["Choose Interactive objects"],"expected":["Only seats, tables, booths, and areas can be selected"],"tigTest":"layer-interactive","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"layers.background","referenceState":"Selection layer menu","actions":["Choose Background decorations"],"expected":["Only background decorations can be selected"],"tigTest":"layer-background","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"layers.surroundings","referenceState":"Selection layer menu","actions":["Choose Surroundings"],"expected":["Only surroundings can be selected"],"tigTest":"layer-surroundings","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"structure.floors","referenceState":"Floor HUD","actions":["Add, rename, reorder, switch, and delete floors"],"expected":["Objects remain assigned to a valid active floor"],"tigTest":"floors","evidence":["docs/design-references/seats-io-designer/editor-default.png"],"status":"reference-captured"},
-    {"id":"structure.zones","referenceState":"Zones venue mode","actions":["Add, rename, reorder, and assign zones"],"expected":["Zone identity remains stable across edits"],"tigTest":"zones","evidence":["docs/design-references/seats-io-designer/new-chart-mode.png"],"status":"reference-captured"},
-    {"id":"structure.categories","referenceState":"Inspector category manager","actions":["Add, rename, color, reorder, and assign categories"],"expected":["Every interactive object resolves to one valid category"],"tigTest":"categories","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"structure.seat-properties","referenceState":"Seat and object inspector","actions":["Edit technical label, displayed label, accessibility, companion, restricted-view, and view-from-seat metadata"],"expected":["Buyer metadata stays separate from technical identity"],"tigTest":"seat-properties","evidence":["docs/design-references/seats-io-designer/demo-default.png"],"status":"reference-captured"},
-    {"id":"validation.invalid","referenceState":"Inspector validation summary","actions":["Create duplicate, empty, unlabeled, uncategorized, and missing-focal-point states"],"expected":["Validation links focus the offending object and blocks publish when required"],"tigTest":"validation-invalid","evidence":["docs/design-references/seats-io-designer/editor-default.png"],"status":"reference-captured"},
-    {"id":"publish.venue","referenceState":"TIG venue publish flow","actions":["Select a venue and publish the current draft"],"expected":["The venue active pointer swaps atomically; no show binding is stored"],"tigTest":"publish-venue","evidence":["docs/superpowers/specs/2026-08-21-native-seat-designer-parity-design.md"],"status":"reference-captured"},
-    {"id":"publish.immutable-revision","referenceState":"TIG versioned publish flow","actions":["Publish two valid draft revisions"],"expected":["Both immutable revisions remain readable while the venue points to the newest"],"tigTest":"publish-immutable-revision","evidence":["docs/superpowers/specs/2026-08-21-native-seat-designer-parity-design.md"],"status":"reference-captured"}
-  ]
+    {
+      "id": "start.blank",
+      "referenceState": "New chart mode chooser",
+      "actions": [
+        "Choose Simple, Sections and floors, or Zones"
+      ],
+      "expected": [
+        "A blank draft opens in the selected venue model"
+      ],
+      "tigTest": "new-chart-blank",
+      "evidence": [
+        "docs/design-references/seats-io-designer/new-chart-mode.png",
+        "tests/seat-designer-chart-structure.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "start.template",
+      "referenceState": "TIG new-chart dialog",
+      "actions": [
+        "Choose a TIG-owned template"
+      ],
+      "expected": [
+        "A detached editable draft is created"
+      ],
+      "tigTest": "new-chart-template",
+      "evidence": [
+        "docs/superpowers/specs/2026-08-21-native-seat-designer-parity-design.md",
+        "tests/seat-designer-chart-structure.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "start.image-jpg",
+      "referenceState": "Simple chart import panel",
+      "actions": [
+        "Upload a JPG reference chart"
+      ],
+      "expected": [
+        "The image is sanitized and becomes a trace overlay"
+      ],
+      "tigTest": "reference-import-jpg",
+      "evidence": [
+        "aside:2026-08-21:logged-in-simple-import",
+        "tests/seat-chart-reference-import.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "start.image-png",
+      "referenceState": "Simple chart import panel",
+      "actions": [
+        "Upload a PNG reference chart"
+      ],
+      "expected": [
+        "The image is sanitized and becomes a trace overlay"
+      ],
+      "tigTest": "reference-import-png",
+      "evidence": [
+        "aside:2026-08-21:logged-in-simple-import",
+        "tests/seat-chart-reference-import.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "start.document-pdf",
+      "referenceState": "Simple chart import panel",
+      "actions": [
+        "Upload a PDF and choose a page"
+      ],
+      "expected": [
+        "The chosen page becomes a trace overlay"
+      ],
+      "tigTest": "reference-import-pdf",
+      "evidence": [
+        "aside:2026-08-21:logged-in-simple-import",
+        "tests/seat-chart-reference-import.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "scanner.configure",
+      "referenceState": "Scan a reference chart entry",
+      "actions": [
+        "Upload a supported chart image",
+        "Adjust recognition parameters"
+      ],
+      "expected": [
+        "Candidate detection settings are previewed without changing the chart"
+      ],
+      "tigTest": "scanner-configure",
+      "evidence": [
+        "aside:2026-08-21:scanner-entry",
+        "tests/seat-chart-scanner.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "scanner.detect",
+      "referenceState": "Scanner analysis",
+      "actions": [
+        "Run seat detection"
+      ],
+      "expected": [
+        "Candidates include confidence and rejection reasons"
+      ],
+      "tigTest": "scanner-detect",
+      "evidence": [
+        "aside:2026-08-21:scanner-entry",
+        "tests/seat-chart-scanner.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "scanner.review",
+      "referenceState": "Scanner review",
+      "actions": [
+        "Include and exclude detected rows"
+      ],
+      "expected": [
+        "Only reviewed candidates remain staged"
+      ],
+      "tigTest": "scanner-review",
+      "evidence": [
+        "aside:2026-08-21:scanner-entry",
+        "tests/seat-chart-scanner.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "scanner.accept",
+      "referenceState": "Scanner review",
+      "actions": [
+        "Accept reviewed rows"
+      ],
+      "expected": [
+        "Rows are added as one undoable chart transaction"
+      ],
+      "tigTest": "scanner-accept",
+      "evidence": [
+        "aside:2026-08-21:scanner-entry",
+        "tests/seat-chart-scanner.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "global.save-exit",
+      "referenceState": "Logged-in editor top bar",
+      "actions": [
+        "Click Save and exit"
+      ],
+      "expected": [
+        "The draft is persisted and the chart library opens"
+      ],
+      "tigTest": "save-exit",
+      "evidence": [
+        "docs/design-references/seats-io-designer/editor-default.png",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "global.preview",
+      "referenceState": "Editor top bar",
+      "actions": [
+        "Click Preview"
+      ],
+      "expected": [
+        "Buyer-facing preview opens without changing the draft"
+      ],
+      "tigTest": "preview",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "global.theme",
+      "referenceState": "Editor top bar",
+      "actions": [
+        "Toggle color scheme"
+      ],
+      "expected": [
+        "Editor chrome switches theme while chart content stays unchanged"
+      ],
+      "tigTest": "theme-toggle",
+      "evidence": [
+        "docs/design-references/seats-io-designer/editor-default.png",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "history.undo",
+      "referenceState": "Top toolbar after a mutation",
+      "actions": [
+        "Click Undo or press platform shortcut"
+      ],
+      "expected": [
+        "One committed transaction is reverted"
+      ],
+      "tigTest": "history-undo",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-history.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "history.redo",
+      "referenceState": "Top toolbar after undo",
+      "actions": [
+        "Click Redo or press platform shortcut"
+      ],
+      "expected": [
+        "One reverted transaction is restored"
+      ],
+      "tigTest": "history-redo",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-history.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "viewport.zoom",
+      "referenceState": "Canvas HUD",
+      "actions": [
+        "Use plus, minus, wheel, and fit"
+      ],
+      "expected": [
+        "Viewport changes without changing document geometry"
+      ],
+      "tigTest": "viewport-zoom",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-shell-visual.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "viewport.pan",
+      "referenceState": "Hand tool",
+      "actions": [
+        "Hold Space or select Hand and drag"
+      ],
+      "expected": [
+        "Viewport pans without selecting or moving objects"
+      ],
+      "tigTest": "viewport-pan",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-shell-visual.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "viewport.snap",
+      "referenceState": "Top toolbar",
+      "actions": [
+        "Toggle Snap to grid"
+      ],
+      "expected": [
+        "Creation and drag previews align to grid when enabled"
+      ],
+      "tigTest": "viewport-snap",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-shell-visual.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "viewport.section-contents",
+      "referenceState": "Top toolbar",
+      "actions": [
+        "Toggle Show section contents"
+      ],
+      "expected": [
+        "Nested rows appear or collapse without data loss"
+      ],
+      "tigTest": "section-contents",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-shell-visual.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "viewport.labels",
+      "referenceState": "Top toolbar",
+      "actions": [
+        "Toggle Always show labels"
+      ],
+      "expected": [
+        "Technical and displayed labels follow the selected visibility state"
+      ],
+      "tigTest": "labels-toggle",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-shell-visual.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "selection.select",
+      "referenceState": "Select tool V",
+      "actions": [
+        "Click, shift-click, and drag a marquee"
+      ],
+      "expected": [
+        "Objects are selected with handles and inspector state"
+      ],
+      "tigTest": "select-objects",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "selection.seats",
+      "referenceState": "Select seats tool X",
+      "actions": [
+        "Press X and select individual seats"
+      ],
+      "expected": [
+        "Seat selection is independent from parent object selection"
+      ],
+      "tigTest": "select-seats",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "selection.brush",
+      "referenceState": "Selection brush C",
+      "actions": [
+        "Drag across objects and seats"
+      ],
+      "expected": [
+        "Brush adds or removes intersected targets"
+      ],
+      "tigTest": "selection-brush",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "selection.same-type",
+      "referenceState": "Select same type Z",
+      "actions": [
+        "Choose an object type and expand selection"
+      ],
+      "expected": [
+        "All eligible objects of the same type are selected"
+      ],
+      "tigTest": "select-same-type",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "selection.node",
+      "referenceState": "Node tool A",
+      "actions": [
+        "Select, add, move, and remove polygon nodes"
+      ],
+      "expected": [
+        "Geometry updates transactionally"
+      ],
+      "tigTest": "node-edit",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "structure.focal-point",
+      "referenceState": "Focal point F",
+      "actions": [
+        "Place or move the focal point"
+      ],
+      "expected": [
+        "The chart has one focal point used for orientation"
+      ],
+      "tigTest": "focal-point",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-chart-structure.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.row",
+      "referenceState": "Row tool R inside a compatible chart level",
+      "actions": [
+        "Drag a row and adjust seat count, direction, and curve"
+      ],
+      "expected": [
+        "A labeled row with generated seats is created"
+      ],
+      "tigTest": "create-row",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.section",
+      "referenceState": "Section tool S",
+      "actions": [
+        "Draw polygon nodes and close the polygon"
+      ],
+      "expected": [
+        "A section container is created and can own nested rows"
+      ],
+      "tigTest": "create-section",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.round-table",
+      "referenceState": "Round table tool E in a compatible chart level",
+      "actions": [
+        "Drag a table and adjust seats"
+      ],
+      "expected": [
+        "A round table with occupancy options is created"
+      ],
+      "tigTest": "create-round-table",
+      "evidence": [
+        "docs/design-references/seats-io-designer/new-chart-mode.png",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.booth",
+      "referenceState": "Booth tool B in a compatible chart level",
+      "actions": [
+        "Drag a booth rectangle"
+      ],
+      "expected": [
+        "A labeled bookable booth is created"
+      ],
+      "tigTest": "create-booth",
+      "evidence": [
+        "docs/design-references/seats-io-designer/new-chart-mode.png",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.rectangular-area",
+      "referenceState": "Rectangular Area G",
+      "actions": [
+        "Drag an area and set capacity"
+      ],
+      "expected": [
+        "A general-admission area is created"
+      ],
+      "tigTest": "create-area",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.rectangle",
+      "referenceState": "Rectangle H",
+      "actions": [
+        "Drag a decorative rectangle"
+      ],
+      "expected": [
+        "A styled decoration is created on the active layer"
+      ],
+      "tigTest": "create-rectangle",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.line",
+      "referenceState": "Line L",
+      "actions": [
+        "Drag from start to end"
+      ],
+      "expected": [
+        "A styled line decoration is created"
+      ],
+      "tigTest": "create-line",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.text",
+      "referenceState": "Text T",
+      "actions": [
+        "Place text and edit copy and typography"
+      ],
+      "expected": [
+        "A text decoration is created"
+      ],
+      "tigTest": "create-text",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.image",
+      "referenceState": "Image I",
+      "actions": [
+        "Upload and place an image"
+      ],
+      "expected": [
+        "A sanitized image object is created"
+      ],
+      "tigTest": "create-image",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "create.icon",
+      "referenceState": "Icon O",
+      "actions": [
+        "Choose and place an icon"
+      ],
+      "expected": [
+        "A TIG-owned icon object is created"
+      ],
+      "tigTest": "create-icon",
+      "evidence": [
+        "aside:2026-08-21:public-demo-tool-sweep",
+        "tests/seat-designer-creation-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "context.align",
+      "referenceState": "Multi-selection toolbar",
+      "actions": [
+        "Choose an alignment mode"
+      ],
+      "expected": [
+        "Relative object geometry is preserved on the other axis"
+      ],
+      "tigTest": "context-align",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-context-actions.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "context.flip-horizontal",
+      "referenceState": "Selection toolbar",
+      "actions": [
+        "Flip horizontally"
+      ],
+      "expected": [
+        "Selected nested geometry mirrors around selection center"
+      ],
+      "tigTest": "flip-horizontal",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-context-actions.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "context.flip-vertical",
+      "referenceState": "Selection toolbar",
+      "actions": [
+        "Flip vertically"
+      ],
+      "expected": [
+        "Selected nested geometry mirrors around selection center"
+      ],
+      "tigTest": "flip-vertical",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-context-actions.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "context.duplicate",
+      "referenceState": "Selection toolbar",
+      "actions": [
+        "Duplicate or press the platform shortcut"
+      ],
+      "expected": [
+        "A translated independent copy is created"
+      ],
+      "tigTest": "duplicate",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-context-actions.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "context.copy-paste",
+      "referenceState": "Selection toolbar",
+      "actions": [
+        "Copy then paste"
+      ],
+      "expected": [
+        "Copied objects paste with new IDs and preserved relative geometry"
+      ],
+      "tigTest": "copy-paste",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-context-actions.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "context.delete",
+      "referenceState": "Selection toolbar",
+      "actions": [
+        "Delete selected objects"
+      ],
+      "expected": [
+        "One undoable delete transaction is committed"
+      ],
+      "tigTest": "delete-selection",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-context-actions.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "layers.all",
+      "referenceState": "Selection layer menu",
+      "actions": [
+        "Choose All objects"
+      ],
+      "expected": [
+        "Every unlocked layer can be selected"
+      ],
+      "tigTest": "layer-all",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "layers.foreground",
+      "referenceState": "Selection layer menu",
+      "actions": [
+        "Choose Foreground decorations"
+      ],
+      "expected": [
+        "Only foreground decorations can be selected"
+      ],
+      "tigTest": "layer-foreground",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "layers.interactive",
+      "referenceState": "Selection layer menu",
+      "actions": [
+        "Choose Interactive objects"
+      ],
+      "expected": [
+        "Only seats, tables, booths, and areas can be selected"
+      ],
+      "tigTest": "layer-interactive",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "layers.background",
+      "referenceState": "Selection layer menu",
+      "actions": [
+        "Choose Background decorations"
+      ],
+      "expected": [
+        "Only background decorations can be selected"
+      ],
+      "tigTest": "layer-background",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "layers.surroundings",
+      "referenceState": "Selection layer menu",
+      "actions": [
+        "Choose Surroundings"
+      ],
+      "expected": [
+        "Only surroundings can be selected"
+      ],
+      "tigTest": "layer-surroundings",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-selection-tools.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "structure.floors",
+      "referenceState": "Floor HUD",
+      "actions": [
+        "Add, rename, reorder, switch, and delete floors"
+      ],
+      "expected": [
+        "Objects remain assigned to a valid active floor"
+      ],
+      "tigTest": "floors",
+      "evidence": [
+        "docs/design-references/seats-io-designer/editor-default.png",
+        "tests/seat-designer-chart-structure.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "structure.zones",
+      "referenceState": "Zones venue mode",
+      "actions": [
+        "Add, rename, reorder, and assign zones"
+      ],
+      "expected": [
+        "Zone identity remains stable across edits"
+      ],
+      "tigTest": "zones",
+      "evidence": [
+        "docs/design-references/seats-io-designer/new-chart-mode.png",
+        "tests/seat-designer-chart-structure.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "structure.categories",
+      "referenceState": "Inspector category manager",
+      "actions": [
+        "Add, rename, color, reorder, and assign categories"
+      ],
+      "expected": [
+        "Every interactive object resolves to one valid category"
+      ],
+      "tigTest": "categories",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-inspector.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "structure.seat-properties",
+      "referenceState": "Seat and object inspector",
+      "actions": [
+        "Edit technical label, displayed label, accessibility, companion, restricted-view, and view-from-seat metadata"
+      ],
+      "expected": [
+        "Buyer metadata stays separate from technical identity"
+      ],
+      "tigTest": "seat-properties",
+      "evidence": [
+        "docs/design-references/seats-io-designer/demo-default.png",
+        "tests/seat-designer-inspector.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "validation.invalid",
+      "referenceState": "Inspector validation summary",
+      "actions": [
+        "Create duplicate, empty, unlabeled, uncategorized, and missing-focal-point states"
+      ],
+      "expected": [
+        "Validation links focus the offending object and blocks publish when required"
+      ],
+      "tigTest": "validation-invalid",
+      "evidence": [
+        "docs/design-references/seats-io-designer/editor-default.png",
+        "tests/seat-designer-inspector.test.mjs",
+        "tests/seat-chart-publish-v2.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "publish.venue",
+      "referenceState": "TIG venue publish flow",
+      "actions": [
+        "Select a venue and publish the current draft"
+      ],
+      "expected": [
+        "The venue active pointer swaps atomically; no show binding is stored"
+      ],
+      "tigTest": "publish-venue",
+      "evidence": [
+        "docs/superpowers/specs/2026-08-21-native-seat-designer-parity-design.md",
+        "tests/seat-chart-publish-v2.test.mjs",
+        "tests/seat-chart-venue-publishing.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "publish.immutable-revision",
+      "referenceState": "TIG versioned publish flow",
+      "actions": [
+        "Publish two valid draft revisions"
+      ],
+      "expected": [
+        "Both immutable revisions remain readable while the venue points to the newest"
+      ],
+      "tigTest": "publish-immutable-revision",
+      "evidence": [
+        "docs/superpowers/specs/2026-08-21-native-seat-designer-parity-design.md",
+        "tests/seat-chart-publish-v2.test.mjs",
+        "tests/seat-chart-venue-publishing.test.mjs",
+        ".omo/evidence/seat-designer-parity/browser/"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "access.issue-read-key",
+      "referenceState": "TIG service credential panel",
+      "actions": [
+        "Issue a named read-scoped service credential"
+      ],
+      "expected": [
+        "The raw key is shown once and only its scrypt digest is stored"
+      ],
+      "tigTest": "service-key-issue",
+      "evidence": [
+        "tests/seat-chart-service-credentials.test.mjs",
+        "tests/seat-designer-browser-tools.test.mjs"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "access.revoke-key",
+      "referenceState": "TIG service credential panel",
+      "actions": [
+        "Revoke an active service credential"
+      ],
+      "expected": [
+        "Subsequent bearer reads fail closed"
+      ],
+      "tigTest": "service-key-revoke",
+      "evidence": [
+        "tests/seat-chart-service-credentials.test.mjs"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "access.venue-active",
+      "referenceState": "TIG venue chart API",
+      "actions": [
+        "Read the active venue chart with a bearer key and repeat with If-None-Match"
+      ],
+      "expected": [
+        "Only the sanitized active revision is returned and unchanged reads return 304"
+      ],
+      "tigTest": "venue-active-api",
+      "evidence": [
+        "tests/seat-chart-venue-publishing.test.mjs",
+        "tests/seat-chart-service-credentials.test.mjs"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "access.immutable-version",
+      "referenceState": "TIG immutable revision API",
+      "actions": [
+        "Read a specific published revision with a bearer key"
+      ],
+      "expected": [
+        "The requested immutable snapshot remains stable"
+      ],
+      "tigTest": "immutable-revision-api",
+      "evidence": [
+        "tests/seat-chart-publish-v2.test.mjs",
+        "tests/seat-chart-service-credentials.test.mjs"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "buyer.not-ready",
+      "referenceState": "TIG buyer booking route",
+      "actions": [
+        "Open a linked show before its venue has an active chart"
+      ],
+      "expected": [
+        "The buyer seat-selection CTA is disabled with a preparation state"
+      ],
+      "tigTest": "buyer-not-ready",
+      "evidence": [
+        "tests/seat-chart-not-ready.test.mjs",
+        "tests/seat-chart-venue-publishing.test.mjs"
+      ],
+      "status": "tig-verified"
+    },
+    {
+      "id": "buyer.performance-seat-map",
+      "referenceState": "TIG performance seat-map API",
+      "actions": [
+        "Read a performance after its venue chart is published"
+      ],
+      "expected": [
+        "The response combines the active immutable layout with live performance inventory"
+      ],
+      "tigTest": "performance-seat-map-api",
+      "evidence": [
+        "tests/seat-chart-route-boundary.test.mjs",
+        "tests/seat-chart-publish-v2.test.mjs"
+      ],
+      "status": "tig-verified"
+    }
+  ],
+  "verifiedAt": "2026-08-20T17:23:28.372Z",
+  "tigEvidenceRoot": ".omo/evidence/seat-designer-parity/browser/"
 }
