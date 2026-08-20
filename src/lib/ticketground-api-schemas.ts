@@ -151,8 +151,15 @@ export const apiSeatMapSchema = z.object({
   seats: z.array(apiSeatSchema),
 }) satisfies ZodType<ApiSeatMap>;
 
+const apiAdmissionStateSchema = z.object({
+  status: z.string(),
+  activeAt: z.string(),
+  activationChannel: z.string(),
+});
+
 export const apiPurchaseResultSchema = z.object({
   ticket: apiTicketSchema,
+  tickets: z.array(apiTicketSchema),
   event: z.object({
     id: z.string(),
     title: z.string(),
@@ -163,11 +170,8 @@ export const apiPurchaseResultSchema = z.object({
     label: z.string(),
     status: z.string(),
   }),
-  admission: z.object({
-    status: z.string(),
-    activeAt: z.string(),
-    activationChannel: z.string(),
-  }),
+  admission: apiAdmissionStateSchema,
+  admissions: z.array(apiAdmissionStateSchema),
 }) satisfies ZodType<ApiPurchaseResult>;
 
 export const apiTosspaymentsConfigSchema = z.object({

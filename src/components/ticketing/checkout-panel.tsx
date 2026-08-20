@@ -8,6 +8,7 @@ import { getTicketShowBackendEventId, getTicketShowPerformanceDateId } from "@/d
 import { currency } from "@/data/ticketing";
 import {
   buyTicket,
+  buyTickets,
   getIdentityStatus,
   getState,
   getTosspaymentsConfig,
@@ -75,7 +76,11 @@ type CheckoutSelection = {
   readonly discountAmount: number;
   readonly feeAmount: number;
   readonly totalAmount: number;
-  readonly ticketId: string;
+  // Every seat the customer actually selected, in selection order. This is
+  // what gets purchased and charged for - never just the first one (see
+  // booking-panel.tsx's checkoutHref, which used to drop everything after
+  // index 0).
+  readonly ticketIds: readonly string[];
 };
 
 export function CheckoutPanel({
@@ -89,8 +94,11 @@ export function CheckoutPanel({
   const [method, setMethod] = useState<PaymentMethodId>("credit");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState(selection.ticketId ? "좌석 금액 확인 중" : "좌석 자동 선택 대기");
-  const [trustedTicketAmount, setTrustedTicketAmount] = useState<number | null>(null);
+  const [status, setStatus] = useState(selection.ticketIds.length > 0 ? "좌석 금액 확인 중" : "좌석 자동 선택 대기");
+  // Sum of every selected ticket's server-trusted faceValue - null while
+  // unresolved/pending, exactly like the single-ticket trustedTicketAmount
+  // this replaces.
+  const [trustedTicketsAmount, setTrustedTicketsAmount] = useState<number | null>(null);
   const [sessionUserId, setSessionUserId] = useState("");
   const [identityStatus, setIdentityStatus] = useState<ApiIdentityStatus | null>(null);
   const [identityPhone, setIdentityPhone] = useState("");
@@ -103,10 +111,10 @@ export function CheckoutPanel({
   const backendEventId = getTicketShowBackendEventId(show);
   const performanceDateId = getTicketShowPerformanceDateId(show, selection.date, selection.time);
   const selectedMethod = paymentMethods.find((item) => item.id === method) ?? paymentMethods[0];
-  const hasSelectedTicket = Boolean(selection.ticketId);
-  const amountPending = hasSelectedTicket && trustedTicketAmount === null;
-  const trustedBaseAmount = hasSelectedTicket ? trustedTicketAmount ?? 0 : selection.baseAmount;
-  const trustedFeeAmount = amountPending ? 0 : selection.count * serviceFeePerSeat;
+  const hasSelectedTicket = selection.ticketIds.length > 0;
+  const amountPending = hasSelectedTicket && trustedTicketsAmount === null;
+  const trustedBaseAmount = hasSelectedTicket ? trustedTicketsAmount ?? 0 : selection.baseAmount;
+  const trustedFeeAmount = amountPending ? 0 : selection.ticketIds.length * serviceFeePerSeat;
   const trustedTotalAmount = trustedBaseAmount + trustedFeeAmount;
   const amountLabel = (amount: number) => (amountPending ? "확인 중" : currency(amount));
   const summaryRows = [
@@ -115,11 +123,12 @@ export function CheckoutPanel({
     ["예매 수수료", amountLabel(trustedFeeAmount)],
   ] as const;
   const identityVerified = identityStatus?.verified === true;
+  const ticketIdsKey = selection.ticketIds.join(",");
 
   useEffect(() => {
     let mounted = true;
-    if (!selection.ticketId) {
-      setTrustedTicketAmount(null);
+    if (selection.ticketIds.length === 0) {
+      setTrustedTicketsAmount(null);
       return () => {
         mounted = false;
       };
@@ -128,24 +137,28 @@ export function CheckoutPanel({
     getState()
       .then((state) => {
         if (!mounted) return;
-        const ticket = state.tickets.find(
-          (item) => item.id === selection.ticketId
+        const tickets = selection.ticketIds.map((ticketId) => state.tickets.find(
+          (item) => item.id === ticketId
             && item.eventId === backendEventId
             && item.performanceDateId === performanceDateId,
-        );
-        setTrustedTicketAmount(ticket?.faceValue ?? null);
-        setStatus(ticket ? "좌석 선택 완료" : "선택한 좌석을 확인할 수 없습니다.");
+        ));
+        const allResolved = tickets.every((ticket) => ticket !== undefined);
+        setTrustedTicketsAmount(allResolved ? tickets.reduce((sum, ticket) => sum + (ticket?.faceValue ?? 0), 0) : null);
+        setStatus(allResolved ? "좌석 선택 완료" : "선택한 좌석을 확인할 수 없습니다.");
       })
       .catch(() => {
         if (!mounted) return;
-        setTrustedTicketAmount(null);
+        setTrustedTicketsAmount(null);
         setStatus("좌석 금액을 확인하지 못했습니다.");
       });
 
     return () => {
       mounted = false;
     };
-  }, [backendEventId, performanceDateId, selection.ticketId]);
+    // ticketIdsKey (not selection.ticketIds) is the dependency on purpose - a
+    // new array reference per render would otherwise re-run this every time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendEventId, performanceDateId, ticketIdsKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -288,7 +301,7 @@ export function CheckoutPanel({
     }
   }
 
-  async function completeTosspaymentsPayment(ticketId: string) {
+  async function completeTosspaymentsPayment(ticketIds: readonly string[]) {
     if (!tossWidgetsRef.current) {
       setStatus("결제 위젯이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
       return;
@@ -296,18 +309,28 @@ export function CheckoutPanel({
     setSubmitting(true);
     setStatus("토스페이먼츠 결제창을 여는 중입니다.");
     try {
+      // TossPayments only ever takes one orderId for the whole charge - for
+      // a single seat that's conventionally the ticketId itself (unchanged
+      // from before); for a multi-seat order it's a value that covers the
+      // whole set, generated here and handed to the backend on confirm
+      // (see confirmTosspaymentsPurchase) so the two sides agree on it.
+      const orderId = ticketIds.length > 1 ? `order_${[...ticketIds].sort().join("_")}` : ticketIds[0];
       const resultParams = new URLSearchParams({
         paymentMethod: selectedMethod.paymentMethod,
         date: selection.date,
         time: selection.time,
+        // Toss's redirect only echoes back orderId/paymentKey - the full
+        // ticket set has to ride along in our own result URL so the result
+        // panel knows every ticket this order covers, not just one.
+        ticketIds: ticketIds.join(","),
       });
       const resultUrl = `${window.location.origin}/checkout/${show.slug}/result?${resultParams.toString()}`;
       // On success this navigates the whole page away to resultUrl (via Toss's
       // redirect flow) - it never resolves back into this component. Only a
       // rejection (popup blocked, SDK error, etc.) returns control here.
       await tossWidgetsRef.current.requestPayment({
-        orderId: ticketId,
-        orderName: show.title,
+        orderId,
+        orderName: ticketIds.length > 1 ? `${show.title} 외 ${ticketIds.length - 1}매` : show.title,
         successUrl: resultUrl,
         failUrl: resultUrl,
       });
@@ -322,8 +345,8 @@ export function CheckoutPanel({
       setStatus("결제 전 간편 로그인과 본인인증이 필요합니다.");
       return;
     }
-    const ticketId = selection.ticketId;
-    if (!ticketId) {
+    const ticketIds = selection.ticketIds;
+    if (ticketIds.length === 0) {
       // 사용자가 실제로 고른 좌석이 없으면 임의 좌석으로 대체 구매하지 않는다 —
       // URL 파라미터 손상이나 좌석맵 로딩 실패로 여기 도달했을 수 있다.
       setStatus("선택된 좌석 정보를 확인할 수 없습니다. 좌석을 다시 선택해주세요.");
@@ -331,22 +354,28 @@ export function CheckoutPanel({
     }
 
     if (tosspaymentsConfig?.configured) {
-      await completeTosspaymentsPayment(ticketId);
+      await completeTosspaymentsPayment(ticketIds);
       return;
     }
 
     setSubmitting(true);
     setStatus("결제 처리 중");
     try {
-      const purchase = await buyTicket(ticketId, sessionUserId);
+      const purchase = ticketIds.length > 1
+        ? await buyTickets(ticketIds, sessionUserId)
+        : await buyTicket(ticketIds[0], sessionUserId);
+      const purchasedTotal = purchase.tickets.reduce((sum, ticket) => sum + ticket.faceValue, 0)
+        + purchase.tickets.length * serviceFeePerSeat;
       const params = new URLSearchParams({
         date: selection.date,
         time: selection.time,
-        seats: purchase.ticket.seatLabel,
-        count: "1",
+        seats: purchase.tickets.map((ticket) => ticket.seatLabel).join(" / "),
+        count: String(purchase.tickets.length),
+        ticketIds: purchase.tickets.map((ticket) => ticket.id).join(","),
         ticketId: purchase.ticket.id,
+        total: String(purchasedTotal),
       });
-      setStatus(`${purchase.payment.label} ${purchase.payment.status} · ${purchase.ticket.id}`);
+      setStatus(`${purchase.payment.label} ${purchase.payment.status} · ${purchase.tickets.length}매`);
       router.push(`/reservation/${purchase.ticket.id}?${params.toString()}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "결제 처리에 실패했습니다.");

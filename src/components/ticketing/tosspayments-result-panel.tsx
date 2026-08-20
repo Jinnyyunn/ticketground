@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { confirmTosspaymentsPurchase, storedSessionUserId } from "@/lib/ticketground-api";
 import type { TicketShow } from "@/types";
 
+const serviceFeePerSeat = 2000;
+
 export function TosspaymentsResultPanel({
   show,
   paymentKey,
@@ -14,6 +16,7 @@ export function TosspaymentsResultPanel({
   date,
   time,
   failMessage,
+  ticketIds,
 }: {
   readonly show: TicketShow;
   readonly paymentKey: string;
@@ -22,15 +25,21 @@ export function TosspaymentsResultPanel({
   readonly date: string;
   readonly time: string;
   readonly failMessage: string;
+  // Every ticket this order covers. Falls back to [orderId] below for a
+  // single-seat purchase that predates this param (orderId used to always
+  // equal the one ticketId being bought).
+  readonly ticketIds: readonly string[];
 }) {
   const router = useRouter();
+  const effectiveTicketIds = ticketIds.length > 0 ? ticketIds : (orderId ? [orderId] : []);
   // Toss's successUrl and failUrl both point here - a paymentKey means the
   // widget completed and handed us a receipt to confirm server-side; its
   // absence means the user cancelled or the payment failed before that.
   // This is derivable straight from props, so it never needs its own state.
-  const hasReceipt = Boolean(paymentKey && orderId);
+  const hasReceipt = Boolean(paymentKey && orderId && effectiveTicketIds.length > 0);
   const [status, setStatus] = useState(hasReceipt ? "결제 승인 처리 중입니다." : failMessage || "토스페이먼츠 결제가 취소되었거나 실패했습니다.");
   const [failed, setFailed] = useState(!hasReceipt);
+  const ticketIdsKey = effectiveTicketIds.join(",");
 
   useEffect(() => {
     if (!hasReceipt) return;
@@ -41,7 +50,8 @@ export function TosspaymentsResultPanel({
         throw new Error("로그인 세션이 만료되었습니다. 다시 로그인한 뒤 예매 내역을 확인해주세요.");
       }
       const purchase = await confirmTosspaymentsPurchase({
-        ticketId: orderId,
+        ticketIds: effectiveTicketIds,
+        orderId,
         userId,
         paymentMethod: paymentMethod || "CREDIT_CARD",
         tossPaymentKey: paymentKey,
@@ -51,12 +61,16 @@ export function TosspaymentsResultPanel({
         idempotencyKey: paymentKey,
       });
       if (cancelled) return;
+      const purchasedTotal = purchase.tickets.reduce((sum, ticket) => sum + ticket.faceValue, 0)
+        + purchase.tickets.length * serviceFeePerSeat;
       const params = new URLSearchParams({
         date,
         time,
-        seats: purchase.ticket.seatLabel,
-        count: "1",
+        seats: purchase.tickets.map((ticket) => ticket.seatLabel).join(" / "),
+        count: String(purchase.tickets.length),
+        ticketIds: purchase.tickets.map((ticket) => ticket.id).join(","),
         ticketId: purchase.ticket.id,
+        total: String(purchasedTotal),
       });
       router.replace(`/reservation/${purchase.ticket.id}?${params.toString()}`);
     })().catch((error: unknown) => {
@@ -68,7 +82,10 @@ export function TosspaymentsResultPanel({
     return () => {
       cancelled = true;
     };
-  }, [hasReceipt, orderId, paymentMethod, paymentKey, date, time, router]);
+    // ticketIdsKey (not effectiveTicketIds) is the dependency on purpose - a
+    // new array reference per render would otherwise re-run this every time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasReceipt, orderId, paymentMethod, paymentKey, date, time, router, ticketIdsKey]);
 
   return (
     <section className="ticketground-container py-16 text-center">
