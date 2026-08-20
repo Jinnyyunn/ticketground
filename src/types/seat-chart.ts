@@ -47,6 +47,16 @@ export type OverlayImage = {
   readonly locked?: boolean;
 };
 
+export type SeatChartAsset = {
+  readonly id: string;
+  readonly kind: "reference" | "background" | "object";
+  readonly mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/svg+xml" | "application/pdf";
+  readonly width: number;
+  readonly height: number;
+  readonly page?: number;
+  readonly contentHash: string;
+};
+
 export type Zone = {
   readonly id: string;
   readonly name: string;
@@ -210,6 +220,16 @@ export type ChartDocument = {
   /** publishing feature */
   readonly published?: boolean;
   readonly publishedAt?: string;
+};
+
+export type SeatChartDocumentV2 = Omit<ChartDocument, "published" | "publishedAt"> & {
+  readonly version: 2;
+  readonly chartKey: `chart_${string}`;
+  readonly venueId: string;
+  readonly venueType: VenueType;
+  readonly zones: readonly Zone[];
+  readonly assets: readonly SeatChartAsset[];
+  readonly draftRevision: number;
 };
 
 export type EditorSettings = {
