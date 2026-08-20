@@ -1,5 +1,7 @@
 "use client";
 
+import { Armchair, ArrowRight, CalendarDays, CheckCircle2, Clock3, CreditCard, Info } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingSelection, TicketShow } from "@/types";
@@ -179,19 +181,23 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             <p className="text-sm font-black text-ticketground">Ticketground Booking</p>
             <h1 className="balanced-title text-xl font-black text-ink sm:text-2xl">{show.shortTitle}</h1>
           </div>
-          <div
-            data-booking-timer
-            className={cn(
-              "shrink-0 rounded-sm px-4 py-2 text-xl font-black tabular-nums",
-              timerExpired
-                ? "bg-ticketground text-white"
-                : timerWarning
-                  ? "bg-warn text-white"
-                  : "bg-ink text-on-ink",
-            )}
-            aria-label="남은 예매 시간"
-          >
-            {minutes(timerSeconds)}
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <p className="hidden text-[11px] font-bold text-ink-4 sm:block">남은 예매 시간</p>
+            <div
+              data-booking-timer
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-sm px-4 py-2 text-xl font-black tabular-nums shadow-ticket-1 transition-colors",
+                timerExpired
+                  ? "bg-ticketground text-white"
+                  : timerWarning
+                    ? "bg-warn text-white"
+                    : "bg-ink text-on-ink",
+              )}
+              aria-label="남은 예매 시간"
+            >
+              <Clock3 className={cn("size-4 text-accent-2", timerWarning && "motion-safe:animate-pulse")} aria-hidden />
+              {minutes(timerSeconds)}
+            </div>
           </div>
         </div>
       </div>
@@ -201,18 +207,28 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           <nav className="grid grid-cols-2 gap-2" aria-label="예매 단계">
             {steps.map((item, index) => {
               const active = item.id === step;
+              const disabled = item.id === "seats" && !canChooseSeats;
+              const completed = item.id === "schedule" && step === "seats";
+              const StepIcon = item.id === "schedule" ? CalendarDays : Armchair;
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => setStep(item.id)}
-                  disabled={item.id === "seats" && !canChooseSeats}
+                  disabled={disabled}
                   className={cn(
-                    "h-12 rounded-sm border text-sm font-black whitespace-nowrap",
-                    active ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink-3",
-                    item.id === "seats" && !canChooseSeats && "cursor-not-allowed opacity-50",
+                    "flex h-12 items-center justify-center gap-2 rounded-sm border text-sm font-black whitespace-nowrap transition-colors",
+                    active
+                      ? "border-ink bg-ink text-on-ink shadow-ticket-1"
+                      : "border-line bg-card text-ink-3 hover:border-line-strong hover:bg-surface hover:text-ink-2",
+                    disabled && "cursor-not-allowed opacity-50 hover:border-line hover:bg-card hover:text-ink-3",
                   )}
                 >
+                  {completed ? (
+                    <CheckCircle2 className="size-4 shrink-0 text-ok" aria-hidden />
+                  ) : (
+                    <StepIcon className={cn("size-4 shrink-0", active ? "text-accent-2" : "text-ink-4")} aria-hidden />
+                  )}
                   {index + 1}. {item.label}
                 </button>
               );
@@ -236,18 +252,24 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               <h2 className="balanced-title mt-1 text-2xl font-black text-ink sm:text-[24px]">관람일·회차·매수를 선택하세요</h2>
               <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr_180px]">
                 <div>
-                  <h3 className="text-lg font-black text-ink">관람일</h3>
+                  <h3 className="flex items-center gap-1.5 text-lg font-black text-ink">
+                    <CalendarDays className="size-4 text-ink-4" aria-hidden />
+                    관람일
+                  </h3>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {show.schedules.map((schedule) => (
-                      <button disabled={!show.sale.bookable} key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold", date === schedule.date ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50")}>{schedule.label}</button>
+                      <button disabled={!show.sale.bookable} key={schedule.date} type="button" onClick={() => changeDate(schedule.date)} className={cn("whitespace-nowrap rounded-sm border px-3 py-3 text-sm font-bold transition-colors active:scale-[0.98]", date === schedule.date ? "border-ink bg-ink text-on-ink shadow-ticket-1" : "border-line bg-card text-ink hover:border-line-strong hover:bg-surface", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:border-line hover:bg-card active:scale-100")}>{schedule.label}</button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-ink">회차</h3>
+                  <h3 className="flex items-center gap-1.5 text-lg font-black text-ink">
+                    <Clock3 className="size-4 text-ink-4" aria-hidden />
+                    회차
+                  </h3>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {(show.schedules.find((schedule) => schedule.date === date)?.times ?? []).map((item) => (
-                      <button disabled={!show.sale.bookable} key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold", time === item ? "border-ink bg-ink text-on-ink" : "border-line bg-card text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50")}>{item}</button>
+                      <button disabled={!show.sale.bookable} key={item} type="button" onClick={() => setTime(item)} className={cn("rounded-sm border px-3 py-3 text-sm font-bold transition-colors active:scale-[0.98]", time === item ? "border-ink bg-ink text-on-ink shadow-ticket-1" : "border-line bg-card text-ink hover:border-line-strong hover:bg-surface", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:border-line hover:bg-card active:scale-100")}>{item}</button>
                     ))}
                   </div>
                 </div>
@@ -255,14 +277,15 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h3 className="text-lg font-black text-ink">매수</h3>
                   <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
                     {[1, 2].map((count) => (
-                      <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black", quantity === count ? "bg-ticketground text-white" : "text-ink-3", !show.sale.bookable && "cursor-not-allowed opacity-50")}>{count}매</button>
+                      <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black transition-colors", quantity === count ? "bg-ticketground text-white shadow-ticket-1" : "text-ink-3 hover:bg-surface hover:text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-ink-3")}>{count}매</button>
                     ))}
                   </div>
                   <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 2매까지 선택할 수 있습니다.</p>
                 </div>
               </div>
-              <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 h-12 rounded-sm bg-ticketground px-6 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4">
+              <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 flex h-12 items-center justify-center gap-2 rounded-sm bg-ticketground px-6 text-base font-black text-white shadow-ticket-1 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4 disabled:shadow-none disabled:hover:brightness-100 disabled:active:scale-100">
                 좌석 선택으로 이동
+                <ArrowRight className="size-4" aria-hidden />
               </button>
             </section>
           )}
@@ -300,14 +323,25 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                     />
                   )
                 ) : (
-                  <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
-                    {seatMapStatus}
+                  <div className="rounded-lg border border-line bg-surface p-4" role="status">
+                    <p className={cn("text-sm font-bold text-ink-3", seatMapStatus !== "좌석도 로딩 중" && "text-center")}>{seatMapStatus}</p>
+                    {seatMapStatus === "좌석도 로딩 중" ? (
+                      <div className="mt-3 space-y-3" aria-hidden>
+                        <div className="mx-auto aspect-[4/3] w-full max-w-[560px] motion-safe:animate-pulse rounded-lg bg-black/10" />
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {Array.from({ length: 6 }, (_, index) => (
+                            <div key={index} className="h-6 w-16 motion-safe:animate-pulse rounded-full bg-black/10" />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
               {canPay ? (
-                <Link href={checkoutHref} className="mt-6 flex h-12 w-full items-center justify-center rounded-sm bg-ticketground text-lg font-black text-white">
+                <Link href={checkoutHref} className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-ticketground text-lg font-black text-white shadow-ticket-1 transition hover:brightness-110 active:scale-[0.99]">
                   결제하기
+                  <CreditCard className="size-4" aria-hidden />
                 </Link>
               ) : (
                 <button type="button" disabled className="mt-6 h-12 w-full rounded-sm bg-surface-3 text-lg font-black text-ink-4">
@@ -318,18 +352,36 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           )}
         </main>
 
-        <aside className="h-fit min-w-0 rounded-lg border border-line bg-card p-6 shadow-ticket-1 lg:sticky lg:top-6">
-          <h2 className="clamp-2 text-2xl font-black text-ink">{show.title}</h2>
-          <dl className="mt-5 space-y-3 text-sm">
-            <BookingSummaryRow label="관람일" value={date || "선택 전"} />
-            <BookingSummaryRow label="회차" value={time || "선택 전"} />
-            <BookingSummaryRow label="선택 좌석" value={selectedLabels || "선택 전"} />
-            <BookingSummaryRow label="매수" value={`${selectedCount}/${quantity}매`} />
-            <BookingSummaryRow label="좌석 금액" value={currency(baseAmount)} strong />
-            <BookingSummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
-            <BookingSummaryRow label="총 결제금액" value={currency(totalAmount)} total />
-          </dl>
-          <p className="mt-4 break-keep rounded-sm border border-warn bg-card px-3 py-2 text-sm font-bold text-ink">정책: 최대 2매까지 선택할 수 있습니다.</p>
+        <aside className="h-fit min-w-0 overflow-hidden rounded-lg border border-line bg-card shadow-ticket-1 lg:sticky lg:top-6">
+          <div className="relative h-40 w-full overflow-hidden bg-surface-2 sm:h-48">
+            <Image
+              src={show.poster}
+              alt=""
+              aria-hidden
+              fill
+              sizes="(min-width: 1024px) 360px, 100vw"
+              className="object-cover"
+              unoptimized={show.poster.endsWith(".gif")}
+            />
+            <div className="absolute inset-0 bg-linear-to-t from-scrim/75 via-scrim/10 to-transparent" />
+            <p className="absolute top-3 left-4 rounded-full bg-scrim/40 px-2.5 py-1 text-[11px] font-black text-on-scrim backdrop-blur-sm">예매 요약</p>
+            <h2 className="clamp-2 absolute right-4 bottom-3 left-4 text-xl font-black text-on-scrim">{show.title}</h2>
+          </div>
+          <div className="p-6">
+            <dl className="space-y-3 text-sm">
+              <BookingSummaryRow label="관람일" value={date || "선택 전"} />
+              <BookingSummaryRow label="회차" value={time || "선택 전"} />
+              <BookingSummaryRow label="선택 좌석" value={selectedLabels || "선택 전"} />
+              <BookingSummaryRow label="매수" value={`${selectedCount}/${quantity}매`} />
+              <BookingSummaryRow label="좌석 금액" value={currency(baseAmount)} strong />
+              <BookingSummaryRow label="예매 수수료" value={`${currency(serviceFeePerSeat)} × ${selectedCount}`} />
+              <BookingSummaryRow label="총 결제금액" value={currency(totalAmount)} total />
+            </dl>
+            <p className="mt-4 flex items-start gap-2 break-keep rounded-lg border border-warn bg-tint-yellow px-3 py-2.5 text-sm font-bold text-ink">
+              <Info className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
+              정책: 최대 2매까지 선택할 수 있습니다.
+            </p>
+          </div>
         </aside>
       </div>
     </div>
