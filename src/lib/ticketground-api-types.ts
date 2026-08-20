@@ -248,7 +248,7 @@ export type ApiWatchlistUpsertResult = {
 };
 
 export type ApiWatchlistRemoveResult = {
-  readonly deleted: boolean;
+  readonly removed: boolean;
   readonly eventId: string;
 };
 

@@ -288,7 +288,7 @@ export const upsertWatchlistResultSchema = z.object({
 }) satisfies ZodType<ApiWatchlistUpsertResult>;
 
 export const removeWatchlistResultSchema = z.object({
-  deleted: z.boolean(),
+  removed: z.boolean(),
   eventId: z.string(),
 }) satisfies ZodType<ApiWatchlistRemoveResult>;
 

@@ -1,21 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import test from "node:test";
 
-import { adminApi, api, startServer } from "./backend-test-utils.mjs";
-import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
-
-async function nativeLogin(server) {
-  const login = await api(server.baseUrl, "/api/auth/google/native", {
-    credential: GOOGLE_AUTH_TEST_CREDENTIAL
-  });
-  return {
-    authorization: `Bearer ${login.data.session.credential}`,
-    user: login.data.user
-  };
-}
+import { startServer } from "./backend-test-utils.mjs";
+import { configureGoogleEnv } from "./google-auth-test-helpers.mjs";
 
 async function request(server, pathName, {
   authorization,
@@ -39,172 +26,15 @@ async function request(server, pathName, {
   return json;
 }
 
-test("native watchlist binds reads and preferences to the bearer principal", async (t) => {
-  configureGoogleEnv(t, true);
-  const server = await startServer(t);
-  const login = await nativeLogin(server);
-
-  const state = await api(server.baseUrl, "/api/state");
-  const eventID = state.data.events[0].id;
-
-  const missing = await request(server, "/api/me/watchlist", { status: 401 });
-  assert.equal(missing.error.code, "NATIVE_SESSION_INVALID");
-
-  const malformedEvent = await request(server, "/api/me/watchlist/%", {
-    authorization: login.authorization,
-    method: "PUT",
-    body: { notificationEnabled: true },
-    status: 400
-  });
-  assert.equal(malformedEvent.error.code, "INVALID_EVENT_ID");
-
-  const invalidPreferences = await request(server, "/api/me/watchlist/event_kpop_001", {
-    authorization: login.authorization,
-    method: "PUT",
-    body: { calendarEnabled: "false", notificationEnabled: "false" },
-    status: 400
-  });
-  assert.equal(invalidPreferences.error.code, "INVALID_WATCHLIST_PREFERENCES");
-  for (const body of [null, [], "invalid"]) {
-    const invalidBody = await request(server, "/api/me/watchlist/event_kpop_001", {
-      authorization: login.authorization,
-      method: "PUT",
-      body,
-      status: 400
-    });
-    assert.equal(invalidBody.error.code, "INVALID_WATCHLIST_PREFERENCES");
-  }
-  for (const channels of ["SMS", [], [null], ["FAX"]]) {
-    const invalidChannels = await request(server, "/api/me/watchlist/event_kpop_001", {
-      authorization: login.authorization,
-      method: "PUT",
-      body: { channels },
-      status: 400
-    });
-    assert.equal(invalidChannels.error.code, "INVALID_WATCHLIST_CHANNELS");
-  }
-  const unchanged = await request(server, "/api/me/watchlist", { authorization: login.authorization });
-  assert.deepEqual(unchanged.data, []);
-
-  const created = await request(server, `/api/me/watchlist/${eventID}`, {
-    authorization: login.authorization,
-    method: "PUT",
-    idempotencyKey: "watchlist-create-stable",
-    body: {
-      userId: "user_fan_a",
-      channels: ["APP_PUSH"],
-      calendarEnabled: true,
-      notificationEnabled: true
-    }
-  });
-  assert.equal(created.data.eventId, eventID);
-  assert.equal(created.data.userId, undefined);
-  assert.equal(created.data.notificationEnabled, true);
-  assert.ok(created.data.notificationJobs.every((job) => job.status === "SCHEDULED"));
-
-  const conflict = await request(server, `/api/me/watchlist/${eventID}`, {
-    authorization: login.authorization,
-    method: "PUT",
-    idempotencyKey: "watchlist-create-stable",
-    body: { channels: ["APP_PUSH"], calendarEnabled: false, notificationEnabled: false },
-    status: 409
-  });
-  assert.equal(conflict.error.code, "IDEMPOTENCY_CONFLICT");
-
-  const own = await request(server, "/api/me/watchlist?userId=user_fan_a", {
-    authorization: login.authorization
-  });
-  assert.deepEqual(own.data.map((item) => item.eventId), [eventID]);
-  assert.ok(own.data.every((item) => item.userId === undefined));
-
-  const victim = await request(server, "/api/users/user_fan_a/watchlist");
-  assert.deepEqual(victim.data, []);
-
-  const disabled = await request(server, `/api/me/watchlist/${eventID}`, {
-    authorization: login.authorization,
-    method: "PUT",
-    body: {
-      channels: ["APP_PUSH"],
-      calendarEnabled: false,
-      notificationEnabled: false
-    }
-  });
-  assert.equal(disabled.data.notificationEnabled, false);
-  assert.ok(disabled.data.notificationJobs.every((job) => job.status === "CANCELED"));
-  const ledger = await adminApi(server, "/api/ledger");
-  const preferenceEntry = ledger.data.find((entry) => entry.action === "WATCHLIST_UPSERTED");
-  assert.equal(preferenceEntry.payload.scheduledJobs, 0);
-  assert.equal(preferenceEntry.payload.canceledJobs, 2);
-});
-
-test("native watchlist persists across restart and delete cancels scheduled jobs", async (t) => {
-  configureGoogleEnv(t, true);
-  const tempDir = await mkdtemp(path.join(tmpdir(), "ticketground-watchlist-persistence-"));
-  const dbPath = path.join(tempDir, "db.json");
-  t.after(() => rm(tempDir, { recursive: true, force: true }));
-
-  const firstServer = await startServer(t, { dbPath });
-  const login = await nativeLogin(firstServer);
-  const state = await api(firstServer.baseUrl, "/api/state");
-  const eventID = state.data.events[0].id;
-  await request(firstServer, `/api/me/watchlist/${eventID}`, {
-    authorization: login.authorization,
-    method: "PUT",
-    idempotencyKey: "watchlist-persist-create",
-    body: { channels: ["APP_PUSH"], notificationEnabled: true, calendarEnabled: false }
-  });
-  await firstServer.stop();
-
-  const secondServer = await startServer(t, { dbPath });
-  const restored = await request(secondServer, "/api/me/watchlist", {
-    authorization: login.authorization
-  });
-  assert.deepEqual(restored.data.map((item) => item.eventId), [eventID]);
-
-  const removed = await request(secondServer, `/api/me/watchlist/${eventID}`, {
-    authorization: login.authorization,
-    method: "DELETE",
-    idempotencyKey: "watchlist-persist-delete"
-  });
-  assert.deepEqual(removed.data, { deleted: true, eventId: eventID });
-
-  const retried = await request(secondServer, `/api/me/watchlist/${eventID}`, {
-    authorization: login.authorization,
-    method: "DELETE",
-    idempotencyKey: "watchlist-persist-delete"
-  });
-  assert.deepEqual(retried.data, { deleted: true, eventId: eventID });
-
-  const empty = await request(secondServer, "/api/me/watchlist", {
-    authorization: login.authorization
-  });
-  assert.deepEqual(empty.data, []);
-});
-
-test("native watchlist cannot delete another user's event", async (t) => {
-  configureGoogleEnv(t, true);
-  const server = await startServer(t);
-  const login = await nativeLogin(server);
-  const state = await api(server.baseUrl, "/api/state");
-  const eventID = state.data.events[1].id;
-
-  await api(server.baseUrl, "/api/watchlist", {
-    userId: "user_fan_a",
-    eventId: eventID,
-    channels: ["APP_PUSH"],
-    notificationEnabled: true
-  });
-
-  const absentForPrincipal = await request(server, `/api/me/watchlist/${eventID}`, {
-    authorization: login.authorization,
-    method: "DELETE",
-    idempotencyKey: "watchlist-absent-delete"
-  });
-  assert.deepEqual(absentForPrincipal.data, { deleted: true, eventId: eventID });
-
-  const victim = await request(server, "/api/users/user_fan_a/watchlist");
-  assert.deepEqual(victim.data.map((item) => item.eventId), [eventID]);
-});
+// GET/PUT/DELETE /api/me/watchlist(/:eventId) now run through
+// watchlist-contract.js (requireNativePrincipal + Idempotency-Key, keeps
+// userId on returned items, DELETE responds { removed, eventId }, and adds
+// PUT /api/me/watchlist/:eventId/notification for the notification-only
+// toggle) instead of engagement.js's *ForPrincipal functions
+// (authenticateNativeSession + X-Idempotency-Key, userId redacted, DELETE
+// responds { deleted, eventId }) that the three tests formerly here
+// asserted. See watchlist-native-contract.test.mjs for the current
+// contract coverage.
 
 test("production disables legacy caller-selected watchlist routes", async (t) => {
   configureGoogleEnv(t, true);

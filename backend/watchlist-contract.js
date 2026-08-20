@@ -44,7 +44,13 @@ export function createWatchlistContract({ appendLedger, executeIdempotent, httpE
         db.watchlist = db.watchlist.filter((entry) => entry.id !== item.id);
         appendLedger(db, principal.userId, "WATCHLIST_REMOVED", { eventId, watchlistId: item.id });
       }
-      return { removed: true, eventId };
+      // Both keys carry the same meaning - `removed` is the current web-client
+      // contract (ticketground-api-schemas.ts), `deleted` is what the already-
+      // shipped iOS/Android decoders require (LiveBackendModels.swift /
+      // AccountApiModels.kt). Neither installed base can be force-updated, so
+      // this response satisfies both until a coordinated app release can drop
+      // the older key.
+      return { removed: true, deleted: true, eventId };
     });
   }
 

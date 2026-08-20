@@ -10,8 +10,8 @@ import {
 
 export function createApiRouter({
   accountTicketsForUser,
+  addPrincipalSupportMessage,
   addSupportMessage,
-  addSupportMessageForPrincipal,
   authenticateNativeSession,
   adminHoldAdmissionCredential,
   acknowledgeOperatorAlerts,
@@ -25,16 +25,19 @@ export function createApiRouter({
   authenticateSellerAccount,
   changeSellerPassword,
   cancelTosspaymentsPayment,
+  challenge,
   confirmTosspaymentsPayment,
   createAdminAccount,
+  createDraft,
+  createHold,
   createPushCampaign,
+  createPrincipalSupportThread,
   cancelResaleListing,
   cancelResalePoolForPrincipal,
   createCancellationRequestForPrincipal,
   createReservationDraft,
   createSeatHold,
   createSupportThread,
-  createSupportThreadForPrincipal,
   createResalePoolForPrincipal,
   createEventDraft,
   cancelReservationDraft,
@@ -60,16 +63,19 @@ export function createApiRouter({
   SERVICE_FEE_PER_SEAT,
   issueGateSession,
   issueAppAttestChallenge,
+  issueMobileQr,
   issueQr,
   issueNativeSession,
   issueSellerAccount,
   joinPool,
+  joinQueue,
   joinResalePoolForPrincipal,
   leaveQueue,
   listForResale,
   listGateSessions,
   listCancellationRequestsForPrincipal,
   listDevicesForPrincipal,
+  listMobileTickets,
   listPushTokensForPrincipal,
   listResalePoolsForPrincipal,
   listSellerEvents,
@@ -79,6 +85,12 @@ export function createApiRouter({
   nativeSession,
   optionalAuthenticateNativeSession,
   purchaseResale,
+  putPushToken,
+  putSettings,
+  putWatchlist,
+  putWatchlistNotification,
+  deleteWatchlist,
+  queue,
   readBusinessRegistrationFile,
   releaseSeatHold,
   requireGateSession,
@@ -94,9 +106,9 @@ export function createApiRouter({
   publicResaleDrawResult,
   publicResalePool,
   publicState,
-  removeWatchlistForPrincipal,
   revokeDeviceForPrincipal,
   revokeDevice,
+  revokeDeviceRegistration,
   publicTicketsForUser,
   publicIdentityStatus,
   approveSellerApplication,
@@ -122,12 +134,16 @@ export function createApiRouter({
   requireIdempotencyKey,
   requireNativePrincipal,
   seatMap,
+  seats,
   startNiceVerification,
   submitGroupBookingRequest,
+  supportThreadDetail,
   supportThreadForUser,
-  supportThreadsForPrincipal,
+  supportThreads,
   isWebhookSignatureValid,
+  testPayload,
   tosspaymentsConfig,
+  trust,
   trustDevice,
   updateEventSale,
   updateMaintenance,
@@ -135,6 +151,7 @@ export function createApiRouter({
   updateEventVenue,
   updateAdminAccount,
   updateDemoProfile,
+  updateProfile,
   updateSellerEvent,
   updateSupportStatus,
   updateSellerApplicationChecklist,
@@ -144,10 +161,8 @@ export function createApiRouter({
   updateUserStatuses,
   reviewCancellation,
   upsertWatchlist,
-  upsertWatchlistForPrincipal,
   upsertPushTokenForPrincipal,
   userWatchlist,
-  userWatchlistForPrincipal,
   venueMapForEvent,
   verifyAppAttestProof,
   verifyLedger,
@@ -244,7 +259,13 @@ function requireDemoWatchlistAPI() {
   if (!enabled) throw httpError(404, "NOT_FOUND", "요청한 API가 없습니다.");
 }
 
-function parseIdempotencyKey(req) {
+// These legacy (X-Idempotency-Key) helpers back the older userId-keyed demo
+// and "ForPrincipal" routes below. They are intentionally distinct from the
+// requireIdempotencyKey destructured above (from request-principal.js, which
+// reads the Idempotency-Key header) so the two conventions never shadow one
+// another - a same-named local declaration here previously did exactly that
+// and silently broke every native-principal route's idempotency-key check.
+function parseLegacyIdempotencyKey(req) {
   const value = String(req.headers["x-idempotency-key"] || "").trim();
   if (!value) return null;
   if (value.length > 200) {
@@ -253,8 +274,8 @@ function parseIdempotencyKey(req) {
   return value;
 }
 
-function requireIdempotencyKey(req) {
-  const value = parseIdempotencyKey(req);
+function requireLegacyIdempotencyKey(req) {
+  const value = parseLegacyIdempotencyKey(req);
   if (!value) throw httpError(400, "IDEMPOTENCY_KEY_REQUIRED", "유효한 재시도 키가 필요합니다.");
   return value;
 }
@@ -308,12 +329,18 @@ async function handleApi(req, res, db, surface) {
   const userTicketsMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/tickets$/);
   const userWatchlistMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/watchlist$/);
   const principalWatchlistMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)$/);
+  const principalWatchlistNotificationMatch = url.pathname.match(/^\/api\/me\/watchlist\/([^/]+)\/notification$/);
   const principalSupportMessageMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)\/messages$/);
+  const principalSupportThreadDetailMatch = url.pathname.match(/^\/api\/me\/support\/threads\/([^/]+)$/);
   const queueEntryMatch = url.pathname.match(/^\/api\/me\/queue-entries\/([^/]+)$/);
   const seatHoldMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)$/);
   const seatHoldExtendMatch = url.pathname.match(/^\/api\/me\/seat-holds\/([^/]+)\/extend$/);
   const bookingHoldMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)$/);
   const bookingHoldRenewMatch = url.pathname.match(/^\/api\/me\/booking\/holds\/([^/]+)\/renew$/);
+  const bookingQueueDetailMatch = url.pathname.match(/^\/api\/me\/booking\/queues\/([^/]+)$/);
+  const bookingSeatsMatch = url.pathname.match(/^\/api\/me\/booking\/events\/([^/]+)\/performances\/([^/]+)\/seats$/);
+  const bookingDraftDetailMatch = url.pathname.match(/^\/api\/me\/booking\/drafts\/([^/]+)$/);
+  const principalReservationMatch = url.pathname.match(/^\/api\/me\/reservations\/([^/]+)$/);
   const reservationDraftMatch = url.pathname.match(/^\/api\/me\/reservation-drafts\/([^/]+)$/);
   const principalResalePoolMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)$/);
   const principalResaleJoinMatch = url.pathname.match(/^\/api\/me\/resale-pools\/([^/]+)\/join$/);
@@ -335,6 +362,7 @@ async function handleApi(req, res, db, surface) {
     return kakaoChannelWebhook(body, req);
   }
   if (req.method === "GET" && url.pathname === "/api/support/public") return publicSupportContent();
+  if (req.method === "GET" && url.pathname === "/api/support/v1/public") return publicSupport();
   if (req.method === "GET" && url.pathname === "/api/state") return publicState(db);
   if (req.method === "GET" && url.pathname === "/api/catalog") {
     const rawLimit = url.searchParams.get("limit");
@@ -384,23 +412,32 @@ async function handleApi(req, res, db, surface) {
     return accountTicketsForUser(db, authenticateNativeSession(db, req).user.id);
   }
   if (req.method === "GET" && url.pathname === "/api/me/watchlist") {
-    return userWatchlistForPrincipal(db, authenticateNativeSession(db, req).user.id);
+    return watchlist(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "PUT" && principalWatchlistNotificationMatch) {
+    return putWatchlistNotification(
+      db,
+      requireNativePrincipal(db, req),
+      decodeEventId(principalWatchlistNotificationMatch[1]),
+      requireIdempotencyKey(req),
+      body
+    );
   }
   if (req.method === "PUT" && principalWatchlistMatch) {
-    return upsertWatchlistForPrincipal(
+    return putWatchlist(
       db,
-      authenticateNativeSession(db, req).user.id,
+      requireNativePrincipal(db, req),
       decodeEventId(principalWatchlistMatch[1]),
-      body,
-      parseIdempotencyKey(req)
+      requireIdempotencyKey(req),
+      body
     );
   }
   if (req.method === "DELETE" && principalWatchlistMatch) {
-    return removeWatchlistForPrincipal(
+    return deleteWatchlist(
       db,
-      authenticateNativeSession(db, req).user.id,
+      requireNativePrincipal(db, req),
       decodeEventId(principalWatchlistMatch[1]),
-      parseIdempotencyKey(req)
+      requireIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && url.pathname === "/api/me/queue-entries") {
@@ -408,7 +445,7 @@ async function handleApi(req, res, db, surface) {
     return enterQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
       performanceDateId: body.performanceDateId,
-      idempotencyKey: parseIdempotencyKey(req)
+      idempotencyKey: parseLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && queueEntryMatch) {
@@ -421,7 +458,7 @@ async function handleApi(req, res, db, surface) {
     return leaveQueue(db, {
       userId: authenticateNativeSession(db, req).user.id,
       entryId: queueEntryMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/seat-holds") {
@@ -430,7 +467,7 @@ async function handleApi(req, res, db, surface) {
       userId: authenticateNativeSession(db, req).user.id,
       performanceDateId: body.performanceDateId,
       ticketIds: body.ticketIds,
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && seatHoldMatch && !seatHoldExtendMatch) {
@@ -443,14 +480,14 @@ async function handleApi(req, res, db, surface) {
     return extendSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
       holdId: seatHoldExtendMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "DELETE" && seatHoldMatch) {
     return releaseSeatHold(db, {
       userId: authenticateNativeSession(db, req).user.id,
       holdId: seatHoldMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "POST" && url.pathname === "/api/me/reservation-drafts") {
@@ -458,7 +495,7 @@ async function handleApi(req, res, db, surface) {
     return createReservationDraft(db, {
       userId: authenticateNativeSession(db, req).user.id,
       holdId: body.holdId,
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && reservationDraftMatch) {
@@ -471,7 +508,7 @@ async function handleApi(req, res, db, surface) {
     return cancelReservationDraft(db, {
       userId: authenticateNativeSession(db, req).user.id,
       draftId: reservationDraftMatch[1],
-      idempotencyKey: requireIdempotencyKey(req)
+      idempotencyKey: requireLegacyIdempotencyKey(req)
     });
   }
   if (req.method === "GET" && url.pathname === "/api/me/resale-pools") {
@@ -483,7 +520,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "POST" && principalResaleJoinMatch) {
@@ -491,7 +528,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       principalResaleJoinMatch[1],
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "DELETE" && principalResalePoolMatch) {
@@ -499,7 +536,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       principalResalePoolMatch[1],
-      parseIdempotencyKey(req)
+      parseLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "GET" && url.pathname === "/api/me/cancellation-requests") {
@@ -511,7 +548,7 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "GET" && url.pathname === "/api/me/devices") {
@@ -528,11 +565,21 @@ async function handleApi(req, res, db, surface) {
     });
   }
   if (req.method === "DELETE" && principalDeviceMatch) {
-    return revokeDeviceForPrincipal(
-      db,
-      authenticateNativeSession(db, req).user.id,
-      principalDeviceMatch[1]
-    );
+    // Two independent device-trust systems share this path: App Attest/Play
+    // Integrity trusted devices (db.trustedDevices, registered through
+    // POST /api/devices/trust) and the native-principal simulator trust
+    // flow (db.deviceRegistrations, registered through
+    // POST /api/me/devices/trust). IDs are drawn from separate id()
+    // sequences so they cannot collide. Route on existence of the id alone
+    // (not ownership) - each revoke function already enforces ownership
+    // itself and returns its own 404 for a foreign or unknown id, so
+    // routing by owner here would misroute a foreign caller's request into
+    // the wrong store instead of getting that 404.
+    const deviceId = decodeURIComponent(principalDeviceMatch[1]);
+    if (db.trustedDevices.some((item) => item.id === deviceId)) {
+      return revokeDeviceForPrincipal(db, authenticateNativeSession(db, req).user.id, deviceId);
+    }
+    return revokeDeviceRegistration(db, requireNativePrincipal(db, req), deviceId, requireIdempotencyKey(req));
   }
   if (req.method === "GET" && url.pathname === "/api/me/push-tokens") {
     return listPushTokensForPrincipal(db, authenticateNativeSession(db, req).user.id);
@@ -543,36 +590,20 @@ async function handleApi(req, res, db, surface) {
       db,
       authenticateNativeSession(db, req).user.id,
       body,
-      requireIdempotencyKey(req)
+      requireLegacyIdempotencyKey(req)
     );
   }
   if (req.method === "PATCH" && url.pathname === "/api/me/profile") {
-    requireBody(body, ["name"]);
-    return updateDemoProfile(db, {
-      userId: authenticateNativeSession(db, req).user.id,
-      name: body.name,
-      idempotencyKey: parseIdempotencyKey(req)
-    });
+    return updateProfile(db, requireNativePrincipal(db, req), requireIdempotencyKey(req), body);
   }
   if (req.method === "GET" && url.pathname === "/api/me/support/threads") {
-    return supportThreadsForPrincipal(db, authenticateNativeSession(db, req).user.id);
+    return supportThreads(db, requireNativePrincipal(db, req));
   }
-  if (req.method === "POST" && url.pathname === "/api/me/support/threads") {
-    requireBody(body, ["message"]);
-    return createSupportThreadForPrincipal(
+  if (req.method === "GET" && principalSupportThreadDetailMatch) {
+    return supportThreadDetail(
       db,
-      authenticateNativeSession(db, req).user.id,
-      body,
-      requireIdempotencyKey(req)
-    );
-  }
-  if (req.method === "POST" && url.pathname === "/api/me/support/messages") {
-    requireBody(body, ["threadId", "message"]);
-    return addSupportMessageForPrincipal(
-      db,
-      authenticateNativeSession(db, req).user.id,
-      body,
-      requireIdempotencyKey(req)
+      requireNativePrincipal(db, req),
+      decodeURIComponent(principalSupportThreadDetailMatch[1])
     );
   }
   if (req.method === "GET" && url.pathname === "/api/payments/tosspayments/config") return tosspaymentsConfig();
@@ -689,6 +720,16 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["eventId", "performanceId"]);
     return joinQueue(db, principal, requireIdempotencyKey(req), body);
   }
+  if (req.method === "GET" && bookingQueueDetailMatch) {
+    return queue(db, requireNativePrincipal(db, req), decodeURIComponent(bookingQueueDetailMatch[1]));
+  }
+  if (req.method === "GET" && bookingSeatsMatch) {
+    return seats(db, requireNativePrincipal(db, req), {
+      eventId: decodeURIComponent(bookingSeatsMatch[1]),
+      performanceId: decodeURIComponent(bookingSeatsMatch[2]),
+      queueId: url.searchParams.get("queueId")
+    });
+  }
   if (req.method === "POST" && url.pathname === "/api/me/devices/challenges") {
     const principal = requireNativePrincipal(db, req);
     requireBody(body, ["deviceId"]);
@@ -707,13 +748,13 @@ async function handleApi(req, res, db, surface) {
   if (req.method === "DELETE" && principalPushTokenMatch) {
     return revokePushToken(db, requireNativePrincipal(db, req), decodeURIComponent(principalPushTokenMatch[1]), requireIdempotencyKey(req));
   }
-  if (req.method === "DELETE" && principalDeviceMatch) {
-    return revokeDevice(db, requireNativePrincipal(db, req), decodeURIComponent(principalDeviceMatch[1]), requireIdempotencyKey(req));
-  }
   if (req.method === "PUT" && url.pathname === "/api/me/notification-settings") {
     const principal = requireNativePrincipal(db, req);
     requireBody(body, ["watchlistOpen", "reservationUpdates"]);
     return putSettings(db, principal, requireIdempotencyKey(req), body);
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/notification-settings") {
+    return settings(db, requireNativePrincipal(db, req));
   }
   if (req.method === "POST" && principalTestPayloadMatch) {
     return testPayload(db, requireNativePrincipal(db, req), decodeURIComponent(principalTestPayloadMatch[1]));
@@ -744,12 +785,36 @@ async function handleApi(req, res, db, surface) {
     requireBody(body, ["holdId"]);
     return createDraft(db, principal, requireIdempotencyKey(req), body);
   }
+  if (req.method === "GET" && bookingDraftDetailMatch) {
+    return draft(db, requireNativePrincipal(db, req), decodeURIComponent(bookingDraftDetailMatch[1]));
+  }
+  if (req.method === "GET" && url.pathname === "/api/me/reservations") {
+    return reservations(db, requireNativePrincipal(db, req));
+  }
+  if (req.method === "GET" && principalReservationMatch) {
+    return reservationDetail(db, requireNativePrincipal(db, req), decodeURIComponent(principalReservationMatch[1]));
+  }
   if (req.method === "POST" && principalSupportMessageMatch) {
     requireBody(body, ["message"]);
     return addPrincipalSupportMessage(
       db,
       requireNativePrincipal(db, req),
       decodeURIComponent(principalSupportMessageMatch[1]),
+      requireIdempotencyKey(req),
+      body
+    );
+  }
+  // Already-shipped iOS/Android builds POST here with { threadId, message } in
+  // the body (LiveBackendModels.swift's .supportMessages / AccountApi.kt) -
+  // that path can't be force-updated to the new /threads/:id/messages shape,
+  // so this keeps accepting it and forwards into the same native-principal
+  // contract the new route above uses.
+  if (req.method === "POST" && url.pathname === "/api/me/support/messages") {
+    requireBody(body, ["threadId", "message"]);
+    return addPrincipalSupportMessage(
+      db,
+      requireNativePrincipal(db, req),
+      body.threadId,
       requireIdempotencyKey(req),
       body
     );
@@ -880,12 +945,12 @@ async function handleApi(req, res, db, surface) {
       userId: resolvePurchaseUserId(db, req, body),
       ticketId: body.ticketId,
       paymentMethod: body.paymentMethod,
-      idempotencyKey: parseIdempotencyKey(req)
+      idempotencyKey: parseLegacyIdempotencyKey(req)
     }));
   }
   if (req.method === "POST" && url.pathname === "/api/payments/tosspayments/purchase") {
     requireBody(body, ["userId", "ticketId", "paymentMethod", "tossPaymentKey"]);
-    const idempotencyKey = requireIdempotencyKey(req);
+    const idempotencyKey = requireLegacyIdempotencyKey(req);
     const purchaseUserId = resolvePurchaseUserId(db, req, body);
 
     // A retry with the same idempotency key must not re-confirm payment with

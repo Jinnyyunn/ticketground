@@ -118,7 +118,10 @@ test("remove returns an authoritative replay-safe receipt", async (t) => {
   const replay = await watchlistRequest(server.baseUrl, `/api/me/watchlist/${eventId}`, {
     credential, key: "watch-remove", method: "DELETE"
   });
-  assert.deepEqual(removed.data, { removed: true, eventId });
+  // `deleted` rides alongside `removed` for already-shipped iOS/Android
+  // builds that decode a required `deleted` field (LiveBackendModels.swift /
+  // AccountApiModels.kt) and can't be force-updated to the newer key.
+  assert.deepEqual(removed.data, { removed: true, deleted: true, eventId });
   assert.deepEqual(replay.data, removed.data);
 
   const empty = await watchlistRequest(server.baseUrl, "/api/me/watchlist", { credential });

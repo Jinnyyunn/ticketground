@@ -1,9 +1,13 @@
+import { createAccountContract } from "./account-contract.js";
 import { createAdmissionBackend } from "./admission.js";
 import { createAppAttestBackend } from "./app-attest.js";
 import { createGateSessionBackend } from "./gate-sessions.js";
 import { createAdminBackend } from "./admin.js";
 import { createApiRouter } from "./api-router.js";
 import { createBookingHoldsBackend } from "./booking-holds.js";
+import { createBookingSession } from "./booking-session.js";
+import { createDeviceRegistration } from "./device-registration.js";
+import { createIdempotencyBackend } from "./idempotency.js";
 import { createIdempotentMutationRunner } from "./idempotent-mutation.js";
 import { createCatalogBackend } from "./catalog.js";
 import { createCommerceBackend } from "./commerce.js";
@@ -13,7 +17,9 @@ import { createEngagementBackend } from "./engagement.js";
 import { createGroupBookingBackend } from "./group-booking.js";
 import { createHttpHandler } from "./http-handler.js";
 import { createIdentityBackend } from "./identity.js";
+import { createMobileTicketQr } from "./mobile-ticket-qr.js";
 import { createNativeSessionBackend } from "./native-session.js";
+import { createRequestPrincipal } from "./request-principal.js";
 import { createMobileLifecycleBackend } from "./mobile-lifecycle.js";
 import { createMobileAdminBackend } from "./mobile-admin.js";
 import { createPersistence } from "./persistence.js";
@@ -23,7 +29,9 @@ import { createSellerAccountBackend } from "./seller-accounts.js";
 import { createSellerApplicationBackend } from "./seller-applications.js";
 import { createSellerEventsBackend } from "./seller-events.js";
 import { sellerSessionFromRequest } from "./seller-session.js";
+import { createSupportContract } from "./support-contract.js";
 import { createTosspaymentsBackend } from "./tosspayments.js";
+import { createWatchlistContract } from "./watchlist-contract.js";
 
 export async function createTicketgroundApp(options) {
   const runtime = createRuntime(options.runtime);
@@ -176,6 +184,69 @@ export async function createTicketgroundApp(options) {
     now: runtime.now,
     randomHex: runtime.randomHex
   });
+  const requestPrincipal = createRequestPrincipal({
+    httpError: runtime.httpError,
+    nativeSessionPrincipal: nativeSession.nativeSessionPrincipal
+  });
+  // These native-principal contracts (booking sessions, device registration,
+  // mobile ticket QR, support/watchlist/account) all replay durable mutations
+  // through this dedicated idempotency backend, distinct from
+  // idempotentMutation above which backs the older userId-keyed routes.
+  const idempotency = createIdempotencyBackend({
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    now: runtime.now
+  });
+  const bookingSession = createBookingSession({
+    appendLedger: persistence.appendLedger,
+    currentTimeMs: runtime.currentTimeMs,
+    executeIdempotent: idempotency.executeIdempotent,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
+  const deviceRegistration = createDeviceRegistration({
+    currentTimeMs: runtime.currentTimeMs,
+    executeIdempotent: idempotency.executeIdempotent,
+    hash: runtime.hash,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now,
+    randomHex: runtime.randomHex,
+    simulatorSecret: options.runtime.simulatorAttestationSecret || process.env.TIG_SIMULATOR_ATTESTATION_SECRET
+  });
+  const mobileTicketQr = createMobileTicketQr({
+    appendLedger: persistence.appendLedger,
+    currentTimeMs: runtime.currentTimeMs,
+    executeIdempotent: idempotency.executeIdempotent,
+    gateApiKey: options.runtime.mobileGateApiKey || process.env.TIG_GATE_API_KEY,
+    hash: runtime.hash,
+    hmac: runtime.hmac,
+    httpError: runtime.httpError,
+    id: runtime.id,
+    now: runtime.now
+  });
+  const supportContract = createSupportContract({
+    addSupportMessage: engagement.addSupportMessage,
+    createSupportThread: engagement.createSupportThread,
+    executeIdempotent: idempotency.executeIdempotent,
+    httpError: runtime.httpError,
+    supportThreadForUser: engagement.supportThreadForUser
+  });
+  const watchlistContract = createWatchlistContract({
+    appendLedger: persistence.appendLedger,
+    executeIdempotent: idempotency.executeIdempotent,
+    httpError: runtime.httpError,
+    upsertWatchlist: engagement.upsertWatchlist,
+    userWatchlist: engagement.userWatchlist
+  });
+  const accountContract = createAccountContract({
+    appendLedger: persistence.appendLedger,
+    executeIdempotent: idempotency.executeIdempotent,
+    findUser: runtime.findUser,
+    httpError: runtime.httpError,
+    now: runtime.now
+  });
   const session = createSessionBackend({
     appendLedger: persistence.appendLedger,
     currentTimeMs: runtime.currentTimeMs,
@@ -254,9 +325,12 @@ export async function createTicketgroundApp(options) {
     now: runtime.now
   });
   const apiRouter = createApiRouter({
+    ...accountContract,
     ...admin,
     ...bookingHolds,
+    ...bookingSession,
     ...commerce,
+    ...deviceRegistration,
     ...discovery,
     ...engagement,
     ...gateSessions,
@@ -264,11 +338,15 @@ export async function createTicketgroundApp(options) {
     ...identity,
     ...mobileLifecycle,
     ...mobileAdmin,
+    ...mobileTicketQr,
     ...nativeSession,
+    ...requestPrincipal,
     ...sellerApplications,
     ...sellerAccounts,
     ...sellerEvents,
     ...session,
+    ...supportContract,
+    ...watchlistContract,
     accountTicketsForUser: dtos.accountTicketsForUser,
     appendLedger: persistence.appendLedger,
     buyPrimary: commerce.buyPrimary,

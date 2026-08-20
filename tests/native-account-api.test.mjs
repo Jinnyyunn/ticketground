@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import test from "node:test";
 
 import { api, buyFirstTicket, startServer, verifyIdentity } from "./backend-test-utils.mjs";
@@ -57,61 +54,12 @@ test("native account routes derive the user exclusively from the bearer credenti
   assert.equal(revoked.error.code, "NATIVE_SESSION_INVALID");
 });
 
-test("native profile update allows only the principal nickname and redacts it from the ledger", async (t) => {
-  configureGoogleEnv(t, true);
-  const dataDir = await mkdtemp(path.join(tmpdir(), "ticketground-native-account-"));
-  const dbPath = path.join(dataDir, "db.json");
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
-  const server = await startServer(t, { dbPath });
-  const login = await nativeLogin(server);
-
-  const updated = await request(server, "/api/me/profile", {
-    authorization: login.authorization,
-    method: "PATCH",
-    idempotencyKey: "profile-update-stable",
-    body: {
-      name: "보안닉네임",
-      userId: "user_fan_a",
-      status: "SUSPENDED",
-      trustScore: 0
-    }
-  });
-  assert.equal(updated.data.id, login.user.id);
-  assert.equal(updated.data.name, "보안닉네임");
-  assert.equal(updated.data.status, "ACTIVE");
-  assert.equal(updated.data.trustScore, 90);
-  assert.equal(updated.data.profileConfirmed, true);
-
-  const replayed = await request(server, "/api/me/profile", {
-    authorization: login.authorization,
-    method: "PATCH",
-    idempotencyKey: "profile-update-stable",
-    body: { name: "보안닉네임" }
-  });
-  assert.deepEqual(replayed.data, updated.data);
-
-  const conflict = await request(server, "/api/me/profile", {
-    authorization: login.authorization,
-    method: "PATCH",
-    idempotencyKey: "profile-update-stable",
-    body: { name: "다른닉네임" },
-    status: 409
-  });
-  assert.equal(conflict.error.code, "IDEMPOTENCY_CONFLICT");
-
-  const profile = await request(server, "/api/me/profile?userId=user_fan_a", {
-    authorization: login.authorization
-  });
-  assert.deepEqual(profile.data, updated.data);
-
-  const persisted = await readFile(dbPath, "utf8");
-  assert.equal(persisted.includes("보안닉네임"), true);
-  const database = JSON.parse(persisted);
-  const ledger = database.ledger.findLast((entry) => entry.action === "DEMO_PROFILE_UPDATED");
-  assert.ok(ledger);
-  assert.equal(JSON.stringify(ledger).includes("보안닉네임"), false);
-  assert.equal(JSON.stringify(ledger).includes(login.user.name), false);
-});
+// PATCH /api/me/profile now runs through account-contract.js's
+// updateProfile (requireNativePrincipal + Idempotency-Key, rejects any
+// body field besides "name", 2-40 char names) instead of session.js's
+// updateDemoProfile (X-Idempotency-Key, tolerated extra fields, 1-12
+// char names) that this test asserted. See
+// account-native-contract.test.mjs for the current contract coverage.
 
 test("native tickets return only tickets owned by the bearer principal", async (t) => {
   configureGoogleEnv(t, true);

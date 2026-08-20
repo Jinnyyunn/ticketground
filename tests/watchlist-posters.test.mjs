@@ -20,7 +20,7 @@ test("watchlist board renders the signed-in user's saved events with matching po
   for (const event of events) {
     const response = await fetch(`${baseUrl}/api/me/watchlist/${encodeURIComponent(event.id)}`, {
       method: "PUT",
-      headers: { Authorization: authorization, "Content-Type": "application/json" },
+      headers: { Authorization: authorization, "Content-Type": "application/json", "Idempotency-Key": `watchlist-posters-${event.id}` },
       body: JSON.stringify({}),
     });
     assert.equal(response.status, 200);
