@@ -1,0 +1,12 @@
+{
+  ".env": "6dd42f2da5a0d55f21469b392350c13079308b17d7625a1f3cf5552e30b240b5",
+  "backend/social-oauth-config.js": "a50383b63ff3a9c30e52d56b82c19098c18baf399cf40d42bf94aa1e6dd21980",
+  "backend/social-oauth.js": "5251a47409053641294261646b5edacbd4e05ea80e6030869c4195e68f1b8dc8",
+  "src/app/auth/google-config/route.ts": "83088d4d4345daa4a78ea771dd4377df9dcf03ff34b2bd3fe0fae46a80acb97b",
+  "src/app/auth/social-config/route.ts": "da02273b5d32b7fa5b26600c66055a4302845b6f0723ad9aee12bf8659189791",
+  "src/components/ticketing/google-sign-in-card.tsx": "f98136898cf15ce40f685382232284dcde6d22408cd947f44463df071c1212ac",
+  "src/components/ticketing/login-panel.tsx": "7effb7ce2b5aab8d67e6eb557a56f6fb7f5df9cba76ea53b0b4380ed11b2ec02",
+  "src/components/ticketing/login-session-panel.tsx": "f9565f799b58084c4d6c3a58f9554c328da9d5671599aa8bd0f3bcd05df34d0a",
+  "src/components/ticketing/social-login-buttons.tsx": "906f65202b9884020a9c226bc96b98debb59ccc1803e74bd72586f2587fe47d7",
+  "src/lib/auth-preview-host.ts": "2f919c585c23050be02b09a7c4a2c8c1265ab36563c53cb7598768141ace8e23"
+}
