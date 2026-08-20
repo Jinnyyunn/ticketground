@@ -159,6 +159,18 @@ export function buyTicket(ticketId: string, userId = DEMO_USER_ID) {
   });
 }
 
+// Multi-seat counterpart of buyTicket() - used when 2+ seats were selected.
+// Only takes the ticketIds (plural) branch on the backend; a single-element
+// array would also work there, but callers with exactly one ticket should
+// keep using buyTicket() above so that path stays untouched.
+export function buyTickets(ticketIds: readonly string[], userId = DEMO_USER_ID) {
+  return post("/api/tickets/buy", apiPurchaseResultSchema, {
+    userId,
+    ticketIds,
+    paymentMethod: "CREDIT_CARD",
+  });
+}
+
 export function getTosspaymentsConfig() {
   return readApi("/api/payments/tosspayments/config", apiTosspaymentsConfigSchema);
 }
@@ -167,23 +179,41 @@ export function getTosspaymentsConfig() {
 // rejects the request without one (see backend/api-router.js's tosspayments
 // purchase route), so it goes through readApi() directly instead of the
 // shared post() helper, which doesn't accept extra headers.
+//
+// `orderId` must be the exact value that was sent to TossPayments'
+// requestPayment() (Toss echoes it back on redirect) - for a single ticket
+// that value is conventionally the ticketId itself, but for a multi-seat
+// order it is a value the caller generated to cover the whole set, so it
+// can no longer be derived from ticketIds[0] here.
 export function confirmTosspaymentsPurchase({
-  ticketId,
+  ticketIds,
+  orderId,
   userId,
   paymentMethod,
   tossPaymentKey,
   idempotencyKey,
 }: {
-  readonly ticketId: string;
+  readonly ticketIds: readonly string[];
+  readonly orderId: string;
   readonly userId: string;
   readonly paymentMethod: string;
   readonly tossPaymentKey: string;
   readonly idempotencyKey: string;
 }) {
   const credential = storedSessionCredential();
+  const isGroup = ticketIds.length > 1;
   return readApi("/api/payments/tosspayments/purchase", apiTosspaymentsPurchaseResultSchema, {
     method: "POST",
-    body: JSON.stringify({ userId, ticketId, paymentMethod, tossPaymentKey }),
+    body: JSON.stringify({
+      userId,
+      paymentMethod,
+      tossPaymentKey,
+      orderId,
+      // The singular ticketId field is kept for the single-seat case so that
+      // path continues to hit the untouched, exactly-preserved backend
+      // branch instead of the ticketIds (plural) branch.
+      ...(isGroup ? { ticketIds } : { ticketId: ticketIds[0] }),
+    }),
     headers: {
       "X-Idempotency-Key": idempotencyKey,
       ...(credential ? { Authorization: `Bearer ${credential}` } : {}),

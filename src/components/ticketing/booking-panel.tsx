@@ -151,7 +151,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const totalAmount = baseAmount + feeAmount;
   const canChooseSeats = show.sale.bookable && !timerExpired && Boolean(date && time && quantity);
   const canPay = show.sale.bookable && !timerExpired && selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity;
-  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}`;
+  // Every selected seat's ticket id must reach checkout, not just the first
+  // one - dropping the rest here is what used to make a 2-seat purchase
+  // charge for (and deliver) only 1 ticket. ticketIds carries the full list;
+  // ticketId is kept too so any old single-seat bookmark/link still works.
+  const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}&ticketIds=${encodeURIComponent(selectedBackendTicketIds.join(","))}`;
 
   const selectBackendSeat = useCallback((ticketId: string) => {
     setSelectedBackendTicketIds((current) => {

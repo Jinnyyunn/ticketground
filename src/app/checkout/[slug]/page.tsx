@@ -23,6 +23,7 @@ export default async function CheckoutPage({
     total?: string | string[];
     count?: string | string[];
     ticketId?: string | string[];
+    ticketIds?: string | string[];
   }>;
 }) {
   const { slug } = await params;
@@ -39,7 +40,14 @@ export default async function CheckoutPage({
   const fallbackBase = show.sale.bookable ? show.sale.displayPrice : lowestPrice;
   const queryBase = queryNumber(queryParam(query.base) || queryParam(query.price));
   const seats = queryParam(query.seats) || queryParam(query.seat) || "";
-  const count = queryNumber(queryParam(query.count)) || seats.split(",").filter(Boolean).length || 1;
+  // ticketIds (plural) carries every selected seat; the singular ticketId is
+  // only a fallback for older links that never had the plural param.
+  const ticketIdsRaw = queryParam(query.ticketIds);
+  const singleTicketId = queryParam(query.ticketId);
+  const ticketIds = ticketIdsRaw
+    ? ticketIdsRaw.split(",").map((value) => value.trim()).filter(Boolean)
+    : (singleTicketId ? [singleTicketId] : []);
+  const count = queryNumber(queryParam(query.count)) || ticketIds.length || seats.split(",").filter(Boolean).length || 1;
   const baseAmount = queryBase || (Number.isFinite(fallbackBase) ? fallbackBase : 0);
   const feeAmount = count * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
@@ -59,7 +67,7 @@ export default async function CheckoutPage({
             discountAmount,
             feeAmount,
             totalAmount,
-            ticketId: queryParam(query.ticketId),
+            ticketIds,
           }}
         />
       </Suspense>

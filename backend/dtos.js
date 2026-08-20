@@ -67,9 +67,18 @@ function publicAdmissionState(credential) {
   };
 }
 
+// Handles both the single-ticket buyPrimary() result shape ({ ticket,
+// admissionCredential }) and the multi-ticket buyPrimaryGroup() shape
+// ({ tickets, admissionCredentials }) - the plural fields are always present
+// so callers that only care about "the tickets in this order" never need to
+// branch on which purchase path produced the result. `ticket`/`admission`
+// stay as the first item for existing single-ticket callers.
 function publicPurchaseResult(result) {
+  const tickets = result.tickets ?? [result.ticket];
+  const admissionCredentials = result.admissionCredentials ?? [result.admissionCredential];
   return {
-    ticket: publicTicket(result.ticket),
+    ticket: publicTicket(tickets[0]),
+    tickets: tickets.map(publicTicket),
     event: {
       id: result.event.id,
       title: result.event.title,
@@ -77,7 +86,8 @@ function publicPurchaseResult(result) {
     },
     performanceDate: result.performanceDate,
     payment: publicPayment(result.payment),
-    admission: publicAdmissionState(result.admissionCredential)
+    admission: publicAdmissionState(admissionCredentials[0]),
+    admissions: admissionCredentials.map(publicAdmissionState)
   };
 }
 

@@ -135,7 +135,12 @@ export type ApiSeatMap = {
 };
 
 export type ApiPurchaseResult = {
+  // `ticket`/`admission` are the first item of `tickets`/`admissions` -
+  // kept for existing single-ticket callers. A multi-seat purchase (2+
+  // ticketIds sent to /api/tickets/buy or the TossPayments purchase route)
+  // populates both arrays with one entry per ticket actually purchased.
   readonly ticket: ApiTicket;
+  readonly tickets: readonly ApiTicket[];
   readonly event: {
     readonly id: string;
     readonly title: string;
@@ -151,6 +156,11 @@ export type ApiPurchaseResult = {
     readonly activeAt: string;
     readonly activationChannel: string;
   };
+  readonly admissions: readonly {
+    readonly status: string;
+    readonly activeAt: string;
+    readonly activationChannel: string;
+  }[];
 };
 
 export type ApiTosspaymentsConfig = {
