@@ -1,5 +1,6 @@
 "use client";
 
+import { Lock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
@@ -380,42 +381,13 @@ export function CheckoutPanel({
           </dl>
         </div>
 
-        <div className="mt-7 rounded-md border border-line p-5">
-          <h2 className="text-[19px] font-black">결제수단</h2>
-          {tosspaymentsConfig?.configured ? (
-            <div className="mt-4">
-              <div id="toss-payment-method" />
-              <div id="toss-agreement" className="mt-4" />
-              {!tossWidgetReady ? (
-                <p className="mt-3 text-sm font-bold text-ink-3">결제 위젯을 불러오는 중입니다.</p>
-              ) : null}
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {paymentMethods.map((item) => (
-                <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-line px-4 py-3 text-sm font-bold">
-                  <input
-                    suppressHydrationWarning
-                    type="radio"
-                    name="payment-method"
-                    checked={method === item.id}
-                    onChange={() => setMethod(item.id)}
-                    className="accent-link"
-                  />
-                  <span>
-                    {item.label}
-                    <small className="block pt-1 text-sm font-medium text-ink-3">{item.note}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
         <div data-testid="identity-gate" className="mt-7 rounded-md border border-line bg-surface p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-[19px] font-black text-ink">본인인증</h2>
+              <h2 className="flex items-center gap-2 text-[19px] font-black text-ink">
+                <ShieldCheck aria-hidden className="size-5 text-ticketground" />
+                본인인증
+              </h2>
               <p className="mt-2 break-keep text-sm font-bold text-ink-3">
                 티켓 예매 및 결제 전 NICE 휴대폰 본인인증이 필요합니다. 한 번 인증된 휴대폰 번호는 다른 계정에서 다시 인증할 수 없습니다.
               </p>
@@ -455,6 +427,52 @@ export function CheckoutPanel({
             </div>
           )}
           <p className="mt-3 text-sm font-bold text-ink-3" aria-live="polite">{identityMessage}</p>
+        </div>
+
+        <div className="mt-7 rounded-md border border-line p-5">
+          <h2 className="text-[19px] font-black">결제수단</h2>
+          {tosspaymentsConfig?.configured ? (
+            <div className="mt-4">
+              <div className="overflow-hidden rounded-lg border border-line-strong/30 bg-white shadow-ticket-1">
+                <div id="toss-payment-method" />
+                <div id="toss-agreement" />
+                {!tossWidgetReady ? (
+                  <div className="space-y-3 p-5" aria-hidden="true">
+                    <div className="h-5 w-36 motion-safe:animate-pulse rounded-sm bg-black/10" />
+                    <div className="h-14 motion-safe:animate-pulse rounded-sm bg-black/10" />
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <div className="h-16 motion-safe:animate-pulse rounded-sm bg-black/10" />
+                      <div className="h-16 motion-safe:animate-pulse rounded-sm bg-black/10" />
+                      <div className="h-16 motion-safe:animate-pulse rounded-sm bg-black/10" />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <p className="mt-3 flex items-center gap-1.5 text-xs font-bold text-ink-4">
+                <Lock aria-hidden className="size-3.5" />
+                {tossWidgetReady ? "TossPayments가 결제 정보를 안전하게 암호화해 처리합니다." : "결제 위젯을 불러오는 중입니다."}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {paymentMethods.map((item) => (
+                <label key={item.id} className="flex min-h-14 items-start gap-3 rounded-sm border border-line px-4 py-3 text-sm font-bold">
+                  <input
+                    suppressHydrationWarning
+                    type="radio"
+                    name="payment-method"
+                    checked={method === item.id}
+                    onChange={() => setMethod(item.id)}
+                    className="accent-link"
+                  />
+                  <span>
+                    {item.label}
+                    <small className="block pt-1 text-sm font-medium text-ink-3">{item.note}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         <label className="mt-5 flex items-start gap-3 rounded-md border border-line p-4 text-sm font-bold">
