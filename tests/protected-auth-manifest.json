@@ -1,5 +1,5 @@
 {
-  ".env": "6dd42f2da5a0d55f21469b392350c13079308b17d7625a1f3cf5552e30b240b5",
+  ".env": "2336af15834213f1a57fb55f8c2b800d021e99d7bf269f6e2315d283deeba616",
   "backend/social-oauth-config.js": "a50383b63ff3a9c30e52d56b82c19098c18baf399cf40d42bf94aa1e6dd21980",
   "backend/social-oauth.js": "5251a47409053641294261646b5edacbd4e05ea80e6030869c4195e68f1b8dc8",
   "src/app/auth/google-config/route.ts": "83088d4d4345daa4a78ea771dd4377df9dcf03ff34b2bd3fe0fae46a80acb97b",
