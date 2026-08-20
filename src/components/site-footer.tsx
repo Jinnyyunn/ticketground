@@ -67,6 +67,15 @@ export function SiteFooter({
                 <p>주소 : 경기도 고양시 주교동 독곶이길 117</p>
                 <p>대표 : 윤진영</p>
                 <p>사업자등록번호 : 527-44-01245</p>
+                <p>
+                  연락처 :{" "}
+                  <a
+                    className="hover:text-ticketground focus-visible:ring-3 focus-visible:ring-ring/50"
+                    href="tel:010-6272-3002"
+                  >
+                    010-6272-3002
+                  </a>
+                </p>
               </address>
             </div>
             <div>
