@@ -6,7 +6,7 @@ import type { SeatChartSummary } from "@/lib/seat-charts/types";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import { cn } from "@/lib/utils";
 
-export function ChartLibrary({ api }: { readonly api: SeatEditorApi }) {
+export function ChartLibrary({ api, onOpen }: { readonly api: SeatEditorApi; readonly onOpen?: () => void }) {
   const [charts, setCharts] = useState<SeatChartSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -55,7 +55,7 @@ export function ChartLibrary({ api }: { readonly api: SeatEditorApi }) {
                 <button
                   type="button"
                   className="w-full text-left"
-                  onClick={() => void api.loadFromServer(c.id)}
+                  onClick={() => void api.loadFromServer(c.id).then(onOpen)}
                   title="불러오기"
                 >
                   <div className="text-[11px] font-semibold leading-tight text-[#333]">{c.name}</div>
@@ -65,9 +65,9 @@ export function ChartLibrary({ api }: { readonly api: SeatEditorApi }) {
                       {c.published ? "게시" : "초안"}
                     </span>
                   </div>
-                  {c.boundShowSlugs.length > 0 && (
+                  {c.boundVenue && (
                     <div className="mt-0.5 line-clamp-2 text-[9px] text-[#0784fa]">
-                      {c.boundShowSlugs.join(", ")}
+                      {c.boundVenue.name}
                     </div>
                   )}
                 </button>
@@ -75,7 +75,7 @@ export function ChartLibrary({ api }: { readonly api: SeatEditorApi }) {
                   <button
                     type="button"
                     className="flex-1 rounded border border-black/10 py-0.5 text-[9px] hover:bg-black/[0.03]"
-                    onClick={() => void api.loadFromServer(c.id)}
+                    onClick={() => void api.loadFromServer(c.id).then(onOpen)}
                   >
                     열기
                   </button>

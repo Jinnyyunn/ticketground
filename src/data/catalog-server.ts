@@ -7,6 +7,7 @@ import { categoryEnToKo } from "./show-categories";
 interface ApiCatalogEvent {
   readonly id: string;
   readonly slug?: string;
+  readonly venueId: string;
   readonly category: string;
   readonly title: string;
   readonly shortTitle?: string;
@@ -66,6 +67,7 @@ function toTicketShow(event: ApiCatalogEvent): TicketShow {
   return {
     slug: event.slug ?? event.id,
     backendEventId: event.id,
+    backendVenueId: event.venueId,
     backendPerformances: event.dates.map((performance) => ({
       id: performance.id,
       date: performance.startsAt.slice(0, 10).replaceAll("-", "."),

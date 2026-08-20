@@ -49,7 +49,7 @@ function TbBtn({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex size-8 items-center justify-center rounded-md text-[#333] transition hover:bg-black/5 disabled:opacity-35",
+        "seat-designer-control flex size-8 items-center justify-center disabled:opacity-35",
         active && "bg-[#0784fa]/10 text-[#0784fa]",
       )}
     >
@@ -79,11 +79,11 @@ export function TopToolbar({
     align,
     publishChart,
   } = api;
-  const { settings, past, future, chart, preview, viewport, boundShowSlugs } = state;
+  const { settings, past, future, chart, preview, viewport, boundVenue } = state;
   const activeFloor = chart.floors.find((f) => f.id === chart.activeFloorId);
 
   return (
-    <header className="flex h-[45px] shrink-0 items-center gap-1 border-b border-[#d8d8d8] bg-white px-2">
+    <header className="seat-designer-toolbar flex h-[45px] shrink-0 items-center gap-1 overflow-x-auto border-b px-2">
       <TbBtn title="서버에 저장 (예매 적용 전 단계)" onClick={() => void saveToServer()}>
         <Save className="size-4" />
       </TbBtn>
@@ -231,7 +231,8 @@ export function TopToolbar({
 
       <button
         type="button"
-        title="차트 설정 (예매 공연 연결·배경·참조도면·존)"
+        data-testid="seat-designer-publish"
+        title="차트 설정 (공연장 연결·배경·참조도면·존)"
         onClick={() => dispatch({ type: "SET_CHART_SETTINGS_OPEN", open: true })}
         className="inline-flex h-8 items-center gap-1 rounded-md border border-[#0784fa]/40 bg-[#0784fa]/10 px-2 text-[12px] font-semibold text-[#0784fa] hover:bg-[#0784fa]/15"
       >
@@ -240,10 +241,11 @@ export function TopToolbar({
       </button>
       <button
         type="button"
-        title={chart.published ? "게시 취소" : "서버에 게시 (예매 적용)"}
+        title={chart.published ? "게시 취소" : boundVenue ? "서버에 게시" : "공연장을 먼저 선택하세요"}
+        disabled={!chart.published && !boundVenue}
         onClick={publishChart}
         className={cn(
-          "inline-flex h-8 items-center gap-1 rounded-md border px-2 text-[12px] font-semibold",
+          "inline-flex h-8 items-center gap-1 rounded-md border px-2 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40",
           chart.published
             ? "border-blue-400 bg-blue-50 text-blue-700"
             : "border-emerald-500/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
@@ -252,17 +254,6 @@ export function TopToolbar({
         <Send className="size-3.5" />
         {chart.published ? "게시됨" : "게시"}
       </button>
-      {chart.published && boundShowSlugs[0] && (
-        <a
-          href={`/booking/${boundShowSlugs[0]}`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-8 items-center rounded-md border border-black/10 px-2 text-[11px] font-medium text-[#333] hover:bg-black/[0.03]"
-          title="예매 화면에서 확인"
-        >
-          예매 열기
-        </a>
-      )}
       <TbBtn title={ko.exportJson} onClick={exportJson}>
         <span className="text-[10px] font-bold">JSON</span>
       </TbBtn>

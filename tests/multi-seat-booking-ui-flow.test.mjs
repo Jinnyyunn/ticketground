@@ -12,6 +12,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import { api, startServer, verifyIdentity } from "./backend-test-utils.mjs";
 import { configureGoogleEnv, GOOGLE_AUTH_TEST_CREDENTIAL } from "./google-auth-test-helpers.mjs";
+import { installPublishedChartFixture } from "./seat-chart-browser-fixture.mjs";
 
 // .omo/ is the repo's established (gitignored) location for test evidence
 // screenshots - see tests/home-card-routes.test.mjs.
@@ -40,6 +41,7 @@ test("selecting 2 seats in the booking UI charges the full summed total and deli
     window.localStorage.setItem("ticketground:session-credential", storedCredential);
   }, [userId, credential]);
   const page = await context.newPage();
+  await installPublishedChartFixture(page, baseUrl, ["les-miserables"]);
 
   // Step 1: booking page, select quantity 2 and move to seat selection.
   await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });

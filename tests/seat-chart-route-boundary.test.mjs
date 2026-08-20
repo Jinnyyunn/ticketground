@@ -14,7 +14,7 @@ test("recognizes only the seat-chart API namespace", () => {
   assert.equal(isSeatChartRoute("/api/admin/session"), false);
 });
 
-test("allows the public server to read only a published chart bound to a show", () => {
+test("allows the public server to read only the published chart lookup route", () => {
   // Given
   const publishedPath = "/api/seat-charts/for-show/les-miserables";
 
@@ -23,6 +23,9 @@ test("allows the public server to read only a published chart bound to a show", 
 
   // Then
   assert.equal(allowedRead, true);
+  assert.equal(isPublishedSeatChartRead("GET", "/api/venues/venue-main/seat-chart"), true);
+  assert.equal(isPublishedSeatChartRead("GET", "/api/seat-charts/chart_abc/versions/rev_def"), true);
+  assert.equal(isPublishedSeatChartRead("GET", "/api/performances/perf-main/seat-map"), true);
   assert.equal(isPublishedSeatChartRead("POST", publishedPath), false);
   assert.equal(isPublishedSeatChartRead("GET", "/api/seat-charts"), false);
   assert.equal(isPublishedSeatChartRead("GET", "/api/seat-charts/chart-1"), false);

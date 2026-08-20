@@ -13,12 +13,12 @@ import {
 } from "@/lib/seat-charts/bind-backend-seats";
 import { apiChartForShow } from "@/lib/seat-charts/client";
 import type { InventoryResult } from "@/lib/seat-charts/inventory";
+import { canEnterSeatSelection, seatChartReadinessMessage } from "@/lib/seat-charts/readiness";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BookingSummaryRow } from "./booking-summary-row";
 import { BookingExpiryNotice, BookingTimerWarning } from "./booking-timer-notice";
 import { ChartSeatMap } from "./chart-seat-map";
-import { VenueSeatMap } from "./venue-seat-map";
 
 const serviceFeePerSeat = 2000;
 const maxSelectableSeats = 2;
@@ -41,6 +41,7 @@ type PublishedChartState = {
   readonly requestKey: string;
   readonly inventory: InventoryResult | null;
   readonly name: string | null;
+  readonly message: string | null;
 };
 
 export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 * 60 }: BookingPanelProps) {
@@ -119,11 +120,12 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
           requestKey: chartRequestKey,
           inventory: response.source === "published" ? response.inventory : null,
           name: response.source === "published" ? response.record?.name ?? response.chart?.name ?? null : null,
+          message: response.source === "not_ready" ? response.message ?? "공연장 좌석 배치도 준비 중" : null,
         });
       })
       .catch(() => {
         if (!mounted) return;
-        setPublishedChart({ requestKey: chartRequestKey, inventory: null, name: null });
+        setPublishedChart({ requestKey: chartRequestKey, inventory: null, name: null, message: "공연장 좌석 배치도를 불러오지 못했습니다." });
       });
     return () => {
       mounted = false;
@@ -133,7 +135,6 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   // Stable across the once-a-second timer re-render so VenueSeatMap (wrapped in
   // React.memo) doesn't reconcile its marker set every tick.
   const backendSeats = useMemo(() => seatMap?.seats ?? [], [seatMap]);
-  const availableBackendSeats = useMemo(() => backendSeats.filter((seat) => seat.available), [backendSeats]);
   const allBoundChartSeats = useMemo(
     () => publishedChart?.requestKey === chartRequestKey && publishedChart.inventory
       ? bindChartLayoutToBackendSeats(publishedChart.inventory.seats, backendSeats)
@@ -145,13 +146,20 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     publishedChart?.inventory && chartCoversAllBackendSeats(allBoundChartSeats, backendSeats),
   );
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
-  const useBackendSeatMap = Boolean(seatMap && availableBackendSeats.length > 0);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.label).join(", ");
   const selectedCount = selectedBackendSeats.length;
   const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
   const feeAmount = selectedCount * serviceFeePerSeat;
   const totalAmount = baseAmount + feeAmount;
-  const canChooseSeats = show.sale.bookable && !timerExpired && Boolean(date && time && quantity);
+  const canChooseSeats = canEnterSeatSelection({
+    bookable: show.sale.bookable,
+    timerExpired,
+    date,
+    time,
+    quantity,
+    chartReady: Boolean(publishedChart?.requestKey === chartRequestKey && publishedChart.inventory),
+    inventoryReady: Boolean(seatMap && usePublishedChart),
+  });
   const canPay = show.sale.bookable && !timerExpired && selectedBackendSeats.length > 0 && selectedBackendSeats.length <= quantity;
   // Every selected seat's ticket id must reach checkout, not just the first
   // one - dropping the rest here is what used to make a 2-seat purchase
@@ -298,34 +306,28 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                   <h2 className="balanced-title mt-1 text-2xl font-black text-ink sm:text-[24px]">좌석 선택</h2>
                 </div>
                 <p className="text-sm font-bold text-ink-3">
-                  {publishedChart?.requestKey !== chartRequestKey && "게시 배치도 확인 중"}
+                  {publishedChart?.requestKey !== chartRequestKey && "공연장 좌석 배치도 확인 중"}
                   {publishedChart?.requestKey === chartRequestKey && usePublishedChart && `게시 배치도 · ${publishedChart.name ?? "이름 없음"}`}
-                  {publishedChart?.requestKey === chartRequestKey && !usePublishedChart && "실시간 공연장 좌석도"}
+                  {publishedChart?.requestKey === chartRequestKey && !usePublishedChart && (publishedChart.message ?? seatChartReadinessMessage({ loaded: true, chartReady: Boolean(publishedChart.inventory), bindingReady: false }))}
                   {seatMap && ` · ${seatMapStatus}`}
                 </p>
               </div>
               <div className="mt-5 min-w-0 space-y-4">
-                {useBackendSeatMap && seatMap ? (
-                  usePublishedChart && publishedChart?.inventory ? (
+                {seatMap && usePublishedChart && publishedChart?.inventory ? (
                     <ChartSeatMap
                       seats={boundChartSeats}
                       bounds={publishedChart.inventory.bounds}
                       selectedSeatIds={selectedBackendTicketIds}
                       onSelect={selectBackendSeat}
                     />
-                  ) : (
-                    <VenueSeatMap
-                      mapImage={seatMap.map.image}
-                      mapTitle={seatMap.map.title}
-                      seats={backendSeats}
-                      selectedTicketIds={selectedBackendTicketIds}
-                      onSelect={selectBackendSeat}
-                    />
-                  )
                 ) : (
-                  <div className="rounded-lg border border-line bg-surface p-4" role="status">
-                    <p className={cn("text-sm font-bold text-ink-3", seatMapStatus !== "좌석도 로딩 중" && "text-center")}>{seatMapStatus}</p>
-                    {seatMapStatus === "좌석도 로딩 중" ? (
+                  <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
+                    <p className={cn(publishedChart?.requestKey === chartRequestKey && "text-center")}>
+                      {publishedChart?.requestKey === chartRequestKey
+                        ? publishedChart.message ?? seatChartReadinessMessage({ loaded: true, chartReady: Boolean(publishedChart.inventory), bindingReady: usePublishedChart })
+                        : "공연장 좌석 배치도 확인 중"}
+                    </p>
+                    {publishedChart?.requestKey !== chartRequestKey ? (
                       <div className="mt-3 space-y-3" aria-hidden>
                         <div className="mx-auto aspect-[4/3] w-full max-w-[560px] motion-safe:animate-pulse rounded-lg bg-black/10" />
                         <div className="flex flex-wrap justify-center gap-2">
@@ -362,7 +364,6 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               sizes="(min-width: 1024px) 360px, 100vw"
               className="object-cover"
               unoptimized={show.poster.endsWith(".gif")}
-            />
             <div className="absolute inset-0 bg-linear-to-t from-scrim/75 via-scrim/10 to-transparent" />
             <p className="absolute top-3 left-4 rounded-full bg-scrim/40 px-2.5 py-1 text-[11px] font-black text-on-scrim backdrop-blur-sm">예매 요약</p>
             <h2 className="clamp-2 absolute right-4 bottom-3 left-4 text-xl font-black text-on-scrim">{show.title}</h2>

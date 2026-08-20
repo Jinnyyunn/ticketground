@@ -1,8 +1,10 @@
 import type { SeatChartSummary } from "./types";
 
-export function selectPublishedChartForShow(
+export function selectPublishedChartForVenue(
   charts: readonly SeatChartSummary[],
-  showSlug: string,
+  venueId: string,
 ): SeatChartSummary | undefined {
-  return charts.find((chart) => chart.published && chart.boundShowSlugs.includes(showSlug));
+  return charts
+    .filter((chart) => chart.published && chart.boundVenue?.id === venueId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
 }

@@ -53,15 +53,17 @@ export function ToolPicker({
   readonly onOpenLayers: () => void;
 }) {
   return (
-    <div className="flex w-[42px] shrink-0 flex-col items-center gap-0.5 border-r border-black/10 bg-[#f5f5f5] py-1.5">
+    <div className="seat-designer-tool-rail flex w-[42px] shrink-0 flex-col items-center gap-0.5 border-r py-1.5">
       {tools.map((t) => (
         <button
           key={t.id}
           type="button"
+          data-testid={`tool-${t.id}`}
+          aria-pressed={tool === t.id}
           title={`${ko.tools[t.id]} (${t.shortcut})`}
           onClick={() => onTool(t.id)}
           className={cn(
-            "flex size-9 items-center justify-center rounded-md text-[#333] transition hover:bg-black/5",
+            "seat-designer-control flex size-9 items-center justify-center",
             tool === t.id && selectedToolClass,
           )}
         >

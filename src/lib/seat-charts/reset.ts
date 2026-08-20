@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { cp, mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { cp, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export class SeatChartArchiveVerificationError extends Error {
@@ -84,6 +84,7 @@ export async function archiveAndResetLegacyCharts(input: {
   await rename(legacyDir, quarantinePath);
   try {
     await mkdir(legacyDir);
+    await writeFile(path.join(legacyDir, ".gitkeep"), "", "utf8");
   } catch (error) {
     await rename(quarantinePath, legacyDir);
     throw error;

@@ -7,7 +7,7 @@ import type {
   TableObject,
   Viewport,
 } from "@/types/seat-chart";
-import { mirrorPoints, seatsAlongLine, seatsAroundTable, uid } from "./geometry";
+import { mirrorPoints, seatsAlongLine, seatsAroundTable, uid } from "./geometry.ts";
 
 export type ChartBounds = {
   minX: number;
@@ -523,6 +523,8 @@ export function setTableProps(
 ): ChartDocument {
   const obj = findObject(chart, id);
   if (!obj || obj.type !== "table") return chart;
+  const numericValues = [patch.seatCount, patch.radius, patch.minOccupancy, patch.maxOccupancy].filter((value) => value !== undefined);
+  if (numericValues.some((value) => !Number.isFinite(value))) return chart;
   const seatCount = Math.max(1, Math.min(48, patch.seatCount ?? obj.seatCount));
   const radius = Math.max(8, patch.radius ?? obj.radius);
   const label = patch.label ?? obj.label;
@@ -576,6 +578,8 @@ export function setRowGeometry(
 ): ChartDocument {
   const obj = findObject(chart, id);
   if (!obj || obj.type !== "row") return chart;
+  const numericValues = [patch.seatCount, patch.curve, patch.smooth].filter((value) => value !== undefined);
+  if (numericValues.some((value) => !Number.isFinite(value))) return chart;
   const seatCount = Math.max(1, Math.min(200, patch.seatCount ?? obj.seatCount));
   const curve = patch.curve ?? obj.curve ?? 0;
   const label = patch.label ?? obj.label;
@@ -592,7 +596,38 @@ export function setRowGeometry(
 export function setAreaCapacity(chart: ChartDocument, id: string, capacity: number): ChartDocument {
   const obj = findObject(chart, id);
   if (!obj || obj.type !== "area") return chart;
+  if (!Number.isFinite(capacity)) return chart;
   return updateObject(chart, id, { capacity: Math.max(1, Math.floor(capacity)) });
+}
+
+export type DecorationPatch = {
+  readonly width?: number;
+  readonly height?: number;
+  readonly fill?: string;
+  readonly stroke?: string;
+  readonly rotation?: number;
+  readonly text?: string;
+  readonly fontSize?: number;
+  readonly color?: string;
+  readonly opacity?: number;
+  readonly icon?: "stage" | "entrance" | "wc" | "star";
+  readonly size?: number;
+};
+
+export function setDecorationProps(chart: ChartDocument, id: string, patch: DecorationPatch): ChartDocument {
+  const object = findObject(chart, id);
+  if (!object) return chart;
+  const numeric = [patch.width, patch.height, patch.rotation, patch.fontSize, patch.opacity, patch.size].filter((value) => value !== undefined);
+  if (numeric.some((value) => !Number.isFinite(value))) return chart;
+  let next: ChartObject;
+  if (object.type === "rectangle") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), fill: patch.fill ?? object.fill, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation };
+  else if (object.type === "booth") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), rotation: patch.rotation ?? object.rotation };
+  else if (object.type === "line") next = { ...object, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation };
+  else if (object.type === "text") next = { ...object, text: patch.text ?? object.text, fontSize: Math.max(6, patch.fontSize ?? object.fontSize ?? 16), color: patch.color ?? object.color, rotation: patch.rotation ?? object.rotation };
+  else if (object.type === "image") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), opacity: Math.max(0.05, Math.min(1, patch.opacity ?? object.opacity ?? 1)), rotation: patch.rotation ?? object.rotation };
+  else if (object.type === "icon") next = { ...object, icon: patch.icon ?? object.icon, size: Math.max(8, patch.size ?? object.size ?? 32), rotation: patch.rotation ?? object.rotation };
+  else return chart;
+  return { ...chart, objects: chart.objects.map((candidate) => candidate.id === id ? next : candidate) };
 }
 
 export function setPolygonPoint(

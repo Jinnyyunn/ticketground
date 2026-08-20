@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startServer } from "./backend-test-utils.mjs";
+import { installPublishedChartFixture } from "./seat-chart-browser-fixture.mjs";
 
 test("booking seat selection goes to the single checkout page without an intermediate payment panel", async (t) => {
   const { baseUrl } = await startServer(t);
@@ -10,6 +11,7 @@ test("booking seat selection goes to the single checkout page without an interme
 
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   t.after(() => page.close());
+  await installPublishedChartFixture(page, baseUrl, ["les-miserables"]);
 
   await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
@@ -46,12 +48,13 @@ test("booking fails closed when the selected performance seat map is unavailable
     body: JSON.stringify({ ok: false, error: { code: "SEAT_MAP_UNAVAILABLE", message: "unavailable" } }),
   }));
 
-  // When: the user proceeds to seat selection.
-  await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
-  await page.getByRole("heading", { name: "좌석 선택" }).waitFor({ timeout: 5000 });
+  await installPublishedChartFixture(page, baseUrl, ["les-miserables"]);
 
-  // Then: synthetic seats and checkout remain unavailable.
+  // When: the selected performance inventory cannot be loaded.
+  await page.goto(`${baseUrl}/booking/les-miserables?date=2026.05.13&time=19%3A30`, { waitUntil: "networkidle" });
+
+  // Then: entry fails closed before a synthetic seat screen can open.
+  assert.equal(await page.getByRole("button", { name: "좌석 선택으로 이동" }).isDisabled(), true);
   assert.equal(await page.locator("[data-static-seat-map]").count(), 0);
   assert.equal(await page.getByRole("link", { name: "결제하기", exact: true }).count(), 0);
 });
@@ -63,6 +66,7 @@ test("seat map keeps two selected seats and replaces the oldest seat when quanti
 
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   t.after(() => page.close());
+  await installPublishedChartFixture(page, baseUrl, ["les-miserables"]);
 
   const isSelected = async (seatButton) => (await seatButton.getAttribute("aria-pressed")) === "true";
 

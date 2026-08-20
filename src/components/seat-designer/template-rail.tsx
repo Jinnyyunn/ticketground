@@ -64,10 +64,12 @@ function MiniPreview({ swatch, id }: { swatch: readonly string[]; id: TemplateId
 export function TemplateRail({
   chart,
   onSelect,
+  onNewChart,
   api,
 }: {
   readonly chart: ChartDocument;
   readonly onSelect: (id: TemplateId) => void;
+  readonly onNewChart: () => void;
   readonly api: SeatEditorApi;
 }) {
   const active = templateIdFromChart(chart);
@@ -75,6 +77,13 @@ export function TemplateRail({
   return (
     <aside className="flex w-[112px] shrink-0 flex-col overflow-y-auto border-r border-black/10 bg-[#ececec]">
       <div className="flex flex-col gap-2 p-2">
+        <button
+          type="button"
+          className="flex h-9 items-center justify-center rounded-md bg-[#0784fa] text-[11px] font-semibold text-white shadow-sm hover:bg-[#0675df]"
+          onClick={onNewChart}
+        >
+          새 차트 만들기
+        </button>
         <div className="px-0.5 text-[10px] font-semibold tracking-wide text-[#666]">템플릿</div>
         {CHART_TEMPLATES.map((t) => {
           const selected = active === t.id;

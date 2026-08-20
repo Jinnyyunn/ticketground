@@ -9,6 +9,7 @@ import type {
   SelectionLayer,
   ToolId,
   Viewport,
+  RowObject,
 } from "@/types/seat-chart";
 import {
   addObject,
@@ -21,6 +22,7 @@ import {
   flipObjects,
   removeObjects,
   setAreaCapacity,
+  setDecorationProps,
   setObjectAdvanced,
   setObjectLabel,
   setPolygonPoint,
@@ -32,7 +34,15 @@ import {
 import { seatsAlongLine, seatsAroundTable, snapPoint, uid } from "./geometry";
 import { ko } from "./i18n";
 import { buildTemplate, type TemplateId } from "./templates";
-import { validateChart } from "./validation";
+import { blockingValidationItems, validateChart } from "./validation";
+import { mutatePolygonNode, toggleSelection } from "./selection";
+import {
+  addZone as addZoneToChart,
+  removeZone as removeZoneFromChart,
+  renameZone as renameZoneInChart,
+  setSeatProperties,
+} from "./chart-structure";
+import type { SeatChartVenue } from "@/lib/seat-charts/types";
 
 const STORAGE_KEY = "ticketground.seat-designer.chart.v5";
 const TUTORIAL_KEY = "ticketground.seat-designer.tutorial.v1";
@@ -56,8 +66,7 @@ export type EditorState = {
   chartSettingsOpen: boolean;
   floorsOpen: boolean;
   tutorialOpen: boolean;
-  /** Shows this chart is applied to when published */
-  boundShowSlugs: string[];
+  boundVenue: SeatChartVenue | null;
   status: string;
   serverStatus: string;
   searchQuery: string;
@@ -69,7 +78,7 @@ type Action =
   | { type: "SET_TOOL"; tool: ToolId }
   | { type: "SET_VIEWPORT"; viewport: Partial<Viewport> }
   | { type: "SELECT"; ids: string[]; additive?: boolean }
-  | { type: "SELECT_SEATS"; ids: string[]; additive?: boolean }
+  | { type: "SELECT_SEATS"; ids: string[]; additive?: boolean; remove?: boolean }
   | { type: "CLEAR_SELECTION" }
   | { type: "COMMIT"; chart: ChartDocument; status?: string }
   | { type: "UNDO" }
@@ -87,7 +96,7 @@ type Action =
   | { type: "SET_NAME"; name: string }
   | { type: "REQUEST_FIT" }
   | { type: "SET_ACTIVE_FLOOR"; floorId: string }
-  | { type: "SET_BOUND_SHOWS"; slugs: string[] }
+  | { type: "SET_BOUND_VENUE"; venue: SeatChartVenue | null }
   | { type: "SET_SERVER_STATUS"; status: string }
   | { type: "SET_SEARCH_QUERY"; query: string }
   | { type: "SET_SEARCH_OPEN"; open: boolean };
@@ -104,12 +113,6 @@ const defaultSettings: EditorSettings = {
 };
 
 function initialState(): EditorState {
-  let tutorialOpen = true;
-  try {
-    tutorialOpen = localStorage.getItem(TUTORIAL_KEY) !== "done";
-  } catch {
-    /* ignore */
-  }
   return {
     chart: buildTemplate("large-theatre"),
     past: [],
@@ -127,8 +130,8 @@ function initialState(): EditorState {
     categoriesOpen: false,
     chartSettingsOpen: false,
     floorsOpen: false,
-    tutorialOpen,
-    boundShowSlugs: ["les-miserables"],
+    tutorialOpen: true,
+    boundVenue: null,
     status: ko.toolHints.select,
     serverStatus: "",
     searchQuery: "",
@@ -171,12 +174,14 @@ function reducer(state: EditorState, action: Action): EditorState {
       return { ...state, viewport: { ...state.viewport, ...action.viewport } };
     case "SELECT": {
       const ids = action.additive
-        ? Array.from(new Set([...state.selectedIds, ...action.ids]))
+        ? [...action.ids.reduce<readonly string[]>((selected, id) => toggleSelection(selected, id), state.selectedIds)]
         : action.ids;
       return { ...state, selectedIds: ids, selectedSeatIds: [] };
     }
     case "SELECT_SEATS": {
-      const ids = action.additive
+      const ids = action.remove
+        ? state.selectedSeatIds.filter((id) => !action.ids.includes(id))
+        : action.additive
         ? Array.from(new Set([...state.selectedSeatIds, ...action.ids]))
         : action.ids;
       return { ...state, selectedSeatIds: ids, selectedIds: [] };
@@ -243,8 +248,8 @@ function reducer(state: EditorState, action: Action): EditorState {
       return { ...state, status: action.status };
     case "SET_NAME":
       return pushHistory(state, { ...state.chart, name: action.name }, ko.renamed);
-    case "SET_BOUND_SHOWS":
-      return { ...state, boundShowSlugs: action.slugs };
+    case "SET_BOUND_VENUE":
+      return { ...state, boundVenue: action.venue };
     case "SET_SERVER_STATUS":
       return { ...state, serverStatus: action.status };
     case "SET_SEARCH_QUERY":
@@ -277,6 +282,9 @@ export function useSeatEditor() {
 
   useEffect(() => {
     try {
+      if (localStorage.getItem(TUTORIAL_KEY) === "done") {
+        dispatch({ type: "SET_TUTORIAL_OPEN", open: false });
+      }
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as ChartDocument;
@@ -291,7 +299,7 @@ export function useSeatEditor() {
   }, []);
 
   const validation = useMemo(() => validateChart(state.chart), [state.chart]);
-  const allValid = validation.every((v) => v.ok);
+  const allValid = blockingValidationItems(state.chart).length === 0;
 
   const saveLocal = useCallback(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.chart));
@@ -302,43 +310,47 @@ export function useSeatEditor() {
     try {
       dispatch({ type: "SET_SERVER_STATUS", status: "서버 저장 중…" });
       const { apiSaveChart } = await import("@/lib/seat-charts/client");
-      const rec = await apiSaveChart(state.chart, state.boundShowSlugs);
+      const rec = await apiSaveChart(state.chart, state.boundVenue);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(rec.chart));
       dispatch({ type: "LOAD", chart: rec.chart });
-      dispatch({ type: "SET_BOUND_SHOWS", slugs: [...rec.boundShowSlugs] });
+      dispatch({ type: "SET_BOUND_VENUE", venue: rec.boundVenue });
       dispatch({ type: "SET_STATUS", status: "서버에 저장됨" });
       dispatch({ type: "SET_SERVER_STATUS", status: `저장 완료 · ${rec.updatedAt}` });
+      return true;
     } catch {
       dispatch({ type: "SET_SERVER_STATUS", status: "서버 저장 실패" });
       dispatch({ type: "SET_STATUS", status: "서버 저장 실패" });
+      return false;
     }
-  }, [state.chart, state.boundShowSlugs]);
+  }, [state.chart, state.boundVenue]);
 
   const publishToServer = useCallback(
     async (publish = true) => {
+      if (publish && !state.boundVenue) {
+        dispatch({ type: "SET_SERVER_STATUS", status: "공연장을 먼저 선택하세요." });
+        return;
+      }
       try {
         // ensure saved first
         const { apiSaveChart, apiPublishChart } = await import("@/lib/seat-charts/client");
         dispatch({ type: "SET_SERVER_STATUS", status: publish ? "게시 중…" : "게시 취소 중…" });
-        await apiSaveChart(state.chart, state.boundShowSlugs);
-        const rec = await apiPublishChart(state.chart.id, publish, state.boundShowSlugs);
+        const saved = await apiSaveChart(state.chart, state.boundVenue);
+        const rec = await apiPublishChart(saved.id, publish, saved.boundVenue);
         dispatch({ type: "LOAD", chart: rec.chart });
-        dispatch({ type: "SET_BOUND_SHOWS", slugs: [...rec.boundShowSlugs] });
+        dispatch({ type: "SET_BOUND_VENUE", venue: rec.boundVenue });
         dispatch({
           type: "SET_STATUS",
-          status: publish ? "서버에 게시됨 · 예매 적용 가능" : "게시 취소됨",
+          status: publish ? "게시됨" : "게시 취소됨",
         });
         dispatch({
           type: "SET_SERVER_STATUS",
-          status: publish
-            ? `게시됨 → ${rec.boundShowSlugs.join(", ") || "(공연 미연결)"}`
-            : "게시 취소됨",
+          status: publish ? "게시됨" : "게시 취소됨",
         });
       } catch {
         dispatch({ type: "SET_SERVER_STATUS", status: "게시 실패" });
       }
     },
-    [state.chart, state.boundShowSlugs],
+    [state.chart, state.boundVenue],
   );
 
   const loadFromServer = useCallback(async (id: string) => {
@@ -347,7 +359,7 @@ export function useSeatEditor() {
       const { apiGetChart } = await import("@/lib/seat-charts/client");
       const rec = await apiGetChart(id);
       dispatch({ type: "LOAD", chart: rec.chart });
-      dispatch({ type: "SET_BOUND_SHOWS", slugs: [...rec.boundShowSlugs] });
+      dispatch({ type: "SET_BOUND_VENUE", venue: rec.boundVenue });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(rec.chart));
       dispatch({ type: "SET_STATUS", status: `불러옴: ${rec.chart.name}` });
       dispatch({ type: "SET_SERVER_STATUS", status: `서버 차트 · ${rec.updatedAt}` });
@@ -443,6 +455,35 @@ export function useSeatEditor() {
     dispatch({ type: "SET_STATUS", status: ko.loadedDemo });
   }, []);
 
+  const startFromReference = useCallback((input: {
+    readonly href: string;
+    readonly width: number;
+    readonly height: number;
+    readonly rows?: readonly RowObject[];
+  }) => {
+    const chart = buildTemplate("blank");
+    dispatch({
+      type: "LOAD",
+      chart: {
+        ...chart,
+        objects: input.rows ?? [],
+        referenceChart: {
+          href: input.href,
+          x: 100,
+          y: 80,
+          width: input.width,
+          height: input.height,
+          opacity: 0.48,
+          locked: true,
+        },
+      },
+    });
+    dispatch({
+      type: "SET_STATUS",
+      status: input.rows?.length ? `참조 도면에서 ${input.rows.length}개 행 생성` : "참조 도면으로 시작",
+    });
+  }, []);
+
   const resetDemo = useCallback(() => {
     loadTemplate("large-theatre");
   }, [loadTemplate]);
@@ -465,20 +506,6 @@ export function useSeatEditor() {
 
   const pasteClipboard = useCallback(() => {
     if (state.clipboard.length === 0) return;
-    const ids = state.clipboard.map((o) => o.id);
-    // temporarily inject clipboard into chart then duplicate
-    const withClip: ChartDocument = {
-      ...state.chart,
-      objects: [...state.chart.objects, ...state.clipboard],
-    };
-    const next = duplicateObjects(withClip, ids, 32);
-    // remove original clipboard copies (un-offset) that we temporarily added
-    const clipIds = new Set(ids);
-    const cleaned = {
-      ...next,
-      objects: next.objects.filter((o) => !clipIds.has(o.id) || !state.chart.objects.some((c) => c.id === o.id)),
-    };
-    // simpler: just duplicate from chart if ids exist, else add offset clones
     const clones = state.clipboard.map((obj) => {
       const json = JSON.parse(JSON.stringify(obj)) as ChartObject;
       return remapClone(json, 32);
@@ -626,9 +653,9 @@ export function useSeatEditor() {
         input.onchange = () => {
           const file = input.files?.[0];
           if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            const href = String(reader.result || "");
+          void import("@/lib/seat-charts/client")
+            .then(({ apiUploadReferenceAsset }) => apiUploadReferenceAsset({ file, purpose: "object" }))
+            .then(({ url: href }) => {
             const obj: ChartObject = {
               id: uid("image"),
               type: "image",
@@ -643,8 +670,8 @@ export function useSeatEditor() {
             };
             dispatch({ type: "COMMIT", chart: addObject(chart, obj), status: ko.imageAdded });
             dispatch({ type: "SELECT", ids: [obj.id] });
-          };
-          reader.readAsDataURL(file);
+            })
+            .catch(() => dispatch({ type: "SET_STATUS", status: "이미지 업로드 실패" }));
         };
         input.click();
         return;
@@ -793,7 +820,6 @@ export function useSeatEditor() {
       const meta = e.metaKey || e.ctrlKey;
       if (e.key === " " && !meta) {
         e.preventDefault();
-        dispatch({ type: "SET_TOOL", tool: "hand" });
         return;
       }
       if (meta && e.key.toLowerCase() === "z" && e.shiftKey) {
@@ -918,6 +944,18 @@ export function useSeatEditor() {
     [state.chart, state.selectedIds],
   );
 
+  const patchDecoration = useCallback(
+    (patch: Parameters<typeof setDecorationProps>[2]) => {
+      if (state.selectedIds.length !== 1) return;
+      dispatch({
+        type: "COMMIT",
+        chart: setDecorationProps(state.chart, state.selectedIds[0], patch),
+        status: "도형 속성 변경",
+      });
+    },
+    [state.chart, state.selectedIds],
+  );
+
   const updateChartMeta = useCallback(
     (patch: Partial<ChartDocument>, status = "차트 설정 변경") => {
       dispatch({
@@ -928,6 +966,28 @@ export function useSeatEditor() {
     },
     [state.chart],
   );
+
+  const addPolygonNode = useCallback((objectId: string, index: number, point: Point) => {
+    const object = state.chart.objects.find((candidate) => candidate.id === objectId);
+    if (!object || (object.type !== "section" && object.type !== "area")) return;
+    const updated = mutatePolygonNode(object, { type: "add", index, point });
+    dispatch({
+      type: "COMMIT",
+      chart: { ...state.chart, objects: state.chart.objects.map((candidate) => candidate.id === objectId ? updated : candidate) },
+      status: "노드 추가",
+    });
+  }, [state.chart]);
+
+  const removePolygonNode = useCallback((objectId: string, index: number) => {
+    const object = state.chart.objects.find((candidate) => candidate.id === objectId);
+    if (!object || (object.type !== "section" && object.type !== "area") || object.points.length <= 3) return;
+    const updated = mutatePolygonNode(object, { type: "remove", index });
+    dispatch({
+      type: "COMMIT",
+      chart: { ...state.chart, objects: state.chart.objects.map((candidate) => candidate.id === objectId ? updated : candidate) },
+      status: "노드 삭제",
+    });
+  }, [state.chart]);
 
   const publishChart = useCallback(() => {
     void publishToServer(!state.chart.published);
@@ -982,13 +1042,29 @@ export function useSeatEditor() {
   const addZone = useCallback(() => {
     const zones = [...(state.chart.zones ?? [])];
     const id = uid("zone");
-    zones.push({ id, name: `존 ${zones.length + 1}` });
     dispatch({
       type: "COMMIT",
-      chart: { ...state.chart, zones, venueType: state.chart.venueType ?? "zones" },
+      chart: { ...addZoneToChart(state.chart, { id, name: `존 ${zones.length + 1}` }), venueType: state.chart.venueType ?? "zones" },
       status: "존 추가됨",
     });
   }, [state.chart]);
+
+  const renameZone = useCallback((zoneId: string, name: string) => {
+    dispatch({ type: "COMMIT", chart: renameZoneInChart(state.chart, zoneId, name), status: "존 이름 변경" });
+  }, [state.chart]);
+
+  const removeZone = useCallback((zoneId: string) => {
+    dispatch({ type: "COMMIT", chart: removeZoneFromChart(state.chart, zoneId), status: "존 삭제" });
+  }, [state.chart]);
+
+  const patchSelectedSeats = useCallback((patch: Parameters<typeof setSeatProperties>[2]) => {
+    if (state.selectedSeatIds.length === 0) return;
+    dispatch({
+      type: "COMMIT",
+      chart: setSeatProperties(state.chart, state.selectedSeatIds, patch),
+      status: `좌석 ${state.selectedSeatIds.length}개 속성 변경`,
+    });
+  }, [state.chart, state.selectedSeatIds]);
 
   const dismissTutorial = useCallback(() => {
     try {
@@ -1015,6 +1091,7 @@ export function useSeatEditor() {
     importJson,
     resetDemo,
     loadTemplate,
+    startFromReference,
     deleteSelected,
     copySelected,
     pasteClipboard,
@@ -1032,12 +1109,18 @@ export function useSeatEditor() {
     patchTable,
     patchArea,
     patchAdvanced,
+    patchDecoration,
     updateChartMeta,
+    addPolygonNode,
+    removePolygonNode,
     publishChart,
     addFloor,
     renameFloor,
     removeFloor,
     addZone,
+    renameZone,
+    removeZone,
+    patchSelectedSeats,
     dismissTutorial,
     commitTranslate: (ids: readonly string[], dx: number, dy: number) => {
       if (ids.length === 0 || (dx === 0 && dy === 0)) return;

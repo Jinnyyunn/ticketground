@@ -34,7 +34,6 @@ export type ToolId =
   | "icon"
   | "hand";
 
-/** Venue type (seats.io venueType.*) */
 export type VenueType = "simple" | "sectionsAndFloors" | "zones";
 
 export type OverlayImage = {
@@ -72,6 +71,9 @@ export type SeatPlace = {
   readonly displayedLabel?: string;
   /** View-from-your-seat image (data URL or path) */
   readonly viewFromSeatHref?: string;
+  readonly accessible?: boolean;
+  readonly companion?: boolean;
+  readonly restrictedView?: boolean;
 };
 
 export type BaseObject = {
@@ -170,6 +172,7 @@ export type ImageObject = BaseObject & {
   readonly width: number;
   readonly height: number;
   readonly href: string;
+  readonly opacity?: number;
 };
 
 export type IconObject = BaseObject & {
@@ -226,6 +229,7 @@ export type SeatChartDocumentV2 = Omit<ChartDocument, "published" | "publishedAt
   readonly version: 2;
   readonly chartKey: `chart_${string}`;
   readonly venueId: string;
+  readonly venueName?: string;
   readonly venueType: VenueType;
   readonly zones: readonly Zone[];
   readonly assets: readonly SeatChartAsset[];

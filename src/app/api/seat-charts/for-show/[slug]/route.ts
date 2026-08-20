@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { getShowBySlug } from "@/data/catalog-server";
 import { chartToSellableSeats, type SellableTier } from "@/lib/seat-charts/inventory";
-import { getPublishedChartForShow } from "@/lib/seat-charts/store";
+import { getPublishedChartForVenue } from "@/lib/seat-charts/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,11 +26,15 @@ export async function GET(
     A: Number(url.searchParams.get("a") || defaultPrices.A),
   };
 
-  const rec = await getPublishedChartForShow(slug);
+  const show = await getShowBySlug(slug);
+  const rec = show?.backendVenueId
+    ? await getPublishedChartForVenue(show.backendVenueId)
+    : null;
   if (!rec) {
     return NextResponse.json({
       ok: true,
-      source: "fallback",
+      source: "not_ready",
+      message: "공연장 좌석 배치도 준비 중",
       record: null,
       inventory: null,
     });
@@ -42,7 +47,7 @@ export async function GET(
     record: {
       id: rec.id,
       name: rec.chart.name,
-      boundShowSlugs: rec.boundShowSlugs,
+      boundVenue: rec.boundVenue,
       updatedAt: rec.updatedAt,
       published: rec.chart.published,
     },

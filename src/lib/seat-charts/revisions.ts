@@ -4,7 +4,7 @@ import path from "node:path";
 import type { SeatChartDocumentV2 } from "../../types/seat-chart.ts";
 import { createRevisionId, type ChartKey, type RevisionId } from "./keys.ts";
 
-type DraftRecord = {
+export type DraftRecord = {
   readonly chartKey: ChartKey;
   readonly document: SeatChartDocumentV2;
   readonly updatedAt: string;
@@ -25,6 +25,48 @@ export class StaleSeatChartDraftError extends Error {
     super("STALE_SEAT_CHART_DRAFT");
     this.name = "StaleSeatChartDraftError";
   }
+}
+
+export async function getSeatChartDraft(rootDir: string, chartKey: ChartKey): Promise<DraftRecord | null> {
+  return readDraft(rootDir, chartKey);
+}
+
+export async function getPublishedVenueRevision(
+  rootDir: string,
+  chartKey: ChartKey,
+  revisionId: RevisionId,
+): Promise<PublishedVenueRevision | null> {
+  try {
+    const raw = await readFile(path.join(rootDir, "revisions", safeSegment(chartKey, "chartKey"), `${safeSegment(revisionId, "revisionId")}.json`), "utf8");
+    return JSON.parse(raw) as PublishedVenueRevision;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function getVenueActiveRevision(rootDir: string, venueId: string): Promise<{
+  readonly venueId: string;
+  readonly chartKey: ChartKey;
+  readonly revisionId: RevisionId;
+  readonly publishedAt: string;
+} | null> {
+  try {
+    const raw = await readFile(path.join(rootDir, "venues", `${safeSegment(venueId, "venueId")}.json`), "utf8");
+    return JSON.parse(raw) as { venueId: string; chartKey: ChartKey; revisionId: RevisionId; publishedAt: string };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function deactivateVenueRevision(rootDir: string, venueId: string, chartKey: ChartKey): Promise<boolean> {
+  return withChartLock(rootDir, chartKey, async () => {
+    const active = await getVenueActiveRevision(rootDir, venueId);
+    if (!active || active.chartKey !== chartKey) return false;
+    await rm(path.join(rootDir, "venues", `${safeSegment(venueId, "venueId")}.json`));
+    return true;
+  });
 }
 
 export class SeatChartDraftNotFoundError extends Error {
