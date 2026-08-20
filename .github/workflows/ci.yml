@@ -48,6 +48,14 @@ jobs:
       - name: Test GitHub bot
         run: node --test tests/ticketground-github-bot.test.mjs
 
+      # 간편 로그인은 "다른 작업의 곁다리로" 반복해서 죽어왔다
+      # (간편로그인-수정금지-지침.md 참고). 봇의 PROTECTED_AUTH_PATTERNS 는 라벨과
+      # 경고 코멘트만 달 뿐 병합을 막지 않아서 무시되기 쉬웠다. 이 스텝이 실질적인
+      # 관문이다 — 보호 파일이 바뀌면 CI 가 실패하고, 통과시키려면 매니페스트를
+      # 의도적으로 갱신해야 한다(= 명시적 선언). 실패 메시지가 방법을 안내한다.
+      - name: Guard the social-login boundary
+        run: node --test tests/protected-auth-guard.test.mjs tests/google-allowed-origins-deployment.test.mjs
+
   ios-native:
     runs-on: macos-15
     timeout-minutes: 30
