@@ -49,6 +49,7 @@ export function createApiRouter({
   drawPool,
   enterQueue,
   extendSeatHold,
+  findIdempotentGroupPurchase,
   findIdempotentPurchase,
   getQueueEntry,
   getReservationDraft,
@@ -83,6 +84,7 @@ export function createApiRouter({
   notifyWatchlist,
   nativeLogout,
   nativeSession,
+  normalizeGroupTicketIds,
   optionalAuthenticateNativeSession,
   purchaseResale,
   putPushToken,
@@ -124,6 +126,7 @@ export function createApiRouter({
   settings,
   approveGroupBookingRequest,
   buyPrimary,
+  buyPrimaryGroup,
   rejectGroupBookingRequest,
   reservationDetail,
   reservations,
@@ -940,6 +943,19 @@ async function handleApi(req, res, db, surface) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/tickets/buy") {
+    // A caller sending ticketIds (plural) is doing a multi-seat purchase -
+    // this branch is entirely additive; a caller that still sends the
+    // singular ticketId (every existing native/test caller) falls through
+    // to the untouched single-ticket path below unchanged.
+    if (Array.isArray(body.ticketIds) && body.ticketIds.length > 1) {
+      requireBody(body, ["userId"]);
+      return publicPurchaseResult(buyPrimaryGroup(db, {
+        userId: resolvePurchaseUserId(db, req, body),
+        ticketIds: body.ticketIds,
+        paymentMethod: body.paymentMethod,
+        idempotencyKey: parseLegacyIdempotencyKey(req)
+      }));
+    }
     requireBody(body, ["userId", "ticketId"]);
     return publicPurchaseResult(buyPrimary(db, {
       userId: resolvePurchaseUserId(db, req, body),
@@ -949,6 +965,89 @@ async function handleApi(req, res, db, surface) {
     }));
   }
   if (req.method === "POST" && url.pathname === "/api/payments/tosspayments/purchase") {
+    // Same additive split as /api/tickets/buy above: ticketIds (plural)
+    // means a multi-seat order, and the singular ticketId path below this
+    // block is byte-for-byte what it was before - existing single-seat
+    // purchases (and every idempotency/race test written against them) are
+    // unaffected.
+    if (Array.isArray(body.ticketIds) && body.ticketIds.length > 1) {
+      requireBody(body, ["userId", "paymentMethod", "tossPaymentKey", "orderId"]);
+      const idempotencyKey = requireLegacyIdempotencyKey(req);
+      const purchaseUserId = resolvePurchaseUserId(db, req, body);
+      // Validated (missing/duplicate/over-the-cap) BEFORE anything below, so
+      // a malformed request is rejected with its real 400/422 instead of
+      // being caught by the try/catch below and misreported as a captured
+      // payment that failed to allocate - it never gets that far.
+      const ticketIds = normalizeGroupTicketIds(body.ticketIds);
+      const sortedTicketIds = [...ticketIds].sort();
+
+      // Same replay-before-confirm shortcut as the single-ticket path: a
+      // retry with the same idempotency key must not re-confirm payment
+      // with TossPayments a second time.
+      const replay = findIdempotentGroupPurchase(db, purchaseUserId, idempotencyKey, {
+        ticketIds: sortedTicketIds,
+        paymentMethod: body.paymentMethod
+      });
+      if (replay) {
+        const replayedResult = buyPrimaryGroup(db, {
+          userId: purchaseUserId,
+          ticketIds,
+          paymentMethod: body.paymentMethod,
+          idempotencyKey
+        });
+        return { ...publicPurchaseResult(replayedResult), tosspayments: { tossPaymentKey: replay[0].pgTransactionId, replayed: true } };
+      }
+
+      // Peek-only purchasability check (sync, no mutation) purely to compute
+      // the amount TossPayments must have actually charged before we spend
+      // an API call confirming it. buyPrimaryGroup() below re-checks every
+      // ticket right before mutating, which is the real atomicity guard.
+      const purchasableContexts = ticketIds.map((ticketId) => assertTicketPurchasable(db, ticketId, { userId: purchaseUserId }));
+      const [{ event: firstEvent, performanceDate: firstPerformanceDate }] = purchasableContexts;
+      if (purchasableContexts.some((context) => context.event.id !== firstEvent.id || context.performanceDate.id !== firstPerformanceDate.id)) {
+        throw httpError(422, "SEAT_PERFORMANCE_MISMATCH", "선택한 좌석이 같은 회차에 속하지 않습니다.");
+      }
+      const approvedAmount = purchasableContexts.reduce((sum, context) => sum + context.ticket.faceValue, 0)
+        + ticketIds.length * SERVICE_FEE_PER_SEAT;
+
+      const receipt = await confirmTosspaymentsPayment(db, {
+        ticketId: ticketIds[0],
+        userId: purchaseUserId,
+        paymentKey: String(body.paymentMethod || "").toUpperCase(),
+        tossPaymentKey: body.tossPaymentKey,
+        // TossPayments only ever sees a single orderId for the whole charge -
+        // the client generates one covering the full ticket set and must
+        // send it back here so it matches what it registered with Toss.
+        orderId: body.orderId,
+        expectedAmount: approvedAmount
+      });
+      let result;
+      try {
+        result = buyPrimaryGroup(db, {
+          userId: purchaseUserId,
+          ticketIds,
+          paymentMethod: receipt.paymentMethod,
+          pgTransactionId: receipt.tossPaymentKey,
+          idempotencyKey,
+          approvedAmount,
+          idempotencyPaymentMethod: body.paymentMethod
+        });
+      } catch (error) {
+        appendLedger(db, purchaseUserId, "TOSSPAYMENTS_PAYMENT_NEEDS_REFUND", {
+          ticketIds,
+          tossPaymentKey: receipt.tossPaymentKey,
+          amount: approvedAmount,
+          reason: error.code || "ALLOCATION_FAILED"
+        });
+        throw httpError(409, "PAYMENT_CAPTURED_ALLOCATION_FAILED", "결제는 완료되었으나 좌석 배정에 실패했습니다. 고객센터로 문의해주세요.", {
+          ticketIds,
+          tossPaymentKey: receipt.tossPaymentKey,
+          reason: error.code || "ALLOCATION_FAILED"
+        });
+      }
+      return { ...publicPurchaseResult(result), tosspayments: receipt };
+    }
+
     requireBody(body, ["userId", "ticketId", "paymentMethod", "tossPaymentKey"]);
     const idempotencyKey = requireLegacyIdempotencyKey(req);
     const purchaseUserId = resolvePurchaseUserId(db, req, body);

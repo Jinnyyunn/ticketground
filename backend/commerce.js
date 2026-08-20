@@ -172,6 +172,195 @@ export function createCommerceBackend({
     return { user, ticket, event, performanceDate, payment: { ...payment, amount: paidAmount }, admissionCredential: credential };
   }
 
+  // Web checkout never selects more than 2 seats (booking-panel.tsx enforces
+  // this in the UI) - this mirrors that real product policy server-side so a
+  // client can't bypass the limit by calling the API directly.
+  const MAX_GROUP_PURCHASE_SEATS = 2;
+
+  // Shape-validates a ticketIds array (present, non-empty, no duplicates,
+  // within the group size cap) and returns the deduplicated list. Exposed
+  // separately from buyPrimaryGroup() so a PG-specific route can reject a
+  // malformed request with the right 400/422 BEFORE spending a TossPayments
+  // API call - the same reason findIdempotentPurchase() is exposed on its
+  // own for the single-ticket path.
+  function normalizeGroupTicketIds(ticketIds) {
+    if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
+      throw httpError(400, "MISSING_FIELD", "ticketIds 값이 필요합니다.");
+    }
+    const uniqueTicketIds = [...new Set(ticketIds)];
+    if (uniqueTicketIds.length !== ticketIds.length) {
+      throw httpError(422, "DUPLICATE_SEAT", "같은 좌석을 중복해서 선택할 수 없습니다.");
+    }
+    if (uniqueTicketIds.length > MAX_GROUP_PURCHASE_SEATS) {
+      throw httpError(422, "TOO_MANY_SEATS", `한 번에 구매할 수 있는 좌석은 최대 ${MAX_GROUP_PURCHASE_SEATS}석입니다.`);
+    }
+    return uniqueTicketIds;
+  }
+
+  function purchaseGroupIdempotency(userId, key, payload) {
+    return {
+      keyDigest: hash(`purchase-group:${userId}:${key}`),
+      requestDigest: hash(`purchase-group:payload:${JSON.stringify(payload)}`)
+    };
+  }
+
+  // Mirrors findIdempotentPurchase()'s replay/conflict semantics for a
+  // multi-ticket order: every paymentTransaction created for the group
+  // carries the same idempotency.keyDigest, so any one of them is enough to
+  // detect a replay, but ALL of them are needed to reconstruct the full set
+  // of purchased tickets for the replayed response.
+  function findIdempotentGroupPurchase(db, userId, idempotencyKey, payload) {
+    if (!idempotencyKey) return null;
+    const idempotency = purchaseGroupIdempotency(userId, idempotencyKey, payload);
+    const existingTransactions = db.paymentTransactions.filter((item) => item.idempotency?.keyDigest === idempotency.keyDigest);
+    if (existingTransactions.length === 0) return null;
+    if (existingTransactions.some((item) => item.idempotency.requestDigest !== idempotency.requestDigest)) {
+      throw httpError(409, "IDEMPOTENCY_CONFLICT", "같은 재시도 키에 다른 구매 요청이 전달되었습니다.");
+    }
+    return existingTransactions;
+  }
+
+  // Splits one approved total across N tickets so every ticket still gets
+  // its own paymentTransaction record (same shape admin/finance tooling
+  // already reads) while the recorded amounts sum to EXACTLY the approved
+  // total - no penny left unaccounted for by rounding. Falls back to each
+  // ticket's own faceValue (no split needed) when no total was approved,
+  // matching buyPrimary()'s own default when approvedAmount is absent.
+  function splitGroupAmount(totalAmount, faceValues) {
+    if (!Number.isFinite(totalAmount)) return faceValues.map((value) => money(value));
+    const sumFaceValues = faceValues.reduce((sum, value) => sum + value, 0);
+    const extra = totalAmount - sumFaceValues;
+    const perSeatExtra = Math.floor(extra / faceValues.length);
+    return faceValues.map((value, index) => {
+      const isLast = index === faceValues.length - 1;
+      const seatExtra = isLast ? extra - perSeatExtra * (faceValues.length - 1) : perSeatExtra;
+      return money(value + seatExtra);
+    });
+  }
+
+  // One order, multiple line items: TossPayments only ever sees a single
+  // orderId/amount pair for the whole charge (that constraint lives entirely
+  // in the route layer - see api-router.js), but a single purchase can cover
+  // several tickets at once. Every ticket still gets its own
+  // paymentTransaction, ledger entry and admission credential exactly like a
+  // single-ticket buyPrimary() purchase would - they just share one
+  // idempotency key and one pgTransactionId so retries and refunds treat the
+  // group as one unit.
+  //
+  // Availability is checked for every ticket in the set BEFORE any of them
+  // is mutated, and the whole check-then-mutate sequence below never awaits -
+  // so nothing else can interleave and grab one of these seats mid-purchase
+  // (the same synchronous-atomicity guarantee buyPrimary() relies on for the
+  // single-ticket case). If any ticket in the set is no longer purchasable,
+  // assertTicketPurchasable() throws before anything is mutated - a group
+  // purchase never partially applies.
+  //
+  // Intentionally scoped to the web's holds-free direct-purchase model - it
+  // does not support allowOwnedSingleSeatHold/reservationDraftId, since the
+  // web checkout flow never creates seat holds or reservation drafts (only
+  // the native app's separate booking-holds.js flow does).
+  function buyPrimaryGroup(db, {
+    userId, ticketIds, paymentMethod, pgTransactionId, idempotencyKey, approvedAmount,
+    idempotencyPaymentMethod = paymentMethod
+  }) {
+    const user = findUser(db, userId);
+    ensureIdentityVerified(db, user.id);
+    const payment = resolvePaymentMethod(paymentMethod);
+
+    const uniqueTicketIds = normalizeGroupTicketIds(ticketIds);
+    const sortedTicketIds = [...uniqueTicketIds].sort();
+    const existingTransactions = findIdempotentGroupPurchase(
+      db, user.id, idempotencyKey, { ticketIds: sortedTicketIds, paymentMethod: idempotencyPaymentMethod }
+    );
+    if (existingTransactions) {
+      const tickets = [];
+      const admissionCredentials = [];
+      for (const transaction of existingTransactions) {
+        const context = ticketPurchaseContext(db, transaction.ticketId);
+        tickets.push(context.ticket);
+        admissionCredentials.push(db.admissionCredentials.find((item) => item.ticketId === transaction.ticketId) || null);
+      }
+      const first = ticketPurchaseContext(db, existingTransactions[0].ticketId);
+      const replayPayment = resolvePaymentMethod(existingTransactions[0].method);
+      const totalAmount = existingTransactions.reduce((sum, item) => sum + item.amount, 0);
+      return {
+        user, tickets, event: first.event, performanceDate: first.performanceDate,
+        payment: { ...replayPayment, amount: totalAmount }, admissionCredentials
+      };
+    }
+
+    const contexts = uniqueTicketIds.map((ticketId) => assertTicketPurchasable(db, ticketId, { userId: user.id }));
+    const [{ event, performanceDate }] = contexts;
+    if (contexts.some((context) => context.event.id !== event.id || context.performanceDate.id !== performanceDate.id)) {
+      throw httpError(422, "SEAT_PERFORMANCE_MISMATCH", "선택한 좌석이 같은 회차에 속하지 않습니다.");
+    }
+
+    const faceValues = contexts.map((context) => context.ticket.faceValue);
+    const perTicketAmounts = splitGroupAmount(approvedAmount, faceValues);
+    const groupId = id("order");
+    const sharedPgTransactionId = pgTransactionId || `${payment.key}-${hash(`${groupId}:${user.id}:${now()}`).slice(0, 12)}`;
+    const idempotency = idempotencyKey
+      ? purchaseGroupIdempotency(user.id, idempotencyKey, { ticketIds: sortedTicketIds, paymentMethod: idempotencyPaymentMethod })
+      : null;
+
+    const tickets = [];
+    const admissionCredentials = [];
+    contexts.forEach((context, index) => {
+      const { ticket, zone, seatHold, reservationDraft } = context;
+      ticket.ownerId = user.id;
+      ticket.status = "OWNED";
+      delete ticket.heldBy;
+      delete ticket.holdExpiresAt;
+      delete ticket.reservationId;
+      delete ticket.reservationExpiresAt;
+      if (seatHold) {
+        seatHold.status = "CONVERTED";
+        seatHold.updatedAt = now();
+      }
+      if (reservationDraft) {
+        reservationDraft.status = "CONFIRMED";
+        reservationDraft.updatedAt = now();
+      }
+      ticket.virtualQr = { issuedAt: now(), type: "VIRTUAL_TICKET" };
+      const credential = ensureAdmissionCredential(db, { user, ticket, event, performanceDate });
+      const paidAmount = perTicketAmounts[index];
+      db.paymentTransactions.push({
+        id: id("pay"),
+        ticketId: ticket.id,
+        userId: user.id,
+        type: "PRIMARY",
+        amount: paidAmount,
+        method: payment.key,
+        status: payment.status,
+        pgTransactionId: sharedPgTransactionId,
+        groupId,
+        ...(idempotency ? { idempotency } : {}),
+        createdAt: now()
+      });
+      appendLedger(db, user.id, "PRIMARY_PURCHASE", {
+        ticketId: ticket.id,
+        groupId,
+        admissionCredentialId: credential.id,
+        eventId: event.id,
+        performanceDateId: performanceDate.id,
+        seatLabel: ticket.seatLabel,
+        zone: zone.name,
+        price: paidAmount,
+        amount: paidAmount,
+        paymentMethod: payment.key,
+        paymentLabel: payment.label,
+        paymentStatus: payment.status,
+        approvalId: `${payment.key}-${id("pay").toUpperCase()}`,
+        policy: "date-selected-seat-owner-assignment-group"
+      });
+      tickets.push(ticket);
+      admissionCredentials.push(credential);
+    });
+
+    const totalAmount = perTicketAmounts.reduce((sum, value) => sum + value, 0);
+    return { user, tickets, event, performanceDate, payment: { ...payment, amount: totalAmount }, admissionCredentials };
+  }
+
   function listForResale(db, { sellerId, ticketId, price, showSlug }) {
     const seller = findUser(db, sellerId);
     const ticket = db.tickets.find((item) => item.id === ticketId);
@@ -394,5 +583,8 @@ export function createCommerceBackend({
     return { blocked: true, user: actor, ticket };
   }
 
-  return { assertTicketPurchasable, buyPrimary, cancelResaleListing, directTransferAttempt, drawPool, findIdempotentPurchase, joinPool, listForResale, purchaseResale };
+  return {
+    assertTicketPurchasable, buyPrimary, buyPrimaryGroup, cancelResaleListing, directTransferAttempt, drawPool,
+    findIdempotentGroupPurchase, findIdempotentPurchase, joinPool, listForResale, normalizeGroupTicketIds, purchaseResale
+  };
 }
