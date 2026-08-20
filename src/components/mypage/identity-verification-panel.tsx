@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  clearSessionUser,
   getIdentityStatus,
   mockCompleteNiceIdentityVerification,
   startNiceIdentityVerification,
   type ApiIdentityStatus,
 } from "@/lib/ticketground-api";
+import { isSessionAuthError, SESSION_EXPIRED_MESSAGE } from "@/lib/session-auth-error";
 import { storedSessionUserId } from "@/lib/ticketground-session-storage";
 import { useSessionAuth } from "@/lib/use-session-auth";
 
@@ -29,6 +31,18 @@ export function IdentityVerificationPanel() {
       setStatus(next);
       setMessage(next.verified ? "본인인증이 완료된 계정입니다." : "티켓 예매 전 NICE 휴대폰 본인인증이 필요합니다.");
     } catch (error) {
+      if (isSessionAuthError(error)) {
+        // The backend actively rejected the stored credential (expired or
+        // revoked) - drop the stale local session so useSessionAuth() flips
+        // signedIn to false and this panel's own button switches to "로그인
+        // 하고 본인인증하기" instead of staying on a dead "NICE 본인인증 시작"
+        // button that keeps failing silently. A credential-less legacy demo
+        // session (LOGIN_REQUIRED) is intentionally NOT cleared here - see
+        // session-auth-error.ts for why.
+        clearSessionUser();
+        setMessage(SESSION_EXPIRED_MESSAGE);
+        return;
+      }
       setMessage(error instanceof Error ? error.message : "본인인증 상태를 확인하지 못했습니다.");
     }
   }, []);
@@ -92,6 +106,11 @@ export function IdentityVerificationPanel() {
       }
       await refresh();
     } catch (error) {
+      if (isSessionAuthError(error)) {
+        clearSessionUser();
+        setMessage(SESSION_EXPIRED_MESSAGE);
+        return;
+      }
       setMessage(error instanceof Error ? error.message : "본인인증 요청에 실패했습니다.");
     } finally {
       setBusy(false);

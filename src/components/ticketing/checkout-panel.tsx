@@ -10,6 +10,7 @@ import { currency } from "@/data/ticketing";
 import {
   buyTicket,
   buyTickets,
+  clearSessionUser,
   getIdentityStatus,
   getState,
   getTosspaymentsConfig,
@@ -20,6 +21,7 @@ import {
   type ApiIdentityStatus,
   type ApiTosspaymentsConfig,
 } from "@/lib/ticketground-api";
+import { isSessionAuthError, SESSION_EXPIRED_MESSAGE } from "@/lib/session-auth-error";
 import type { TicketShow } from "@/types";
 
 const paymentMethods = [
@@ -231,7 +233,17 @@ export function CheckoutPanel({
       .catch((error: unknown) => {
         if (!mounted) return;
         setIdentityStatus(null);
-        setIdentityMessage(error instanceof Error ? error.message : "본인인증 상태를 확인하지 못했습니다.");
+        if (isSessionAuthError(error)) {
+          // The backend actively rejected the credential this page believed
+          // was valid (expired or revoked). Clear the stale local session so
+          // the UI drops back to the "간편 로그인으로 이동" link below instead of
+          // leaving a "NICE 본인인증 시작" button that will keep 401ing silently.
+          clearSessionUser();
+          setSessionUserId("");
+          setIdentityMessage(SESSION_EXPIRED_MESSAGE);
+          return;
+        }
+        setIdentityMessage("본인인증 상태를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
       });
 
     return () => {
@@ -291,6 +303,16 @@ export function CheckoutPanel({
       setIdentityStatus(confirmed);
       setIdentityMessage(`${confirmed.phoneMasked ?? "휴대폰"} 인증 완료 · 결제를 진행할 수 있습니다.`);
     } catch (error: unknown) {
+      if (isSessionAuthError(error)) {
+        // Same stale-credential case as the identity-status fetch above - the
+        // NICE start/mock-complete calls carry the same Bearer token, so they
+        // fail the same way. Surface the login link instead of leaving this
+        // button silently re-failing with an internal session error.
+        clearSessionUser();
+        setSessionUserId("");
+        setIdentityMessage(SESSION_EXPIRED_MESSAGE);
+        return;
+      }
       const message = error instanceof TicketgroundApiError && error.code === "PHONE_ALREADY_VERIFIED"
         ? "이미 다른 계정에서 인증된 휴대폰 번호입니다."
         : error instanceof Error
