@@ -804,6 +804,21 @@ async function handleApi(req, res, db, surface) {
       body
     );
   }
+  // Already-shipped iOS/Android builds POST here with { threadId, message } in
+  // the body (LiveBackendModels.swift's .supportMessages / AccountApi.kt) -
+  // that path can't be force-updated to the new /threads/:id/messages shape,
+  // so this keeps accepting it and forwards into the same native-principal
+  // contract the new route above uses.
+  if (req.method === "POST" && url.pathname === "/api/me/support/messages") {
+    requireBody(body, ["threadId", "message"]);
+    return addPrincipalSupportMessage(
+      db,
+      requireNativePrincipal(db, req),
+      body.threadId,
+      requireIdempotencyKey(req),
+      body
+    );
+  }
   if (req.method === "POST" && url.pathname === "/api/support/messages") {
     requireDemoSupportAPI();
     requireBody(body, ["threadId", "actorId", "message"]);

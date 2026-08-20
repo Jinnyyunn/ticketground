@@ -142,3 +142,41 @@ test("support create and reply are durable idempotent mutations", async (t) => {
   assert.equal(persistedReplay.data.id, created.data.id);
   assert.equal(persistedReplay.data.messages.length, 1);
 });
+
+test("already-shipped app builds can still reply via POST /api/me/support/messages with X-Idempotency-Key", async (t) => {
+  // Regression coverage: LiveBackendModels.swift's .supportMessages and
+  // AccountApi.kt both POST { threadId, message } to this flat path with an
+  // X-Idempotency-Key header, not the newer /threads/:id/messages path with
+  // Idempotency-Key that native code elsewhere in this suite exercises.
+  // Installed builds can't be force-updated, so this path must keep working.
+  configureGoogleEnv(t, true);
+  const server = await startServer(t);
+  const credential = await nativeCredential(server.baseUrl);
+  const created = await supportRequest(server.baseUrl, "/api/me/support/threads", {
+    credential,
+    key: "shipped-app-thread",
+    body: { subject: "입장 문의", category: "URGENT", message: "최초 문의입니다." }
+  });
+
+  const reply = await fetch(`${server.baseUrl}/api/me/support/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${credential}`,
+      "X-Idempotency-Key": "shipped-app-reply"
+    },
+    body: JSON.stringify({ threadId: created.data.id, message: "추가로 문의합니다." })
+  });
+  const payload = await reply.json();
+  assert.equal(reply.status, 200, JSON.stringify(payload));
+  assert.equal(payload.data.messages.length, 2);
+  assert.equal(payload.data.messages.at(-1).actorId, "google_user_test");
+
+  const missingKey = await fetch(`${server.baseUrl}/api/me/support/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}` },
+    body: JSON.stringify({ threadId: created.data.id, message: "키 없는 요청" })
+  });
+  assert.equal(missingKey.status, 400);
+  assert.equal((await missingKey.json()).error.code, "IDEMPOTENCY_KEY_REQUIRED");
+});
