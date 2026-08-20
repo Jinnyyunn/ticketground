@@ -364,6 +364,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               sizes="(min-width: 1024px) 360px, 100vw"
               className="object-cover"
               unoptimized={show.poster.endsWith(".gif")}
+            />
             <div className="absolute inset-0 bg-linear-to-t from-scrim/75 via-scrim/10 to-transparent" />
             <p className="absolute top-3 left-4 rounded-full bg-scrim/40 px-2.5 py-1 text-[11px] font-black text-on-scrim backdrop-blur-sm">예매 요약</p>
             <h2 className="clamp-2 absolute right-4 bottom-3 left-4 text-xl font-black text-on-scrim">{show.title}</h2>

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { mkdir, open } from "node:fs/promises";
 import path from "node:path";
 import type { ChartDocument } from "@/types/seat-chart";
 import { seatChartVenueSchema } from "@/lib/seat-charts/types";
 import { listSeatCharts, saveSeatChart } from "@/lib/seat-charts/store";
 import { issueServiceCredential, listServiceCredentials, seatChartServiceCredentialRoot, type SeatChartServiceScope, type ServiceCredentialRecord } from "@/lib/seat-charts/service-credentials";
-import { ReferenceAssetValidationError, sanitizeReferenceAsset } from "@/lib/seat-designer/reference-assets";
+import { prepareReferenceAsset, ReferenceAssetValidationError } from "@/lib/seat-designer/reference-asset-sanitize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,15 +42,24 @@ export async function POST(request: Request) {
       if (!(file instanceof File) || !["reference", "background", "object"].includes(String(purpose))) {
         return NextResponse.json({ error: "INVALID_REFERENCE_ASSET" }, { status: 400 });
       }
-      const asset = await sanitizeReferenceAsset({
+      const prepared = await prepareReferenceAsset({
         bytes: new Uint8Array(await file.arrayBuffer()),
         fileName: file.name,
         declaredMediaType: file.type,
         purpose: String(purpose) as "reference" | "background" | "object",
         page: pageValue === null ? undefined : Number(pageValue),
-        storageDir: path.join(process.cwd(), "data", "seat-chart-assets"),
       });
-      return NextResponse.json({ asset, url: `/api/seat-charts/assets/${encodeURIComponent(asset.id)}` });
+      const storageDir = path.join(process.cwd(), "data", "seat-chart-assets");
+      await mkdir(storageDir, { recursive: true });
+      const targetPath = path.join(storageDir, `${prepared.asset.id}.${prepared.extension}`);
+      const handle = await open(targetPath, "wx", 0o600);
+      try {
+        await handle.writeFile(prepared.storedBytes);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      return NextResponse.json({ asset: prepared.asset, url: `/api/seat-charts/assets/${encodeURIComponent(prepared.asset.id)}` });
     }
     const body = (await request.json()) as {
       chart?: ChartDocument;
