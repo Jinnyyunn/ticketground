@@ -68,6 +68,42 @@ test("checkout swaps in the TossPayments widget mount points when TossPayments i
   assert.equal(await page.locator('input[name="payment-method"]').count(), 0, "the fallback radio grid is not rendered once Toss is configured");
 });
 
+test("checkout renders the identity verification gate above the payment method section", async (t) => {
+  // Identity verification is a hard prerequisite for payment (the pay button
+  // stays disabled until it's done), so it should render above the payment
+  // method section rather than after it - asking the user to pick a payment
+  // method before clearing the mandatory identity gate is backwards.
+  const { baseUrl } = await startServer(t, {
+    env: {
+      TIG_TOSSPAYMENTS_CLIENT_KEY: "test_gck_ticketground_fake_key",
+      TIG_TOSSPAYMENTS_SECRET_KEY: "test_gsk_ticketground_fake_key",
+    },
+  });
+  const ticket = await lesMiserablesOnSaleTicket(baseUrl);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  t.after(() => page.close());
+
+  const url = new URL(`${baseUrl}/checkout/les-miserables`);
+  url.searchParams.set("date", "2026.05.13");
+  url.searchParams.set("time", "19:30");
+  url.searchParams.set("seats", ticket.seatLabel);
+  url.searchParams.set("ticketId", ticket.id);
+  await page.goto(url.toString(), { waitUntil: "networkidle" });
+
+  await page.getByTestId("identity-gate").waitFor({ timeout: 5000 });
+  await page.getByRole("heading", { name: "결제수단", level: 2 }).waitFor({ timeout: 5000 });
+
+  const identityComesFirst = await page.evaluate(() => {
+    const identityGate = document.querySelector('[data-testid="identity-gate"]');
+    const paymentHeading = [...document.querySelectorAll("h2")].find((h) => h.textContent === "결제수단");
+    if (!identityGate || !paymentHeading) return false;
+    return Boolean(identityGate.compareDocumentPosition(paymentHeading) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  assert.equal(identityComesFirst, true);
+});
+
 test("checkout result page confirms a TossPayments purchase and forwards to the reservation page", async (t) => {
   const { baseUrl } = await startServer(t);
   await verifyIdentity(baseUrl, "user_fan_a", "010-9000-0001");
