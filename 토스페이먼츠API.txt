@@ -1,0 +1,26 @@
+API 키
+
+클라이언트 키
+test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm
+
+시크릿 키
+test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6
+
+
+
+API 개별 연동 키
+
+클라이언트 키
+test_ck_vZnjEJeQVxmEAKGnDWMYrPmOoBN0
+
+시크릿 키 & 보안 키
+
+시크릿  키
+test_sk_AQ92ymxN34LLbXQygElp3ajRKXvd
+
+보안 키
+f236ea186af5ff158cc71c9ea106dbcd751ad15b1865be8e9edd69f9c37a3e0e
+
+API 버전
+
+2024-06-01
