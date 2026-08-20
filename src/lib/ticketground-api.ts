@@ -344,11 +344,12 @@ export function updateProfile(name: string, userId = currentSessionUserId()) {
   // it 404s outside dev/QA flags, meaning a real logged-in user could never
   // actually save their nickname in a production-configured deployment.
   // PATCH /api/me/profile is the already-existing, already-tested,
-  // session-authenticated equivalent (see tests/native-account-api.test.mjs).
+  // session-authenticated equivalent (see tests/account-native-contract.test.mjs).
   if (storedSessionCredential() && storedSessionUserId() === userId) {
     return authedRequest("/api/me/profile", apiSessionSchema, {
       method: "PATCH",
       body: JSON.stringify({ name }),
+      headers: { "Idempotency-Key": crypto.randomUUID() },
     });
   }
   return post(`/api/users/${encodeURIComponent(userId)}/profile`, apiSessionSchema, {
@@ -374,16 +375,26 @@ export function getMyWatchlist() {
   return authedRequest("/api/me/watchlist", z.array(apiWatchlistItemSchema));
 }
 
+// PUT/DELETE /api/me/watchlist/:eventId require an Idempotency-Key header
+// (backend/watchlist-contract.js's putWatchlist/deleteWatchlist, gated by
+// requireIdempotencyKey in backend/api-router.js) so a retried add/remove
+// replays the same durable result instead of double-mutating. The button
+// that drives these (WatchlistAddButton) already disables itself for the
+// duration of the call, so a fresh key per invocation - not a cached,
+// retry-shared one - is correct here; there is no in-flight retry of the
+// same logical request for it to need to match.
 export function addToMyWatchlist(eventId: string) {
   return authedRequest(`/api/me/watchlist/${encodeURIComponent(eventId)}`, apiWatchlistItemSchema, {
     method: "PUT",
     body: JSON.stringify({}),
+    headers: { "Idempotency-Key": crypto.randomUUID() },
   });
 }
 
 export function removeFromMyWatchlist(eventId: string) {
   return authedRequest(`/api/me/watchlist/${encodeURIComponent(eventId)}`, removeWatchlistResultSchema, {
     method: "DELETE",
+    headers: { "Idempotency-Key": crypto.randomUUID() },
   });
 }
 
