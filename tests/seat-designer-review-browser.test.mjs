@@ -123,6 +123,11 @@ test("the image-first editor stays usable without horizontal overflow at tablet 
   assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isVisible(), true);
   assert.equal(await page.getByText("15° 각도 고정", { exact: true }).isVisible(), true);
   await page.getByTitle("속성 패널").click();
+  const closeInspector = page.getByTitle("속성 패널 닫기");
+  const closeInspectorBox = await closeInspector.boundingBox();
+  assert.ok(closeInspectorBox, "mobile inspector close control must be visible");
+  assert.ok(closeInspectorBox.width >= 44, "mobile inspector close control must be at least 44px wide");
+  assert.ok(closeInspectorBox.height >= 44, "mobile inspector close control must be at least 44px high");
   const mobileInspector = page.getByTestId("seat-designer-v2-inspector").last();
   await mobileInspector.getByText("캔버스 표시", { exact: true }).waitFor();
   assert.equal(await mobileInspector.getByLabel("스냅").isChecked(), true);
@@ -133,6 +138,13 @@ test("the image-first editor stays usable without horizontal overflow at tablet 
   await page.getByTestId("seat-designer-v2-mobile-status").getByText("초안 저장 완료", { exact: true }).waitFor();
   await mobileActions.getByRole("button", { name: "도움말", exact: true }).click();
   await page.getByTestId("seat-designer-v2-help-dialog").waitFor();
+  const redoShortcut = page.getByText("⌘/Ctrl + Shift + Z", { exact: true });
+  const redoLineCount = await redoShortcut.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return range.getClientRects().length;
+  });
+  assert.equal(redoLineCount, 1, "redo shortcut must stay on one line");
   await page.getByTitle("도움말 닫기").click();
   await page.getByTitle("속성 패널").click();
   await page.getByTitle("속성 패널 닫기").click();

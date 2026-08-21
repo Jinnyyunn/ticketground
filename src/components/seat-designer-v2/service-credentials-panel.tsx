@@ -99,7 +99,7 @@ export function ServiceCredentialsPanel({
         </header>
         <div className="space-y-4 p-5">
           {issued && (
-            <div className="rounded border border-amber-300 bg-amber-50 p-4">
+            <div className="rounded border border-[var(--editor-warning-border)] bg-[var(--editor-warning-soft)] p-4 text-[var(--editor-warning)]">
               <strong className="text-sm">
                 이 키는 지금 한 번만 표시됩니다.
               </strong>

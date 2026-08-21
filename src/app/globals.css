@@ -185,6 +185,9 @@
     --editor-overlay: rgb(17 24 39 / 48%);
     --editor-status: #287b42;
     --editor-status-soft: #e9f7ed;
+    --editor-warning: #8a4b08;
+    --editor-warning-soft: #fff8e6;
+    --editor-warning-border: #f0c46c;
     --editor-seat: #c4c9ce;
     --editor-seat-stroke: #59626b;
     --editor-seat-accessible: #2e9b60;

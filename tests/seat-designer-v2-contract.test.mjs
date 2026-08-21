@@ -33,6 +33,7 @@ test("admin seat designer is replaced by the clean-room v2 editor", async () => 
   assert.doesNotMatch(editor, /\b(?:bg|text|border)-(?:white|black|red-[0-9]+)/);
   assert.doesNotMatch(editor, /(?:fill|stroke)="white"/);
   assert.doesNotMatch(editor, /["']white["']/);
+  assert.doesNotMatch(editor, /(?:bg|text|border)-amber-[0-9]+/);
 });
 
 test("v2 tool catalog owns every reference tool family", async () => {
