@@ -56,3 +56,29 @@ test("horizontal and vertical flip mirror selected geometry around the group cen
   const vertical = flipObjects([first, last], [first.id, last.id], "vertical");
   assert.deepEqual(vertical.map((object) => object.type === "booth" ? object.y : null), [100, 20]);
 });
+
+test("locked objects stay fixed during alignment, distribution, and flip", () => {
+  const first = { id: "first", label: "첫째", layer: "interactive", type: "booth", x: 0, y: 0, width: 20, height: 20 };
+  const locked = { id: "locked", label: "잠금", layer: "interactive", type: "booth", x: 30, y: 70, width: 20, height: 20, locked: true };
+  const middle = { id: "middle", label: "가운데", layer: "interactive", type: "booth", x: 70, y: 40, width: 20, height: 20 };
+  const last = { id: "last", label: "끝", layer: "interactive", type: "booth", x: 150, y: 100, width: 20, height: 20 };
+  const objects = [first, locked, middle, last];
+  const ids = objects.map((object) => object.id);
+
+  assert.deepEqual(alignObjects(objects, ids, "top")[1], locked);
+  assert.deepEqual(distributeObjects(objects, ids, "horizontal")[1], locked);
+  assert.deepEqual(flipObjects(objects, ids, "horizontal")[1], locked);
+});
+
+test("flipping an image mirrors its pixels even when it is the only selection", () => {
+  const image = { id: "image", label: "도면", layer: "background", type: "image", x: 10, y: 20, width: 200, height: 100, href: "/plan.png" };
+  const horizontal = flipObjects([image], [image.id], "horizontal")[0];
+  const vertical = flipObjects([image], [image.id], "vertical")[0];
+
+  assert.equal(horizontal.type, "image");
+  assert.equal(horizontal.flipX, true);
+  assert.equal(horizontal.x, image.x);
+  assert.equal(vertical.type, "image");
+  assert.equal(vertical.flipY, true);
+  assert.equal(vertical.y, image.y);
+});

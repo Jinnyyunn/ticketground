@@ -30,8 +30,7 @@ export function SelectionBox({ object }: { readonly object: ChartObject }): Reac
   );
 }
 
-export function RectangleNode({ object }: { readonly object: RectangleObject }): ReactNode {
-  const transform = object.rotation ? `rotate(${object.rotation} ${object.x + object.width / 2} ${object.y + object.height / 2})` : undefined;
+export function RectangleNode({ object, transform }: { readonly object: RectangleObject; readonly transform?: string }): ReactNode {
   if (object.shape === "ellipse") return <ellipse cx={object.x + object.width / 2} cy={object.y + object.height / 2} rx={object.width / 2} ry={object.height / 2} fill={object.fill ?? "var(--editor-object)"} fillOpacity={object.opacity ?? 0.68} stroke={object.stroke ?? "var(--editor-object-stroke)"} transform={transform} />;
   if (object.shape === "polygon" && object.points) return <polygon points={pointsValue(object.points)} fill={object.fill ?? "var(--editor-object)"} fillOpacity={object.opacity ?? 0.68} stroke={object.stroke ?? "var(--editor-object-stroke)"} />;
   return <rect x={object.x} y={object.y} width={object.width} height={object.height} fill={object.fill ?? "var(--editor-object)"} fillOpacity={object.opacity ?? 0.68} stroke={object.stroke ?? "var(--editor-object-stroke)"} transform={transform} />;

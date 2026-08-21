@@ -5,9 +5,10 @@ import type { V2EditorState } from "./editor-model";
 type FloorBarProps = {
   readonly state: V2EditorState;
   readonly onState: (state: V2EditorState) => void;
+  readonly onCommit: (state: V2EditorState) => void;
 };
 
-export function FloorBar({ state, onState }: FloorBarProps) {
+export function FloorBar({ state, onState, onCommit }: FloorBarProps) {
   const [open, setOpen] = useState(false);
   const section = state.objects.find(
     (object) => object.id === state.activeSectionId && object.type === "section",
@@ -21,7 +22,7 @@ export function FloorBar({ state, onState }: FloorBarProps) {
       abbreviation: `${index}F`,
       index,
     };
-    onState({
+    onCommit({
       ...state,
       floors: [...state.floors, floor],
       activeFloorId: floor.id,
@@ -36,7 +37,7 @@ export function FloorBar({ state, onState }: FloorBarProps) {
     const remaining = state.floors.filter((floor) => floor.id !== floorId);
     const fallback = remaining[0];
     if (!fallback) return;
-    onState({
+    onCommit({
       ...state,
       floors: remaining,
       objects: state.objects.map((object) =>
@@ -112,8 +113,8 @@ export function FloorBar({ state, onState }: FloorBarProps) {
             <div className="space-y-2 p-4">
               {state.floors.map((floor) => (
                 <div key={floor.id} className="grid grid-cols-[5rem_1fr_2rem] gap-2">
-                  <input aria-label={`${floor.name} 약어`} className="h-9 rounded border border-[var(--editor-border)] px-2" value={floor.abbreviation ?? ""} onChange={(event) => onState({ ...state, floors: state.floors.map((item) => item.id === floor.id ? { ...item, abbreviation: event.currentTarget.value } : item) })} />
-                  <input aria-label={`${floor.name} 이름`} className="h-9 rounded border border-[var(--editor-border)] px-2" value={floor.name} onChange={(event) => onState({ ...state, floors: state.floors.map((item) => item.id === floor.id ? { ...item, name: event.currentTarget.value } : item) })} />
+                  <input aria-label={`${floor.name} 약어`} className="h-9 rounded border border-[var(--editor-border)] px-2" value={floor.abbreviation ?? ""} onChange={(event) => onCommit({ ...state, floors: state.floors.map((item) => item.id === floor.id ? { ...item, abbreviation: event.currentTarget.value } : item) })} />
+                  <input aria-label={`${floor.name} 이름`} className="h-9 rounded border border-[var(--editor-border)] px-2" value={floor.name} onChange={(event) => onCommit({ ...state, floors: state.floors.map((item) => item.id === floor.id ? { ...item, name: event.currentTarget.value } : item) })} />
                   <button type="button" title={`${floor.name} 삭제`} disabled={state.floors.length <= 1} className="grid size-9 place-items-center rounded text-[var(--editor-danger)] hover:bg-[var(--editor-danger-soft)] disabled:opacity-30" onClick={() => removeFloor(floor.id)}><Trash2 className="size-4" /></button>
                 </div>
               ))}

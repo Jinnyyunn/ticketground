@@ -96,6 +96,8 @@ export type BaseObject = {
   readonly layer: ObjectLayer;
   readonly categoryKey?: string;
   readonly rotation?: number;
+  readonly flipX?: boolean;
+  readonly flipY?: boolean;
   readonly locked?: boolean;
   /** Buyer-facing displayed label (displayedLabels feature) */
   readonly displayedLabel?: string;

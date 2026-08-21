@@ -13,6 +13,7 @@ import type { V2ToolId } from "./tool-catalog";
 type WorkspaceProps = {
   readonly state: V2EditorState;
   readonly setState: Dispatch<SetStateAction<V2EditorState>>;
+  readonly commitState: (state: V2EditorState) => void;
   readonly visibleObjects: readonly ChartObject[];
   readonly previewObjects: readonly ChartObject[];
   readonly smartGuides: readonly SmartGuide[];
@@ -38,7 +39,7 @@ export function EditorWorkspace(props: WorkspaceProps) {
     <div className="flex min-h-0 flex-1">
       <Toolbar active={state.tool} onSelect={props.selectTool} />
       <main className="relative min-w-0 flex-1 overflow-hidden bg-[var(--editor-surface)]">
-        <FloorBar state={state} onState={setState} />
+        <FloorBar state={state} onState={setState} onCommit={props.commitState} />
         <label className="absolute left-3 top-14 z-10 w-44 rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] px-3 py-2 shadow-sm">
           <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--editor-muted)]">선택 레이어</span>
           <select data-testid="seat-designer-v2-selection-layer" className="w-full bg-transparent text-sm font-medium text-[var(--editor-accent)] outline-none" value={state.selectionLayer} onChange={(event) => { const selectionLayer = event.currentTarget.value as "all" | "interactive"; setState((current) => ({ ...current, selectionLayer, selectedIds: [] })); }}><option value="all">전체 객체</option><option value="interactive">상호작용 객체</option></select>

@@ -10,6 +10,7 @@ import { editorStatusClassName } from "./status";
 
 type OverlayProps = {
   readonly state: V2EditorState;
+  readonly visibleObjects: readonly ChartObject[];
   readonly selectedSeat: SeatPlace | null;
   readonly preview: boolean;
   readonly credentialsOpen: boolean;
@@ -34,6 +35,8 @@ type OverlayProps = {
   readonly onDuplicate: () => void;
   readonly onDelete: () => void;
   readonly onFlip: (axis: "horizontal" | "vertical") => void;
+  readonly onAlign: (mode: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
+  readonly onDistribute: (mode: "horizontal" | "vertical") => void;
   readonly onSeatView: () => void;
   readonly onCredentials: () => void;
   readonly onHelp: () => void;
@@ -42,7 +45,7 @@ type OverlayProps = {
 export function EditorOverlays(props: OverlayProps) {
   return (
     <>
-      {props.preview && <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--editor-overlay)] p-6" data-testid="seat-designer-v2-preview"><div className="relative h-[80dvh] w-[90vw] rounded bg-[var(--editor-surface)] shadow-2xl"><button type="button" className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-[var(--editor-surface)] shadow" onClick={props.onClosePreview}><X className="size-4" /></button><svg className="size-full"><CanvasObjects objects={props.state.objects} selectedIds={[]} selectedSeatIds={[]} nodeMode={false} /></svg></div></div>}
+      {props.preview && <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--editor-overlay)] p-6" data-testid="seat-designer-v2-preview"><div className="relative h-[80dvh] w-[90vw] rounded bg-[var(--editor-surface)] shadow-2xl"><button type="button" title="미리보기 닫기" className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-[var(--editor-surface)] shadow" onClick={props.onClosePreview}><X className="size-4" /></button><svg className="size-full"><CanvasObjects objects={props.visibleObjects} selectedIds={[]} selectedSeatIds={[]} nodeMode={false} /></svg></div></div>}
       {props.credentialsOpen && <ServiceCredentialsPanel onClose={props.onCloseCredentials} />}
       {props.helpOpen && <HelpDialog onClose={props.onCloseHelp} />}
       {props.seatViewOpen && props.selectedSeat && <SeatViewDialog seat={props.selectedSeat} onClose={props.onCloseSeatView} />}
@@ -60,6 +63,9 @@ function MobileInspector(props: OverlayProps) {
         <button type="button" disabled={props.pendingUploads > 0} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:opacity-40" onClick={() => void props.onSave()}>저장</button>
         <button type="button" disabled={props.pendingUploads > 0} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:opacity-40" onClick={() => void props.onPublish()}>게시</button>
         <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={props.onCopy}>복사</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={props.onPaste}>붙여넣기</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={props.onDuplicate}>복제</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={props.onDelete}>삭제</button>
+        <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onAlign("left")}>왼쪽 정렬</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onAlign("center")}>가운데 정렬</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onAlign("right")}>오른쪽 정렬</button>
+        <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onAlign("top")}>위 정렬</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onAlign("middle")}>중간 정렬</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onAlign("bottom")}>아래 정렬</button>
+        <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onDistribute("horizontal")}>가로 균등 배치</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onDistribute("vertical")}>세로 균등 배치</button>
         <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onFlip("horizontal")}>좌우 반전</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => props.onFlip("vertical")}>상하 반전</button>
         <button type="button" disabled={!props.selectedSeat} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:opacity-40" onClick={props.onSeatView}>좌석 시점</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={props.onCredentials}>API 연결</button><button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={props.onHelp}>도움말</button>
       </div>

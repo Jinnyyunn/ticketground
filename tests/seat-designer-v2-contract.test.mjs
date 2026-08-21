@@ -101,6 +101,7 @@ test("canvas contrast and editor geometry use shared semantic tokens", async () 
   assert.doesNotMatch(inspector, /w-\[336px\]/);
   assert.doesNotMatch(header, /h-\[46px\]/);
   assert.match(model, /tool:\s*"select"[\s\S]*?objects:\s*\[\]/);
+  assert.match(renderer, /scale\(\$\{object\.flipX \? -1 : 1\} \$\{object\.flipY \? -1 : 1\}\)/);
 });
 
 test("v2 tool catalog owns every reference tool family", async () => {

@@ -57,15 +57,16 @@ export function duplicateObject(object: ChartObject, delta: Point = { x: 12, y: 
 }
 
 export function alignObjects(objects: readonly ChartObject[], selectedIds: readonly string[], mode: AlignmentMode): readonly ChartObject[] {
-  const selected = objects.filter((object) => selectedIds.includes(object.id));
+  const selected = objects.filter((object) => selectedIds.includes(object.id) && object.locked !== true);
   if (selected.length < 2) return objects;
+  const movableIds = new Set(selected.map((object) => object.id));
   const bounds = selected.map(objectBounds);
   const left = Math.min(...bounds.map((item) => item.x));
   const top = Math.min(...bounds.map((item) => item.y));
   const right = Math.max(...bounds.map((item) => item.x + item.width));
   const bottom = Math.max(...bounds.map((item) => item.y + item.height));
   return objects.map((object) => {
-    if (!selectedIds.includes(object.id)) return object;
+    if (!movableIds.has(object.id)) return object;
     const item = objectBounds(object);
     const dx = mode === "left" ? left - item.x : mode === "center" ? (left + right - item.width) / 2 - item.x : mode === "right" ? right - item.width - item.x : 0;
     const dy = mode === "top" ? top - item.y : mode === "middle" ? (top + bottom - item.height) / 2 - item.y : mode === "bottom" ? bottom - item.height - item.y : 0;
@@ -79,7 +80,7 @@ export function distributeObjects(
   mode: DistributionMode,
 ): readonly ChartObject[] {
   const selected = objects
-    .filter((object) => selectedIds.includes(object.id))
+    .filter((object) => selectedIds.includes(object.id) && object.locked !== true)
     .map((object) => ({ object, bounds: objectBounds(object) }));
   if (selected.length < 3) return objects;
   const axis = mode === "horizontal" ? "x" : "y";
@@ -118,8 +119,10 @@ function mirrored(point: Point, center: Point, axis: FlipAxis): Point {
 }
 
 function flipObject(object: ChartObject, center: Point, axis: FlipAxis): ChartObject {
+  const rotation = object.rotation === undefined ? undefined : -object.rotation;
   if (object.type === "row") return {
     ...object,
+    rotation,
     start: mirrored(object.start, center, axis),
     end: mirrored(object.end, center, axis),
     path: object.path?.map((point) => mirrored(point, center, axis)),
@@ -127,36 +130,41 @@ function flipObject(object: ChartObject, center: Point, axis: FlipAxis): ChartOb
   };
   if (object.type === "table") return {
     ...object,
+    rotation,
     center: mirrored(object.center, center, axis),
     seats: object.seats.map((seat) => ({ ...seat, ...mirrored(seat, center, axis) })),
   };
   if (object.type === "booth" || object.type === "image" || object.type === "rectangle") {
-    const position = mirrored(
-      { x: object.x + object.width / 2, y: object.y + object.height / 2 },
-      center,
-      axis,
-    );
+    const sourceCenter = { x: object.x + object.width / 2, y: object.y + object.height / 2 };
+    const position = mirrored(sourceCenter, center, axis);
+    const delta = { x: position.x - sourceCenter.x, y: position.y - sourceCenter.y };
     return {
       ...object,
+      rotation,
+      flipX: axis === "horizontal" ? !object.flipX : object.flipX,
+      flipY: axis === "vertical" ? !object.flipY : object.flipY,
       x: position.x - object.width / 2,
       y: position.y - object.height / 2,
       ...(object.type === "rectangle" && object.points
-        ? { points: object.points.map((point) => mirrored(point, center, axis)) }
+        ? { points: object.points.map((point) => moved(point, delta)) }
         : {}),
     };
   }
   if (object.type === "line") return {
     ...object,
+    rotation,
     start: mirrored(object.start, center, axis),
     end: mirrored(object.end, center, axis),
     points: object.points?.map((point) => mirrored(point, center, axis)),
   };
   if (object.type === "text" || object.type === "icon") return {
     ...object,
+    rotation,
     position: mirrored(object.position, center, axis),
   };
   if (object.type === "section") return {
     ...object,
+    rotation,
     points: object.points.map((point) => mirrored(point, center, axis)),
     nestedRows: object.nestedRows?.map((row) => {
       const flipped = flipObject(row, center, axis);
@@ -165,6 +173,7 @@ function flipObject(object: ChartObject, center: Point, axis: FlipAxis): ChartOb
   };
   return {
     ...object,
+    rotation,
     points: object.points.map((point) => mirrored(point, center, axis)),
   };
 }
@@ -174,8 +183,9 @@ export function flipObjects(
   selectedIds: readonly string[],
   axis: FlipAxis,
 ): readonly ChartObject[] {
-  const selected = objects.filter((object) => selectedIds.includes(object.id));
+  const selected = objects.filter((object) => selectedIds.includes(object.id) && object.locked !== true);
   if (selected.length === 0) return objects;
+  const movableIds = new Set(selected.map((object) => object.id));
   const bounds = selected.map(objectBounds);
   const left = Math.min(...bounds.map((item) => item.x));
   const top = Math.min(...bounds.map((item) => item.y));
@@ -183,7 +193,7 @@ export function flipObjects(
   const bottom = Math.max(...bounds.map((item) => item.y + item.height));
   const center = { x: (left + right) / 2, y: (top + bottom) / 2 };
   return objects.map((object) =>
-    selectedIds.includes(object.id) ? flipObject(object, center, axis) : object,
+    movableIds.has(object.id) ? flipObject(object, center, axis) : object,
   );
 }
 

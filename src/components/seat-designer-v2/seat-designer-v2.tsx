@@ -42,6 +42,7 @@ export function SeatDesignerV2() {
       <EditorWorkspace
         state={state}
         setState={editor.setState}
+        commitState={editor.commit}
         visibleObjects={editor.visibleObjects}
         previewObjects={editor.previewObjects}
         smartGuides={editor.smartGuides}
@@ -64,6 +65,7 @@ export function SeatDesignerV2() {
       <input ref={imageInput} type="file" className="sr-only" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void editor.uploadObject(file); event.currentTarget.value = ""; }} />
       <EditorOverlays
         state={state}
+        visibleObjects={editor.visibleObjects}
         selectedSeat={editor.selectedSeat}
         preview={editor.preview}
         credentialsOpen={editor.credentialsOpen}
@@ -88,6 +90,8 @@ export function SeatDesignerV2() {
         onDuplicate={editor.duplicateSelected}
         onDelete={editor.deleteSelected}
         onFlip={editor.flipSelected}
+        onAlign={editor.alignSelected}
+        onDistribute={editor.distributeSelected}
         onSeatView={editor.openSeatView}
         onCredentials={editor.openCredentials}
         onHelp={editor.openHelp}

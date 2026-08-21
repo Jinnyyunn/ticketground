@@ -62,7 +62,13 @@ export function useEditorHistory(deps: HistoryDeps) {
   }
   function deleteSelected(): void {
     if (!state.selectedIds.length) return;
-    commit({ ...state, objects: state.objects.filter((object) => !state.selectedIds.includes(object.id) || object.locked === true), selectedIds: [] });
+    const removedIds = new Set(state.objects.filter((object) => state.selectedIds.includes(object.id) && object.locked !== true).map((object) => object.id));
+    let previousSize = -1;
+    while (previousSize !== removedIds.size) {
+      previousSize = removedIds.size;
+      for (const object of state.objects) if (object.sectionId && removedIds.has(object.sectionId)) removedIds.add(object.id);
+    }
+    if (removedIds.size) commit({ ...state, objects: state.objects.filter((object) => !removedIds.has(object.id)), selectedIds: [] });
   }
   function duplicateSelected(): void {
     const copies = state.objects.filter((object) => state.selectedIds.includes(object.id) && object.locked !== true).map((object) => duplicateObject(object));
@@ -74,7 +80,11 @@ export function useEditorHistory(deps: HistoryDeps) {
     setState((current) => ({ ...current, status: copied.length ? `${copied.length}개 객체 복사됨` : "복사할 객체를 선택하세요" }));
   }
   function pasteCopied(): void {
-    const copies = deps.copiedObjects.map((object) => duplicateObject(object));
+    const copies = deps.copiedObjects.map((object) => ({
+      ...duplicateObject(object),
+      floorId: state.activeFloorId,
+      sectionId: state.activeSectionId ?? undefined,
+    }));
     if (copies.length) commit({ ...state, objects: [...state.objects, ...copies], selectedIds: copies.map((object) => object.id) });
   }
   function alignSelected(mode: AlignmentMode): void {
