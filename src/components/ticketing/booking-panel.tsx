@@ -182,11 +182,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
 
   const selectChartSeat = useCallback((seat: SellableSeat) => {
     setSelectedBackendTicketIds((current) => {
-      const next = toggleChartSeatSelection(current, seat, quantity);
+      const next = toggleChartSeatSelection(current, seat, quantity, boundChartSeats);
       if (seat.bookingMode && next.length > 0) setQuantity(next.length);
       return next;
     });
-  }, [quantity]);
+  }, [boundChartSeats, quantity]);
 
   function changeDate(nextDate: string) {
     const nextTimes = show.schedules.find((schedule) => schedule.date === nextDate)?.times;

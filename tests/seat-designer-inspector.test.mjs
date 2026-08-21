@@ -63,6 +63,31 @@ test("table booking options preserve existing chair identities and attributes", 
   assert.equal(setTableProps(explicit, table.id, { width: 200 }).objects[0].maxOccupancy, 3);
 });
 
+test("table occupancy and rectangular chair counts remain valid after direct numeric edits", () => {
+  const table = {
+    ...createTable({ x: 50, y: 50 }, 30, 8, "T1"),
+    shape: "rectangle",
+    width: 120,
+    height: 36,
+    chairs: { top: 4, right: 0, bottom: 4, left: 0 },
+    variableOccupancy: true,
+    minOccupancy: 7,
+    maxOccupancy: 8,
+  };
+  const changed = setTableProps(base([table]), table.id, {
+    chairs: { top: 1.5, right: -4, bottom: 2, left: 100 },
+  });
+  const result = changed.objects[0];
+  assert.deepEqual(result.chairs, { top: 2, right: 0, bottom: 2, left: 24 });
+  assert.equal(result.seatCount, 28);
+  assert.equal(result.seats.length, 28);
+
+  const shrunk = setTableProps(changed, table.id, { chairs: { top: 1, right: 0, bottom: 1, left: 0 } }).objects[0];
+  assert.equal(shrunk.seatCount, 2);
+  assert.equal(shrunk.minOccupancy, 2);
+  assert.equal(shrunk.maxOccupancy, 2);
+});
+
 test("decoration inspector edits only properties supported by the selected type", () => {
   const rectangle = { id: "rect", type: "rectangle", label: "무대", layer: "background", x: 10, y: 20, width: 80, height: 40, fill: "#eeeeee", stroke: "#111111" };
   const chart = base([rectangle]);

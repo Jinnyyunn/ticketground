@@ -23,8 +23,10 @@ export function bindChartLayoutToBackendSeats(
   const bound: SellableSeat[] = [];
 
   for (const layoutSeat of layoutSeats) {
-    if (layoutSeat.bookingMode && layoutSeat.memberLabels?.length) {
-      const grouped = layoutSeat.memberLabels.map((label) => backendByKey.get(seatBindingKey(layoutSeat.price, label)));
+    const members = layoutSeat.memberSeats
+      ?? layoutSeat.memberLabels?.map((label) => ({ label, price: layoutSeat.price }));
+    if (layoutSeat.bookingMode && members?.length) {
+      const grouped = members.map((member) => backendByKey.get(seatBindingKey(member.price, member.label)));
       if (grouped.some((matches) => matches?.length !== 1)) continue;
       const backendGroup = grouped.map((matches) => matches?.[0]).filter((seat): seat is ApiSeat => Boolean(seat));
       for (const backendSeat of backendGroup) backendByKey.delete(seatBindingKey(backendSeat.price, backendSeat.label));

@@ -4,6 +4,7 @@ export function toggleChartSeatSelection(
   current: readonly string[],
   seat: SellableSeat,
   requestedQuantity: number,
+  chartSeats: readonly SellableSeat[] = [],
 ): readonly string[] {
   const group = seat.availableTicketIds ?? seat.backendTicketIds;
   if (seat.bookingMode && group?.length) {
@@ -17,6 +18,10 @@ export function toggleChartSeatSelection(
     return group.slice(0, count);
   }
   if (current.includes(seat.id)) return current.filter((id) => id !== seat.id);
+  const groupedIds = new Set(chartSeats
+    .filter((candidate) => candidate.bookingMode && (candidate.backendTicketIds ?? []).some((id) => current.includes(id)))
+    .flatMap((candidate) => candidate.backendTicketIds ?? []));
+  const ordinarySelection = current.filter((id) => !groupedIds.has(id));
   const limit = Math.min(2, Math.max(1, requestedQuantity));
-  return [...current, seat.id].slice(-limit);
+  return [...ordinarySelection, seat.id].slice(-limit);
 }

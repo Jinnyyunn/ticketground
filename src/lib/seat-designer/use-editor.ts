@@ -18,7 +18,7 @@ import {
   addObject,
   alignCenter,
   applyCategory,
-  cloneObjectWithOffset,
+  cloneObjectsWithUniqueLabels,
   createRow,
   duplicateObjects,
   flipObjects,
@@ -228,9 +228,9 @@ function reducer(state: EditorState, action: Action): EditorState {
     }
     case "PATCH_IMAGE_ASSET": {
       if (action.targetChartId !== state.chart.id || action.targetChartGeneration !== state.chartGeneration || state.assetRequestIds[action.requestKey] !== action.requestId) return state;
-      const current = state.chart.objects.find((object) => object.id === action.id);
-      if (!current || current.type !== "image") return state;
       const assetRequestIds = withoutAssetRequest(state, action.requestKey);
+      const current = state.chart.objects.find((object) => object.id === action.id);
+      if (!current || current.type !== "image") return { ...state, assetRequestIds };
       return pushHistory({ ...state, assetRequestIds }, withChartAsset({
         ...state.chart,
         objects: state.chart.objects.map((object) => object.id === action.id ? { ...current, href: action.href, height: current.width * action.aspectRatio, label: action.label } : object),
@@ -607,10 +607,7 @@ export function useSeatEditor() {
 
   const pasteClipboard = useCallback(() => {
     if (state.clipboard.length === 0) return;
-    const clones = state.clipboard.map((obj) => {
-      const json = JSON.parse(JSON.stringify(obj)) as ChartObject;
-      return cloneObjectWithOffset(json, 32);
-    });
+    const clones = cloneObjectsWithUniqueLabels(state.chart, state.clipboard, 32);
     dispatch({
       type: "COMMIT",
       chart: { ...state.chart, objects: [...state.chart.objects, ...clones] },

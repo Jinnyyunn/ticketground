@@ -199,17 +199,41 @@ export function addObject(chart: ChartDocument, obj: ChartObject): ChartDocument
 
 export function duplicateObjects(chart: ChartDocument, ids: readonly string[], offset = 24): ChartDocument {
   const set = new Set(ids);
-  const clones: ChartObject[] = [];
-  for (const obj of chart.objects) {
-    if (!set.has(obj.id) || obj.locked) continue;
-    clones.push(cloneObjectWithOffset(obj, offset));
-  }
+  const clones = cloneObjectsWithUniqueLabels(chart, chart.objects.filter((obj) => set.has(obj.id) && !obj.locked), offset);
   return { ...chart, objects: [...chart.objects, ...clones] };
 }
 
-export function cloneObjectWithOffset(obj: ChartObject, d: number): ChartObject {
+function objectLabels(objects: readonly ChartObject[]): readonly string[] {
+  return objects.flatMap((object) => object.type === "section" && object.nestedRows
+    ? [object.label, ...objectLabels(object.nestedRows)]
+    : [object.label]);
+}
+
+export function cloneObjectsWithUniqueLabels(chart: ChartDocument, objects: readonly ChartObject[], d: number): readonly ChartObject[] {
+  const used = new Set(objectLabels(chart.objects));
+  const nextLabel = (source: string) => {
+    let candidate = `${source} 복사`;
+    let copy = 2;
+    while (used.has(candidate)) {
+      candidate = `${source} 복사 ${copy}`;
+      copy += 1;
+    }
+    used.add(candidate);
+    return candidate;
+  };
+  return objects.map((object) => cloneObjectWithOffset(object, d, nextLabel));
+}
+
+export function cloneObjectWithOffset(obj: ChartObject, d: number, nextLabel: (source: string) => string = (source) => `${source} 복사`): ChartObject {
   const id = uid(obj.type);
-  const label = `${obj.label} 복사`;
+  const label = nextLabel(obj.label);
+  const cloneSeats = (seats: readonly import("@/types/seat-chart").SeatPlace[]) => seats.map((seat, index) => ({
+    ...seat,
+    id: uid("seat"),
+    label: `${label}-${index + 1}`,
+    x: seat.x + d,
+    y: seat.y + d,
+  }));
   switch (obj.type) {
     case "row":
       return {
@@ -219,7 +243,7 @@ export function cloneObjectWithOffset(obj: ChartObject, d: number): ChartObject 
         start: { x: obj.start.x + d, y: obj.start.y + d },
         end: { x: obj.end.x + d, y: obj.end.y + d },
         path: obj.path?.map((point) => ({ x: point.x + d, y: point.y + d })),
-        seats: obj.seats.map((seat) => ({ ...seat, id: uid("seat"), x: seat.x + d, y: seat.y + d })),
+        seats: cloneSeats(obj.seats),
       };
     case "section":
       return {
@@ -227,7 +251,7 @@ export function cloneObjectWithOffset(obj: ChartObject, d: number): ChartObject 
         id,
         label,
         points: obj.points.map((p) => ({ x: p.x + d, y: p.y + d })),
-        nestedRows: obj.nestedRows?.map((r) => cloneObjectWithOffset(r, d) as RowObject),
+        nestedRows: obj.nestedRows?.map((r) => cloneObjectWithOffset(r, d, nextLabel) as RowObject),
       };
     case "table":
       return {
@@ -235,7 +259,7 @@ export function cloneObjectWithOffset(obj: ChartObject, d: number): ChartObject 
         id,
         label,
         center: { x: obj.center.x + d, y: obj.center.y + d },
-        seats: obj.seats.map((seat) => ({ ...seat, id: uid("seat"), x: seat.x + d, y: seat.y + d })),
+        seats: cloneSeats(obj.seats),
       };
     case "booth":
     case "rectangle":
@@ -567,14 +591,22 @@ export function setTableProps(
   const label = patch.label ?? obj.label;
   const width = Math.max(20, patch.width ?? obj.width ?? 120);
   const height = Math.max(20, patch.height ?? obj.height ?? 36);
-  const chairs = patch.chairs ?? obj.chairs ?? { top: 4, right: 0, bottom: 4, left: 0 };
+  const inputChairs = patch.chairs ?? obj.chairs ?? { top: 4, right: 0, bottom: 4, left: 0 };
+  const normalizeChairCount = (value: number) => Math.max(0, Math.min(24, Math.round(value)));
+  const chairs = {
+    top: normalizeChairCount(inputChairs.top),
+    right: normalizeChairCount(inputChairs.right),
+    bottom: normalizeChairCount(inputChairs.bottom),
+    left: normalizeChairCount(inputChairs.left),
+  };
   const rectangularSeatCount = chairs.top + chairs.right + chairs.bottom + chairs.left;
   const variableOccupancy = patch.variableOccupancy ?? obj.variableOccupancy;
-  const minOccupancy = Math.max(1, patch.minOccupancy ?? obj.minOccupancy ?? 1);
+  const finalSeatCount = Math.max(1, obj.shape === "rectangle" ? rectangularSeatCount : seatCount);
+  const minOccupancy = Math.min(finalSeatCount, Math.max(1, patch.minOccupancy ?? obj.minOccupancy ?? 1));
   const maxOccupancy = patch.maxOccupancy !== undefined
-    ? Math.max(minOccupancy, patch.maxOccupancy)
+    ? Math.min(finalSeatCount, Math.max(minOccupancy, patch.maxOccupancy))
     : obj.maxOccupancy !== undefined
-      ? Math.max(minOccupancy, obj.maxOccupancy)
+      ? Math.min(finalSeatCount, Math.max(minOccupancy, obj.maxOccupancy))
       : undefined;
   const generatedSeats = obj.shape === "rectangle"
     ? seatsAroundRectangularTable(obj.center, width, height, chairs, label, obj.categoryKey)

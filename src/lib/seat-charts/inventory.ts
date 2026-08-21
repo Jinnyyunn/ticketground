@@ -21,6 +21,7 @@ export type SellableSeat = {
   readonly minOccupancy?: number;
   readonly maxOccupancy?: number;
   readonly memberLabels?: readonly string[];
+  readonly memberSeats?: readonly { readonly label: string; readonly price: number }[];
   readonly backendTicketIds?: readonly string[];
   readonly availableTicketIds?: readonly string[];
 };
@@ -76,7 +77,7 @@ export function chartToSellableSeats(
     object: ChartObject,
     objectType: ChartObject["type"],
     fallbackCategory?: string,
-    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy" | "memberLabels">,
+    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy" | "memberLabels" | "memberSeats">,
   ) => {
     const position = object.rotation
       ? rotateAround(place, objectCenter(object), object.rotation)
@@ -114,6 +115,10 @@ export function chartToSellableSeats(
     }
     if (obj.type === "table") {
       if (obj.bookAsWhole || obj.variableOccupancy) {
+        const memberSeats = obj.seats.map((seat) => {
+          const memberTier = tierFromCategory(chart, seat.categoryKey ?? obj.categoryKey).tier;
+          return { label: seat.label, price: prices[memberTier] };
+        });
         pushSeat(
           {
             id: `${obj.id}__whole`,
@@ -127,8 +132,8 @@ export function chartToSellableSeats(
           "table",
           obj.categoryKey,
           obj.variableOccupancy
-            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount, memberLabels: obj.seats.map((seat) => seat.label) }
-            : { bookingMode: "whole", memberLabels: obj.seats.map((seat) => seat.label) },
+            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount, memberLabels: obj.seats.map((seat) => seat.label), memberSeats }
+            : { bookingMode: "whole", memberLabels: obj.seats.map((seat) => seat.label), memberSeats },
         );
       } else {
         for (const s of obj.seats) pushSeat(s, obj, "table", obj.categoryKey);

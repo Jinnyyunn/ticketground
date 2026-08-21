@@ -75,6 +75,35 @@ test("variable-occupancy tables publish one qualified booking unit", () => {
   assert.deepEqual(result.seats[0].memberLabels, ["1", "2", "3", "4", "5", "6"]);
 });
 
+test("grouped tables retain each chair category price for backend binding", () => {
+  const table = {
+    id: "mixed-table",
+    type: "table",
+    label: "T2",
+    layer: "interactive",
+    categoryKey: "vip",
+    center: { x: 100, y: 80 },
+    radius: 30,
+    seatCount: 2,
+    bookAsWhole: true,
+    seats: [
+      { id: "vip-chair", label: "T2-1", x: 70, y: 80, categoryKey: "vip" },
+      { id: "r-chair", label: "T2-2", x: 130, y: 80, categoryKey: "r" },
+    ],
+  };
+  const result = chartToSellableSeats({
+    ...chart([table]),
+    categories: [
+      { key: "vip", label: "VIP", color: "#111111" },
+      { key: "r", label: "R", color: "#222222" },
+    ],
+  }, prices);
+  assert.deepEqual(result.seats[0].memberSeats, [
+    { label: "T2-1", price: 100_000 },
+    { label: "T2-2", price: 80_000 },
+  ]);
+});
+
 test("polygon-area inventory never leaves the visible polygon", () => {
   const area = { id: "triangle", type: "area", shape: "polygon", label: "스탠딩", layer: "interactive", points: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 0, y: 100 }], capacity: 40 };
   const result = chartToSellableSeats(chart([area]), prices);

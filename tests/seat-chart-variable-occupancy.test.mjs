@@ -32,3 +32,11 @@ test("ordinary chart seats keep the existing bounded toggle behavior", () => {
   assert.deepEqual(toggleChartSeatSelection(["ticket-1", "ticket-2"], seat, 2), ["ticket-2", "ticket-5"]);
   assert.deepEqual(toggleChartSeatSelection(["ticket-5"], seat, 2), []);
 });
+
+test("ordinary seats remove an existing grouped table atomically", () => {
+  const ordinary = { ...variableTable, id: "ticket-5", bookingMode: undefined, backendTicketIds: undefined, availableTicketIds: undefined };
+  assert.deepEqual(
+    toggleChartSeatSelection(["ticket-1", "ticket-2", "ticket-3"], ordinary, 2, [variableTable, ordinary]),
+    ["ticket-5"],
+  );
+});

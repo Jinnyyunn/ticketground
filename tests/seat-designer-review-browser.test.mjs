@@ -203,6 +203,17 @@ test("reference import rejects files above ten megabytes before upload", async (
   assert.equal(await dialog.getByRole("button", { name: "도면만 불러오기" }).isDisabled(), true);
 });
 
+test("first-time reference import supports every advertised format and can return to the start choice", async (t) => {
+  const { page } = await openEditor(t);
+  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
+  await dialog.locator("select").selectOption({ index: 1 });
+  await dialog.getByRole("button", { name: /도면 불러오기/ }).click();
+  const picker = dialog.locator('input[type="file"]');
+  assert.equal(await picker.getAttribute("accept"), "image/png,image/jpeg,image/gif,image/webp,image/svg+xml,application/pdf");
+  await dialog.getByRole("button", { name: "이전" }).click();
+  await dialog.getByRole("button", { name: "빈 캔버스" }).waitFor();
+});
+
 test("rotated polygon node controls follow the rendered geometry", async (t) => {
   const polygon = { id: "polygon", type: "rectangle", shape: "polygon", label: "다각형", layer: "background", rotation: 90, x: 100, y: 100, width: 220, height: 80, points: [{ x: 100, y: 100 }, { x: 320, y: 100 }, { x: 280, y: 180 }, { x: 100, y: 180 }] };
   const restored = { id: "rotated-chart", name: "회전 노드", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [polygon] };
@@ -381,6 +392,30 @@ test("a slower image replacement cannot overwrite the latest choice", async (t) 
   releaseFirst();
   await page.waitForTimeout(200);
   assert.ok(Math.abs(Number(await page.locator('[data-object-id="image"] image').getAttribute("height")) - latestHeight) < 0.01);
+});
+
+test("deleting an image while replacement uploads releases the editor save lock", async (t) => {
+  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 300, height: 200, href: "/images/header/partner-nol.png" };
+  const restored = { id: "image-chart", name: "삭제 경쟁 상태", boundVenue: { id: "venue-1", name: "예술의전당" }, categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
+  const { page } = await openEditor(t, restored);
+  let releaseUpload;
+  let markUploadStarted;
+  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
+  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
+  await page.route("**/api/seat-charts", async (route) => {
+    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
+    markUploadStarted();
+    await uploadBlocked;
+    await route.continue();
+  });
+  await page.locator('[data-object-id="image"] image').click({ force: true });
+  await page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]').setInputFiles(path.resolve("public/images/header/partner-nol-global.png"));
+  await uploadStarted;
+  await page.getByTitle("삭제").click();
+  assert.equal(await page.locator('[data-object-id="image"]').count(), 0);
+  releaseUpload();
+  await page.waitForTimeout(250);
+  assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isEnabled(), true);
 });
 
 test("active image mode accepts a file dropped on the canvas", async (t) => {

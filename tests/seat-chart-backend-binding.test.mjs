@@ -197,6 +197,28 @@ test("binds a variable table marker to every backend chair ticket", () => {
   assert.equal(chartCoversAllBackendSeats(bound, backend), true);
 });
 
+test("binds grouped table members with their individual category prices", () => {
+  const groupedTable = {
+    ...layoutSeat("table__whole", "T2", 190000, 40),
+    objectId: "table",
+    objectType: "table",
+    bookingMode: "whole",
+    memberSeats: [
+      { label: "T2-1", price: 190000 },
+      { label: "T2-2", price: 160000 },
+    ],
+  };
+  const backend = [
+    backendSeat("ticket-vip", "T2-1", 190000),
+    backendSeat("ticket-r", "T2-2", 160000),
+  ];
+
+  const bound = bindChartLayoutToBackendSeats([groupedTable], backend);
+
+  assert.deepEqual(bound[0].backendTicketIds, ["ticket-vip", "ticket-r"]);
+  assert.equal(chartCoversAllBackendSeats(bound, backend), true);
+});
+
 test("expands dense published charts so 24px seat targets cannot overlap", () => {
   const denseSeats = [
     layoutSeat("layout-1", "A-01", 190000, 10),
