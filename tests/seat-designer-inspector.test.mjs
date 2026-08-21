@@ -53,7 +53,14 @@ test("table booking options preserve existing chair identities and attributes", 
   assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.id), ["stable-2", "stable-3"]);
   assert.equal(new Set(reconfigured.objects[0].seats.map((seat) => seat.label)).size, reconfigured.objects[0].seats.length);
   assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.label), ["T1-4", "T1-5"]);
-  assert.equal(reconfigured.objects[0].maxOccupancy, 5);
+  assert.equal(reconfigured.objects[0].maxOccupancy, undefined);
+  const widthOnly = setTableProps(chart, table.id, { width: 180 });
+  assert.equal(widthOnly.objects[0].maxOccupancy, undefined);
+  const afterWidthAndChairChange = setTableProps(widthOnly, table.id, { chairs: { top: 4, right: 0, bottom: 4, left: 0 } });
+  assert.equal(afterWidthAndChairChange.objects[0].seatCount, 8);
+  assert.equal(afterWidthAndChairChange.objects[0].maxOccupancy, undefined);
+  const explicit = setTableProps(chart, table.id, { maxOccupancy: 3 });
+  assert.equal(setTableProps(explicit, table.id, { width: 200 }).objects[0].maxOccupancy, 3);
 });
 
 test("decoration inspector edits only properties supported by the selected type", () => {

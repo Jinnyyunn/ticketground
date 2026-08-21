@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { insertVertex, moveVertex, removeVertex, verticesOf } from "../src/lib/seat-designer/vertices.ts";
+import { insertVertex, moveVertex, pointForRenderedVertex, removeVertex, verticesOf } from "../src/lib/seat-designer/vertices.ts";
+import { objectCenter } from "../src/lib/seat-designer/chart-ops.ts";
+import { rotateAround } from "../src/lib/seat-designer/geometry.ts";
 
 const polygon = {
   id: "area-1",
@@ -23,6 +25,15 @@ test("node removal rejects geometry below its valid minimum", () => {
   assert.equal(removeVertex(polygon, 1), polygon);
   const four = insertVertex(polygon, 1, { x: 50, y: 0 });
   assert.equal(verticesOf(removeVertex(four, 1)).length, 3);
+});
+
+test("rotated node edits solve against the center of the resulting geometry", () => {
+  const row = { id: "row", type: "row", label: "A", layer: "interactive", rotation: 90, start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, seatCount: 2, seats: [{ id: "s1", label: "1", x: 0, y: 0 }, { id: "s2", label: "2", x: 100, y: 0 }] };
+  const pointer = { x: 70, y: 90 };
+  const local = pointForRenderedVertex(row, 1, pointer);
+  const moved = moveVertex(row, 1, local);
+  const rendered = rotateAround(moved.path[1], objectCenter(moved), moved.rotation);
+  assert.ok(Math.hypot(rendered.x - pointer.x, rendered.y - pointer.y) < 0.01);
 });
 
 test("segmented row node edits regenerate seats on the edited path", () => {

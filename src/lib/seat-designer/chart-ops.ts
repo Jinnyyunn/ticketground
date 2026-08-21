@@ -571,8 +571,11 @@ export function setTableProps(
   const rectangularSeatCount = chairs.top + chairs.right + chairs.bottom + chairs.left;
   const variableOccupancy = patch.variableOccupancy ?? obj.variableOccupancy;
   const minOccupancy = Math.max(1, patch.minOccupancy ?? obj.minOccupancy ?? 1);
-  const defaultOccupancy = obj.shape === "rectangle" ? rectangularSeatCount : seatCount;
-  const maxOccupancy = Math.max(minOccupancy, patch.maxOccupancy ?? obj.maxOccupancy ?? defaultOccupancy);
+  const maxOccupancy = patch.maxOccupancy !== undefined
+    ? Math.max(minOccupancy, patch.maxOccupancy)
+    : obj.maxOccupancy !== undefined
+      ? Math.max(minOccupancy, obj.maxOccupancy)
+      : undefined;
   const generatedSeats = obj.shape === "rectangle"
     ? seatsAroundRectangularTable(obj.center, width, height, chairs, label, obj.categoryKey)
     : seatsAroundTable(obj.center, radius, seatCount, label, obj.categoryKey);

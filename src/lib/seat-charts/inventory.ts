@@ -1,6 +1,6 @@
 import type { ChartDocument, ChartObject, SeatPlace } from "@/types/seat-chart";
 import { objectCenter } from "../seat-designer/chart-ops.ts";
-import { rotateAround } from "../seat-designer/geometry.ts";
+import { pointInPolygon, rotateAround } from "../seat-designer/geometry.ts";
 
 export type SellableTier = "VIP" | "R" | "S" | "A";
 
@@ -17,6 +17,9 @@ export type SellableSeat = {
   readonly categoryLabel?: string;
   readonly objectId: string;
   readonly objectType: ChartObject["type"];
+  readonly bookingMode?: "whole" | "variable";
+  readonly minOccupancy?: number;
+  readonly maxOccupancy?: number;
 };
 
 export type InventoryResult = {
@@ -70,6 +73,7 @@ export function chartToSellableSeats(
     object: ChartObject,
     objectType: ChartObject["type"],
     fallbackCategory?: string,
+    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy">,
   ) => {
     const position = object.rotation
       ? rotateAround(place, objectCenter(object), object.rotation)
@@ -90,6 +94,7 @@ export function chartToSellableSeats(
       categoryLabel,
       objectId: object.id,
       objectType,
+      ...booking,
     });
   };
 
@@ -105,7 +110,7 @@ export function chartToSellableSeats(
       return;
     }
     if (obj.type === "table") {
-      if (obj.bookAsWhole) {
+      if (obj.bookAsWhole || obj.variableOccupancy) {
         pushSeat(
           {
             id: `${obj.id}__whole`,
@@ -118,6 +123,9 @@ export function chartToSellableSeats(
           obj,
           "table",
           obj.categoryKey,
+          obj.variableOccupancy
+            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount }
+            : { bookingMode: "whole" },
         );
       } else {
         for (const s of obj.seats) pushSeat(s, obj, "table", obj.categoryKey);
@@ -171,18 +179,30 @@ export function chartToSellableSeats(
         }
         return;
       }
-      const cols = Math.ceil(Math.sqrt(n));
+      let density = Math.max(4, Math.ceil(Math.sqrt(n * 2)));
+      let candidates: { x: number; y: number }[] = [];
+      while (candidates.length < n && density <= 2048) {
+        candidates = [];
+        for (let row = 0; row < density; row += 1) {
+          for (let col = 0; col < density; col += 1) {
+            const point = {
+              x: minX + ((col + 0.5) / density) * (maxX - minX || 40),
+              y: minY + ((row + 0.5) / density) * (maxY - minY || 40),
+            };
+            if (pointInPolygon(point, obj.points)) candidates.push(point);
+          }
+        }
+        density *= 2;
+      }
+      if (candidates.length === 0) candidates = [...obj.points];
       for (let i = 0; i < n; i += 1) {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const x = minX + ((col + 0.5) / cols) * (maxX - minX || 40);
-        const y = minY + ((row + 0.5) / Math.ceil(n / cols)) * (maxY - minY || 40);
+        const point = candidates[Math.floor(i * candidates.length / n) % candidates.length];
         pushSeat(
           {
             id: `${obj.id}__ga_${i + 1}`,
             label: `${obj.label}-${i + 1}`,
-            x,
-            y,
+            x: point.x,
+            y: point.y,
             categoryKey: obj.categoryKey,
           },
           obj,

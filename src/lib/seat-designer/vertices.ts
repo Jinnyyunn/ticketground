@@ -1,5 +1,7 @@
 import type { ChartObject, Point } from "../../types/seat-chart.ts";
 import { seatsAlongPolyline } from "./geometry.ts";
+import { objectCenter } from "./chart-ops.ts";
+import { pointInObjectFrame } from "./transforms.ts";
 
 export function verticesOf(object: ChartObject): readonly Point[] {
   if (object.type === "section") return object.points;
@@ -84,6 +86,18 @@ export function moveVertex(object: ChartObject, index: number, point: Point): Ch
   if (!points[index]) return object;
   points[index] = point;
   return withVertices(object, points);
+}
+
+export function pointForRenderedVertex(object: ChartObject, index: number, pointer: Point): Point {
+  if (!object.rotation) return pointer;
+  let local = pointInObjectFrame(pointer, objectCenter(object), object.rotation);
+  for (let iteration = 0; iteration < 24; iteration += 1) {
+    const candidate = moveVertex(object, index, local);
+    const next = pointInObjectFrame(pointer, objectCenter(candidate), object.rotation);
+    if (Math.hypot(next.x - local.x, next.y - local.y) < 0.0001) return next;
+    local = next;
+  }
+  return local;
 }
 
 export function removeVertex(object: ChartObject, index: number): ChartObject {

@@ -8,11 +8,11 @@ import { boundsOfPoints, constrainPointToAngle, polygonPath } from "@/lib/seat-d
 import { ko, toolLabel } from "@/lib/seat-designer/i18n";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import { cn } from "@/lib/utils";
-import { marqueeObjectSelection, sameTypeSelection } from "@/lib/seat-designer/selection";
+import { marqueeObjectSelection, sameTypeSelection, seatIdsNearPoint } from "@/lib/seat-designer/selection";
 import { pointInObjectFrame } from "@/lib/seat-designer/transforms";
 import { ImageImportControl } from "./image-import-control";
 import { SelectionOverlay } from "./selection-overlay";
-import { insertionIndexForPoint, verticesOf } from "@/lib/seat-designer/vertices";
+import { insertionIndexForPoint, pointForRenderedVertex, verticesOf } from "@/lib/seat-designer/vertices";
 
 function constrainedDrawEnd(mode: ToolMode, start: Point, end: Point, shiftKey: boolean): Point {
   if (!shiftKey) return end;
@@ -652,21 +652,8 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
         originViewport: { ...viewport },
       };
       // also pick seat under cursor immediately
-      const hit: string[] = [];
-      for (const obj of chart.objects) {
-        const seats =
-          obj.type === "row"
-            ? obj.seats
-            : obj.type === "table"
-              ? obj.seats
-              : obj.type === "section"
-                ? obj.nestedRows?.flatMap((r) => r.seats) ?? []
-                : [];
-        for (const s of seats) {
-          if (Math.hypot(s.x - world.x, s.y - world.y) < 12) hit.push(s.id);
-        }
-      }
-      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: hit, additive: e.shiftKey, remove: e.altKey });
+      const hit = seatIdsNearPoint(chart, world, 12);
+      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: [...hit], additive: e.shiftKey, remove: e.altKey });
       return;
     }
 
@@ -711,7 +698,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
 
     if (drag.mode === "node" && drag.nodeObjectId != null && drag.nodeIndex != null) {
       const object = chart.objects.find((candidate) => candidate.id === drag.nodeObjectId);
-      const point = object?.rotation ? pointInObjectFrame(world, objectCenter(object), object.rotation) : world;
+      const point = object ? pointForRenderedVertex(object, drag.nodeIndex, world) : world;
       setLiveNode({ objectId: drag.nodeObjectId, index: drag.nodeIndex, point });
       drag.moved = true;
       return;
@@ -719,7 +706,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
 
     if (drag.mode === "row-end" && drag.nodeObjectId && drag.rowEnd) {
       const object = chart.objects.find((candidate) => candidate.id === drag.nodeObjectId);
-      const point = object?.rotation ? pointInObjectFrame(world, objectCenter(object), object.rotation) : world;
+      const point = object ? pointForRenderedVertex(object, drag.rowEnd === "start" ? 0 : 1, world) : world;
       setLiveNode({
         objectId: drag.nodeObjectId,
         index: drag.rowEnd === "start" ? 0 : 1,
@@ -750,22 +737,8 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     }
 
     if (drag.mode === "brush") {
-      const hit: string[] = [];
-      for (const obj of chart.objects) {
-        if (obj.floorId && obj.floorId !== chart.activeFloorId) continue;
-        const seats =
-          obj.type === "row"
-            ? obj.seats
-            : obj.type === "table"
-              ? obj.seats
-              : obj.type === "section"
-                ? obj.nestedRows?.flatMap((r) => r.seats) ?? []
-                : [];
-        for (const s of seats) {
-          if (Math.hypot(s.x - world.x, s.y - world.y) < 12) hit.push(s.id);
-        }
-      }
-      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: hit, additive: true, remove: e.altKey });
+      const hit = seatIdsNearPoint(chart, world, 12);
+      if (hit.length) dispatch({ type: "SELECT_SEATS", ids: [...hit], additive: true, remove: e.altKey });
     }
   };
 

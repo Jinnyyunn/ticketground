@@ -22,6 +22,28 @@ export function brushSeatSelection(
   return [...selected];
 }
 
+export function seatIdsNearPoint(
+  chart: Pick<ChartDocument, "objects" | "activeFloorId">,
+  point: Point,
+  radius: number,
+): readonly string[] {
+  const hits: string[] = [];
+  for (const object of chart.objects) {
+    if (object.floorId && object.floorId !== chart.activeFloorId) continue;
+    const seats = object.type === "row" || object.type === "table"
+      ? object.seats
+      : object.type === "section"
+        ? object.nestedRows?.flatMap((row) => row.seats) ?? []
+        : [];
+    const center = objectCenter(object);
+    for (const seat of seats) {
+      const rendered = object.rotation ? rotateAround(seat, center, object.rotation) : seat;
+      if (Math.hypot(rendered.x - point.x, rendered.y - point.y) < radius) hits.push(seat.id);
+    }
+  }
+  return hits;
+}
+
 export function sameTypeSelection(chart: Pick<ChartDocument, "objects">, id: string): readonly string[] {
   const target = chart.objects.find((object) => object.id === id);
   if (!target) return [];

@@ -284,6 +284,75 @@ test("image replacement derives its aspect ratio from the latest edited width", 
   assert.ok(Math.abs(renderedHeight - 480 * replacementRatio) < 0.01, `rendered height ${renderedHeight} must follow ratio ${replacementRatio}`);
 });
 
+test("pending image imports cannot append to a newly loaded chart", async (t) => {
+  const initialChart = { id: "same-chart-id", name: "기존 차트", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [] };
+  const { page } = await openEditor(t, initialChart);
+  let releaseUpload;
+  let markUploadStarted;
+  let markUploadCompleted;
+  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
+  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
+  const uploadCompleted = new Promise((resolve) => { markUploadCompleted = resolve; });
+  await page.route("**/api/seat-charts", async (route) => {
+    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
+    markUploadStarted();
+    await uploadBlocked;
+    await route.continue();
+    markUploadCompleted();
+  });
+  await page.getByTestId("tool-image").click();
+  const png = await readFile(path.resolve("public/images/header/partner-nol.png"));
+  await page.getByTestId("designer-canvas").evaluate((element, base64) => {
+    const transfer = new DataTransfer();
+    const source = atob(base64);
+    transfer.items.add(new File([Uint8Array.from(source, (character) => character.charCodeAt(0))], "pending.png", { type: "image/png" }));
+    const rect = element.getBoundingClientRect();
+    element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
+  }, png.toString("base64"));
+  await uploadStarted;
+  await page.getByTestId("tool-select").click();
+  const nextChart = { ...initialChart, name: "교체된 차트" };
+  await page.getByLabel("JSON 불러오기").setInputFiles({ name: "replacement.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(nextChart)) });
+  await page.waitForFunction(() => document.querySelector('.seat-designer-toolbar input')?.value === "교체된 차트");
+  releaseUpload();
+  await uploadCompleted;
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('[data-object-type="image"]').count(), 0);
+});
+
+test("a slower image replacement cannot overwrite the latest choice", async (t) => {
+  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 300, height: 200, href: "/images/header/partner-nol.png" };
+  const restored = { id: "image-chart", name: "교체 순서", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
+  const { page } = await openEditor(t, restored);
+  let uploadCount = 0;
+  let releaseFirst;
+  let markFirstStarted;
+  const firstBlocked = new Promise((resolve) => { releaseFirst = resolve; });
+  const firstStarted = new Promise((resolve) => { markFirstStarted = resolve; });
+  await page.route("**/api/seat-charts", async (route) => {
+    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
+    uploadCount += 1;
+    if (uploadCount === 1) {
+      markFirstStarted();
+      await firstBlocked;
+    }
+    await route.continue();
+  });
+  const latestPath = path.resolve("public/images/header/partner-nol-global.png");
+  const latestMetadata = await sharp(latestPath).metadata();
+  assert.ok(latestMetadata.width && latestMetadata.height);
+  const latestHeight = 300 * latestMetadata.height / latestMetadata.width;
+  await page.locator('[data-object-id="image"] image').click({ force: true });
+  const replacement = page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]');
+  await replacement.setInputFiles(path.resolve("public/images/header/partner-nol.png"));
+  await firstStarted;
+  await replacement.setInputFiles(latestPath);
+  await page.waitForFunction((height) => Math.abs(Number(document.querySelector('[data-object-id="image"] image')?.getAttribute("height")) - height) < 0.01, latestHeight);
+  releaseFirst();
+  await page.waitForTimeout(200);
+  assert.ok(Math.abs(Number(await page.locator('[data-object-id="image"] image').getAttribute("height")) - latestHeight) < 0.01);
+});
+
 test("active image mode accepts a file dropped on the canvas", async (t) => {
   const { page } = await openEditor(t);
   await beginBlank(page);

@@ -53,6 +53,34 @@ test("published inventory applies object rotation and excludes decorative layers
   ]);
 });
 
+test("variable-occupancy tables publish one qualified booking unit", () => {
+  const table = {
+    id: "table",
+    type: "table",
+    label: "T1",
+    layer: "interactive",
+    center: { x: 100, y: 80 },
+    radius: 30,
+    seatCount: 6,
+    variableOccupancy: true,
+    minOccupancy: 2,
+    maxOccupancy: 4,
+    seats: Array.from({ length: 6 }, (_, index) => ({ id: `t${index + 1}`, label: `${index + 1}`, x: 50 + index * 10, y: 80 })),
+  };
+  const result = chartToSellableSeats(chart([table]), prices);
+  assert.equal(result.seats.length, 1);
+  assert.equal(result.seats[0].bookingMode, "variable");
+  assert.equal(result.seats[0].minOccupancy, 2);
+  assert.equal(result.seats[0].maxOccupancy, 4);
+});
+
+test("polygon-area inventory never leaves the visible polygon", () => {
+  const area = { id: "triangle", type: "area", shape: "polygon", label: "스탠딩", layer: "interactive", points: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 0, y: 100 }], capacity: 40 };
+  const result = chartToSellableSeats(chart([area]), prices);
+  assert.equal(result.seats.length, 40);
+  for (const seat of result.seats) assert.ok(seat.x / 200 + seat.y / 100 <= 1, `${seat.id} must stay inside the triangle`);
+});
+
 test("place-bearing objects cannot be reclassified as decorative layers", () => {
   const row = { id: "row", type: "row", label: "A", layer: "interactive", start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, seatCount: 2, seats: [{ id: "a1", label: "1", x: 0, y: 0 }, { id: "a2", label: "2", x: 100, y: 0 }] };
   assert.equal(setObjectAdvanced(chart([row]), row.id, { layer: "background" }).objects[0].layer, "interactive");

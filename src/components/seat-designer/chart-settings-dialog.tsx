@@ -9,16 +9,18 @@ import type { SeatChartVenue } from "@/lib/seat-charts/types";
 import { listBindableVenues } from "@/lib/seat-charts/venues";
 import { ServiceCredentialPanel } from "./service-credential-panel";
 
-function pickImage(purpose: "reference" | "background", onDone: (url: string, asset: SeatChartAsset) => void) {
+function pickImage(purpose: "reference" | "background", onStart: (requestId: string) => void, onDone: (url: string, asset: SeatChartAsset, requestId: string) => void) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file) return;
+    const requestId = crypto.randomUUID();
+    onStart(requestId);
     void import("@/lib/seat-charts/client")
       .then(({ apiUploadReferenceAsset }) => apiUploadReferenceAsset({ file, purpose }))
-      .then(({ url, asset }) => onDone(url, asset));
+      .then(({ url, asset }) => onDone(url, asset, requestId));
   };
   input.click();
 }
@@ -129,8 +131,8 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               type="button"
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
-                pickImage("background", (href, asset) =>
-                  dispatch({ type: "SET_OVERLAY_ASSET", key: "backgroundImage", href, fallback: defaultOverlay(href), replacesHref: bg?.href, asset, status: "배경 이미지 변경" }),
+                pickImage("background", (requestId) => dispatch({ type: "BEGIN_ASSET_REQUEST", key: "overlay:backgroundImage", requestId }), (href, asset, requestId) =>
+                  dispatch({ type: "SET_OVERLAY_ASSET", key: "backgroundImage", href, fallback: defaultOverlay(href), replacesHref: bg?.href, asset, status: "배경 이미지 변경", targetChartId: chart.id, targetChartGeneration: state.chartGeneration, requestKey: "overlay:backgroundImage", requestId }),
                 )
               }
             >
@@ -176,8 +178,8 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               type="button"
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
-                pickImage("reference", (href, asset) =>
-                  dispatch({ type: "SET_OVERLAY_ASSET", key: "referenceChart", href, fallback: { ...defaultOverlay(href), opacity: 0.55 }, replacesHref: ref?.href, asset, status: "참조 도면 변경" }),
+                pickImage("reference", (requestId) => dispatch({ type: "BEGIN_ASSET_REQUEST", key: "overlay:referenceChart", requestId }), (href, asset, requestId) =>
+                  dispatch({ type: "SET_OVERLAY_ASSET", key: "referenceChart", href, fallback: { ...defaultOverlay(href), opacity: 0.55 }, replacesHref: ref?.href, asset, status: "참조 도면 변경", targetChartId: chart.id, targetChartGeneration: state.chartGeneration, requestKey: "overlay:referenceChart", requestId }),
                 )
               }
             >
