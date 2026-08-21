@@ -88,3 +88,11 @@ test("segmented rows validate their complete path instead of endpoint distance",
   assert.deepEqual(row.path, points);
   assert.ok(row.seats.length > 10);
 });
+
+test("multi-node lines validate their complete path instead of endpoint distance", () => {
+  const points = [{ x: 0, y: 0 }, { x: 160, y: 0 }, { x: 160, y: 120 }, { x: 2, y: 1 }];
+  const line = createObjectForTool({ tool: "line", start: points[0], end: points.at(-1), points, sequence: 1, floorId: "floor-1" });
+  assert.ok(line);
+  assert.equal(line.type, "line");
+  assert.deepEqual(line.points, points);
+});

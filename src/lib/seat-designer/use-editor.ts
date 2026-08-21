@@ -93,7 +93,7 @@ type Action =
   | { type: "LOAD"; chart: ChartDocument }
   | { type: "RESTORE_LOCAL"; chart: ChartDocument }
   | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean }
-  | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; height: number; label: string; asset: SeatChartAsset; status: string }
+  | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; aspectRatio: number; label: string; asset: SeatChartAsset; status: string }
   | { type: "SET_OVERLAY_ASSET"; key: "backgroundImage" | "referenceChart"; href: string; fallback: OverlayImage; replacesHref?: string; asset: SeatChartAsset; status: string }
   | { type: "SET_TOOL"; tool: ToolId }
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
@@ -208,7 +208,7 @@ function reducer(state: EditorState, action: Action): EditorState {
       if (!current || current.type !== "image") return state;
       return pushHistory(state, withChartAsset({
         ...state.chart,
-        objects: state.chart.objects.map((object) => object.id === action.id ? { ...current, href: action.href, height: action.height, label: action.label } : object),
+        objects: state.chart.objects.map((object) => object.id === action.id ? { ...current, href: action.href, height: current.width * action.aspectRatio, label: action.label } : object),
       }, action.asset), action.status);
     }
     case "SET_OVERLAY_ASSET": {
@@ -1017,7 +1017,7 @@ export function useSeatEditor() {
         type: "PATCH_IMAGE_ASSET",
         id: selected.id,
         href: uploaded.url,
-        height: selected.width * ratio,
+        aspectRatio: ratio,
         label: file.name,
         asset: uploaded.asset,
         status: "이미지 교체",

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { chromium } from "playwright";
+import sharp from "sharp";
 import { bootstrapAdminPassword, startServer } from "./backend-test-utils.mjs";
 
 async function login(adminUrl) {
@@ -250,6 +251,37 @@ test("oversized image replacement reports a visible error", async (t) => {
   await page.locator('[data-object-id="image"] image').click({ force: true });
   await page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]').setInputFiles({ name: "too-large.png", mimeType: "image/png", buffer: Buffer.alloc(10 * 1024 * 1024 + 1) });
   await page.getByText("이미지는 10MB 이하여야 합니다.", { exact: true }).waitFor();
+});
+
+test("image replacement derives its aspect ratio from the latest edited width", async (t) => {
+  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 240, height: 160, href: "/images/header/partner-nol.png" };
+  const restored = { id: "image-chart", name: "이미지 경쟁 상태", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
+  const { page } = await openEditor(t, restored);
+  let releaseUpload;
+  let markUploadStarted;
+  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
+  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
+  const replacementMetadata = await sharp(path.resolve("public/images/header/partner-nol.png")).metadata();
+  assert.ok(replacementMetadata.width && replacementMetadata.height);
+  const replacementRatio = replacementMetadata.height / replacementMetadata.width;
+  await page.route("**/api/seat-charts", async (route) => {
+    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
+    markUploadStarted();
+    await uploadBlocked;
+    await route.continue();
+  });
+  await page.locator('[data-object-id="image"] image').click({ force: true });
+  const replacement = page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]');
+  await replacement.setInputFiles(path.resolve("public/images/header/partner-nol.png"));
+  await uploadStarted;
+  await page.getByLabel("너비").fill("480");
+  await page.waitForFunction(() => document.querySelector('[data-object-id="image"] image')?.getAttribute("width") === "480");
+  releaseUpload();
+  await page.waitForFunction(() => document.querySelector('[data-object-id="image"] image')?.getAttribute("href")?.includes("/api/seat-charts/assets/"));
+  const rendered = page.locator('[data-object-id="image"] image');
+  assert.equal(Number(await rendered.getAttribute("width")), 480);
+  const renderedHeight = Number(await rendered.getAttribute("height"));
+  assert.ok(Math.abs(renderedHeight - 480 * replacementRatio) < 0.01, `rendered height ${renderedHeight} must follow ratio ${replacementRatio}`);
 });
 
 test("active image mode accepts a file dropped on the canvas", async (t) => {

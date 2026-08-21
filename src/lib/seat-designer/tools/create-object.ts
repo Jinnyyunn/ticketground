@@ -156,8 +156,9 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
     return { id: uid("rectangle"), type: "rectangle", label: `도형 ${input.sequence}`, layer: "background", x, y, width, height, shape: input.mode === "shapeEllipse" ? "ellipse" : "rectangle", fill: "#e5e7eb", stroke: "#9ca3af", opacity: 1, ...common };
   }
   if (input.tool === "line") {
-    if (Math.hypot(width, height) < 4) return null;
-    return { id: uid("line"), type: "line", label: `선 ${input.sequence}`, layer: "background", start: input.start, end: input.end, points: input.points.length > 1 ? [...input.points] : [input.start, input.end], stroke: "#6b7280", ...common };
+    const linePoints = input.points.length > 1 ? input.points : [input.start, input.end];
+    if (pathLength(linePoints) < 4) return null;
+    return { id: uid("line"), type: "line", label: `선 ${input.sequence}`, layer: "background", start: input.start, end: input.end, points: [...linePoints], stroke: "#6b7280", ...common };
   }
   if (input.tool === "text") return { id: uid("text"), type: "text", label: `텍스트 ${input.sequence}`, layer: "foreground", position: input.start, text: "텍스트", fontSize: 18, color: "#333333", ...common };
   if (input.tool === "image") {

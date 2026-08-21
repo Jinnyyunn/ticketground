@@ -68,11 +68,33 @@ test("segmented row property edits keep seats on the editable path", () => {
     end: { x: 100, y: 0 },
     path: [{ x: 0, y: 0 }, { x: 50, y: 50 }, { x: 100, y: 0 }],
     seatCount: 3,
-    seats: [{ id: "s1", label: "1", x: 0, y: 0 }, { id: "s2", label: "2", x: 50, y: 50 }, { id: "s3", label: "3", x: 100, y: 0 }],
+    seats: [{ id: "s1", label: "1", x: 0, y: 0, displayedLabel: "첫 좌석", accessible: true }, { id: "s2", label: "2", x: 50, y: 50 }, { id: "s3", label: "3", x: 100, y: 0 }],
   };
   const updated = setRowGeometry(chart([row]), row.id, { seatCount: 5 });
   assert.equal(updated.objects[0].seats.some((seat) => seat.y > 0), true);
   assert.deepEqual(updated.objects[0].path, row.path);
+  assert.deepEqual(updated.objects[0].seats.slice(0, 3).map((seat) => seat.id), ["s1", "s2", "s3"]);
+  assert.equal(updated.objects[0].seats[0].displayedLabel, "첫 좌석");
+  assert.equal(updated.objects[0].seats[0].accessible, true);
+  const curveOnly = setRowGeometry(chart([row]), row.id, { curve: 25 });
+  assert.deepEqual(curveOnly.objects[0].seats, row.seats);
+});
+
+test("fit bounds include the rendered rotation of long objects", () => {
+  const row = {
+    id: "vertical-after-rotation",
+    type: "row",
+    label: "A",
+    layer: "interactive",
+    rotation: 90,
+    start: { x: 0, y: 0 },
+    end: { x: 1000, y: 0 },
+    seatCount: 2,
+    seats: [{ id: "a1", label: "1", x: 0, y: 0 }, { id: "a2", label: "2", x: 1000, y: 0 }],
+  };
+  const bounds = chartBounds(chart([row]));
+  assert.ok(bounds.height > 1000, `rotated height ${bounds.height} must include the rendered row`);
+  assert.ok(bounds.width < 40, `rotated width ${bounds.width} must follow the rendered row`);
 });
 
 test("locked objects reject destructive and positional chart commands", () => {
@@ -120,7 +142,9 @@ test("round tables keep a circular body and circular chair geometry after resize
     sequence: 1,
     floorId: "floor-1",
   });
-  const resized = resizeObject(table, { x: 20, y: 40, width: 180, height: 80 });
+  const legacyTable = { ...table };
+  delete legacyTable.shape;
+  const resized = resizeObject(legacyTable, { x: 20, y: 40, width: 180, height: 80 });
   const distances = resized.seats.map((seat) => Math.hypot(seat.x - resized.center.x, seat.y - resized.center.y));
   assert.ok(Math.max(...distances) - Math.min(...distances) < 0.001);
 });

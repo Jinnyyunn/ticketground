@@ -3,6 +3,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import sharp from "sharp";
 import {
   ReferenceAssetValidationError,
   sanitizeReferenceAsset,
@@ -32,6 +33,27 @@ test("a raster reference is sniffed, normalized, stripped, and stored behind an 
   const stored = await readFile(path.join(storageDir, `${asset.id}.png`));
   assert.equal(stored.includes(Buffer.from("EXIF-secret-location")), false);
   assert.equal("storagePath" in asset, false);
+});
+
+test("EXIF-oriented raster metadata reports the dimensions of the sanitized pixels", async () => {
+  const storageDir = await mkdtemp(path.join(os.tmpdir(), "ticketground-reference-oriented-"));
+  const source = await sharp({ create: { width: 20, height: 40, channels: 3, background: "#ef4444" } })
+    .jpeg()
+    .withMetadata({ orientation: 6 })
+    .toBuffer();
+  const asset = await sanitizeReferenceAsset({
+    bytes: source,
+    fileName: "세로 도면.jpg",
+    declaredMediaType: "image/jpeg",
+    purpose: "object",
+    storageDir,
+  });
+  const stored = await readFile(path.join(storageDir, `${asset.id}.png`));
+  const metadata = await sharp(stored).metadata();
+  assert.equal(asset.width, 40);
+  assert.equal(asset.height, 20);
+  assert.equal(metadata.width, asset.width);
+  assert.equal(metadata.height, asset.height);
 });
 
 test("MIME spoofing and oversized uploads fail closed", async () => {

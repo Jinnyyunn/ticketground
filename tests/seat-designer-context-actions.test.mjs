@@ -29,6 +29,17 @@ test("duplicate and flip preserve nested relative geometry with fresh identities
   assert.equal(flipped.objects[2].points[0].x, 176);
 });
 
+test("flipping visible geometry negates top-level and nested rotations", () => {
+  const rotatedSection = {
+    ...section,
+    rotation: 30,
+    nestedRows: [{ ...section.nestedRows[0], rotation: 45 }],
+  };
+  const flipped = flipObjects({ ...chart, objects: [rotatedSection] }, [rotatedSection.id], "h", { x: 100, y: 50 }).objects[0];
+  assert.equal(flipped.rotation, 330);
+  assert.equal(flipped.nestedRows[0].rotation, 315);
+});
+
 test("align, translate, and delete are immutable whole transactions", () => {
   const aligned = alignCenter(chart, [section.id, rectangle.id]);
   assert.notEqual(aligned, chart);

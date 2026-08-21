@@ -7,7 +7,7 @@ import type {
   TableObject,
   Viewport,
 } from "@/types/seat-chart";
-import { mirrorPoints, seatsAlongLine, seatsAlongPolyline, seatsAroundRectangularTable, seatsAroundTable, uid } from "./geometry.ts";
+import { mirrorPoints, rotateAround, seatsAlongLine, seatsAlongPolyline, seatsAroundRectangularTable, seatsAroundTable, uid } from "./geometry.ts";
 import { objectBounds, resizeObject } from "./transforms.ts";
 
 export type ChartBounds = {
@@ -40,6 +40,25 @@ export function chartBounds(chart: ChartDocument): ChartBounds {
 
   const visit = (obj: ChartObject) => {
     any = true;
+    if (obj.rotation) {
+      const center = objectCenter(obj);
+      const bounds = objectBounds(obj);
+      const corners = [
+        { x: bounds.x, y: bounds.y },
+        { x: bounds.x + bounds.width, y: bounds.y },
+        { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+        { x: bounds.x, y: bounds.y + bounds.height },
+      ];
+      const points = obj.type === "section" && obj.nestedRows
+        ? [...corners, ...obj.nestedRows.flatMap((row) => row.seats)]
+        : corners;
+      const pad = obj.type === "row" ? 8 : 0;
+      for (const point of points) {
+        const rendered = rotateAround(point, center, obj.rotation);
+        expandBounds(b, rendered.x, rendered.y, pad);
+      }
+      return;
+    }
     switch (obj.type) {
       case "row":
         for (const point of obj.path ?? [obj.start, obj.end]) expandBounds(b, point.x, point.y, 8);
@@ -270,6 +289,7 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
     axis === "h"
       ? { x: origin.x - (p.x - origin.x), y: p.y }
       : { x: p.x, y: origin.y - (p.y - origin.y) };
+  const rotation = obj.rotation === undefined ? undefined : ((-obj.rotation % 360) + 360) % 360;
 
   switch (obj.type) {
     case "row": {
@@ -277,6 +297,7 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
       const end = flipP(obj.end);
       return {
         ...obj,
+        rotation,
         start,
         end,
         path: obj.path?.map(flipP),
@@ -286,6 +307,7 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
     case "section":
       return {
         ...obj,
+        rotation,
         points: mirrorPoints(obj.points, axis, origin),
         nestedRows: obj.nestedRows?.map((r) => flipOne(r, axis, origin) as RowObject),
       };
@@ -293,6 +315,7 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
       const center = flipP(obj.center);
       return {
         ...obj,
+        rotation,
         center,
         seats: obj.seats.map((seat) => ({ ...seat, ...flipP(seat) })),
       };
@@ -301,15 +324,15 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
     case "rectangle":
     case "image": {
       const c = flipP({ x: obj.x + obj.width / 2, y: obj.y + obj.height / 2 });
-      return { ...obj, x: c.x - obj.width / 2, y: c.y - obj.height / 2, ...(obj.type === "rectangle" && obj.points ? { points: obj.points.map(flipP) } : {}) };
+      return { ...obj, rotation, x: c.x - obj.width / 2, y: c.y - obj.height / 2, ...(obj.type === "rectangle" && obj.points ? { points: obj.points.map(flipP) } : {}) };
     }
     case "area":
-      return { ...obj, points: mirrorPoints(obj.points, axis, origin) };
+      return { ...obj, rotation, points: mirrorPoints(obj.points, axis, origin) };
     case "line":
-      return { ...obj, start: flipP(obj.start), end: flipP(obj.end), points: obj.points?.map(flipP) };
+      return { ...obj, rotation, start: flipP(obj.start), end: flipP(obj.end), points: obj.points?.map(flipP) };
     case "text":
     case "icon":
-      return { ...obj, position: flipP(obj.position) };
+      return { ...obj, rotation, position: flipP(obj.position) };
     default:
       return obj;
   }
@@ -548,7 +571,8 @@ export function setTableProps(
   const rectangularSeatCount = chairs.top + chairs.right + chairs.bottom + chairs.left;
   const variableOccupancy = patch.variableOccupancy ?? obj.variableOccupancy;
   const minOccupancy = Math.max(1, patch.minOccupancy ?? obj.minOccupancy ?? 1);
-  const maxOccupancy = Math.max(minOccupancy, patch.maxOccupancy ?? obj.maxOccupancy ?? seatCount);
+  const defaultOccupancy = obj.shape === "rectangle" ? rectangularSeatCount : seatCount;
+  const maxOccupancy = Math.max(minOccupancy, patch.maxOccupancy ?? obj.maxOccupancy ?? defaultOccupancy);
   const generatedSeats = obj.shape === "rectangle"
     ? seatsAroundRectangularTable(obj.center, width, height, chairs, label, obj.categoryKey)
     : seatsAroundTable(obj.center, radius, seatCount, label, obj.categoryKey);
@@ -632,15 +656,22 @@ export function setRowGeometry(
   const seatCount = Math.max(1, Math.min(200, patch.seatCount ?? obj.seatCount));
   const curve = patch.curve ?? obj.curve ?? 0;
   const label = patch.label ?? obj.label;
+  const geometryChanged = seatCount !== obj.seatCount || label !== obj.label || (!obj.path?.length && curve !== (obj.curve ?? 0));
+  const generatedSeats = obj.path?.length
+    ? seatsAlongPolyline(obj.path, seatCount, label, obj.categoryKey)
+    : seatsAlongLine(obj.start, obj.end, seatCount, label, curve, obj.categoryKey);
+  const seats = geometryChanged
+    ? generatedSeats.map((seat, index) => obj.seats[index]
+      ? { ...obj.seats[index], label: seat.label, x: seat.x, y: seat.y }
+      : seat)
+    : obj.seats;
   return updateObject(chart, id, {
     seatCount,
     curve,
     label,
     smooth: patch.smooth ?? obj.smooth,
     displayedLabel: patch.displayedLabel ?? obj.displayedLabel,
-    seats: obj.path?.length
-      ? seatsAlongPolyline(obj.path, seatCount, label, obj.categoryKey)
-      : seatsAlongLine(obj.start, obj.end, seatCount, label, curve, obj.categoryKey),
+    seats,
   });
 }
 

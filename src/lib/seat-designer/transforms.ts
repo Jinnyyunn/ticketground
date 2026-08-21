@@ -138,7 +138,7 @@ export function resizeObject(object: ChartObject, next: ObjectBounds): ChartObje
     case "row": return rowWith(object, transform);
     case "section": return { ...object, points: object.points.map(transform), nestedRows: object.nestedRows?.map((row) => rowWith(row, transform)) };
     case "table": {
-      if (object.shape === "round") {
+      if (object.shape !== "rectangle") {
         const scale = Math.max(0.01, Math.min(next.width / previous.width, next.height / previous.height));
         const center = { x: next.x + next.width / 2, y: next.y + next.height / 2 };
         const uniformTransform = (point: Point): Point => ({

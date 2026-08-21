@@ -118,13 +118,17 @@ export async function prepareReferenceAsset(input: {
     throw new ReferenceAssetValidationError("REFERENCE_ASSET_INVALID_DIMENSIONS");
   }
   const sanitized = await image.rotate().png({ compressionLevel: 9, palette: false }).toBuffer();
+  const sanitizedMetadata = await sharp(sanitized).metadata();
+  if (!sanitizedMetadata.width || !sanitizedMetadata.height) {
+    throw new ReferenceAssetValidationError("REFERENCE_ASSET_INVALID_DIMENSIONS");
+  }
   return {
     asset: {
       id,
       kind: input.purpose,
       mediaType: "image/png",
-      width: metadata.width,
-      height: metadata.height,
+      width: sanitizedMetadata.width,
+      height: sanitizedMetadata.height,
       contentHash: createHash("sha256").update(sanitized).digest("hex"),
       originalName: path.basename(input.fileName),
     },
