@@ -2,6 +2,7 @@ import type { ChartObject, Point, RowObject } from "@/types/seat-chart";
 
 export type ObjectBounds = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 export type AlignmentMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
+export type DistributionMode = "horizontal" | "vertical";
 
 function pointsBounds(points: readonly Point[]): ObjectBounds {
   const xs = points.map((point) => point.x);
@@ -71,12 +72,63 @@ export function alignObjects(objects: readonly ChartObject[], selectedIds: reado
   });
 }
 
+export function distributeObjects(
+  objects: readonly ChartObject[],
+  selectedIds: readonly string[],
+  mode: DistributionMode,
+): readonly ChartObject[] {
+  const selected = objects
+    .filter((object) => selectedIds.includes(object.id))
+    .map((object) => ({ object, bounds: objectBounds(object) }));
+  if (selected.length < 3) return objects;
+  const axis = mode === "horizontal" ? "x" : "y";
+  const size = mode === "horizontal" ? "width" : "height";
+  const ordered = selected.toSorted(
+    (left, right) =>
+      left.bounds[axis] + left.bounds[size] / 2 -
+      (right.bounds[axis] + right.bounds[size] / 2),
+  );
+  const first = ordered[0];
+  const last = ordered.at(-1);
+  if (!first || !last) return objects;
+  const firstCenter = first.bounds[axis] + first.bounds[size] / 2;
+  const lastCenter = last.bounds[axis] + last.bounds[size] / 2;
+  const step = (lastCenter - firstCenter) / (ordered.length - 1);
+  const offsets = new Map(
+    ordered.map(({ object, bounds }, index) => [
+      object.id,
+      firstCenter + step * index - (bounds[axis] + bounds[size] / 2),
+    ]),
+  );
+  return objects.map((object) => {
+    const offset = offsets.get(object.id);
+    if (offset === undefined) return object;
+    return translateObject(
+      object,
+      mode === "horizontal" ? { x: offset, y: 0 } : { x: 0, y: offset },
+    );
+  });
+}
+
 function scaled(point: Point, origin: Point, scale: Point): Point { return { x: origin.x + (point.x - origin.x) * scale.x, y: origin.y + (point.y - origin.y) * scale.y }; }
 
 export function resizeObject(object: ChartObject, origin: Point, scale: Point): ChartObject {
   if (object.type === "row") return { ...object, start: scaled(object.start, origin, scale), end: scaled(object.end, origin, scale), path: object.path?.map((point) => scaled(point, origin, scale)), seats: object.seats.map((seat) => ({ ...seat, ...scaled(seat, origin, scale) })) };
   if (object.type === "table") return { ...object, center: scaled(object.center, origin, scale), radius: Math.max(8, object.radius * Math.max(scale.x, scale.y)), width: object.width ? Math.max(8, object.width * scale.x) : undefined, height: object.height ? Math.max(8, object.height * scale.y) : undefined, seats: object.seats.map((seat) => ({ ...seat, ...scaled(seat, origin, scale) })) };
-  if (object.type === "booth" || object.type === "image") { const start = scaled({ x: object.x, y: object.y }, origin, scale); return { ...object, x: start.x, y: start.y, width: Math.max(8, object.width * scale.x), height: Math.max(8, object.height * scale.y) }; }
+  if (object.type === "booth") { const start = scaled({ x: object.x, y: object.y }, origin, scale); return { ...object, x: start.x, y: start.y, width: Math.max(8, object.width * scale.x), height: Math.max(8, object.height * scale.y) }; }
+  if (object.type === "image") {
+    const start = scaled({ x: object.x, y: object.y }, origin, scale);
+    const uniform = object.aspectRatioLocked === false
+      ? scale
+      : { x: Math.max(scale.x, scale.y), y: Math.max(scale.x, scale.y) };
+    return {
+      ...object,
+      x: start.x,
+      y: start.y,
+      width: Math.max(8, object.width * uniform.x),
+      height: Math.max(8, object.height * uniform.y),
+    };
+  }
   if (object.type === "rectangle") { const start = scaled({ x: object.x, y: object.y }, origin, scale); return { ...object, x: start.x, y: start.y, width: Math.max(8, object.width * scale.x), height: Math.max(8, object.height * scale.y), points: object.points?.map((point) => scaled(point, origin, scale)) }; }
   if (object.type === "line") return { ...object, start: scaled(object.start, origin, scale), end: scaled(object.end, origin, scale), points: object.points?.map((point) => scaled(point, origin, scale)) };
   if (object.type === "text" || object.type === "icon") return { ...object, position: scaled(object.position, origin, scale) };

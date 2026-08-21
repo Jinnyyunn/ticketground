@@ -6,16 +6,20 @@ import type {
   ChartObject,
   IconObject,
   ObjectLayer,
+  SeatPlace,
   TableObject,
 } from "@/types/seat-chart";
 import { countPlaces, type V2EditorState } from "./editor-model";
 import { updateTableGeometry } from "./object-factory";
+import { fitReferenceAsset } from "./reference-layout";
 import { toolSpec } from "./tool-catalog";
 
 type InspectorProps = {
   readonly state: V2EditorState;
   readonly onState: (next: V2EditorState) => void;
   readonly onObject: (object: ChartObject) => void;
+  readonly onSeat: (seat: SeatPlace) => void;
+  readonly onEnterSection: (sectionId: string) => void;
   readonly onReplaceReference: (file: File) => void;
   readonly onRemoveReference: () => void;
 };
@@ -39,12 +43,19 @@ export function Inspector({
   state,
   onState,
   onObject,
+  onSeat,
+  onEnterSection,
   onReplaceReference,
   onRemoveReference,
 }: InspectorProps) {
   const selected = state.objects.find((object) =>
     state.selectedIds.includes(object.id),
   );
+  const selectedSeat = state.objects
+    .flatMap((object) =>
+      object.type === "row" || object.type === "table" ? object.seats : [],
+    )
+    .find((seat) => state.selectedSeatIds.includes(seat.id));
   const spec = toolSpec(state.tool);
   const reference = state.referencePlan;
   const patchReference = (
@@ -59,11 +70,13 @@ export function Inspector({
       data-testid="seat-designer-v2-inspector"
     >
       <h2 className="border-b border-[#ddd] bg-white px-4 py-4 text-base font-semibold">
-        {selected ? "객체 설정" : `${spec.label} 도구`}
+        {selectedSeat ? "좌석 설정" : selected ? "객체 설정" : `${spec.label} 도구`}
       </h2>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {selected ? (
-          <ObjectFields object={selected} onObject={onObject} />
+        {selectedSeat ? (
+          <SeatFields seat={selectedSeat} onSeat={onSeat} />
+        ) : selected ? (
+          <ObjectFields object={selected} onObject={onObject} onEnterSection={onEnterSection} />
         ) : (
           <ToolFields state={state} onState={onState} />
         )}
@@ -113,14 +126,23 @@ export function Inspector({
                 value={reference.width}
                 suffix=" pt"
                 min={40}
-                onChange={(width) => patchReference({ width })}
+                onChange={(width) => patchReference(reference.aspectRatioLocked
+                  ? { width, height: Math.round(width * reference.asset.height / reference.asset.width) }
+                  : { width })}
               />
               <NumberField
                 label="높이"
                 value={reference.height}
                 suffix=" pt"
                 min={40}
-                onChange={(height) => patchReference({ height })}
+                onChange={(height) => patchReference(reference.aspectRatioLocked
+                  ? { height, width: Math.round(height * reference.asset.width / reference.asset.height) }
+                  : { height })}
+              />
+              <ToggleField
+                label="원본 비율 고정"
+                checked={reference.aspectRatioLocked}
+                onChange={(aspectRatioLocked) => patchReference({ aspectRatioLocked })}
               />
               <NumberField
                 label="불투명도"
@@ -144,10 +166,11 @@ export function Inspector({
               className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded border border-[#ccc] bg-white px-3 hover:bg-[#eee]"
               onClick={() =>
                 patchReference({
-                  x: 80,
-                  y: 60,
-                  width: 760,
-                  height: 560,
+                  ...fitReferenceAsset(
+                    reference.asset,
+                    { width: 760, height: 560 },
+                    { x: 80, y: 60 },
+                  ),
                   rotation: 0,
                 })
               }
@@ -224,6 +247,24 @@ function ToolFields({
           min={0}
           onChange={(seatSpacing) => onState({ ...state, seatSpacing })}
         />
+        {state.tool === "multipleRows" && (
+          <label className="grid gap-2">
+            <span>행 배치</span>
+            <select
+              aria-label="여러 행 배치"
+              data-testid="seat-designer-v2-multiple-layout"
+              className="h-9 rounded border border-[#ccc] bg-white px-2"
+              value={state.multipleRowLayout}
+              onChange={(event) => onState({
+                ...state,
+                multipleRowLayout: event.currentTarget.value as "aligned" | "staggered",
+              })}
+            >
+              <option value="aligned">정렬</option>
+              <option value="staggered">엇갈림</option>
+            </select>
+          </label>
+        )}
       </div>
     );
   if (state.tool === "roundTable")
@@ -264,7 +305,7 @@ function ToolFields({
       <Defaults
         rows={[
           "PNG, GIF, JPEG, WEBP, SVG",
-          "최대 10 MB",
+          "최대 15 MB",
           "선택 후 크기·불투명도·회전 편집",
         ]}
       />
@@ -280,9 +321,11 @@ function ToolFields({
 function ObjectFields({
   object,
   onObject,
+  onEnterSection,
 }: {
   readonly object: ChartObject;
   readonly onObject: (object: ChartObject) => void;
+  readonly onEnterSection: (sectionId: string) => void;
 }) {
   const updateChairs = (
     side: keyof NonNullable<TableObject["chairs"]>,
@@ -445,12 +488,21 @@ function ObjectFields({
         />
       )}
       {object.type === "section" && (
-        <NumberField
-          label="정원"
-          value={object.capacity ?? 0}
-          min={0}
-          onChange={(capacity) => onObject({ ...object, capacity })}
-        />
+        <>
+          <NumberField
+            label="정원"
+            value={object.capacity ?? 0}
+            min={0}
+            onChange={(capacity) => onObject({ ...object, capacity })}
+          />
+          <button
+            type="button"
+            className="h-10 w-full rounded bg-[#087ffa] px-3 font-semibold text-white hover:bg-[#066fd9]"
+            onClick={() => onEnterSection(object.id)}
+          >
+            구역 내부 편집
+          </button>
+        </>
       )}
       {object.type === "rectangle" && (
         <>
@@ -537,19 +589,36 @@ function ObjectFields({
       )}
       {object.type === "image" && (
         <>
+          <ToggleField
+            label="원본 비율 고정"
+            checked={object.aspectRatioLocked ?? true}
+            onChange={(aspectRatioLocked) => onObject({ ...object, aspectRatioLocked })}
+          />
           <NumberField
             label="너비"
             value={object.width}
             suffix=" pt"
             min={8}
-            onChange={(width) => onObject({ ...object, width })}
+            onChange={(width) => onObject({
+              ...object,
+              width,
+              height: object.aspectRatioLocked === false
+                ? object.height
+                : Math.round(width * object.height / object.width),
+            })}
           />
           <NumberField
             label="높이"
             value={object.height}
             suffix=" pt"
             min={8}
-            onChange={(height) => onObject({ ...object, height })}
+            onChange={(height) => onObject({
+              ...object,
+              height,
+              width: object.aspectRatioLocked === false
+                ? object.width
+                : Math.round(height * object.width / object.height),
+            })}
           />
           <NumberField
             label="불투명도"
@@ -594,6 +663,49 @@ function ObjectFields({
           />
         </>
       )}
+    </div>
+  );
+}
+
+function SeatFields({
+  seat,
+  onSeat,
+}: {
+  readonly seat: SeatPlace;
+  readonly onSeat: (seat: SeatPlace) => void;
+}) {
+  return (
+    <div className="space-y-4" data-testid="seat-designer-v2-seat-fields">
+      <TextField
+        label="좌석 라벨"
+        value={seat.label}
+        onChange={(label) => onSeat({ ...seat, label })}
+      />
+      <TextField
+        label="관객 표시 라벨"
+        value={seat.displayedLabel ?? ""}
+        onChange={(displayedLabel) => onSeat({ ...seat, displayedLabel })}
+      />
+      <ToggleField
+        label="휠체어 좌석"
+        checked={seat.accessible ?? false}
+        onChange={(accessible) => onSeat({ ...seat, accessible })}
+      />
+      <ToggleField
+        label="동반자 좌석"
+        checked={seat.companion ?? false}
+        onChange={(companion) => onSeat({ ...seat, companion })}
+      />
+      <ToggleField
+        label="이동석"
+        checked={seat.transferSeat ?? false}
+        onChange={(transferSeat) => onSeat({ ...seat, transferSeat })}
+      />
+      <ToggleField
+        label="시야 제한석"
+        checked={seat.restrictedView ?? false}
+        onChange={(restrictedView) => onSeat({ ...seat, restrictedView })}
+      />
     </div>
   );
 }

@@ -23,9 +23,10 @@ test("every clean-room designer tool family is operable in the real admin browse
   await click(150, 170);
   await click(260, 200);
   await click(370, 170);
-  await page.keyboard.press("Enter");
+  await click(370, 170);
   await chooseTool(page, "multipleRows");
   await drag(450, 100, 650, 100);
+  await drag(450, 100, 450, 160);
   await chooseTool(page, "section");
   for (const [x, y] of [[720, 100], [880, 110], [860, 220], [710, 210]]) await click(x, y);
   await page.keyboard.press("Enter");
@@ -75,6 +76,9 @@ test("every clean-room designer tool family is operable in the real admin browse
   await chooseTool(page, "seatSelect");
   await page.locator('[data-object-type="row"] circle').first().click({ force: true });
   await page.getByText(/1개 좌석 선택됨/).waitFor();
+  const seatFields = page.getByTestId("seat-designer-v2-seat-fields");
+  await seatFields.waitFor();
+  await seatFields.getByText("휠체어 좌석", { exact: true }).click();
   await chooseTool(page, "brush");
   const seat = await page.locator('[data-object-type="row"] circle').nth(1).boundingBox();
   assert.ok(seat);
@@ -86,6 +90,8 @@ test("every clean-room designer tool family is operable in the real admin browse
   await chooseTool(page, "sameType");
   await page.locator('[data-object-type="row"] circle').first().click({ force: true });
   assert.ok(await page.getByTestId("seat-designer-v2-selection-handles").count() >= 6);
+  await page.getByTitle("가로 균등 배치").click();
+  await page.getByTitle("세로 균등 배치").click();
 
   await chooseTool(page, "select");
   await page.keyboard.press("Escape");
@@ -114,6 +120,14 @@ test("every clean-room designer tool family is operable in the real admin browse
   await page.getByTitle("미리보기").click();
   await page.getByTestId("seat-designer-v2-preview").waitFor();
   await page.getByTestId("seat-designer-v2-preview").getByRole("button").click();
+
+  await page.getByTitle("도움말").click();
+  const help = page.getByTestId("seat-designer-v2-help-dialog");
+  await help.getByText("도구와 단축키", { exact: true }).waitFor();
+  await help.getByTitle("도움말 닫기").click();
+  await page.getByTitle("층 추가").click();
+  await page.getByRole("button", { name: "2F", exact: true }).waitFor();
+  await page.getByRole("button", { name: "1F", exact: true }).click();
 
   const publishResponse = page.waitForResponse((response) => response.request().method() === "POST" && /\/api\/seat-charts\/[^/]+\/publish$/.test(new URL(response.url()).pathname));
   await page.getByRole("button", { name: "게시", exact: true }).click();

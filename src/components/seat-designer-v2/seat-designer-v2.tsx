@@ -4,9 +4,11 @@ import {
   AlignHorizontalJustifyCenter,
   AlignHorizontalJustifyEnd,
   AlignHorizontalJustifyStart,
+  AlignHorizontalSpaceBetween,
   AlignVerticalJustifyCenter,
   AlignVerticalJustifyEnd,
   AlignVerticalJustifyStart,
+  AlignVerticalSpaceBetween,
   ClipboardCopy,
   ClipboardPaste,
   Copy,
@@ -39,6 +41,7 @@ import type {
   ImageObject,
   Point,
   RowObject,
+  SeatPlace,
 } from "@/types/seat-chart";
 import { CanvasObjects } from "./canvas-objects";
 import {
@@ -49,6 +52,8 @@ import {
   type V2ReferencePlan,
 } from "./editor-model";
 import { Inspector } from "./inspector";
+import { HelpDialog } from "./help-dialog";
+import { FloorBar } from "./floor-bar";
 import {
   boundsContains,
   chartDocument,
@@ -58,17 +63,23 @@ import {
 } from "./object-factory";
 import {
   alignObjects,
+  distributeObjects,
   duplicateObject,
   objectBounds,
   resizeObject,
   rotateObject,
   translateObject,
   type AlignmentMode,
+  type DistributionMode,
 } from "./object-transform";
 import { ReferenceStart } from "./reference-start";
+import { fitReferenceAsset } from "./reference-layout";
+import { buildMultipleRows } from "./row-geometry";
 import { ServiceCredentialsPanel } from "./service-credentials-panel";
+import { deriveSmartGuides, type SmartGuide } from "./smart-guides";
 import { Toolbar } from "./toolbar";
 import { toolSpec, V2_TOOLS, type V2ToolId } from "./tool-catalog";
+import { insertPathNode, removePathNode } from "./node-geometry";
 
 const DRAG_TOOLS: readonly V2ToolId[] = [
   "row",
@@ -127,8 +138,12 @@ export function SeatDesignerV2() {
   const [shift, setShift] = useState(false);
   const [preview, setPreview] = useState(false);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [imagePoint, setImagePoint] = useState<V2Point | null>(null);
+  const [multipleBase, setMultipleBase] = useState<RowObject | null>(null);
+  const [smartGuides, setSmartGuides] = useState<readonly SmartGuide[]>([]);
+  const [altPressed, setAltPressed] = useState(false);
   const [nodeDrag, setNodeDrag] = useState<{
     readonly objectId: string;
     readonly index: number;
@@ -149,6 +164,33 @@ export function SeatDesignerV2() {
     () => previewObject(state, shift),
     [shift, state],
   );
+  const multiplePreview = useMemo(
+    () => multipleBase && state.draft
+      ? buildMultipleRows(
+          multipleBase,
+          state.draft.current,
+          state.rowSpacing,
+          state.multipleRowLayout,
+        )
+      : null,
+    [multipleBase, state.draft, state.multipleRowLayout, state.rowSpacing],
+  );
+  const previewObjects = multiplePreview ?? (draftPreview ? [draftPreview] : []);
+  const visibleObjects = useMemo(
+    () => state.objects.filter((object) =>
+      (object.floorId ?? "floor_1") === state.activeFloorId &&
+      (object.sectionId ?? null) === state.activeSectionId,
+    ),
+    [state.activeFloorId, state.activeSectionId, state.objects],
+  );
+
+  function inCurrentScope(object: ChartObject): ChartObject {
+    return {
+      ...object,
+      floorId: state.activeFloorId,
+      sectionId: state.activeSectionId ?? undefined,
+    };
+  }
 
   function commit(next: V2EditorState): void {
     setPast((items) => [...items, { ...state, draft: null }]);
@@ -174,6 +216,8 @@ export function SeatDesignerV2() {
   }
 
   function selectTool(tool: V2ToolId): void {
+    setMultipleBase(null);
+    setSmartGuides([]);
     setState((current) => ({
       ...current,
       tool,
@@ -263,12 +307,19 @@ export function SeatDesignerV2() {
       objects: alignObjects(state.objects, state.selectedIds, mode),
     });
   }
+  function distributeSelected(mode: DistributionMode): void {
+    if (state.selectedIds.length < 3) return;
+    commit({
+      ...state,
+      objects: distributeObjects(state.objects, state.selectedIds, mode),
+    });
+  }
 
   function selectAt(point: Point, additive: boolean): void {
     const selectable =
       state.selectionLayer === "interactive"
-        ? state.objects.filter((object) => object.layer === "interactive")
-        : state.objects;
+        ? visibleObjects.filter((object) => object.layer === "interactive")
+        : visibleObjects;
     const hit = selectable.findLast((object) => boundsContains(object, point));
     if (!hit) {
       setState((current) => ({
@@ -295,8 +346,8 @@ export function SeatDesignerV2() {
   ): boolean {
     const selectable =
       state.selectionLayer === "interactive"
-        ? state.objects.filter((object) => object.layer === "interactive")
-        : state.objects;
+        ? visibleObjects.filter((object) => object.layer === "interactive")
+        : visibleObjects;
     const handleObject = selectable.find((object) => {
       if (!state.selectedIds.includes(object.id)) return false;
       const bounds = objectBounds(object);
@@ -346,7 +397,7 @@ export function SeatDesignerV2() {
   }
 
   function seatAt(point: Point, additive: boolean): void {
-    const seats = state.objects.flatMap((object) =>
+    const seats = visibleObjects.flatMap((object) =>
       object.type === "row" || object.type === "table" ? object.seats : [],
     );
     const hit = seats.find(
@@ -362,7 +413,11 @@ export function SeatDesignerV2() {
   }
 
   function pointerDown(event: ReactPointerEvent<SVGSVGElement>): void {
-    const point = canvasPoint(event, state);
+    let point = canvasPoint(event, state);
+    const lastPathPoint = state.draft?.points.at(-1);
+    if (PATH_TOOLS.includes(state.tool) && lastPathPoint && event.shiftKey) {
+      point = constrainedEnd(lastPathPoint, point, true);
+    }
     if (state.tool === "select") {
       if (!event.shiftKey && beginObjectDrag(point, event)) return;
       selectAt(point, event.shiftKey);
@@ -409,6 +464,15 @@ export function SeatDesignerV2() {
       return;
     }
     if (PATH_TOOLS.includes(state.tool)) {
+      if (
+        state.tool === "segmentedRow" &&
+        (state.draft?.points.length ?? 0) >= 2 &&
+        lastPathPoint &&
+        Math.hypot(lastPathPoint.x - point.x, lastPathPoint.y - point.y) <= 12
+      ) {
+        finishPath();
+        return;
+      }
       const points = [...(state.draft?.points ?? []), point];
       setState((current) => ({
         ...current,
@@ -421,7 +485,7 @@ export function SeatDesignerV2() {
       if (object)
         commit({
           ...state,
-          objects: [...state.objects, object],
+          objects: [...state.objects, inCurrentScope(object)],
           selectedIds: [object.id],
         });
       return;
@@ -436,7 +500,29 @@ export function SeatDesignerV2() {
   }
 
   function pointerMove(event: ReactPointerEvent<SVGSVGElement>): void {
-    const point = canvasPoint(event, state);
+    const rawPoint = canvasPoint(event, state);
+    const guideResult = event.altKey || !state.draft
+      ? { point: rawPoint, guides: [] as readonly SmartGuide[] }
+      : deriveSmartGuides(
+          rawPoint,
+          {
+            origin: state.draft.start,
+            centers: visibleObjects.map((object) => {
+              const bounds = objectBounds(object);
+              return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+            }),
+            projections: visibleObjects.flatMap((object) => {
+              const bounds = objectBounds(object);
+              return [
+                { x: bounds.x, y: bounds.y },
+                { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+              ];
+            }),
+          },
+        );
+    const point = guideResult.point;
+    setSmartGuides(guideResult.guides);
+    setAltPressed(event.altKey);
     if (objectDrag && dragOrigin.current) {
       const originState = dragOrigin.current;
       const primary = originState.objects.find(
@@ -536,16 +622,29 @@ export function SeatDesignerV2() {
     if (!state.draft || !DRAG_TOOLS.includes(state.tool)) return;
     const object = previewObject(state, event.shiftKey);
     if (object) {
-      const objects =
-        state.tool === "multipleRows" && object.type === "row"
-          ? multipleRows(object, state.rowSpacing)
-          : [object];
+      if (state.tool === "multipleRows" && object.type === "row" && !multipleBase) {
+        setMultipleBase(object);
+        setState((current) => ({
+          ...current,
+          draft: null,
+          status: "기준 행 완료 · 두 번째 드래그로 행 수를 정하세요",
+        }));
+        setSmartGuides([]);
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        return;
+      }
+      const objects = (state.tool === "multipleRows" && multiplePreview
+        ? multiplePreview
+        : [object]).map(inCurrentScope);
       commit({
         ...state,
         objects: [...state.objects, ...objects],
         selectedIds: objects.map((item) => item.id),
       });
+      setMultipleBase(null);
     } else setState((current) => ({ ...current, draft: null }));
+    setSmartGuides([]);
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
   }
@@ -560,7 +659,7 @@ export function SeatDesignerV2() {
     if (object)
       commit({
         ...state,
-        objects: [...state.objects, object],
+        objects: [...state.objects, inCurrentScope(object)],
         selectedIds: [object.id],
       });
     else setState((current) => ({ ...current, draft: null }));
@@ -592,11 +691,7 @@ export function SeatDesignerV2() {
           distanceToSegment(point, right.start, right.end),
       )[0];
     if (!segment) return;
-    const points = [
-      ...target.points.slice(0, segment.index + 1),
-      point,
-      ...target.points.slice(segment.index + 1),
-    ];
+    const points = insertPathNode(target.points, segment.index, point);
     updateObject({ ...target, points });
   }
   function removeNode(event: ReactPointerEvent<SVGSVGElement>): void {
@@ -617,7 +712,11 @@ export function SeatDesignerV2() {
     if (index >= 0)
       updateObject({
         ...target,
-        points: target.points.filter((_, itemIndex) => itemIndex !== index),
+        points: removePathNode(
+          target.points,
+          index,
+          target.type === "line" ? 2 : 3,
+        ),
       });
   }
   function updateObject(next: ChartObject): void {
@@ -625,6 +724,21 @@ export function SeatDesignerV2() {
       ...state,
       objects: state.objects.map((object) =>
         object.id === next.id ? next : object,
+      ),
+    });
+  }
+  function updateSeat(next: SeatPlace): void {
+    commit({
+      ...state,
+      objects: state.objects.map((object) =>
+        object.type === "row" || object.type === "table"
+          ? {
+              ...object,
+              seats: object.seats.map((seat) =>
+                seat.id === next.id ? next : seat,
+              ),
+            }
+          : object,
       ),
     });
   }
@@ -638,21 +752,24 @@ export function SeatDesignerV2() {
         file,
         purpose: "object",
       });
+      const fitted = fitReferenceAsset(
+        uploaded.asset,
+        { width: 240, height: 180 },
+        targetPoint,
+      );
       const object: ImageObject = {
         id: `image_${crypto.randomUUID()}`,
         label: "이미지",
         layer: "background",
         type: "image",
-        x: targetPoint.x,
-        y: targetPoint.y,
-        width: 240,
-        height: 180,
+        ...fitted,
         href: uploaded.url,
         opacity: 1,
+        aspectRatioLocked: true,
       };
       commitCurrent((current) => ({
         ...current,
-        objects: [...current.objects, object],
+        objects: [...current.objects, inCurrentScope(object)],
         assets: [...current.assets, uploaded.asset],
         selectedIds: [object.id],
       }));
@@ -686,6 +803,14 @@ export function SeatDesignerV2() {
                 asset: uploaded.asset,
                 href: uploaded.url,
                 name: file.name,
+                ...fitReferenceAsset(
+                  uploaded.asset,
+                  {
+                    width: current.referencePlan.width,
+                    height: current.referencePlan.height,
+                  },
+                  { x: current.referencePlan.x, y: current.referencePlan.y },
+                ),
               }
             : null,
           assets: current.referencePlan
@@ -752,6 +877,7 @@ export function SeatDesignerV2() {
 
   useEffect(() => {
     function keydown(event: KeyboardEvent): void {
+      if (event.key === "Alt") setAltPressed(true);
       const target = event.target;
       if (
         target instanceof HTMLInputElement ||
@@ -780,7 +906,11 @@ export function SeatDesignerV2() {
       }
       if (event.key === "Delete" || event.key === "Backspace") deleteSelected();
       else if (event.key === "Escape")
-        setState((current) => ({ ...current, draft: null, selectedIds: [] }));
+        {
+          setMultipleBase(null);
+          setSmartGuides([]);
+          setState((current) => ({ ...current, draft: null, selectedIds: [] }));
+        }
       else if (event.key === "Enter") finishPath();
       else {
         const match = V2_TOOLS.find(
@@ -789,8 +919,15 @@ export function SeatDesignerV2() {
         if (match) selectTool(match.id);
       }
     }
+    function keyup(event: KeyboardEvent): void {
+      if (event.key === "Alt") setAltPressed(false);
+    }
     window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
+    window.addEventListener("keyup", keyup);
+    return () => {
+      window.removeEventListener("keydown", keydown);
+      window.removeEventListener("keyup", keyup);
+    };
   });
 
   return (
@@ -890,6 +1027,20 @@ export function SeatDesignerV2() {
             >
               <AlignVerticalJustifyEnd />
             </TopButton>
+            <TopButton
+              label="가로 균등 배치"
+              onClick={() => distributeSelected("horizontal")}
+              disabled={state.selectedIds.length < 3}
+            >
+              <AlignHorizontalSpaceBetween />
+            </TopButton>
+            <TopButton
+              label="세로 균등 배치"
+              onClick={() => distributeSelected("vertical")}
+              disabled={state.selectedIds.length < 3}
+            >
+              <AlignVerticalSpaceBetween />
+            </TopButton>
           </span>
           <span className="hidden md:contents">
             <TopButton label="복사" onClick={copySelected}>
@@ -914,7 +1065,7 @@ export function SeatDesignerV2() {
             >
               <KeyRound />
             </TopButton>
-            <TopButton label="도움말">
+            <TopButton label="도움말" onClick={() => setHelpOpen(true)}>
               <HelpCircle />
             </TopButton>
           </span>
@@ -941,7 +1092,8 @@ export function SeatDesignerV2() {
       <div className="flex min-h-0 flex-1">
         <Toolbar active={state.tool} onSelect={selectTool} />
         <main className="relative min-w-0 flex-1 overflow-hidden bg-white">
-          <label className="absolute left-3 top-3 z-10 w-44 rounded border border-[#d4d4d4] bg-white px-3 py-2 shadow-sm">
+          <FloorBar state={state} onState={setState} />
+          <label className="absolute left-3 top-14 z-10 w-44 rounded border border-[#d4d4d4] bg-white px-3 py-2 shadow-sm">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#777]">
               선택 레이어
             </span>
@@ -1009,48 +1161,68 @@ export function SeatDesignerV2() {
                 />
               )}
               <CanvasObjects
-                objects={state.objects}
+                objects={visibleObjects}
                 selectedIds={state.selectedIds}
                 selectedSeatIds={state.selectedSeatIds}
                 nodeMode={state.tool === "node"}
+                hideNodeInsertHandles={altPressed}
+                onInsertNode={(objectId, afterIndex, point) => {
+                  const target = state.objects.find((object) => object.id === objectId);
+                  if (!target || !("points" in target) || !target.points) return;
+                  updateObject({ ...target, points: insertPathNode(target.points, afterIndex, point) });
+                }}
               />
-              {draftPreview && (
+              {smartGuides.map((guide, index) => (
+                <line
+                  key={`${guide.kind}-${guide.axis}-${guide.value}-${index}`}
+                  data-testid={`seat-designer-v2-guide-${guide.kind}`}
+                  x1={guide.axis === "x" ? guide.value : -4000}
+                  y1={guide.axis === "y" ? guide.value : -4000}
+                  x2={guide.axis === "x" ? guide.value : 4000}
+                  y2={guide.axis === "y" ? guide.value : 4000}
+                  stroke={guide.color === "red" ? "#ef4444" : guide.color === "blue" ? "#2787ff" : "#22a55b"}
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+              ))}
+              {previewObjects.length > 0 && (
                 <g opacity="0.68" data-testid="seat-designer-v2-row-preview">
                   <CanvasObjects
-                    objects={[draftPreview]}
+                    objects={previewObjects}
                     selectedIds={[]}
                     selectedSeatIds={[]}
                     nodeMode={false}
                   />
-                  {draftPreview.type === "row" && (
+                  {previewObjects[0]?.type === "row" && (
                     <>
                       <line
                         x1={
-                          draftPreview.start.x -
-                          (draftPreview.end.x - draftPreview.start.x) * 2
+                          previewObjects[0].start.x -
+                          (previewObjects[0].end.x - previewObjects[0].start.x) * 2
                         }
                         y1={
-                          draftPreview.start.y -
-                          (draftPreview.end.y - draftPreview.start.y) * 2
+                          previewObjects[0].start.y -
+                          (previewObjects[0].end.y - previewObjects[0].start.y) * 2
                         }
                         x2={
-                          draftPreview.end.x +
-                          (draftPreview.end.x - draftPreview.start.x) * 2
+                          previewObjects[0].end.x +
+                          (previewObjects[0].end.x - previewObjects[0].start.x) * 2
                         }
                         y2={
-                          draftPreview.end.y +
-                          (draftPreview.end.y - draftPreview.start.y) * 2
+                          previewObjects[0].end.y +
+                          (previewObjects[0].end.y - previewObjects[0].start.y) * 2
                         }
                         stroke="#f59e0b"
                       />
                       <g
-                        transform={`translate(${(draftPreview.start.x + draftPreview.end.x) / 2},${(draftPreview.start.y + draftPreview.end.y) / 2 - 20})`}
+                        transform={`translate(${(previewObjects[0].start.x + previewObjects[0].end.x) / 2},${(previewObjects[0].start.y + previewObjects[0].end.y) / 2 - 20})`}
                         data-testid="seat-designer-v2-row-count"
                       >
                         <rect
-                          x="-14"
+                          x="-28"
                           y="-12"
-                          width="28"
+                          width="56"
                           height="24"
                           rx="4"
                           fill="#111"
@@ -1061,7 +1233,9 @@ export function SeatDesignerV2() {
                           fill="white"
                           fontSize="12"
                         >
-                          {draftPreview.seats.length}
+                          {multiplePreview
+                            ? `${multiplePreview.length} × ${multiplePreview[0]?.seats.length ?? 0}`
+                            : previewObjects[0].seats.length}
                         </text>
                       </g>
                     </>
@@ -1124,6 +1298,13 @@ export function SeatDesignerV2() {
             state={state}
             onState={setState}
             onObject={updateObject}
+            onSeat={updateSeat}
+            onEnterSection={(activeSectionId) => setState((current) => ({
+              ...current,
+              activeSectionId,
+              selectedIds: [],
+              selectedSeatIds: [],
+            }))}
             onReplaceReference={(file) => void replaceReference(file)}
             onRemoveReference={removeReference}
           />
@@ -1187,27 +1368,11 @@ export function SeatDesignerV2() {
       {credentialsOpen && (
         <ServiceCredentialsPanel onClose={() => setCredentialsOpen(false)} />
       )}
+      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }
 
-function multipleRows(
-  base: RowObject,
-  rowSpacing: number,
-): readonly RowObject[] {
-  return Array.from({ length: 4 }, (_, index) => ({
-    ...base,
-    id: `row_${crypto.randomUUID()}`,
-    label: `${base.label}-${index + 1}`,
-    start: { x: base.start.x, y: base.start.y + index * rowSpacing },
-    end: { x: base.end.x, y: base.end.y + index * rowSpacing },
-    seats: base.seats.map((seat) => ({
-      ...seat,
-      id: `seat_${crypto.randomUUID()}`,
-      y: seat.y + index * rowSpacing,
-    })),
-  }));
-}
 function distanceToSegment(point: Point, start: Point, end: Point): number {
   const dx = end.x - start.x;
   const dy = end.y - start.y;

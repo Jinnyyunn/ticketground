@@ -15,17 +15,18 @@ test("reference import, geometry controls, object transforms, and node editing a
   assert.equal(await reference.getAttribute("opacity"), "0.5");
   const controls = page.getByTestId("seat-designer-v2-reference-controls");
   assert.equal(await controls.count(), 1, await page.getByTestId("seat-designer-v2-inspector").innerText());
-  assert.equal(await controls.locator("input").count(), 7, await controls.innerHTML());
+  assert.equal(await controls.locator("input").count(), 8, await controls.innerHTML());
+  assert.equal(await controls.getByLabel("원본 비율 고정").isChecked(), true);
+  const sourceRatio = Number(await reference.getAttribute("width")) / Number(await reference.getAttribute("height"));
   await controls.locator('input[aria-label="X"]').fill("120");
   await controls.locator('input[aria-label="Y"]').fill("90");
   await controls.locator('input[aria-label="너비"]').fill("640");
-  await controls.locator('input[aria-label="높이"]').fill("420");
   await controls.locator('input[aria-label="불투명도"]').fill("35");
   await controls.locator('input[aria-label="회전"]').fill("12");
   assert.equal(await reference.getAttribute("x"), "120");
   assert.equal(await reference.getAttribute("y"), "90");
   assert.equal(await reference.getAttribute("width"), "640");
-  assert.equal(await reference.getAttribute("height"), "420");
+  assert.ok(Math.abs(Number(await reference.getAttribute("width")) / Number(await reference.getAttribute("height")) - sourceRatio) < 0.01);
   assert.equal(await reference.getAttribute("opacity"), "0.35");
   assert.match(await reference.getAttribute("transform"), /rotate\(12/);
   await controls.getByRole("button", { name: "숨기기" }).click();
@@ -34,8 +35,9 @@ test("reference import, geometry controls, object transforms, and node editing a
   await reference.waitFor();
   await controls.getByRole("button", { name: "잠금 해제" }).click();
   await controls.getByRole("button", { name: "캔버스에 맞춤" }).click();
-  assert.equal(await reference.getAttribute("x"), "80");
-  assert.equal(await reference.getAttribute("width"), "760");
+  assert.ok(Number(await reference.getAttribute("width")) <= 760);
+  assert.ok(Number(await reference.getAttribute("height")) <= 560);
+  assert.ok(Math.abs(Number(await reference.getAttribute("width")) / Number(await reference.getAttribute("height")) - sourceRatio) < 0.01);
   await controls.getByText("도면 교체", { exact: true }).locator('input[type="file"]').setInputFiles(path.resolve("public/images/header/partner-nol.png"));
   await page.getByText("참조 도면 교체됨", { exact: true }).waitFor();
 
@@ -72,8 +74,13 @@ test("reference import, geometry controls, object transforms, and node editing a
 
   await chooseTool(page, "node");
   assert.equal(await page.getByTestId("seat-designer-v2-node-handle").count(), 4);
-  await polygon.dblclick({ position: { x: 100, y: 1 }, force: true });
+  assert.equal(await page.getByTestId("seat-designer-v2-node-add-handle").count(), 4);
+  await page.getByTestId("seat-designer-v2-node-add-handle").first().click({ force: true });
   assert.equal(await page.getByTestId("seat-designer-v2-node-handle").count(), 5);
+  await page.keyboard.down("Alt");
+  assert.equal(await page.getByTestId("seat-designer-v2-node-add-handle").count(), 0);
+  await page.keyboard.up("Alt");
+  assert.equal(await page.getByTestId("seat-designer-v2-node-add-handle").count(), 5);
   await page.getByTestId("seat-designer-v2-node-handle").first().click({ button: "right", force: true });
   assert.equal(await page.getByTestId("seat-designer-v2-node-handle").count(), 4);
 

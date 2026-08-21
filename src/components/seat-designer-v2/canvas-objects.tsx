@@ -20,6 +20,7 @@ import type {
   IconObject,
   Point,
   RectangleObject,
+  SeatPlace,
 } from "@/types/seat-chart";
 import { objectBounds } from "./object-transform";
 
@@ -28,10 +29,25 @@ type CanvasObjectsProps = {
   readonly selectedIds: readonly string[];
   readonly selectedSeatIds: readonly string[];
   readonly nodeMode: boolean;
+  readonly hideNodeInsertHandles?: boolean;
+  readonly onInsertNode?: (
+    objectId: string,
+    afterIndex: number,
+    point: Point,
+  ) => void;
 };
 
 function pointsValue(points: readonly Point[]): string {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
+function seatFill(seat: SeatPlace, selected: boolean): string {
+  if (selected) return "#087ffa";
+  if (seat.accessible) return "#2e9b60";
+  if (seat.companion) return "#7a5af8";
+  if (seat.transferSeat) return "#e09518";
+  if (seat.restrictedView) return "#d45151";
+  return "#c4c9ce";
 }
 
 function selectionBox(object: ChartObject): ReactNode {
@@ -169,12 +185,12 @@ function renderObject(
     return (
       <g>
         {object.seats.map((seat) => (
-          <g key={seat.id}>
+          <g key={seat.id} data-seat-id={seat.id}>
             <circle
               cx={seat.x}
               cy={seat.y}
               r="7"
-              fill={selectedSeatIds.includes(seat.id) ? "#087ffa" : "#c4c9ce"}
+              fill={seatFill(seat, selectedSeatIds.includes(seat.id))}
               stroke={selectedSeatIds.includes(seat.id) ? "#0369c9" : "#59626b"}
               strokeWidth="1.5"
             />
@@ -221,11 +237,12 @@ function renderObject(
         {object.seats.map((seat) => (
           <circle
             key={seat.id}
+            data-seat-id={seat.id}
             cx={seat.x}
             cy={seat.y}
             r="7"
-            fill="#c4c9ce"
-            stroke="#59626b"
+            fill={seatFill(seat, selectedSeatIds.includes(seat.id))}
+            stroke={selectedSeatIds.includes(seat.id) ? "#0369c9" : "#59626b"}
           />
         ))}
       </g>
@@ -357,6 +374,8 @@ export function CanvasObjects({
   selectedIds,
   selectedSeatIds,
   nodeMode,
+  hideNodeInsertHandles = false,
+  onInsertNode,
 }: CanvasObjectsProps) {
   return (
     <>
@@ -371,17 +390,50 @@ export function CanvasObjects({
           {nodeMode &&
             selectedIds.includes(object.id) &&
             "points" in object &&
-            object.points?.map((point, index) => (
-              <circle
-                key={`${object.id}-node-${index}`}
-                cx={point.x}
-                cy={point.y}
-                r="5"
-                fill="white"
-                stroke="#087ffa"
-                data-testid="seat-designer-v2-node-handle"
-              />
-            ))}
+            object.points && (
+              <>
+                {!hideNodeInsertHandles &&
+                  onInsertNode &&
+                  object.points.map((point, index) => {
+                    const nextIndex = index + 1;
+                    const next =
+                      object.type === "line"
+                        ? object.points?.[nextIndex]
+                        : object.points?.[nextIndex % object.points.length];
+                    if (!next) return null;
+                    const midpoint = {
+                      x: (point.x + next.x) / 2,
+                      y: (point.y + next.y) / 2,
+                    };
+                    return (
+                      <circle
+                        key={`${object.id}-node-add-${index}`}
+                        cx={midpoint.x}
+                        cy={midpoint.y}
+                        r="4"
+                        fill="#eaf4ff"
+                        stroke="#087ffa"
+                        data-testid="seat-designer-v2-node-add-handle"
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                          onInsertNode(object.id, index, midpoint);
+                        }}
+                      />
+                    );
+                  })}
+                {object.points.map((point, index) => (
+                  <circle
+                    key={`${object.id}-node-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r="5"
+                    fill="white"
+                    stroke="#087ffa"
+                    data-testid="seat-designer-v2-node-handle"
+                  />
+                ))}
+              </>
+            )}
         </g>
       ))}
     </>

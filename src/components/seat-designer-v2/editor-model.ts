@@ -1,6 +1,7 @@
-import type { ChartObject, Point, SeatChartAsset } from "@/types/seat-chart";
+import type { ChartObject, Floor, Point, SeatChartAsset } from "@/types/seat-chart";
 import type { SeatChartVenue } from "@/lib/seat-charts/types";
 import type { V2ToolId } from "./tool-catalog";
+import { constrainToAngleStep, type MultipleRowLayout } from "./row-geometry";
 
 export type V2Point = Point;
 export type V2ReferencePlan = {
@@ -10,6 +11,7 @@ export type V2ReferencePlan = {
   readonly opacity: number;
   readonly locked: boolean;
   readonly visible: boolean;
+  readonly aspectRatioLocked: boolean;
   readonly x: number;
   readonly y: number;
   readonly width: number;
@@ -33,6 +35,7 @@ export type V2EditorState = {
   readonly referencePlan: V2ReferencePlan | null;
   readonly rowSpacing: number;
   readonly seatSpacing: number;
+  readonly multipleRowLayout: MultipleRowLayout;
   readonly focalPoint: V2Point | null;
   readonly draft: V2Draft | null;
   readonly pan: V2Point;
@@ -42,6 +45,9 @@ export type V2EditorState = {
   readonly status: string;
   readonly chartId: string;
   readonly assets: readonly SeatChartAsset[];
+  readonly floors: readonly Floor[];
+  readonly activeFloorId: string;
+  readonly activeSectionId: string | null;
 };
 
 export const INITIAL_STATE: V2EditorState = {
@@ -54,6 +60,7 @@ export const INITIAL_STATE: V2EditorState = {
   referencePlan: null,
   rowSpacing: 14,
   seatSpacing: 5,
+  multipleRowLayout: "aligned",
   focalPoint: null,
   draft: null,
   pan: { x: 0, y: 0 },
@@ -63,14 +70,13 @@ export const INITIAL_STATE: V2EditorState = {
   status: "새 도면",
   chartId: `chart_${crypto.randomUUID()}`,
   assets: [],
+  floors: [{ id: "floor_1", name: "1층", abbreviation: "1F", index: 1 }],
+  activeFloorId: "floor_1",
+  activeSectionId: null,
 };
 
 export function constrainedEnd(start: V2Point, end: V2Point, shift: boolean): V2Point {
-  if (!shift) return end;
-  const distance = Math.hypot(end.x - start.x, end.y - start.y);
-  const angle = Math.atan2(end.y - start.y, end.x - start.x);
-  const constrained = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
-  return { x: start.x + Math.cos(constrained) * distance, y: start.y + Math.sin(constrained) * distance };
+  return shift ? constrainToAngleStep(start, end, 15) : end;
 }
 
 export function countPlaces(objects: readonly ChartObject[]): number {

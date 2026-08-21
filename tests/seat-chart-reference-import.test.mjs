@@ -70,7 +70,7 @@ test("MIME spoofing and oversized uploads fail closed", async () => {
   );
   await assert.rejects(
     sanitizeReferenceAsset({
-      bytes: new Uint8Array(10 * 1024 * 1024 + 1),
+      bytes: new Uint8Array(15 * 1024 * 1024 + 1),
       fileName: "huge.jpg",
       declaredMediaType: "image/jpeg",
       purpose: "reference",
