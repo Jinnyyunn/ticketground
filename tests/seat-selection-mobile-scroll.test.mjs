@@ -163,6 +163,61 @@ test("venue seat map markers are the only selectable ticket surface", async (t) 
   await page.getByRole("link", { name: "결제하기", exact: true }).waitFor({ timeout: 5000 });
 });
 
+test("variable table markers select the requested backend chair tickets as one unit", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  t.after(() => page.close());
+
+  const backendSeats = [
+    apiSeat("table-ticket-1", "T1-1", 42),
+    apiSeat("table-ticket-2", "T1-2", 50),
+    apiSeat("table-ticket-3", "T1-3", 58),
+  ];
+  await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
+  await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
+    json: {
+      ok: true,
+      source: "published",
+      chart: null,
+      record: { id: "table-chart", name: "가변 테이블 QA", boundVenue: { id: "venue-1", name: "예술의전당" } },
+      inventory: {
+        seats: [{
+          id: "table-variable",
+          label: "T1",
+          displayLabel: "T1",
+          tier: "R",
+          price: 165000,
+          sold: false,
+          x: 50,
+          y: 50,
+          objectId: "table-1",
+          objectType: "table",
+          bookingMode: "variable",
+          minOccupancy: 2,
+          maxOccupancy: 3,
+          memberLabels: ["T1-1", "T1-2", "T1-3"],
+        }],
+        bounds: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+      },
+    },
+  }));
+
+  await openSeatStep(page, baseUrl);
+  const table = page.locator('[data-seat-map-seat="table-variable"]');
+  await table.waitFor();
+  await table.click();
+  assert.equal(await table.getAttribute("aria-pressed"), "true");
+  await page.locator("aside").getByText("2/2매", { exact: true }).waitFor();
+
+  const checkoutHref = await page.getByRole("link", { name: "결제하기", exact: true }).getAttribute("href");
+  assert.ok(checkoutHref);
+  const checkout = new URL(checkoutHref, baseUrl);
+  assert.equal(checkout.searchParams.get("count"), "2");
+  assert.deepEqual(checkout.searchParams.get("ticketIds")?.split(","), ["table-ticket-1", "table-ticket-2"]);
+});
+
 test("published charts keep sold-seat spacing, visible labels, and reliable mobile scrolling", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });

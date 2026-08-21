@@ -20,6 +20,9 @@ export type SellableSeat = {
   readonly bookingMode?: "whole" | "variable";
   readonly minOccupancy?: number;
   readonly maxOccupancy?: number;
+  readonly memberLabels?: readonly string[];
+  readonly backendTicketIds?: readonly string[];
+  readonly availableTicketIds?: readonly string[];
 };
 
 export type InventoryResult = {
@@ -73,7 +76,7 @@ export function chartToSellableSeats(
     object: ChartObject,
     objectType: ChartObject["type"],
     fallbackCategory?: string,
-    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy">,
+    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy" | "memberLabels">,
   ) => {
     const position = object.rotation
       ? rotateAround(place, objectCenter(object), object.rotation)
@@ -124,8 +127,8 @@ export function chartToSellableSeats(
           "table",
           obj.categoryKey,
           obj.variableOccupancy
-            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount }
-            : { bookingMode: "whole" },
+            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount, memberLabels: obj.seats.map((seat) => seat.label) }
+            : { bookingMode: "whole", memberLabels: obj.seats.map((seat) => seat.label) },
         );
       } else {
         for (const s of obj.seats) pushSeat(s, obj, "table", obj.categoryKey);

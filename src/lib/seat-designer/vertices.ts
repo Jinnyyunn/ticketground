@@ -1,5 +1,5 @@
 import type { ChartObject, Point } from "../../types/seat-chart.ts";
-import { seatsAlongPolyline } from "./geometry.ts";
+import { rotateAround, seatsAlongPolyline } from "./geometry.ts";
 import { objectCenter } from "./chart-ops.ts";
 import { pointInObjectFrame } from "./transforms.ts";
 
@@ -88,16 +88,33 @@ export function moveVertex(object: ChartObject, index: number, point: Point): Ch
   return withVertices(object, points);
 }
 
-export function pointForRenderedVertex(object: ChartObject, index: number, pointer: Point): Point {
+export function pointForRenderedVertex(object: ChartObject, index: number, pointer: Point): Point | null {
   if (!object.rotation) return pointer;
-  let local = pointInObjectFrame(pointer, objectCenter(object), object.rotation);
-  for (let iteration = 0; iteration < 24; iteration += 1) {
+  const renderedVertex = (local: Point): Point => {
     const candidate = moveVertex(object, index, local);
-    const next = pointInObjectFrame(pointer, objectCenter(candidate), object.rotation);
-    if (Math.hypot(next.x - local.x, next.y - local.y) < 0.0001) return next;
-    local = next;
+    const vertex = verticesOf(candidate)[index];
+    return rotateAround(vertex, objectCenter(candidate), object.rotation ?? 0);
+  };
+  let local = pointInObjectFrame(pointer, objectCenter(object), object.rotation);
+  const delta = 0.01;
+  for (let iteration = 0; iteration < 12; iteration += 1) {
+    const rendered = renderedVertex(local);
+    const error = { x: rendered.x - pointer.x, y: rendered.y - pointer.y };
+    if (Math.hypot(error.x, error.y) < 0.001) return local;
+    const renderedX = renderedVertex({ x: local.x + delta, y: local.y });
+    const renderedY = renderedVertex({ x: local.x, y: local.y + delta });
+    const j00 = (renderedX.x - rendered.x) / delta;
+    const j10 = (renderedX.y - rendered.y) / delta;
+    const j01 = (renderedY.x - rendered.x) / delta;
+    const j11 = (renderedY.y - rendered.y) / delta;
+    const determinant = j00 * j11 - j01 * j10;
+    if (Math.abs(determinant) < 0.000001) return null;
+    local = {
+      x: local.x - (j11 * error.x - j01 * error.y) / determinant,
+      y: local.y - (-j10 * error.x + j00 * error.y) / determinant,
+    };
   }
-  return local;
+  return null;
 }
 
 export function removeVertex(object: ChartObject, index: number): ChartObject {

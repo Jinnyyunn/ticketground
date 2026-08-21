@@ -12,8 +12,9 @@ import {
   chartCoversAllBackendSeats,
 } from "@/lib/seat-charts/bind-backend-seats";
 import { apiChartForShow } from "@/lib/seat-charts/client";
-import type { InventoryResult } from "@/lib/seat-charts/inventory";
+import type { InventoryResult, SellableSeat } from "@/lib/seat-charts/inventory";
 import { canEnterSeatSelection, seatChartReadinessMessage } from "@/lib/seat-charts/readiness";
+import { toggleChartSeatSelection } from "@/lib/seat-charts/seat-selection";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BookingSummaryRow } from "./booking-summary-row";
@@ -142,10 +143,22 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     [backendSeats, chartRequestKey, publishedChart],
   );
   const boundChartSeats = useMemo(() => allBoundChartSeats.filter((seat) => !seat.sold), [allBoundChartSeats]);
+  const maximumQuantity = useMemo(() => Math.max(
+    maxSelectableSeats,
+    ...boundChartSeats.map((seat) => {
+      if (seat.bookingMode === "variable") return seat.maxOccupancy ?? maxSelectableSeats;
+      if (seat.bookingMode === "whole") return seat.availableTicketIds?.length ?? seat.memberLabels?.length ?? maxSelectableSeats;
+      return maxSelectableSeats;
+    }),
+  ), [boundChartSeats]);
+  const quantityOptions = useMemo(() => Array.from({ length: maximumQuantity }, (_, index) => index + 1), [maximumQuantity]);
   const usePublishedChart = Boolean(
     publishedChart?.inventory && chartCoversAllBackendSeats(allBoundChartSeats, backendSeats),
   );
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
+  const selectedChartSeatIds = boundChartSeats
+    .filter((seat) => (seat.backendTicketIds ?? [seat.id]).some((id) => selectedBackendTicketIds.includes(id)))
+    .map((seat) => seat.id);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.label).join(", ");
   const selectedCount = selectedBackendSeats.length;
   const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
@@ -167,11 +180,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   // ticketId is kept too so any old single-seat bookmark/link still works.
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}&ticketIds=${encodeURIComponent(selectedBackendTicketIds.join(","))}`;
 
-  const selectBackendSeat = useCallback((ticketId: string) => {
+  const selectChartSeat = useCallback((seat: SellableSeat) => {
     setSelectedBackendTicketIds((current) => {
-      if (current.includes(ticketId)) return current.filter((id) => id !== ticketId);
-      const allowedCount = Math.min(quantity, maxSelectableSeats);
-      return [...current, ticketId].slice(-allowedCount);
+      const next = toggleChartSeatSelection(current, seat, quantity);
+      if (seat.bookingMode && next.length > 0) setQuantity(next.length);
+      return next;
     });
   }, [quantity]);
 
@@ -284,11 +297,11 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 <div>
                   <h3 className="text-lg font-black text-ink">매수</h3>
                   <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
-                    {[1, 2].map((count) => (
+                    {quantityOptions.map((count) => (
                       <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black transition-colors", quantity === count ? "bg-ticketground text-white shadow-ticket-1" : "text-ink-3 hover:bg-surface hover:text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-ink-3")}>{count}매</button>
                     ))}
                   </div>
-                  <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 2매까지 선택할 수 있습니다.</p>
+                  <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 {maximumQuantity}매까지 선택할 수 있습니다.</p>
                 </div>
               </div>
               <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 flex h-12 items-center justify-center gap-2 rounded-sm bg-ticketground px-6 text-base font-black text-white shadow-ticket-1 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4 disabled:shadow-none disabled:hover:brightness-100 disabled:active:scale-100">
@@ -317,8 +330,8 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                     <ChartSeatMap
                       seats={boundChartSeats}
                       bounds={publishedChart.inventory.bounds}
-                      selectedSeatIds={selectedBackendTicketIds}
-                      onSelect={selectBackendSeat}
+                      selectedSeatIds={selectedChartSeatIds}
+                      onSelect={selectChartSeat}
                     />
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
@@ -381,7 +394,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             </dl>
             <p className="mt-4 flex items-start gap-2 break-keep rounded-lg border border-warn bg-tint-yellow px-3 py-2.5 text-sm font-bold text-ink">
               <Info className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
-              정책: 최대 2매까지 선택할 수 있습니다.
+              정책: 최대 {maximumQuantity}매까지 선택할 수 있습니다.
             </p>
           </div>
         </aside>

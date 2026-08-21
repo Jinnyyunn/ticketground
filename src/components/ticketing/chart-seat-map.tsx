@@ -26,7 +26,7 @@ function ChartSeatMapComponent({
   readonly seats: readonly SellableSeat[];
   readonly bounds: { minX: number; minY: number; maxX: number; maxY: number };
   readonly selectedSeatIds: readonly string[];
-  readonly onSelect: (ticketId: string) => void;
+  readonly onSelect: (seat: SellableSeat) => void;
 }) {
   const pad = 24;
   const width = Math.max(bounds.maxX - bounds.minX, 40) + pad * 2;
@@ -96,7 +96,7 @@ function ChartSeatMapComponent({
                   isSelected && "ring-2 ring-ink",
                 )}
                 style={{ borderColor: tierFill[seat.tier], color: tierFill[seat.tier] }}
-                onClick={() => onSelect(seat.id)}
+                onClick={() => onSelect(seat)}
               >
                 {seat.displayLabel}
               </button>
@@ -155,7 +155,7 @@ function ChartSeatMapComponent({
                     left: `${((seat.x - (bounds.minX - pad)) / width) * 100}%`,
                     top: `${((seat.y - (bounds.minY - pad)) / height) * 100}%`,
                   }}
-                  onClick={() => onSelect(seat.id)}
+                  onClick={() => onSelect(seat)}
                 >
                   <span className="pointer-events-none block whitespace-nowrap rounded-sm bg-white/85 px-0.5 text-[7px] font-black leading-none text-ink shadow-sm">{seat.displayLabel}</span>
                 </button>

@@ -9,7 +9,12 @@ import type { SeatChartVenue } from "@/lib/seat-charts/types";
 import { listBindableVenues } from "@/lib/seat-charts/venues";
 import { ServiceCredentialPanel } from "./service-credential-panel";
 
-function pickImage(purpose: "reference" | "background", onStart: (requestId: string) => void, onDone: (url: string, asset: SeatChartAsset, requestId: string) => void) {
+function pickImage(
+  purpose: "reference" | "background",
+  onStart: (requestId: string) => void,
+  onDone: (url: string, asset: SeatChartAsset, requestId: string) => void,
+  onError: (requestId: string) => void,
+) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -20,7 +25,8 @@ function pickImage(purpose: "reference" | "background", onStart: (requestId: str
     onStart(requestId);
     void import("@/lib/seat-charts/client")
       .then(({ apiUploadReferenceAsset }) => apiUploadReferenceAsset({ file, purpose }))
-      .then(({ url, asset }) => onDone(url, asset, requestId));
+      .then(({ url, asset }) => onDone(url, asset, requestId))
+      .catch(() => onError(requestId));
   };
   input.click();
 }
@@ -133,6 +139,7 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               onClick={() =>
                 pickImage("background", (requestId) => dispatch({ type: "BEGIN_ASSET_REQUEST", key: "overlay:backgroundImage", requestId }), (href, asset, requestId) =>
                   dispatch({ type: "SET_OVERLAY_ASSET", key: "backgroundImage", href, fallback: defaultOverlay(href), replacesHref: bg?.href, asset, status: "배경 이미지 변경", targetChartId: chart.id, targetChartGeneration: state.chartGeneration, requestKey: "overlay:backgroundImage", requestId }),
+                  (requestId) => dispatch({ type: "END_ASSET_REQUEST", key: "overlay:backgroundImage", requestId }),
                 )
               }
             >
@@ -180,6 +187,7 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               onClick={() =>
                 pickImage("reference", (requestId) => dispatch({ type: "BEGIN_ASSET_REQUEST", key: "overlay:referenceChart", requestId }), (href, asset, requestId) =>
                   dispatch({ type: "SET_OVERLAY_ASSET", key: "referenceChart", href, fallback: { ...defaultOverlay(href), opacity: 0.55 }, replacesHref: ref?.href, asset, status: "참조 도면 변경", targetChartId: chart.id, targetChartGeneration: state.chartGeneration, requestKey: "overlay:referenceChart", requestId }),
+                  (requestId) => dispatch({ type: "END_ASSET_REQUEST", key: "overlay:referenceChart", requestId }),
                 )
               }
             >

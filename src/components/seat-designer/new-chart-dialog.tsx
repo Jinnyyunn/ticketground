@@ -29,14 +29,16 @@ export function NewChartDialog({ api, open, onClose }: { readonly api: SeatEdito
   }, [open]);
   if (!open) return null;
   const close = () => { setMode("choice"); onClose(); };
-  const begin = () => {
+  const begin = (resetChart: boolean) => {
     if (!venue || !name.trim()) {
       setError("공연장과 좌석 배치도 이름을 입력하세요.");
       return false;
     }
-    api.loadTemplate("blank");
-    api.dispatch({ type: "SET_NAME", name: name.trim() });
-    api.dispatch({ type: "SET_BOUND_VENUE", venue });
+    if (resetChart) {
+      api.loadTemplate("blank");
+      api.dispatch({ type: "SET_NAME", name: name.trim() });
+      api.dispatch({ type: "SET_BOUND_VENUE", venue });
+    }
     setError("");
     return true;
   };
@@ -58,11 +60,11 @@ export function NewChartDialog({ api, open, onClose }: { readonly api: SeatEdito
         {error && <p role="alert" className="mb-4 text-[13px] text-[#c4362e]">{error}</p>}
         {mode === "choice" ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <button type="button" className="rounded-xl border border-black/10 p-5 text-left hover:border-[#0784fa] hover:bg-[#f5f9ff]" onClick={() => { if (begin()) close(); }}><Plus className="mb-8 size-7 text-[#0784fa]" /><strong className="block text-sm">빈 캔버스</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">모든 좌석과 도형을 직접 배치합니다.</span></button>
-            <button type="button" className="rounded-xl border border-[#9dccf8] bg-[#f5f9ff] p-5 text-left hover:border-[#0784fa]" onClick={() => { if (begin()) setMode("reference"); }}><FileImage className="mb-8 size-7 text-[#0784fa]" /><strong className="block text-sm">도면 불러오기</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">이미지를 불러와 편집하거나 좌석을 자동 인식합니다.</span></button>
+            <button type="button" className="rounded-xl border border-black/10 p-5 text-left hover:border-[#0784fa] hover:bg-[#f5f9ff]" onClick={() => { if (begin(true)) close(); }}><Plus className="mb-8 size-7 text-[#0784fa]" /><strong className="block text-sm">빈 캔버스</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">모든 좌석과 도형을 직접 배치합니다.</span></button>
+            <button type="button" className="rounded-xl border border-[#9dccf8] bg-[#f5f9ff] p-5 text-left hover:border-[#0784fa]" onClick={() => { if (begin(false)) setMode("reference"); }}><FileImage className="mb-8 size-7 text-[#0784fa]" /><strong className="block text-sm">도면 불러오기</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">이미지를 불러와 편집하거나 좌석을 자동 인식합니다.</span></button>
           </div>
         ) : (
-          <ReferenceChartPanel onComplete={(input) => { api.startFromReference({ ...input, name: name.trim() }); close(); }} />
+          <ReferenceChartPanel onComplete={(input) => { api.startFromReference({ ...input, name: name.trim() }); api.dispatch({ type: "SET_BOUND_VENUE", venue }); close(); }} />
         )}
       </div>
     </div>

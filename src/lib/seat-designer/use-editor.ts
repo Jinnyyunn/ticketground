@@ -95,7 +95,8 @@ type Action =
   | { type: "LOAD"; chart: ChartDocument }
   | { type: "RESTORE_LOCAL"; chart: ChartDocument }
   | { type: "BEGIN_ASSET_REQUEST"; key: string; requestId: string }
-  | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean; targetChartId?: string; targetChartGeneration?: number }
+  | { type: "END_ASSET_REQUEST"; key: string; requestId: string }
+  | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean; targetChartId?: string; targetChartGeneration?: number; requestKey?: string; requestId?: string }
   | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; aspectRatio: number; label: string; asset: SeatChartAsset; status: string; targetChartId: string; targetChartGeneration: number; requestKey: string; requestId: string }
   | { type: "SET_OVERLAY_ASSET"; key: "backgroundImage" | "referenceChart"; href: string; fallback: OverlayImage; replacesHref?: string; asset: SeatChartAsset; status: string; targetChartId: string; targetChartGeneration: number; requestKey: string; requestId: string }
   | { type: "SET_TOOL"; tool: ToolId }
@@ -211,10 +212,16 @@ function reducer(state: EditorState, action: Action): EditorState {
       };
     case "BEGIN_ASSET_REQUEST":
       return { ...state, assetRequestIds: { ...state.assetRequestIds, [action.key]: action.requestId } };
+    case "END_ASSET_REQUEST":
+      return state.assetRequestIds[action.key] === action.requestId
+        ? { ...state, assetRequestIds: withoutAssetRequest(state, action.key) }
+        : state;
     case "ADD_OBJECT": {
       if ((action.targetChartId && action.targetChartId !== state.chart.id) || (action.targetChartGeneration !== undefined && action.targetChartGeneration !== state.chartGeneration)) return state;
+      if (action.requestKey && state.assetRequestIds[action.requestKey] !== action.requestId) return state;
+      const assetRequestIds = action.requestKey ? withoutAssetRequest(state, action.requestKey) : state.assetRequestIds;
       const chart = addObject(state.chart, action.object);
-      const next = pushHistory(state, action.asset ? withChartAsset(chart, action.asset) : chart, action.status);
+      const next = pushHistory({ ...state, assetRequestIds }, action.asset ? withChartAsset(chart, action.asset) : chart, action.status);
       return action.select
         ? { ...next, selectedIds: [action.object.id], selectedSeatIds: [], tool: "select", toolMode: "select" }
         : next;
@@ -705,6 +712,9 @@ export function useSeatEditor() {
     }
     const targetChartId = state.chart.id;
     const targetChartGeneration = state.chartGeneration;
+    const requestKey = `object:${uid("asset-slot")}`;
+    const requestId = uid("asset-request");
+    dispatch({ type: "BEGIN_ASSET_REQUEST", key: requestKey, requestId });
     try {
       const { apiUploadReferenceAsset } = await import("@/lib/seat-charts/client");
       const { asset, url: href } = await apiUploadReferenceAsset({ file, purpose: "object" });
@@ -721,9 +731,10 @@ export function useSeatEditor() {
         height: asset.height * scale,
         href,
       };
-      dispatch({ type: "ADD_OBJECT", object, asset, status: ko.imageAdded, select: true, targetChartId, targetChartGeneration });
+      dispatch({ type: "ADD_OBJECT", object, asset, status: ko.imageAdded, select: true, targetChartId, targetChartGeneration, requestKey, requestId });
       return true;
     } catch {
+      dispatch({ type: "END_ASSET_REQUEST", key: requestKey, requestId });
       dispatch({ type: "SET_STATUS", status: "이미지 업로드 실패" });
       return false;
     }
@@ -1055,6 +1066,7 @@ export function useSeatEditor() {
       });
       return true;
     } catch {
+      dispatch({ type: "END_ASSET_REQUEST", key: requestKey, requestId });
       dispatch({ type: "SET_STATUS", status: "이미지 교체 실패" });
       return false;
     }

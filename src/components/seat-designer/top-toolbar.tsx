@@ -80,11 +80,12 @@ export function TopToolbar({
     publishChart,
   } = api;
   const { settings, past, future, chart, preview, viewport, boundVenue } = state;
+  const assetUploadPending = Object.keys(state.assetRequestIds).length > 0;
   const activeFloor = chart.floors.find((f) => f.id === chart.activeFloorId);
 
   return (
     <header className="seat-designer-toolbar flex h-[45px] shrink-0 items-center gap-1 overflow-x-auto border-b px-2">
-      <TbBtn title="저장 후 나가기" onClick={onSaveAndExit}>
+      <TbBtn title="저장 후 나가기" disabled={assetUploadPending} onClick={onSaveAndExit}>
         <Save className="size-4" />
       </TbBtn>
       <input
@@ -241,7 +242,7 @@ export function TopToolbar({
         type="button"
         data-testid="seat-designer-publish"
         title={chart.published ? "게시 취소" : boundVenue ? "게시" : "공연장을 먼저 선택하세요"}
-        disabled={!chart.published && !boundVenue}
+        disabled={assetUploadPending || (!chart.published && !boundVenue)}
         onClick={publishChart}
         className={cn(
           "inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40",

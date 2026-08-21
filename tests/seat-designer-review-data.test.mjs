@@ -72,6 +72,7 @@ test("variable-occupancy tables publish one qualified booking unit", () => {
   assert.equal(result.seats[0].bookingMode, "variable");
   assert.equal(result.seats[0].minOccupancy, 2);
   assert.equal(result.seats[0].maxOccupancy, 4);
+  assert.deepEqual(result.seats[0].memberLabels, ["1", "2", "3", "4", "5", "6"]);
 });
 
 test("polygon-area inventory never leaves the visible polygon", () => {

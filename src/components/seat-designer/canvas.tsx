@@ -699,6 +699,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     if (drag.mode === "node" && drag.nodeObjectId != null && drag.nodeIndex != null) {
       const object = chart.objects.find((candidate) => candidate.id === drag.nodeObjectId);
       const point = object ? pointForRenderedVertex(object, drag.nodeIndex, world) : world;
+      if (!point) return;
       setLiveNode({ objectId: drag.nodeObjectId, index: drag.nodeIndex, point });
       drag.moved = true;
       return;
@@ -707,6 +708,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     if (drag.mode === "row-end" && drag.nodeObjectId && drag.rowEnd) {
       const object = chart.objects.find((candidate) => candidate.id === drag.nodeObjectId);
       const point = object ? pointForRenderedVertex(object, drag.rowEnd === "start" ? 0 : 1, world) : world;
+      if (!point) return;
       setLiveNode({
         objectId: drag.nodeObjectId,
         index: drag.rowEnd === "start" ? 0 : 1,

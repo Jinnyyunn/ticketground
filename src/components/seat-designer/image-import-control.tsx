@@ -43,6 +43,11 @@ export function ImageImportControl({
     }
     setPending(true);
     setError("");
+    const targetChartId = api.state.chart.id;
+    const targetChartGeneration = api.state.chartGeneration;
+    const requestKey = `object:${crypto.randomUUID()}`;
+    const requestId = crypto.randomUUID();
+    api.dispatch({ type: "BEGIN_ASSET_REQUEST", key: requestKey, requestId });
     try {
       const uploaded = await apiUploadReferenceAsset({ file, purpose: "object" });
       const size = imageSize(uploaded.asset.width, uploaded.asset.height);
@@ -59,8 +64,9 @@ export function ImageImportControl({
         href: uploaded.url,
         opacity: 1,
       };
-      api.dispatch({ type: "ADD_OBJECT", object, asset: uploaded.asset, status: "이미지를 불러왔습니다.", select: true, targetChartId: api.state.chart.id, targetChartGeneration: api.state.chartGeneration });
+      api.dispatch({ type: "ADD_OBJECT", object, asset: uploaded.asset, status: "이미지를 불러왔습니다.", select: true, targetChartId, targetChartGeneration, requestKey, requestId });
     } catch {
+      api.dispatch({ type: "END_ASSET_REQUEST", key: requestKey, requestId });
       setError("이미지를 불러오지 못했습니다. 파일을 확인하고 다시 시도하세요.");
     } finally {
       setPending(false);

@@ -36,6 +36,17 @@ test("rotated node edits solve against the center of the resulting geometry", ()
   assert.ok(Math.hypot(rendered.x - pointer.x, rendered.y - pointer.y) < 0.01);
 });
 
+test("rotated node edits converge at obtuse angles and reject singular geometry", () => {
+  const row = { id: "row", type: "row", label: "A", layer: "interactive", rotation: 135, start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, seatCount: 2, seats: [{ id: "s1", label: "1", x: 0, y: 0 }, { id: "s2", label: "2", x: 100, y: 0 }] };
+  const pointer = { x: 70, y: 90 };
+  const local = pointForRenderedVertex(row, 1, pointer);
+  assert.ok(local);
+  const moved = moveVertex(row, 1, local);
+  const rendered = rotateAround(moved.path[1], objectCenter(moved), moved.rotation);
+  assert.ok(Math.hypot(rendered.x - pointer.x, rendered.y - pointer.y) < 0.01);
+  assert.equal(pointForRenderedVertex({ ...row, rotation: 180 }, 1, pointer), null);
+});
+
 test("segmented row node edits regenerate seats on the edited path", () => {
   const row = {
     id: "row-1",

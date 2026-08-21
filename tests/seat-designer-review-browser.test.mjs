@@ -320,6 +320,36 @@ test("pending image imports cannot append to a newly loaded chart", async (t) =>
   assert.equal(await page.locator('[data-object-type="image"]').count(), 0);
 });
 
+test("save and publish stay disabled until an image upload settles", async (t) => {
+  const { page } = await openEditor(t);
+  await beginBlank(page);
+  let releaseUpload;
+  let markUploadStarted;
+  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
+  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
+  await page.route("**/api/seat-charts", async (route) => {
+    if (route.request().method() === "POST" && route.request().headers()["content-type"]?.includes("multipart/form-data")) {
+      markUploadStarted();
+      await uploadBlocked;
+    }
+    await route.continue();
+  });
+  const canvas = page.getByTestId("designer-canvas");
+  const box = await canvas.boundingBox();
+  assert.ok(box);
+  await page.getByTestId("tool-image").click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.mouse.click(box.x + 240, box.y + 220);
+  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
+  await uploadStarted;
+  assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isDisabled(), true);
+  assert.equal(await page.getByTestId("seat-designer-publish").isDisabled(), true);
+  releaseUpload();
+  await page.locator('[data-object-type="image"]').waitFor();
+  assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isEnabled(), true);
+  assert.equal(await page.getByTestId("seat-designer-publish").isEnabled(), true);
+});
+
 test("a slower image replacement cannot overwrite the latest choice", async (t) => {
   const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 300, height: 200, href: "/images/header/partner-nol.png" };
   const restored = { id: "image-chart", name: "교체 순서", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
