@@ -121,7 +121,7 @@ test("the image-first editor stays usable without horizontal overflow at tablet 
   assert.equal(await page.getByTestId("seat-designer-v2-inspector").isVisible(), false);
   assert.equal(await page.getByRole("navigation", { name: "좌석 배치 도구" }).isVisible(), true);
   assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isVisible(), true);
-  assert.equal(await page.getByText("15° 각도 고정", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByText("선택 추가", { exact: true }).isVisible(), true);
   await page.getByTitle("속성 패널").click();
   const closeInspector = page.getByTitle("속성 패널 닫기");
   const closeInspectorBox = await closeInspector.boundingBox();
