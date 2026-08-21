@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { objectBounds, resizeObject, rotateObject } from "../src/lib/seat-designer/transforms.ts";
+import { objectBounds, resizeBoundsForRotatedPointer, resizeObject, rotateObject } from "../src/lib/seat-designer/transforms.ts";
+import { rotateAround } from "../src/lib/seat-designer/geometry.ts";
 
 const rectangle = {
   id: "shape-1",
@@ -45,4 +46,17 @@ test("rotation is immutable and locked objects reject transforms", () => {
   const locked = { ...rectangle, locked: true };
   assert.equal(resizeObject(locked, { x: 0, y: 0, width: 20, height: 20 }), locked);
   assert.equal(rotateObject(locked, 90), locked);
+});
+
+test("centered objects remain resizable at an exact 180-degree rotation", () => {
+  const bounds = { x: 10, y: 20, width: 100, height: 50 };
+  const pivot = { x: 60, y: 45 };
+  const anchor = rotateAround({ x: bounds.x, y: bounds.y }, pivot, 180);
+  const pointer = { x: -20, y: -10 };
+  const resized = resizeBoundsForRotatedPointer(pointer, bounds, pivot, "se", 180);
+  const nextPivot = { x: resized.x + resized.width / 2, y: resized.y + resized.height / 2 };
+  const renderedHandle = rotateAround({ x: resized.x + resized.width, y: resized.y + resized.height }, nextPivot, 180);
+  const renderedAnchor = rotateAround({ x: resized.x, y: resized.y }, nextPivot, 180);
+  assert.ok(Math.abs(renderedHandle.x - pointer.x) < 1e-9 && Math.abs(renderedHandle.y - pointer.y) < 1e-9);
+  assert.ok(Math.abs(renderedAnchor.x - anchor.x) < 1e-9 && Math.abs(renderedAnchor.y - anchor.y) < 1e-9);
 });

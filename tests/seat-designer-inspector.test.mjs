@@ -51,6 +51,8 @@ test("table booking options preserve existing chair identities and attributes", 
   const reconfigured = setTableProps(chart, table.id, { chairs: { top: 3, right: 0, bottom: 2, left: 0 } });
   assert.deepEqual(reconfigured.objects[0].seats.slice(0, 2).map((seat) => seat.id), ["stable-0", "stable-1"]);
   assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.id), ["stable-2", "stable-3"]);
+  assert.equal(new Set(reconfigured.objects[0].seats.map((seat) => seat.label)).size, reconfigured.objects[0].seats.length);
+  assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.label), ["T1-4", "T1-5"]);
 });
 
 test("decoration inspector edits only properties supported by the selected type", () => {

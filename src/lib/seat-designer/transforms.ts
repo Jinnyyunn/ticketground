@@ -1,4 +1,5 @@
 import type { ChartObject, Point, RowObject, SeatPlace } from "../../types/seat-chart.ts";
+import { rotateAround } from "./geometry.ts";
 
 export type ObjectBounds = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 
@@ -61,36 +62,40 @@ export function pointInObjectFrame(point: Point, center: Point, rotation: number
 
 export type ResizeCorner = "nw" | "ne" | "se" | "sw";
 
-export function resizeCornerForRotatedPointer(
+export function resizeBoundsForRotatedPointer(
   pointer: Point,
   bounds: ObjectBounds,
   pivot: Point,
   corner: ResizeCorner,
   rotation: number,
-): Point {
-  if (rotation === 0) return pointer;
+): ObjectBounds {
   const alpha = (pivot.x - bounds.x) / bounds.width;
   const beta = (pivot.y - bounds.y) / bounds.height;
   const east = corner === "ne" || corner === "se";
   const south = corner === "se" || corner === "sw";
-  const pivotXFactor = east ? alpha : 1 - alpha;
-  const pivotYFactor = south ? beta : 1 - beta;
-  const pivotXConstant = east ? (1 - alpha) * bounds.x : alpha * (bounds.x + bounds.width);
-  const pivotYConstant = south ? (1 - beta) * bounds.y : beta * (bounds.y + bounds.height);
+  const opposite = {
+    x: east ? bounds.x : bounds.x + bounds.width,
+    y: south ? bounds.y : bounds.y + bounds.height,
+  };
+  const anchor = rotateAround(opposite, pivot, rotation);
+  const localPointer = pointInObjectFrame(pointer, anchor, rotation);
+  const width = Math.max(4, (east ? 1 : -1) * (localPointer.x - anchor.x));
+  const height = Math.max(4, (south ? 1 : -1) * (localPointer.y - anchor.y));
+  const pivotOffset = { x: alpha * width, y: beta * height };
+  const oppositeOffset = { x: east ? 0 : width, y: south ? 0 : height };
+  const relative = { x: oppositeOffset.x - pivotOffset.x, y: oppositeOffset.y - pivotOffset.y };
   const radians = rotation * Math.PI / 180;
   const cosine = Math.cos(radians);
   const sine = Math.sin(radians);
-  const a11 = pivotXFactor + cosine * (1 - pivotXFactor);
-  const a12 = -sine * (1 - pivotYFactor);
-  const a21 = sine * (1 - pivotXFactor);
-  const a22 = pivotYFactor + cosine * (1 - pivotYFactor);
-  const translatedX = pointer.x - ((1 - cosine) * pivotXConstant + sine * pivotYConstant);
-  const translatedY = pointer.y - (-sine * pivotXConstant + (1 - cosine) * pivotYConstant);
-  const determinant = a11 * a22 - a12 * a21;
-  if (Math.abs(determinant) < 1e-9) return pointInObjectFrame(pointer, pivot, rotation);
+  const rotatedRelative = {
+    x: relative.x * cosine - relative.y * sine,
+    y: relative.x * sine + relative.y * cosine,
+  };
   return {
-    x: (translatedX * a22 - a12 * translatedY) / determinant,
-    y: (a11 * translatedY - translatedX * a21) / determinant,
+    x: anchor.x - pivotOffset.x - rotatedRelative.x,
+    y: anchor.y - pivotOffset.y - rotatedRelative.y,
+    width,
+    height,
   };
 }
 

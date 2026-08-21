@@ -94,7 +94,7 @@ type Action =
   | { type: "RESTORE_LOCAL"; chart: ChartDocument }
   | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean }
   | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; height: number; label: string; asset: SeatChartAsset; status: string }
-  | { type: "SET_OVERLAY_ASSET"; key: "backgroundImage" | "referenceChart"; href: string; fallback: OverlayImage; asset: SeatChartAsset; status: string }
+  | { type: "SET_OVERLAY_ASSET"; key: "backgroundImage" | "referenceChart"; href: string; fallback: OverlayImage; replacesHref?: string; asset: SeatChartAsset; status: string }
   | { type: "SET_TOOL"; tool: ToolId }
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_VIEWPORT"; viewport: Partial<Viewport> }
@@ -213,6 +213,7 @@ function reducer(state: EditorState, action: Action): EditorState {
     }
     case "SET_OVERLAY_ASSET": {
       const current = action.key === "backgroundImage" ? normalizeOverlay(state.chart.backgroundImage) : state.chart.referenceChart;
+      if (!current && action.replacesHref) return state;
       const overlay = current ? { ...current, href: action.href } : action.fallback;
       return pushHistory(state, withChartAsset({ ...state.chart, [action.key]: overlay }, action.asset), action.status);
     }

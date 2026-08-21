@@ -318,6 +318,12 @@ test("concurrent settings uploads merge overlays and assets into the latest char
   const replacementBlocked = new Promise((resolve) => { releaseReplacement = resolve; });
   let markReplacementStarted;
   const replacementStarted = new Promise((resolve) => { markReplacementStarted = resolve; });
+  let releaseRemoval;
+  const removalBlocked = new Promise((resolve) => { releaseRemoval = resolve; });
+  let markRemovalStarted;
+  const removalStarted = new Promise((resolve) => { markRemovalStarted = resolve; });
+  let markRemovalCompleted;
+  const removalCompleted = new Promise((resolve) => { markRemovalCompleted = resolve; });
   let uploadCount = 0;
   await page.route("**/api/seat-charts", async (route) => {
     if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
@@ -327,7 +333,12 @@ test("concurrent settings uploads merge overlays and assets into the latest char
       markReplacementStarted();
       await replacementBlocked;
     }
+    if (uploadCount === 4) {
+      markRemovalStarted();
+      await removalBlocked;
+    }
     await route.continue();
+    if (uploadCount === 4) markRemovalCompleted();
   });
   await page.getByTitle("차트 설정 (공연장 연결·배경·참조도면·존)").click();
   const settings = page.getByText("차트 설정 (고급)", { exact: true }).locator("../..");
@@ -350,6 +361,16 @@ test("concurrent settings uploads merge overlays and assets into the latest char
   await page.getByText("차트 설정 변경", { exact: true }).waitFor();
   releaseReplacement();
   await page.getByText("배경 이미지 변경", { exact: true }).waitFor();
+  assert.equal(await background.locator('input[type="range"]').inputValue(), "0.25");
+  chooser = page.waitForEvent("filechooser");
+  await background.getByRole("button", { name: "이미지 교체" }).click();
+  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
+  await removalStarted;
+  await background.getByRole("button", { name: "제거" }).click();
+  await background.getByRole("button", { name: "이미지 추가" }).waitFor();
+  releaseRemoval();
+  await removalCompleted;
+  await background.getByRole("button", { name: "이미지 추가" }).waitFor();
   await settings.getByRole("button").first().click();
   await page.getByRole("button", { name: "저장 후 나가기" }).click();
   await page.getByText("저장된 좌석 차트", { exact: true }).waitFor();
@@ -357,9 +378,8 @@ test("concurrent settings uploads merge overlays and assets into the latest char
     const list = await fetch("/api/seat-charts").then((response) => response.json());
     return fetch(`/api/seat-charts/${list.charts[0].id}`).then((response) => response.json());
   });
-  assert.ok(saved.record.chart.backgroundImage);
+  assert.equal(saved.record.chart.backgroundImage, undefined);
   assert.ok(saved.record.chart.referenceChart);
-  assert.equal(saved.record.chart.backgroundImage.opacity, 0.25);
   assert.deepEqual(saved.record.chart.assets.map((asset) => asset.kind).sort(), ["background", "background", "reference"]);
 });
 

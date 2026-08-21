@@ -563,7 +563,7 @@ export function setTableProps(
     return sides.flatMap((side) => {
       const mapped = generatedSeats.slice(nextOffset, nextOffset + chairs[side]).map((seat, index) => {
         const previous = index < previousChairs[side] ? obj.seats[previousOffset + index] : undefined;
-        return previous ? { ...previous, x: seat.x, y: seat.y } : seat;
+        return previous ? { ...previous, label: seat.label, x: seat.x, y: seat.y } : seat;
       });
       previousOffset += previousChairs[side];
       nextOffset += chairs[side];

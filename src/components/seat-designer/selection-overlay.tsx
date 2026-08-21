@@ -3,7 +3,7 @@
 import { useRef, useState, type PointerEvent } from "react";
 import type { ChartObject, Point } from "@/types/seat-chart";
 import { objectCenter } from "@/lib/seat-designer/chart-ops";
-import { objectBounds, resizeCornerForRotatedPointer, type ObjectBounds } from "@/lib/seat-designer/transforms";
+import { objectBounds, resizeBoundsForRotatedPointer, type ObjectBounds } from "@/lib/seat-designer/transforms";
 
 type Corner = "nw" | "ne" | "se" | "sw";
 
@@ -53,7 +53,9 @@ export function SelectionOverlay({
     const point = toWorld(event.clientX, event.clientY);
     if (!point) return;
     if (current.kind === "resize") {
-      setLiveBounds(resized(current.bounds, current.corner, resizeCornerForRotatedPointer(point, current.bounds, initialCenter, current.corner, object.rotation ?? 0)));
+      setLiveBounds(object.rotation
+        ? resizeBoundsForRotatedPointer(point, current.bounds, initialCenter, current.corner, object.rotation)
+        : resized(current.bounds, current.corner, point));
       return;
     }
     const degrees = Math.atan2(point.y - current.center.y, point.x - current.center.x) * 180 / Math.PI + 90;
