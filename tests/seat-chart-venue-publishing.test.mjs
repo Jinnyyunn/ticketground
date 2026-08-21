@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -31,11 +31,9 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await context.addCookies([{ ...auth.cookie, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Lax" }]);
   const page = await context.newPage();
+  page.setDefaultTimeout(8_000);
 
   await page.goto(`${server.adminUrl}/admin/seat-designer`, { waitUntil: "networkidle" });
-  const startButton = page.getByRole("button", { name: "시작하기", exact: true });
-  if (await startButton.count()) await startButton.click();
-
   const catalog = await page.evaluate(async () => fetch("/api/catalog").then((response) => response.json()));
   const venues = await page.evaluate(async () => fetch("/api/admin/venues").then((response) => response.json()));
   const event = catalog.data.events.find((item) =>
@@ -43,6 +41,27 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   assert.ok(event);
   const venue = venues.data.venues.find((item) => item.id === event.venueId);
   assert.ok(venue);
+  const initialDialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
+  await initialDialog.locator("select").selectOption(venue.id);
+  await initialDialog.getByRole("button", { name: "빈 캔버스" }).click();
+  await initialDialog.waitFor({ state: "hidden" });
+  const canvas = page.getByTestId("designer-canvas");
+  const canvasBox = await canvas.boundingBox();
+  assert.ok(canvasBox);
+  await page.getByTestId("tool-focal").click();
+  await page.mouse.click(canvasBox.x + 500, canvasBox.y + 120);
+  await page.getByTestId("tool-row").click();
+  await page.locator('[role="menuitem"][data-mode="row"]').click();
+  await page.mouse.move(canvasBox.x + 380, canvasBox.y + 260);
+  await page.mouse.down();
+  await page.mouse.move(canvasBox.x + 620, canvasBox.y + 260);
+  await page.mouse.up();
+  await page.locator('[data-object-type="row"]').waitFor();
+  await page.getByTestId("tool-image").click();
+  const imageChooser = page.waitForEvent("filechooser");
+  await page.mouse.click(canvasBox.x + 700, canvasBox.y + 380);
+  await (await imageChooser).setFiles({ name: "Jinny-private-plan.png", mimeType: "image/png", buffer: await readFile(path.resolve("public/images/header/partner-nol.png")) });
+  await page.locator('[data-object-type="image"]').waitFor();
 
   const beforePublish = await fetch(`${server.baseUrl}/api/seat-charts/for-show/${encodeURIComponent(event.slug)}`);
   assert.equal(beforePublish.status, 200);
@@ -59,7 +78,8 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   const modal = page.locator("div.fixed.inset-0.z-50");
   await modal.getByText("공연장", { exact: true }).waitFor();
   assert.doesNotMatch(await modal.innerText(), /예매 적용 공연|연결된 공연/);
-  await modal.getByRole("button", { name: venue.name, exact: true }).click();
+  const venueButton = modal.getByRole("button", { name: venue.name, exact: true });
+  if (await venueButton.getAttribute("aria-pressed") !== "true") await venueButton.click();
   await modal.locator("button").first().click();
 
   const publishButton = page.getByRole("button", { name: "게시", exact: true });
@@ -68,13 +88,16 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   await publishButton.click();
   const publishResponse = await publishResponsePromise;
   assert.equal(publishResponse.status(), 200, `${publishResponse.url()} ${await publishResponse.text()}`);
-  await page.getByText("게시됨", { exact: true }).first().waitFor();
+  await page.getByRole("button", { name: "게시됨", exact: true }).waitFor();
 
   const response = await fetch(`${server.baseUrl}/api/seat-charts/for-show/${encodeURIComponent(event.slug)}`);
   assert.equal(response.status, 200);
   const published = await response.json();
   assert.equal(published.source, "published");
   assert.deepEqual(published.record.boundVenue, { id: venue.id, name: venue.name });
+  assert.ok(published.chart.assets.length > 0);
+  assert.equal(published.chart.assets.some((asset) => "originalName" in asset), false, "buyer chart must not expose admin file names");
+  assert.equal(published.chart.objects.some((object) => object.label.includes("Jinny-private-plan")), false, "buyer objects must not expose local file names");
 
   const credentialResponse = await fetch(`${server.adminUrl}/api/seat-charts`, {
     method: "POST",

@@ -21,6 +21,19 @@ export function snapPoint(p: Point, grid: number, enabled: boolean): Point {
   return { x: snap(p.x, grid, enabled), y: snap(p.y, grid, enabled) };
 }
 
+export function constrainPointToAngle(origin: Point, point: Point, incrementDegrees: number): Point {
+  const dx = point.x - origin.x;
+  const dy = point.y - origin.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance === 0 || incrementDegrees <= 0) return point;
+  const increment = incrementDegrees * Math.PI / 180;
+  const angle = Math.round(Math.atan2(dy, dx) / increment) * increment;
+  return {
+    x: origin.x + Math.cos(angle) * distance,
+    y: origin.y + Math.sin(angle) * distance,
+  };
+}
+
 /** Place seats along a line with optional quadratic-style midpoint bulge. */
 export function seatsAlongLine(
   start: Point,
@@ -57,6 +70,42 @@ export function seatsAlongLine(
   return seats;
 }
 
+export function seatsAlongPolyline(
+  points: readonly Point[],
+  count: number,
+  rowLabel: string,
+  categoryKey?: string,
+): SeatPlace[] {
+  if (points.length < 2 || count <= 0) return [];
+  const segments = points.slice(1).map((point, index) => ({
+    start: points[index],
+    end: point,
+    length: dist(points[index], point),
+  }));
+  const total = segments.reduce((sum, segment) => sum + segment.length, 0);
+  if (total === 0) return [];
+  return Array.from({ length: count }, (_, index) => {
+    const target = count === 1 ? total / 2 : total * index / (count - 1);
+    let traversed = 0;
+    let selected = segments[segments.length - 1];
+    for (const segment of segments) {
+      if (target <= traversed + segment.length) {
+        selected = segment;
+        break;
+      }
+      traversed += segment.length;
+    }
+    const ratio = selected.length === 0 ? 0 : (target - traversed) / selected.length;
+    return {
+      id: uid("seat"),
+      label: `${rowLabel}-${index + 1}`,
+      x: lerp(selected.start.x, selected.end.x, ratio),
+      y: lerp(selected.start.y, selected.end.y, ratio),
+      categoryKey,
+    };
+  });
+}
+
 export function seatsAroundTable(
   center: Point,
   radius: number,
@@ -77,6 +126,38 @@ export function seatsAroundTable(
     });
   }
   return seats;
+}
+
+export function seatsAroundRectangularTable(
+  center: Point,
+  width: number,
+  height: number,
+  chairs: { readonly top: number; readonly right: number; readonly bottom: number; readonly left: number },
+  tableLabel: string,
+  categoryKey?: string,
+): SeatPlace[] {
+  const left = center.x - width / 2;
+  const right = center.x + width / 2;
+  const top = center.y - height / 2;
+  const bottom = center.y + height / 2;
+  const result: SeatPlace[] = [];
+  const append = (start: Point, end: Point, count: number, offset: Point) => {
+    for (let index = 0; index < count; index += 1) {
+      const ratio = (index + 1) / (count + 1);
+      result.push({
+        id: uid("seat"),
+        label: `${tableLabel}-${result.length + 1}`,
+        x: lerp(start.x, end.x, ratio) + offset.x,
+        y: lerp(start.y, end.y, ratio) + offset.y,
+        categoryKey,
+      });
+    }
+  };
+  append({ x: left, y: top }, { x: right, y: top }, chairs.top, { x: 0, y: -14 });
+  append({ x: right, y: top }, { x: right, y: bottom }, chairs.right, { x: 14, y: 0 });
+  append({ x: right, y: bottom }, { x: left, y: bottom }, chairs.bottom, { x: 0, y: 14 });
+  append({ x: left, y: bottom }, { x: left, y: top }, chairs.left, { x: -14, y: 0 });
+  return result;
 }
 
 export function pointInPolygon(point: Point, polygon: readonly Point[]): boolean {

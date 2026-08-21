@@ -25,8 +25,66 @@ test("duplicate and flip preserve nested relative geometry with fresh identities
   assert.notEqual(clone.id, section.id);
   assert.notEqual(clone.nestedRows[0].id, section.nestedRows[0].id);
   assert.equal(clone.nestedRows[0].start.x, section.nestedRows[0].start.x + 24);
+  assert.deepEqual(clone.nestedRows[0].seats.map((seat) => seat.label), ["A 복사-1", "A 복사-2"]);
   const flipped = flipObjects(duplicated, [clone.id], "h", { x: 100, y: 50 });
   assert.equal(flipped.objects[2].points[0].x, 176);
+});
+
+test("duplicated rows regenerate canonical labels while preserving seat metadata", () => {
+  const row = {
+    ...section.nestedRows[0],
+    seats: section.nestedRows[0].seats.map((seat, index) => ({ ...seat, label: `A-${index + 1}`, displayedLabel: `${index + 1}번`, accessible: index === 0 })),
+  };
+  const duplicated = duplicateObjects({ ...chart, objects: [row] }, [row.id], 24);
+  const clone = duplicated.objects[1];
+  assert.deepEqual(clone.seats.map((seat) => seat.label), ["A 복사-1", "A 복사-2"]);
+  assert.deepEqual(clone.seats.map((seat) => seat.displayedLabel), ["1번", "2번"]);
+  assert.equal(clone.seats[0].accessible, true);
+  const duplicatedAgain = duplicateObjects(duplicated, [row.id], 48);
+  assert.deepEqual(duplicatedAgain.objects[2].seats.map((seat) => seat.label), ["A 복사 2-1", "A 복사 2-2"]);
+  assert.equal(new Set(duplicatedAgain.objects.flatMap((object) => object.seats?.map((seat) => seat.label) ?? [])).size, 6);
+});
+
+test("copy labels remain unique under backend whitespace normalization", () => {
+  const source = {
+    ...section.nestedRows[0],
+    seats: section.nestedRows[0].seats.map((seat, index) => ({ ...seat, label: `A-${index + 1}` })),
+  };
+  const compactCopy = {
+    ...source,
+    id: "compact-copy",
+    label: "A복사",
+    seats: source.seats.map((seat, index) => ({ ...seat, id: `compact-${index}`, label: `A복사-${index + 1}` })),
+  };
+  const duplicated = duplicateObjects({ ...chart, objects: [source, compactCopy] }, [source.id], 24);
+  assert.equal(duplicated.objects[2].label, "A 복사 2");
+  assert.deepEqual(duplicated.objects[2].seats.map((seat) => seat.label), ["A 복사 2-1", "A 복사 2-2"]);
+});
+
+test("copy labels account for canonical seats left behind by an object rename", () => {
+  const source = {
+    ...section.nestedRows[0],
+    seats: section.nestedRows[0].seats.map((seat, index) => ({ ...seat, label: `A-${index + 1}` })),
+  };
+  const renamed = {
+    ...source,
+    id: "renamed-copy",
+    label: "B",
+    seats: source.seats.map((seat, index) => ({ ...seat, id: `renamed-${index}`, label: ` A복사-${index + 1} ` })),
+  };
+  const duplicated = duplicateObjects({ ...chart, objects: [source, renamed] }, [source.id], 24);
+  assert.equal(duplicated.objects[2].label, "A 복사 2");
+});
+
+test("flipping visible geometry negates top-level and nested rotations", () => {
+  const rotatedSection = {
+    ...section,
+    rotation: 30,
+    nestedRows: [{ ...section.nestedRows[0], rotation: 45 }],
+  };
+  const flipped = flipObjects({ ...chart, objects: [rotatedSection] }, [rotatedSection.id], "h", { x: 100, y: 50 }).objects[0];
+  assert.equal(flipped.rotation, 330);
+  assert.equal(flipped.nestedRows[0].rotation, 315);
 });
 
 test("align, translate, and delete are immutable whole transactions", () => {

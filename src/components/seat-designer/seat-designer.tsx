@@ -10,7 +10,6 @@ import { DesignerCanvas } from "./canvas";
 import { CategoryManagerDialog, Inspector } from "./inspector";
 import { LayerPicker } from "./layer-picker";
 import { ChartSettingsDialog, FirstTimeTutorial, FloorsDialog } from "./chart-settings-dialog";
-import { TemplateRail } from "./template-rail";
 import { ToolPicker } from "./tool-picker";
 import { TopToolbar } from "./top-toolbar";
 import { NewChartDialog } from "./new-chart-dialog";
@@ -18,10 +17,11 @@ import { ChartLibrary } from "./chart-library";
 
 export function SeatDesigner() {
   const api = useSeatEditor();
-  const { state, dispatch, validation, allValid, loadTemplate } = api;
+  const { state, dispatch, validation, allValid } = api;
   const [layersOpen, setLayersOpen] = useState(false);
-  const [newChartOpen, setNewChartOpen] = useState(false);
+  const [newChartOpen, setNewChartOpen] = useState(true);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const assetUploadPending = Object.keys(state.assetRequestIds).length > 0;
 
   if (libraryOpen) {
     return (
@@ -75,7 +75,8 @@ export function SeatDesigner() {
             )}
             <button
               type="button"
-              className="rounded-md bg-white/10 px-3 py-1.5 hover:bg-white/15"
+              disabled={assetUploadPending}
+              className="rounded-md bg-white/10 px-3 py-1.5 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={() => void api.publishToServer(true)}
             >
               게시
@@ -110,41 +111,18 @@ export function SeatDesigner() {
       className="seat-designer-shell flex h-screen flex-col text-[14px]"
       data-testid="seat-designer-shell"
     >
-      <div className="flex h-8 shrink-0 items-center justify-between border-b border-black/5 bg-[#111] px-3 text-[12px] text-white/80">
-        <div className="flex items-center gap-3">
-          <Link href="/console" aria-label="Ticketground 관리자 콘솔" className="rounded-sm bg-white px-1 hover:opacity-90">
-            <BrandLogo className="h-4" />
-          </Link>
-          <span className="text-white/40">/</span>
-          <span>{ko.appTitle}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {state.serverStatus && (
-            <span aria-live="polite" className="max-w-[280px] truncate text-[11px] text-white/60">{state.serverStatus}</span>
-          )}
-          <button type="button" className="hover:text-white" onClick={() => void api.saveToServer()}>
-            서버 저장
-          </button>
-          <button
-            type="button"
-            className="hover:text-white"
-            onClick={() => void api.saveToServer().then((saved) => saved && setLibraryOpen(true))}
-          >
-            저장 후 나가기
-          </button>
-          <button type="button" className="hover:text-white" onClick={api.saveLocal}>
-            {ko.save}
-          </button>
-        </div>
-      </div>
-
-      <TopToolbar api={api} allValid={allValid} />
+      <TopToolbar
+        api={api}
+        allValid={allValid}
+        onSaveAndExit={() => void api.saveToServer().then((saved) => saved && setLibraryOpen(true))}
+      />
 
       <div className="relative flex min-h-0 flex-1">
-        <TemplateRail chart={state.chart} onSelect={loadTemplate} onNewChart={() => setNewChartOpen(true)} api={api} />
         <ToolPicker
           tool={state.tool}
+          mode={state.toolMode}
           onTool={(tool) => dispatch({ type: "SET_TOOL", tool })}
+          onMode={(mode) => dispatch({ type: "SET_TOOL_MODE", mode })}
           onOpenLayers={() => setLayersOpen((v) => !v)}
         />
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -164,7 +142,15 @@ export function SeatDesigner() {
       <ChartSettingsDialog api={api} />
       <FloorsDialog api={api} />
       <FirstTimeTutorial api={api} />
-      <NewChartDialog api={api} open={newChartOpen} onClose={() => setNewChartOpen(false)} />
+      <NewChartDialog
+        api={api}
+        open={newChartOpen && !state.restoredLocalDraft}
+        onClose={() => setNewChartOpen(false)}
+        onOpenLibrary={() => {
+          setNewChartOpen(false);
+          setLibraryOpen(true);
+        }}
+      />
     </div>
   );
 }

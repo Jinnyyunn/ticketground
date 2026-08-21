@@ -15,6 +15,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { createTicketgroundApp } from "../backend/app.js";
 import { adminApi, api, startServer as startBackendServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { createTosspaymentsOrderId } from "../src/lib/tosspayments/order-id.ts";
 
 function startServer(t, options = {}) {
   return startBackendServer(t, {
@@ -89,6 +90,23 @@ test("a two-seat tosspayments purchase charges the full summed total and deliver
   assert.ok(transactionA && transactionB, "both tickets recorded their own payment transaction");
   assert.equal(transactionA.amount + transactionB.amount, expectedTotal);
   assert.equal(transactionA.pgTransactionId, transactionB.pgTransactionId, "both line items share the one TossPayments charge");
+});
+
+test("a three-seat table purchase charges and delivers the complete group", async (t) => {
+  const server = await startServer(t);
+  await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
+  const tickets = await onSaleTickets(server.baseUrl, 3);
+  const expectedTotal = tickets.reduce((sum, ticket) => sum + ticket.faceValue, 0) + tickets.length * 2000;
+  const purchase = await api(server.baseUrl, "/api/payments/tosspayments/purchase", {
+    userId: "user_fan_a",
+    ticketIds: tickets.map((ticket) => ticket.id),
+    paymentMethod: "CREDIT_CARD",
+    tossPaymentKey: "toss_test_key_table_three",
+    orderId: `order_${tickets.map((ticket) => ticket.id).join("_")}`,
+  }, 200, { "X-Idempotency-Key": "toss-table-three-seats" });
+  assert.equal(purchase.data.tickets.length, 3);
+  assert.equal(purchase.data.payment.amount, expectedTotal);
+  assert.ok(purchase.data.tickets.every((ticket) => ticket.status === "OWNED"));
 });
 
 test("a two-seat purchase through the legacy /api/tickets/buy route also delivers both tickets", async (t) => {
@@ -213,33 +231,39 @@ test("a duplicate ticketId within the same purchase request is rejected", async 
   assert.equal(state.data.tickets.find((item) => item.id === ticket.id).status, "ON_SALE");
 });
 
-test("a purchase request over the max group size is rejected before touching any ticket", async (t) => {
+test("a 96-seat rectangular table reaches inventory validation instead of the group cap", async (t) => {
   const server = await startServer(t);
   await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
-  const state = await api(server.baseUrl, "/api/state");
-  const onSale = state.data.tickets.filter((item) => item.eventId === "event_kpop_001" && item.status === "ON_SALE");
-  const byDate = new Map();
-  for (const ticket of onSale) {
-    const bucket = byDate.get(ticket.performanceDateId) || [];
-    bucket.push(ticket);
-    byDate.set(ticket.performanceDateId, bucket);
-  }
-  const tickets = [...byDate.values()].find((bucket) => bucket.length >= 3);
-  assert.ok(tickets, "one performance date has at least three on-sale tickets");
-
   const rejected = await api(server.baseUrl, "/api/payments/tosspayments/purchase", {
     userId: "user_fan_a",
-    ticketIds: tickets.slice(0, 3).map((ticket) => ticket.id),
+    ticketIds: Array.from({ length: 96 }, (_, index) => `ticket-${index + 1}`),
+    paymentMethod: "CREDIT_CARD",
+    tossPaymentKey: "toss_test_key_rectangular_table",
+    orderId: "order_rectangular_table"
+  }, 404, { "X-Idempotency-Key": "toss-rectangular-table" });
+  assert.equal(rejected.error.code, "TICKET_NOT_FOUND");
+});
+
+test("a purchase request over the 96-seat group limit is rejected before touching inventory", async (t) => {
+  const server = await startServer(t);
+  await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
+  const rejected = await api(server.baseUrl, "/api/payments/tosspayments/purchase", {
+    userId: "user_fan_a",
+    ticketIds: Array.from({ length: 97 }, (_, index) => `ticket-${index + 1}`),
     paymentMethod: "CREDIT_CARD",
     tossPaymentKey: "toss_test_key_too_many",
     orderId: "order_too_many"
   }, 422, { "X-Idempotency-Key": "toss-group-too-many-seats" });
   assert.equal(rejected.error.code, "TOO_MANY_SEATS");
+});
 
-  const finalState = await api(server.baseUrl, "/api/state");
-  for (const ticket of tickets.slice(0, 3)) {
-    assert.equal(finalState.data.tickets.find((item) => item.id === ticket.id).status, "ON_SALE");
-  }
+test("multi-seat Toss order IDs stay opaque and within the provider limit", () => {
+  const ticketIds = Array.from({ length: 96 }, (_, index) => `ticket_event_123_${String(index + 1).padStart(3, "0")}`);
+  const orderId = createTosspaymentsOrderId(ticketIds, "01234567-89ab-cdef-0123-456789abcdef");
+  assert.equal(orderId, "order_0123456789abcdef0123456789abcdef");
+  assert.ok(orderId.length <= 64);
+  assert.equal(ticketIds.some((ticketId) => orderId.includes(ticketId)), false);
+  assert.equal(createTosspaymentsOrderId([ticketIds[0]], "unused"), ticketIds[0]);
 });
 
 test("tickets from two different performances cannot be purchased together", async (t) => {

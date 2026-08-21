@@ -152,6 +152,16 @@ test("uses a published chart only when it covers every sellable backend ticket",
   assert.equal(chartCoversAllBackendSeats(complete, backend), true);
 });
 
+test("rejects grouped chart coverage that repeats one backend ticket and omits another", () => {
+  const backend = [backendSeat("ticket-1", "R-01", 160000), backendSeat("ticket-2", "R-02", 160000)];
+  const duplicatedGroup = [{
+    ...layoutSeat("group", "T1", 160000, 10),
+    backendTicketIds: ["ticket-1", "ticket-1"],
+  }];
+
+  assert.equal(chartCoversAllBackendSeats(duplicatedGroup, backend), false);
+});
+
 test("rejects a published chart with coincident seat coordinates", () => {
   const backend = [backendSeat("ticket-1", "R-01", 160000), backendSeat("ticket-2", "R-02", 160000)];
   const coincident = bindChartLayoutToBackendSeats([
@@ -160,6 +170,54 @@ test("rejects a published chart with coincident seat coordinates", () => {
   ], backend);
 
   assert.equal(chartCoversAllBackendSeats(coincident, backend), false);
+});
+
+test("binds a variable table marker to every backend chair ticket", () => {
+  const variableTable = {
+    ...layoutSeat("table__whole", "T1", 160000, 40),
+    objectId: "table",
+    objectType: "table",
+    bookingMode: "variable",
+    minOccupancy: 2,
+    maxOccupancy: 3,
+    memberLabels: ["T1-1", "T1-2", "T1-3"],
+  };
+  const backend = [
+    backendSeat("ticket-1", "T1-1", 160000),
+    backendSeat("ticket-2", "T1-2", 160000),
+    backendSeat("ticket-3", "T1-3", 160000),
+  ];
+
+  const bound = bindChartLayoutToBackendSeats([variableTable], backend);
+
+  assert.equal(bound.length, 1);
+  assert.deepEqual(bound[0].backendTicketIds, ["ticket-1", "ticket-2", "ticket-3"]);
+  assert.deepEqual(bound[0].availableTicketIds, ["ticket-1", "ticket-2", "ticket-3"]);
+  assert.equal(bound[0].sold, false);
+  assert.equal(chartCoversAllBackendSeats(bound, backend), true);
+});
+
+test("binds grouped table members with their individual category prices", () => {
+  const groupedTable = {
+    ...layoutSeat("table__whole", "T2", 190000, 40),
+    objectId: "table",
+    objectType: "table",
+    bookingMode: "whole",
+    memberSeats: [
+      { label: "T2-1", price: 190000 },
+      { label: "T2-2", price: 160000 },
+    ],
+  };
+  const backend = [
+    backendSeat("ticket-vip", "T2-1", 190000),
+    backendSeat("ticket-r", "T2-2", 160000),
+  ];
+
+  const bound = bindChartLayoutToBackendSeats([groupedTable], backend);
+
+  assert.deepEqual(bound[0].backendTicketIds, ["ticket-vip", "ticket-r"]);
+  assert.equal(bound[0].price, 350000);
+  assert.equal(chartCoversAllBackendSeats(bound, backend), true);
 });
 
 test("expands dense published charts so 24px seat targets cannot overlap", () => {

@@ -12,8 +12,9 @@ import {
   chartCoversAllBackendSeats,
 } from "@/lib/seat-charts/bind-backend-seats";
 import { apiChartForShow } from "@/lib/seat-charts/client";
-import type { InventoryResult } from "@/lib/seat-charts/inventory";
+import type { InventoryResult, SellableSeat } from "@/lib/seat-charts/inventory";
 import { canEnterSeatSelection, seatChartReadinessMessage } from "@/lib/seat-charts/readiness";
+import { toggleChartSeatSelection } from "@/lib/seat-charts/seat-selection";
 import { getSeatMap, type ApiSeatMap } from "@/lib/ticketground-api";
 import { cn } from "@/lib/utils";
 import { BookingSummaryRow } from "./booking-summary-row";
@@ -142,10 +143,37 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     [backendSeats, chartRequestKey, publishedChart],
   );
   const boundChartSeats = useMemo(() => allBoundChartSeats.filter((seat) => !seat.sold), [allBoundChartSeats]);
+  const displayedChartSeats = useMemo(() => boundChartSeats.map((seat) => {
+    if (seat.bookingMode !== "variable" || !seat.availableTicketPrices?.length) return seat;
+    const minimum = Math.max(1, seat.minOccupancy ?? 1);
+    const maximum = Math.max(minimum, seat.maxOccupancy ?? seat.availableTicketPrices.length);
+    const selectedCount = (seat.backendTicketIds ?? []).filter((id) => selectedBackendTicketIds.includes(id)).length;
+    const count = Math.min(
+      seat.availableTicketPrices.length,
+      maximum,
+      Math.max(minimum, selectedCount || quantity),
+    );
+    return { ...seat, price: seat.availableTicketPrices.slice(0, count).reduce((sum, price) => sum + price, 0) };
+  }), [boundChartSeats, quantity, selectedBackendTicketIds]);
+  const maximumQuantity = useMemo(() => Math.max(
+    maxSelectableSeats,
+    ...boundChartSeats.map((seat) => {
+      if (seat.bookingMode === "variable") return Math.min(
+        seat.maxOccupancy ?? maxSelectableSeats,
+        seat.availableTicketIds?.length ?? seat.memberLabels?.length ?? maxSelectableSeats,
+      );
+      if (seat.bookingMode === "whole") return seat.availableTicketIds?.length ?? seat.memberLabels?.length ?? maxSelectableSeats;
+      return maxSelectableSeats;
+    }),
+  ), [boundChartSeats]);
+  const quantityOptions = useMemo(() => Array.from({ length: maximumQuantity }, (_, index) => index + 1), [maximumQuantity]);
   const usePublishedChart = Boolean(
     publishedChart?.inventory && chartCoversAllBackendSeats(allBoundChartSeats, backendSeats),
   );
   const selectedBackendSeats = seatMap?.seats.filter((seat) => selectedBackendTicketIds.includes(seat.id)) ?? [];
+  const selectedChartSeatIds = boundChartSeats
+    .filter((seat) => (seat.backendTicketIds ?? [seat.id]).some((id) => selectedBackendTicketIds.includes(id)))
+    .map((seat) => seat.id);
   const selectedLabels = selectedBackendSeats.map((seat) => seat.label).join(", ");
   const selectedCount = selectedBackendSeats.length;
   const baseAmount = selectedBackendSeats.reduce((sum, seat) => sum + seat.price, 0);
@@ -167,13 +195,13 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   // ticketId is kept too so any old single-seat bookmark/link still works.
   const checkoutHref = `/checkout/${show.slug}?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(selectedLabels)}&count=${selectedCount}&ticketId=${encodeURIComponent(selectedBackendTicketIds[0] ?? "")}&ticketIds=${encodeURIComponent(selectedBackendTicketIds.join(","))}`;
 
-  const selectBackendSeat = useCallback((ticketId: string) => {
+  const selectChartSeat = useCallback((seat: SellableSeat) => {
     setSelectedBackendTicketIds((current) => {
-      if (current.includes(ticketId)) return current.filter((id) => id !== ticketId);
-      const allowedCount = Math.min(quantity, maxSelectableSeats);
-      return [...current, ticketId].slice(-allowedCount);
+      const next = toggleChartSeatSelection(current, seat, quantity, boundChartSeats);
+      if (seat.bookingMode && next.length > 0) setQuantity(next.length);
+      return next;
     });
-  }, [quantity]);
+  }, [boundChartSeats, quantity]);
 
   function changeDate(nextDate: string) {
     const nextTimes = show.schedules.find((schedule) => schedule.date === nextDate)?.times;
@@ -283,12 +311,24 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-ink">매수</h3>
-                  <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
-                    {[1, 2].map((count) => (
-                      <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black transition-colors", quantity === count ? "bg-ticketground text-white shadow-ticket-1" : "text-ink-3 hover:bg-surface hover:text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-ink-3")}>{count}매</button>
-                    ))}
-                  </div>
-                  <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 2매까지 선택할 수 있습니다.</p>
+                  {maximumQuantity <= 8 ? (
+                    <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
+                      {quantityOptions.map((count) => (
+                        <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black transition-colors", quantity === count ? "bg-ticketground text-white shadow-ticket-1" : "text-ink-3 hover:bg-surface hover:text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-ink-3")}>{count}매</button>
+                      ))}
+                    </div>
+                  ) : (
+                    <select
+                      aria-label="매수"
+                      disabled={!show.sale.bookable}
+                      value={quantity}
+                      onChange={(event) => setQuantity(Number(event.target.value))}
+                      className="mt-3 h-11 w-full min-w-[180px] rounded-sm border border-line bg-card px-3 text-base font-black text-ink outline-none focus:border-ticketground focus:ring-2 focus:ring-ticketground/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {quantityOptions.map((count) => <option key={count} value={count}>{count}매</option>)}
+                    </select>
+                  )}
+                  <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 {maximumQuantity}매까지 선택할 수 있습니다.</p>
                 </div>
               </div>
               <button type="button" disabled={!canChooseSeats} onClick={() => setStep("seats")} className="mt-6 flex h-12 items-center justify-center gap-2 rounded-sm bg-ticketground px-6 text-base font-black text-white shadow-ticket-1 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-4 disabled:shadow-none disabled:hover:brightness-100 disabled:active:scale-100">
@@ -315,10 +355,10 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               <div className="mt-5 min-w-0 space-y-4">
                 {seatMap && usePublishedChart && publishedChart?.inventory ? (
                     <ChartSeatMap
-                      seats={boundChartSeats}
+                      seats={displayedChartSeats}
                       bounds={publishedChart.inventory.bounds}
-                      selectedSeatIds={selectedBackendTicketIds}
-                      onSelect={selectBackendSeat}
+                      selectedSeatIds={selectedChartSeatIds}
+                      onSelect={selectChartSeat}
                     />
                 ) : (
                   <div className="rounded-lg border border-line bg-surface p-4 text-sm font-bold text-ink-3" role="status">
@@ -381,7 +421,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
             </dl>
             <p className="mt-4 flex items-start gap-2 break-keep rounded-lg border border-warn bg-tint-yellow px-3 py-2.5 text-sm font-bold text-ink">
               <Info className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
-              정책: 최대 2매까지 선택할 수 있습니다.
+              정책: 최대 {maximumQuantity}매까지 선택할 수 있습니다.
             </p>
           </div>
         </aside>

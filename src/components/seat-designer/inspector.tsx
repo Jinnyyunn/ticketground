@@ -2,12 +2,19 @@
 
 import { ArrowDown, ArrowUp, Check, Search, Settings2, X } from "lucide-react";
 import type { ChartObject } from "@/types/seat-chart";
-import { countPlaces } from "@/lib/seat-designer/chart-ops";
+import { countPlaces, isPlaceBearingObject } from "@/lib/seat-designer/chart-ops";
 import { ko } from "@/lib/seat-designer/i18n";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import type { ValidationItem } from "@/lib/seat-designer/validation";
 import { cn } from "@/lib/utils";
 import { DecorationInspector } from "./decoration-inspector";
+import { ImageImportControl } from "./image-import-control";
+import { ToolHelpPanel } from "./tool-help-panel";
+import { TableInspector } from "./inspectors/table-inspector";
+
+function isObjectLayer(value: string): value is ChartObject["layer"] {
+  return value === "foreground" || value === "interactive" || value === "background" || value === "surroundings";
+}
 
 export function Inspector({
   api,
@@ -27,6 +34,7 @@ export function Inspector({
     patchAdvanced,
     patchSelectedSeats,
     patchDecoration,
+    replaceSelectedImage,
     selectBySearch,
   } = api;
   const { chart, selectedIds, selectedSeatIds, searchQuery, searchOpen } = state;
@@ -35,7 +43,7 @@ export function Inspector({
   const primary = selected[0];
 
   return (
-    <aside className="flex w-[320px] shrink-0 flex-col border-l border-black/10 bg-[#f5f5f5]">
+    <aside data-testid="seat-designer-inspector" className="flex w-[336px] shrink-0 flex-col border-l border-black/10 bg-[#f5f5f5]">
       <div className="border-b border-black/10 bg-white p-4">
         <h2 className="text-[16px] font-semibold text-[#333]">{chart.name}</h2>
         <div className="mt-3 flex items-center justify-between text-[13px]">
@@ -113,6 +121,7 @@ export function Inspector({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {!primary && state.toolMode !== "select" && <ToolHelpPanel mode={state.toolMode} />}
         {selectedSeatIds.length > 0 && (
           <Panel title={ko.seats}>
             <p className="text-[13px] text-[#555]">
@@ -154,7 +163,40 @@ export function Inspector({
                 onChange={(e) => patchAdvanced({ displayedLabel: e.target.value })}
               />
             </div>
-            <Field label={ko.layer} value={ko.objectLayers[primary.layer]} />
+            <label className="mt-2 block text-[12px] text-[#666]">
+              {ko.layer}
+              <select
+                className="mt-1 w-full rounded border border-black/10 px-2 py-1.5 text-[13px]"
+                value={isPlaceBearingObject(primary) ? "interactive" : primary.layer}
+                disabled={isPlaceBearingObject(primary)}
+                onChange={(event) => {
+                  if (isObjectLayer(event.target.value)) patchAdvanced({ layer: event.target.value });
+                }}
+              >
+                {!isPlaceBearingObject(primary) && <option value="foreground">전경 장식</option>}
+                <option value="interactive">인터랙티브 객체</option>
+                {!isPlaceBearingObject(primary) && <option value="background">배경 장식</option>}
+                {!isPlaceBearingObject(primary) && <option value="surroundings">주변 요소</option>}
+              </select>
+            </label>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="block text-[12px] text-[#666]">회전
+                <input
+                  type="number"
+                  min={-360}
+                  max={360}
+                  value={Number((primary.rotation ?? 0).toFixed(2))}
+                  className="mt-1 w-full rounded border border-black/10 px-2 py-1.5 text-[13px]"
+                  onChange={(event) => {
+                    const rotation = Number(event.target.value);
+                    if (Number.isFinite(rotation)) patchAdvanced({ rotation });
+                  }}
+                />
+              </label>
+              <label className="flex items-center gap-2 self-end rounded border border-black/10 px-2 py-1.5 text-[12px] text-[#666]">
+                <input type="checkbox" checked={Boolean(primary.locked)} onChange={(event) => patchAdvanced({ locked: event.target.checked })} />잠금
+              </label>
+            </div>
             {(chart.zones ?? []).length > 0 && (
               <label className="mt-2 block text-[12px] text-[#666]">
                 존
@@ -269,72 +311,7 @@ export function Inspector({
                 </label>
               </div>
             )}
-            {primary.type === "table" && (
-              <div className="mt-3 space-y-2">
-                <label className="block text-[12px] text-[#666]">
-                  {ko.seatCount}
-                  <input
-                    type="number"
-                    min={1}
-                    max={48}
-                    className="mt-1 w-full rounded border border-black/10 px-2 py-1.5 text-[13px]"
-                    value={primary.seatCount}
-                    onChange={(e) => patchTable({ seatCount: Number(e.target.value) })}
-                  />
-                </label>
-                <label className="block text-[12px] text-[#666]">
-                  {ko.radius}
-                  <input
-                    type="number"
-                    min={8}
-                    max={120}
-                    className="mt-1 w-full rounded border border-black/10 px-2 py-1.5 text-[13px]"
-                    value={primary.radius}
-                    onChange={(e) => patchTable({ radius: Number(e.target.value) })}
-                  />
-                </label>
-                <label className="flex items-center gap-2 text-[12px] text-[#666]">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(primary.bookAsWhole)}
-                    onChange={(e) => patchTable({ bookAsWhole: e.target.checked })}
-                  />
-                  {ko.bookAsWhole}
-                </label>
-                <label className="flex items-center gap-2 text-[12px] text-[#666]">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(primary.variableOccupancy)}
-                    onChange={(e) => patchTable({ variableOccupancy: e.target.checked })}
-                  />
-                  가변 점유 (variable occupancy)
-                </label>
-                {primary.variableOccupancy && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block text-[12px] text-[#666]">
-                      최소
-                      <input
-                        type="number"
-                        min={1}
-                        className="mt-1 w-full rounded border border-black/10 px-2 py-1.5 text-[13px]"
-                        value={primary.minOccupancy ?? 1}
-                        onChange={(e) => patchTable({ minOccupancy: Number(e.target.value) })}
-                      />
-                    </label>
-                    <label className="block text-[12px] text-[#666]">
-                      최대
-                      <input
-                        type="number"
-                        min={1}
-                        className="mt-1 w-full rounded border border-black/10 px-2 py-1.5 text-[13px]"
-                        value={primary.maxOccupancy ?? primary.seatCount}
-                        onChange={(e) => patchTable({ maxOccupancy: Number(e.target.value) })}
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-            )}
+            {primary.type === "table" && <TableInspector object={primary} onChange={patchTable} />}
             {primary.type === "area" && (
               <label className="mt-3 block text-[12px] text-[#666]">
                 {ko.capacity}
@@ -348,7 +325,7 @@ export function Inspector({
               </label>
             )}
             {(primary.type === "rectangle" || primary.type === "booth" || primary.type === "line" || primary.type === "text" || primary.type === "image" || primary.type === "icon") && (
-              <DecorationInspector object={primary} onChange={patchDecoration} />
+              <DecorationInspector object={primary} onChange={patchDecoration} onReplaceImage={(file) => void replaceSelectedImage(file)} />
             )}
             {selected.length > 1 && (
               <p className="mt-2 text-[12px] text-[#888]">
@@ -358,20 +335,13 @@ export function Inspector({
             )}
             <ObjectDetails obj={primary} />
           </Panel>
-        ) : (
+        ) : state.toolMode === "select" ? (
           <Panel title={ko.chart}>
-            <p className="text-[13px] leading-relaxed text-[#555]">{ko.chartHelp}</p>
-            <p className="mt-2 text-[12px] text-[#888]">
-              왼쪽 <strong className="font-semibold text-[#555]">템플릿</strong> 패널에서 대형 극장 · 소극장 · 갈라 디너 ·
-              전시회 · 빈 차트를 불러올 수 있습니다.
-            </p>
-            <button
-              type="button"
-              className="mt-3 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-[13px] font-medium hover:bg-black/[0.03]"
-              onClick={() => api.resetDemo()}
-            >
-              {ko.reloadDemo}
-            </button>
+            <dl className="mb-3 space-y-1.5 text-[13px]">
+              <div className="flex justify-between"><dt className="text-[#888]">장소</dt><dd className="font-medium text-[#333]">{places.toLocaleString("ko-KR")}</dd></div>
+              <div className="flex justify-between"><dt className="text-[#888]">초점</dt><dd className="font-medium text-[#333]">{chart.focalPoint ? "설정됨" : "설정되지 않음"}</dd></div>
+            </dl>
+            <ImageImportControl api={api} compact />
             <label className="mt-2 flex w-full cursor-pointer items-center justify-center rounded-md border border-dashed border-black/15 bg-white px-3 py-2 text-[13px] hover:bg-black/[0.03]">
               {ko.importJson}
               <input
@@ -385,7 +355,7 @@ export function Inspector({
               />
             </label>
           </Panel>
-        )}
+        ) : null}
 
         <Panel title={ko.categories}>
           <ul className="space-y-2">

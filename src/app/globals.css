@@ -171,7 +171,7 @@
     --editor-elevation: 0 8px 24px rgb(16 24 40 / 14%);
     background: var(--editor-surface);
     color: var(--editor-text);
-    font-family: Pretendard, Roboto, Helvetica, "Apple SD Gothic Neo", sans-serif;
+    font-family: Roboto, "Noto Sans KR", "Apple SD Gothic Neo", Helvetica, sans-serif;
   }
   .seat-designer-toolbar {
     background: var(--editor-surface);

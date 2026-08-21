@@ -1,4 +1,4 @@
-import type { ChartDocument } from "@/types/seat-chart";
+import type { ChartDocument, SeatChartAsset } from "@/types/seat-chart";
 import type { SeatChartRecord, SeatChartSummary, SeatChartVenue } from "./types";
 import type { InventoryResult } from "./inventory";
 import { z } from "zod";
@@ -30,7 +30,10 @@ export async function apiUploadReferenceAsset(input: {
   readonly file: File;
   readonly purpose: "reference" | "background" | "object";
   readonly page?: number;
-}): Promise<{ readonly asset: { readonly id: string }; readonly url: string }> {
+}): Promise<{
+  readonly asset: SeatChartAsset;
+  readonly url: string;
+}> {
   const form = new FormData();
   form.set("file", input.file);
   form.set("purpose", input.purpose);

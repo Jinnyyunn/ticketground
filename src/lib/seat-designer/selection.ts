@@ -1,4 +1,7 @@
 import type { ChartDocument, ChartObject, ObjectLayer, Point, SelectionLayer } from "../../types/seat-chart.ts";
+import { objectCenter } from "./chart-ops.ts";
+import { rotateAround } from "./geometry.ts";
+import { objectBounds } from "./transforms.ts";
 
 type Bounds = { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
 
@@ -19,6 +22,28 @@ export function brushSeatSelection(
   return [...selected];
 }
 
+export function seatIdsNearPoint(
+  chart: Pick<ChartDocument, "objects" | "activeFloorId">,
+  point: Point,
+  radius: number,
+): readonly string[] {
+  const hits: string[] = [];
+  for (const object of chart.objects) {
+    if (object.floorId && object.floorId !== chart.activeFloorId) continue;
+    const seats = object.type === "row" || object.type === "table"
+      ? object.seats
+      : object.type === "section"
+        ? object.nestedRows?.flatMap((row) => row.seats) ?? []
+        : [];
+    const center = objectCenter(object);
+    for (const seat of seats) {
+      const rendered = object.rotation ? rotateAround(seat, center, object.rotation) : seat;
+      if (Math.hypot(rendered.x - point.x, rendered.y - point.y) < radius) hits.push(seat.id);
+    }
+  }
+  return hits;
+}
+
 export function sameTypeSelection(chart: Pick<ChartDocument, "objects">, id: string): readonly string[] {
   const target = chart.objects.find((object) => object.id === id);
   if (!target) return [];
@@ -26,19 +51,22 @@ export function sameTypeSelection(chart: Pick<ChartDocument, "objects">, id: str
 }
 
 function boundsOf(object: ChartObject): Bounds {
-  if (object.type === "row" || object.type === "line") {
-    return { minX: Math.min(object.start.x, object.end.x), minY: Math.min(object.start.y, object.end.y), maxX: Math.max(object.start.x, object.end.x), maxY: Math.max(object.start.y, object.end.y) };
-  }
-  if (object.type === "section" || object.type === "area") {
-    return { minX: Math.min(...object.points.map((point) => point.x)), minY: Math.min(...object.points.map((point) => point.y)), maxX: Math.max(...object.points.map((point) => point.x)), maxY: Math.max(...object.points.map((point) => point.y)) };
-  }
-  if (object.type === "table") {
-    return { minX: object.center.x - object.radius, minY: object.center.y - object.radius, maxX: object.center.x + object.radius, maxY: object.center.y + object.radius };
-  }
-  if (object.type === "text" || object.type === "icon") {
-    return { minX: object.position.x - 12, minY: object.position.y - 12, maxX: object.position.x + 12, maxY: object.position.y + 12 };
-  }
-  return { minX: object.x, minY: object.y, maxX: object.x + object.width, maxY: object.y + object.height };
+  const bounds = objectBounds(object);
+  const rotation = object.rotation ?? 0;
+  if (rotation === 0) return { minX: bounds.x, minY: bounds.y, maxX: bounds.x + bounds.width, maxY: bounds.y + bounds.height };
+  const center = objectCenter(object);
+  const corners = [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+    { x: bounds.x, y: bounds.y + bounds.height },
+  ].map((point) => rotateAround(point, center, rotation));
+  return {
+    minX: Math.min(...corners.map((point) => point.x)),
+    minY: Math.min(...corners.map((point) => point.y)),
+    maxX: Math.max(...corners.map((point) => point.x)),
+    maxY: Math.max(...corners.map((point) => point.y)),
+  };
 }
 
 function matchesLayer(layer: ObjectLayer, selectedLayer: SelectionLayer): boolean {

@@ -3,11 +3,13 @@ import test from "node:test";
 import {
   createRow,
   createTable,
+  setObjectLabel,
   setAreaCapacity,
   setDecorationProps,
   setRowGeometry,
   setTableProps,
 } from "../src/lib/seat-designer/chart-ops.ts";
+import { blockingValidationItems } from "../src/lib/seat-designer/validation.ts";
 
 function base(objects) {
   return { id: "chart", name: "테스트", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects };
@@ -30,6 +32,102 @@ test("valid inspector input clamps documented limits and rebuilds seats", () => 
   assert.equal(changed.objects[0].seatCount, 200);
   assert.equal(changed.objects[0].seats.length, 200);
   assert.equal(changed.objects[0].smooth, 0.4);
+});
+
+test("table booking options preserve existing chair identities and attributes", () => {
+  const table = {
+    ...createTable({ x: 50, y: 50 }, 30, 4, "T1"),
+    shape: "rectangle",
+    width: 120,
+    height: 36,
+    chairs: { top: 2, right: 0, bottom: 2, left: 0 },
+  };
+  const seats = table.seats.map((seat, index) => ({ ...seat, id: `stable-${index}`, displayedLabel: `${index + 1}번`, accessible: index === 0 }));
+  const chart = base([{ ...table, seats }]);
+  const changed = setTableProps(chart, table.id, { bookAsWhole: true, variableOccupancy: true, minOccupancy: 2, maxOccupancy: 4 });
+  assert.deepEqual(changed.objects[0].seats, seats);
+  const resized = setTableProps(changed, table.id, { width: 180 });
+  assert.deepEqual(resized.objects[0].seats.map((seat) => seat.id), seats.map((seat) => seat.id));
+  assert.deepEqual(resized.objects[0].seats.map((seat) => seat.displayedLabel), seats.map((seat) => seat.displayedLabel));
+  assert.notDeepEqual(resized.objects[0].seats.map(({ x, y }) => ({ x, y })), seats.map(({ x, y }) => ({ x, y })));
+  const reconfigured = setTableProps(chart, table.id, { chairs: { top: 3, right: 0, bottom: 2, left: 0 } });
+  assert.deepEqual(reconfigured.objects[0].seats.slice(0, 2).map((seat) => seat.id), ["stable-0", "stable-1"]);
+  assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.id), ["stable-2", "stable-3"]);
+  assert.equal(new Set(reconfigured.objects[0].seats.map((seat) => seat.label)).size, reconfigured.objects[0].seats.length);
+  assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.label), ["T1-3", "T1-4"]);
+  assert.equal(reconfigured.objects[0].maxOccupancy, undefined);
+  const widthOnly = setTableProps(chart, table.id, { width: 180 });
+  assert.equal(widthOnly.objects[0].maxOccupancy, undefined);
+  const afterWidthAndChairChange = setTableProps(widthOnly, table.id, { chairs: { top: 4, right: 0, bottom: 4, left: 0 } });
+  assert.equal(afterWidthAndChairChange.objects[0].seatCount, 8);
+  assert.equal(afterWidthAndChairChange.objects[0].maxOccupancy, undefined);
+  const explicit = setTableProps(chart, table.id, { maxOccupancy: 3 });
+  assert.equal(setTableProps(explicit, table.id, { width: 200 }).objects[0].maxOccupancy, 3);
+});
+
+test("rectangular table geometry edits preserve canonical chair labels after a rename", () => {
+  const table = {
+    ...createTable({ x: 50, y: 50 }, 30, 4, "T1"),
+    shape: "rectangle",
+    width: 120,
+    height: 36,
+    chairs: { top: 2, right: 0, bottom: 2, left: 0 },
+  };
+  const chart = setObjectLabel(base([table]), table.id, "VIP 테이블");
+  const resized = setTableProps(chart, table.id, { width: 180 });
+  assert.deepEqual(resized.objects[0].seats.map((seat) => seat.label), table.seats.map((seat) => seat.label));
+
+  const expanded = setTableProps(resized, table.id, { chairs: { top: 3, right: 0, bottom: 2, left: 0 } });
+  const labels = expanded.objects[0].seats.map((seat) => seat.label);
+  for (const label of table.seats.map((seat) => seat.label)) assert.ok(labels.includes(label));
+  assert.equal(new Set(labels).size, labels.length);
+});
+
+test("table occupancy and rectangular chair counts remain valid after direct numeric edits", () => {
+  const table = {
+    ...createTable({ x: 50, y: 50 }, 30, 8, "T1"),
+    shape: "rectangle",
+    width: 120,
+    height: 36,
+    chairs: { top: 4, right: 0, bottom: 4, left: 0 },
+    variableOccupancy: true,
+    minOccupancy: 7,
+    maxOccupancy: 8,
+  };
+  const changed = setTableProps(base([table]), table.id, {
+    chairs: { top: 1.5, right: -4, bottom: 2, left: 100 },
+  });
+  const result = changed.objects[0];
+  assert.deepEqual(result.chairs, { top: 2, right: 0, bottom: 2, left: 24 });
+  assert.equal(result.seatCount, 28);
+  assert.equal(result.seats.length, 28);
+
+  const shrunk = setTableProps(changed, table.id, { chairs: { top: 1, right: 0, bottom: 1, left: 0 } }).objects[0];
+  assert.equal(shrunk.seatCount, 2);
+  assert.equal(shrunk.minOccupancy, 2);
+  assert.equal(shrunk.maxOccupancy, 2);
+});
+
+test("a rectangular table without chairs cannot remain bookable", () => {
+  const table = {
+    ...createTable({ x: 50, y: 50 }, 30, 4, "T1"),
+    shape: "rectangle",
+    width: 120,
+    height: 36,
+    chairs: { top: 2, right: 0, bottom: 2, left: 0 },
+    bookAsWhole: true,
+  };
+  const empty = setTableProps(base([table]), table.id, {
+    chairs: { top: 0, right: 0, bottom: 0, left: 0 },
+    bookAsWhole: true,
+    variableOccupancy: true,
+  }).objects[0];
+  assert.equal(empty.seats.length, 0);
+  assert.equal(empty.bookAsWhole, false);
+  assert.equal(empty.variableOccupancy, false);
+
+  const malformed = { ...empty, bookAsWhole: true };
+  assert.ok(blockingValidationItems(base([malformed])).some((item) => item.id === "tableOccupancy"));
 });
 
 test("decoration inspector edits only properties supported by the selected type", () => {

@@ -22,6 +22,7 @@ import {
   type ApiTosspaymentsConfig,
 } from "@/lib/ticketground-api";
 import { isSessionAuthError, SESSION_EXPIRED_MESSAGE } from "@/lib/session-auth-error";
+import { createTosspaymentsOrderId } from "@/lib/tosspayments/order-id";
 import type { TicketShow } from "@/types";
 
 const paymentMethods = [
@@ -337,7 +338,7 @@ export function CheckoutPanel({
       // from before); for a multi-seat order it's a value that covers the
       // whole set, generated here and handed to the backend on confirm
       // (see confirmTosspaymentsPurchase) so the two sides agree on it.
-      const orderId = ticketIds.length > 1 ? `order_${[...ticketIds].sort().join("_")}` : ticketIds[0];
+      const orderId = createTosspaymentsOrderId(ticketIds);
       const resultParams = new URLSearchParams({
         paymentMethod: selectedMethod.paymentMethod,
         date: selection.date,

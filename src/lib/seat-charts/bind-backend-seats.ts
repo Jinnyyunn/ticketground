@@ -23,6 +23,31 @@ export function bindChartLayoutToBackendSeats(
   const bound: SellableSeat[] = [];
 
   for (const layoutSeat of layoutSeats) {
+    const members = layoutSeat.memberSeats
+      ?? layoutSeat.memberLabels?.map((label) => ({ label, price: layoutSeat.price }));
+    if (layoutSeat.bookingMode && members?.length) {
+      const grouped = members.map((member) => backendByKey.get(seatBindingKey(member.price, member.label)));
+      if (grouped.some((matches) => matches?.length !== 1)) continue;
+      const backendGroup = grouped.map((matches) => matches?.[0]).filter((seat): seat is ApiSeat => Boolean(seat));
+      for (const backendSeat of backendGroup) backendByKey.delete(seatBindingKey(backendSeat.price, backendSeat.label));
+      const availableTicketIds = backendGroup.filter((seat) => seat.available).map((seat) => seat.id);
+      const availableTicketPrices = backendGroup.filter((seat) => seat.available).map((seat) => seat.price);
+      const minimum = layoutSeat.bookingMode === "whole"
+        ? backendGroup.length
+        : Math.max(1, layoutSeat.minOccupancy ?? 1);
+      const pricedSeats = layoutSeat.bookingMode === "whole"
+        ? backendGroup
+        : backendGroup.filter((seat) => seat.available).slice(0, minimum);
+      bound.push({
+        ...layoutSeat,
+        price: pricedSeats.reduce((sum, seat) => sum + seat.price, 0),
+        backendTicketIds: backendGroup.map((seat) => seat.id),
+        availableTicketIds,
+        availableTicketPrices,
+        sold: availableTicketIds.length < minimum,
+      });
+      continue;
+    }
     const key = seatBindingKey(layoutSeat.price, layoutSeat.label);
     const matches = backendByKey.get(key);
     if (matches?.length !== 1) continue;
@@ -47,8 +72,11 @@ export function chartCoversAllBackendSeats(
 ): boolean {
   const backendIds = new Set(backendSeats.map((seat) => seat.id));
   const coordinateIds = new Set(boundSeats.map((seat) => `${seat.x}\u0000${seat.y}`));
+  const boundBackendIds = boundSeats.flatMap((seat) => seat.backendTicketIds ?? [seat.id]);
+  const uniqueBoundBackendIds = new Set(boundBackendIds);
   return backendSeats.some((seat) => seat.available)
-    && boundSeats.length === backendIds.size
+    && boundBackendIds.length === backendIds.size
+    && uniqueBoundBackendIds.size === backendIds.size
     && coordinateIds.size === boundSeats.length
-    && boundSeats.every((seat) => backendIds.has(seat.id));
+    && boundBackendIds.every((id) => backendIds.has(id));
 }

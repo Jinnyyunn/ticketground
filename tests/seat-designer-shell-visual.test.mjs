@@ -13,7 +13,7 @@ test("seat designer shell consumes semantic visual tokens and exposes stable con
     assert.match(css, new RegExp(token));
   }
   assert.match(shell, /seat-designer-shell/);
-  assert.match(shell, /aria-live="polite"/);
+  assert.match(`${shell}\n${toolbar}`, /aria-live="polite"/);
   assert.match(tools, /data-testid={`tool-\$\{t\.id\}`}/);
   assert.match(toolbar, /data-testid="seat-designer-publish"/);
 });

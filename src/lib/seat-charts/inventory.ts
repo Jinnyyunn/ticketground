@@ -1,4 +1,6 @@
 import type { ChartDocument, ChartObject, SeatPlace } from "@/types/seat-chart";
+import { objectCenter } from "../seat-designer/chart-ops.ts";
+import { pointInPolygon, rotateAround } from "../seat-designer/geometry.ts";
 
 export type SellableTier = "VIP" | "R" | "S" | "A";
 
@@ -15,12 +17,64 @@ export type SellableSeat = {
   readonly categoryLabel?: string;
   readonly objectId: string;
   readonly objectType: ChartObject["type"];
+  readonly bookingMode?: "whole" | "variable";
+  readonly minOccupancy?: number;
+  readonly maxOccupancy?: number;
+  readonly memberLabels?: readonly string[];
+  readonly memberSeats?: readonly { readonly label: string; readonly price: number }[];
+  readonly backendTicketIds?: readonly string[];
+  readonly availableTicketIds?: readonly string[];
+  readonly availableTicketPrices?: readonly number[];
 };
 
 export type InventoryResult = {
   readonly seats: readonly SellableSeat[];
   readonly bounds: { minX: number; minY: number; maxX: number; maxY: number };
 };
+
+type AreaObject = Extract<ChartObject, { readonly type: "area" }>;
+
+export function areaMarkerPositions(obj: AreaObject): readonly { readonly x: number; readonly y: number }[] {
+  const xs = obj.points.map((point) => point.x);
+  const ys = obj.points.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const count = Math.max(1, obj.capacity);
+  if (obj.shape === "ellipse") {
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const radiusX = (maxX - minX) / 2;
+    const radiusY = (maxY - minY) / 2;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const positions = Array.from({ length: count }, (_, index) => {
+      const radial = Math.sqrt((index + 0.5) / count) * 0.92;
+      return {
+        x: centerX + Math.cos(index * goldenAngle) * radiusX * radial,
+        y: centerY + Math.sin(index * goldenAngle) * radiusY * radial,
+      };
+    });
+    return new Set(positions.map((point) => `${point.x}:${point.y}`)).size === count ? positions : [];
+  }
+  let density = Math.max(4, Math.ceil(Math.sqrt(count * 2)));
+  let candidates: { x: number; y: number }[] = [];
+  while (candidates.length < count && density <= 2048) {
+    candidates = [];
+    for (let row = 0; row < density; row += 1) {
+      for (let col = 0; col < density; col += 1) {
+        const point = {
+          x: minX + ((col + 0.5) / density) * (maxX - minX || 40),
+          y: minY + ((row + 0.5) / density) * (maxY - minY || 40),
+        };
+        if (pointInPolygon(point, obj.points)) candidates.push(point);
+      }
+    }
+    density *= 2;
+  }
+  if (candidates.length < count) return [];
+  return Array.from({ length: count }, (_, index) => candidates[Math.floor(index * candidates.length / count)]);
+}
 
 function tierFromCategory(
   chart: ChartDocument,
@@ -65,13 +119,17 @@ export function chartToSellableSeats(
 
   const pushSeat = (
     place: SeatPlace,
-    objectId: string,
+    object: ChartObject,
     objectType: ChartObject["type"],
     fallbackCategory?: string,
+    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy" | "memberLabels" | "memberSeats" | "price">,
   ) => {
+    const position = object.rotation
+      ? rotateAround(place, objectCenter(object), object.rotation)
+      : place;
     const catKey = place.categoryKey ?? fallbackCategory;
     const { tier, label: categoryLabel } = tierFromCategory(chart, catKey);
-    expandBounds(b, place.x, place.y);
+    expandBounds(b, position.x, position.y);
     seats.push({
       id: place.id,
       label: place.label,
@@ -79,27 +137,36 @@ export function chartToSellableSeats(
       tier,
       price: prices[tier],
       sold: soldIds.has(place.id),
-      x: place.x,
-      y: place.y,
+      x: position.x,
+      y: position.y,
       categoryKey: catKey,
       categoryLabel,
-      objectId,
+      objectId: object.id,
       objectType,
+      ...booking,
     });
   };
 
   const walk = (obj: ChartObject) => {
+    if (obj.layer !== "interactive") return;
     if (obj.floorId && chart.activeFloorId && obj.floorId !== chart.activeFloorId) {
       // include all floors for inventory by default when selling
       // skip only if we later add floor-specific events
     }
 
     if (obj.type === "row") {
-      for (const s of obj.seats) pushSeat(s, obj.id, "row", obj.categoryKey);
+      for (const s of obj.seats) pushSeat(s, obj, "row", obj.categoryKey);
       return;
     }
     if (obj.type === "table") {
-      if (obj.bookAsWhole) {
+      if (obj.bookAsWhole || obj.variableOccupancy) {
+        const memberSeats = obj.seats.map((seat) => {
+          const memberTier = tierFromCategory(chart, seat.categoryKey ?? obj.categoryKey).tier;
+          return { label: seat.label, price: prices[memberTier] };
+        });
+        const bookingPrice = memberSeats
+          .slice(0, obj.variableOccupancy ? Math.max(1, obj.minOccupancy ?? 1) : memberSeats.length)
+          .reduce((sum, member) => sum + member.price, 0);
         pushSeat(
           {
             id: `${obj.id}__whole`,
@@ -109,12 +176,15 @@ export function chartToSellableSeats(
             categoryKey: obj.categoryKey,
             displayedLabel: obj.displayedLabel,
           },
-          obj.id,
+          obj,
           "table",
           obj.categoryKey,
+          obj.variableOccupancy
+            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount, memberLabels: obj.seats.map((seat) => seat.label), memberSeats, price: bookingPrice }
+            : { bookingMode: "whole", memberLabels: obj.seats.map((seat) => seat.label), memberSeats, price: bookingPrice },
         );
       } else {
-        for (const s of obj.seats) pushSeat(s, obj.id, "table", obj.categoryKey);
+        for (const s of obj.seats) pushSeat(s, obj, "table", obj.categoryKey);
       }
       return;
     }
@@ -127,36 +197,27 @@ export function chartToSellableSeats(
           y: obj.y + obj.height / 2,
           categoryKey: obj.categoryKey,
         },
-        obj.id,
+        obj,
         "booth",
         obj.categoryKey,
       );
       return;
     }
     if (obj.type === "area") {
-      // GA: one selectable unit per capacity slot, placed in a grid inside bounds
-      const xs = obj.points.map((p) => p.x);
-      const ys = obj.points.map((p) => p.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
       const n = Math.max(1, obj.capacity);
-      const cols = Math.ceil(Math.sqrt(n));
+      const positions = areaMarkerPositions(obj);
+      if (positions.length < n) return;
       for (let i = 0; i < n; i += 1) {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const x = minX + ((col + 0.5) / cols) * (maxX - minX || 40);
-        const y = minY + ((row + 0.5) / Math.ceil(n / cols)) * (maxY - minY || 40);
+        const point = positions[i];
         pushSeat(
           {
             id: `${obj.id}__ga_${i + 1}`,
             label: `${obj.label}-${i + 1}`,
-            x,
-            y,
+            x: point.x,
+            y: point.y,
             categoryKey: obj.categoryKey,
           },
-          obj.id,
+          obj,
           "area",
           obj.categoryKey,
         );
@@ -165,7 +226,7 @@ export function chartToSellableSeats(
     }
     if (obj.type === "section" && obj.nestedRows) {
       for (const row of obj.nestedRows) {
-        for (const s of row.seats) pushSeat(s, obj.id, "section", obj.categoryKey ?? row.categoryKey);
+        for (const s of row.seats) pushSeat(s, obj, "section", obj.categoryKey ?? row.categoryKey);
       }
     }
   };

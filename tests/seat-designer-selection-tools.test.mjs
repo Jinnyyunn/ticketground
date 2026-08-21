@@ -4,6 +4,7 @@ import {
   brushSeatSelection,
   marqueeObjectSelection,
   mutatePolygonNode,
+  seatIdsNearPoint,
   sameTypeSelection,
   toggleSelection,
 } from "../src/lib/seat-designer/selection.ts";
@@ -30,6 +31,29 @@ test("selection modes toggle, filter layers, respect locks, and distinguish cros
 test("brush supports additive and subtractive seat selection", () => {
   assert.deepEqual(brushSeatSelection(["s1"], ["s2"], "add"), ["s1", "s2"]);
   assert.deepEqual(brushSeatSelection(["s1", "s2"], ["s1"], "remove"), ["s2"]);
+});
+
+test("brush hit-testing follows the rendered rotation of seat-bearing objects", () => {
+  const row = { id: "rotated-row", type: "row", label: "A", layer: "interactive", rotation: 90, start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, seatCount: 2, seats: [{ id: "r1", label: "1", x: 0, y: 0 }, { id: "r2", label: "2", x: 100, y: 0 }] };
+  const rotatedChart = { objects: [row], activeFloorId: "floor-1" };
+  assert.deepEqual(seatIdsNearPoint(rotatedChart, { x: 50, y: -50 }, 12), ["r1"]);
+  assert.deepEqual(seatIdsNearPoint(rotatedChart, { x: 0, y: 0 }, 12), []);
+});
+
+test("marquee selection uses the rendered bounds of rotated objects", () => {
+  const rotated = {
+    id: "rotated",
+    type: "rectangle",
+    label: "회전 도형",
+    layer: "background",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 20,
+    rotation: 90,
+  };
+  assert.deepEqual(marqueeObjectSelection({ objects: [rotated] }, { x: 35, y: -45 }, { x: 65, y: 65 }, "all"), [rotated.id]);
+  assert.deepEqual(marqueeObjectSelection({ objects: [rotated] }, { x: -5, y: 5 }, { x: 105, y: 15 }, "all"), []);
 });
 
 test("node editing adds, moves, and removes polygon nodes without mutating the source", () => {

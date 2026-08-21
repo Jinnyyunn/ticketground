@@ -34,6 +34,19 @@ export type ToolId =
   | "icon"
   | "hand";
 
+export type ToolMode =
+  | ToolId
+  | "rowSegmented"
+  | "rowsMultiple"
+  | "tableRound"
+  | "tableRectangular"
+  | "areaRectangle"
+  | "areaEllipse"
+  | "areaPolygon"
+  | "shapeRectangle"
+  | "shapeEllipse"
+  | "shapePolygon";
+
 export type VenueType = "simple" | "sectionsAndFloors" | "zones";
 
 export type OverlayImage = {
@@ -102,6 +115,10 @@ export type RowObject = BaseObject & {
   /** 0–1 smoothing along the path */
   readonly smooth?: number;
   readonly seats: readonly SeatPlace[];
+  readonly path?: readonly Point[];
+  readonly rowStyle?: "straight" | "segmented" | "multiple";
+  readonly rowSpacing?: number;
+  readonly seatSpacing?: number;
 };
 
 export type SectionObject = BaseObject & {
@@ -124,6 +141,15 @@ export type TableObject = BaseObject & {
   readonly minOccupancy?: number;
   readonly maxOccupancy?: number;
   readonly seats: readonly SeatPlace[];
+  readonly shape?: "round" | "rectangle";
+  readonly width?: number;
+  readonly height?: number;
+  readonly chairs?: {
+    readonly top: number;
+    readonly right: number;
+    readonly bottom: number;
+    readonly left: number;
+  };
 };
 
 export type BoothObject = BaseObject & {
@@ -138,6 +164,7 @@ export type AreaObject = BaseObject & {
   readonly type: "area";
   readonly points: readonly Point[];
   readonly capacity: number;
+  readonly shape?: "rectangle" | "ellipse" | "polygon";
 };
 
 export type RectangleObject = BaseObject & {
@@ -148,6 +175,9 @@ export type RectangleObject = BaseObject & {
   readonly height: number;
   readonly fill?: string;
   readonly stroke?: string;
+  readonly shape?: "rectangle" | "ellipse" | "polygon";
+  readonly points?: readonly Point[];
+  readonly opacity?: number;
 };
 
 export type LineObject = BaseObject & {
@@ -155,6 +185,7 @@ export type LineObject = BaseObject & {
   readonly start: Point;
   readonly end: Point;
   readonly stroke?: string;
+  readonly points?: readonly Point[];
 };
 
 export type TextObject = BaseObject & {
@@ -163,6 +194,8 @@ export type TextObject = BaseObject & {
   readonly text: string;
   readonly fontSize?: number;
   readonly color?: string;
+  readonly weight?: 400 | 500 | 600 | 700;
+  readonly align?: "left" | "center" | "right";
 };
 
 export type ImageObject = BaseObject & {
@@ -180,6 +213,7 @@ export type IconObject = BaseObject & {
   readonly position: Point;
   readonly icon: "stage" | "entrance" | "wc" | "star";
   readonly size?: number;
+  readonly color?: string;
 };
 
 export type ChartObject =
@@ -220,12 +254,13 @@ export type ChartDocument = {
   readonly referenceChart?: OverlayImage;
   readonly venueType?: VenueType;
   readonly zones?: readonly Zone[];
+  readonly assets?: readonly SeatChartAsset[];
   /** publishing feature */
   readonly published?: boolean;
   readonly publishedAt?: string;
 };
 
-export type SeatChartDocumentV2 = Omit<ChartDocument, "published" | "publishedAt"> & {
+export type SeatChartDocumentV2 = Omit<ChartDocument, "published" | "publishedAt" | "assets"> & {
   readonly version: 2;
   readonly chartKey: `chart_${string}`;
   readonly venueId: string;

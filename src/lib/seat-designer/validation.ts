@@ -1,4 +1,5 @@
 import type { ChartDocument, ChartObject } from "@/types/seat-chart";
+import { areaMarkerPositions } from "../seat-charts/inventory.ts";
 import { countPlaces } from "./chart-ops.ts";
 import { ko } from "./i18n.ts";
 
@@ -12,6 +13,8 @@ export function validateChart(chart: ChartDocument): readonly ValidationItem[] {
   const labels = new Map<string, number>();
   let unlabeled = 0;
   let uncategorized = 0;
+  let invalidAreaGeometry = 0;
+  let invalidTableOccupancy = 0;
   const typeCats = new Map<string, Set<string>>();
 
   const visit = (obj: ChartObject) => {
@@ -45,7 +48,9 @@ export function validateChart(chart: ChartDocument): readonly ValidationItem[] {
           labels.set(key, (labels.get(key) ?? 0) + 1);
         }
       }
+      if ((obj.bookAsWhole || obj.variableOccupancy) && obj.seats.length === 0) invalidTableOccupancy += 1;
     }
+    if (obj.type === "area" && areaMarkerPositions(obj).length < Math.max(1, obj.capacity)) invalidAreaGeometry += 1;
     if (obj.type === "section" && obj.nestedRows) {
       for (const row of obj.nestedRows) visit(row);
     }
@@ -63,6 +68,8 @@ export function validateChart(chart: ChartDocument): readonly ValidationItem[] {
     { id: "categorized", label: ko.validation.categorized, ok: uncategorized === 0 },
     { id: "oneCat", label: ko.validation.oneCat, ok: oneCatPerType },
     { id: "focal", label: ko.validation.focal, ok: Boolean(chart.focalPoint) },
+    { id: "areaGeometry", label: "영역 좌석 위치가 겹치지 않음", ok: invalidAreaGeometry === 0 },
+    { id: "tableOccupancy", label: "예약 테이블에 좌석이 있음", ok: invalidTableOccupancy === 0 },
     {
       id: "places",
       label: `${places.toLocaleString("ko-KR")} ${ko.validation.places}`,
