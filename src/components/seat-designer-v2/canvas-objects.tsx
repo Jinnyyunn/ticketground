@@ -68,35 +68,35 @@ function selectionBox(object: ChartObject): ReactNode {
         cx={bounds.x - 5}
         cy={bounds.y - 5}
         r="4"
-        fill="white"
+        fill="var(--editor-surface)"
         stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x + bounds.width + 5}
         cy={bounds.y - 5}
         r="4"
-        fill="white"
+        fill="var(--editor-surface)"
         stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x - 5}
         cy={bounds.y + bounds.height + 5}
         r="4"
-        fill="white"
+        fill="var(--editor-surface)"
         stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x + bounds.width + 5}
         cy={bounds.y + bounds.height + 5}
         r="4"
-        fill="white"
+        fill="var(--editor-surface)"
         stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x + bounds.width / 2}
         cy={bounds.y - 22}
         r="5"
-        fill="white"
+        fill="var(--editor-surface)"
         stroke="var(--editor-accent)"
       />
       <line
@@ -432,7 +432,7 @@ export function CanvasObjects({
                     cx={point.x}
                     cy={point.y}
                     r="5"
-                    fill="white"
+                    fill="var(--editor-surface)"
                     stroke="var(--editor-accent)"
                     data-testid="seat-designer-v2-node-handle"
                   />

@@ -128,6 +128,7 @@ test("the image-first editor stays usable without horizontal overflow at tablet 
   assert.equal(await mobileInspector.getByLabel("스냅").isChecked(), true);
   await page.screenshot({ path: path.join(evidenceRoot, "mobile-inspector.png"), fullPage: true });
   const mobileActions = page.getByTestId("seat-designer-v2-mobile-actions");
+  assert.equal(await mobileActions.getByRole("button", { name: "좌석 시점", exact: true }).count(), 1);
   await mobileActions.getByRole("button", { name: "저장", exact: true }).click();
   await page.getByTestId("seat-designer-v2-mobile-status").getByText("초안 저장 완료", { exact: true }).waitFor();
   await mobileActions.getByRole("button", { name: "도움말", exact: true }).click();

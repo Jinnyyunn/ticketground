@@ -36,7 +36,7 @@
 
 - Floors keep editable name and abbreviation values and switch the visible editing scope without deleting other floors.
 - A Section can be entered as an independent interior scope and exited through the floor breadcrumb.
-- A selected seat exposes buyer label, wheelchair, companion, transfer-seat, and restricted-view properties.
+- A selected seat exposes buyer label, wheelchair, companion, transfer-seat, restricted-view, and view-from-seat image properties. The global `좌석 시점` command opens the selected seat image in a dedicated preview.
 - Reference and object images preserve their source ratio by default. Reference imports accept up to `15 MB`.
 - Multi-selection supports edge/center alignment plus horizontal and vertical equal distribution.
 - Help opens a complete tool and keyboard reference rather than acting as a decorative button.

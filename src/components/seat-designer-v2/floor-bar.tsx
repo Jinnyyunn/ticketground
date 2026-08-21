@@ -52,7 +52,7 @@ export function FloorBar({ state, onState }: FloorBarProps) {
   return (
     <>
       <div
-        className="absolute left-3 right-3 top-3 z-10 flex h-10 items-center gap-1 rounded border border-[var(--editor-border)] bg-white px-2 shadow-sm"
+        className="absolute left-3 right-3 top-3 z-10 flex h-10 items-center gap-1 rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] px-2 shadow-sm"
         data-testid="seat-designer-v2-floor-bar"
       >
         <Layers3 className="mr-1 size-4 text-[var(--editor-muted)]" />
@@ -60,7 +60,7 @@ export function FloorBar({ state, onState }: FloorBarProps) {
           <button
             key={floor.id}
             type="button"
-            className={`h-7 rounded px-3 text-xs font-semibold ${floor.id === state.activeFloorId ? "bg-[var(--editor-accent)] text-white" : "hover:bg-[var(--editor-hover)]"}`}
+            className={`h-7 rounded px-3 text-xs font-semibold ${floor.id === state.activeFloorId ? "bg-[var(--editor-accent)] text-[var(--editor-on-accent)]" : "hover:bg-[var(--editor-hover)]"}`}
             aria-pressed={floor.id === state.activeFloorId}
             onClick={() => onState({
               ...state,
@@ -103,8 +103,8 @@ export function FloorBar({ state, onState }: FloorBarProps) {
         </button>
       </div>
       {open && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="층 관리" data-testid="seat-designer-v2-floor-dialog">
-          <section className="w-full max-w-md rounded border border-[var(--editor-border)] bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-[var(--editor-overlay)] p-4" role="dialog" aria-modal="true" aria-label="층 관리" data-testid="seat-designer-v2-floor-dialog">
+          <section className="w-full max-w-md rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] shadow-2xl">
             <header className="flex items-center justify-between border-b border-[var(--editor-border)] px-4 py-3">
               <h2 className="font-semibold">층 관리</h2>
               <button type="button" title="층 관리 닫기" className="grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)]" onClick={() => setOpen(false)}><X className="size-4" /></button>
@@ -114,7 +114,7 @@ export function FloorBar({ state, onState }: FloorBarProps) {
                 <div key={floor.id} className="grid grid-cols-[5rem_1fr_2rem] gap-2">
                   <input aria-label={`${floor.name} 약어`} className="h-9 rounded border border-[var(--editor-border)] px-2" value={floor.abbreviation ?? ""} onChange={(event) => onState({ ...state, floors: state.floors.map((item) => item.id === floor.id ? { ...item, abbreviation: event.currentTarget.value } : item) })} />
                   <input aria-label={`${floor.name} 이름`} className="h-9 rounded border border-[var(--editor-border)] px-2" value={floor.name} onChange={(event) => onState({ ...state, floors: state.floors.map((item) => item.id === floor.id ? { ...item, name: event.currentTarget.value } : item) })} />
-                  <button type="button" title={`${floor.name} 삭제`} disabled={state.floors.length <= 1} className="grid size-9 place-items-center rounded text-red-600 hover:bg-red-50 disabled:opacity-30" onClick={() => removeFloor(floor.id)}><Trash2 className="size-4" /></button>
+                  <button type="button" title={`${floor.name} 삭제`} disabled={state.floors.length <= 1} className="grid size-9 place-items-center rounded text-[var(--editor-danger)] hover:bg-[var(--editor-danger-soft)] disabled:opacity-30" onClick={() => removeFloor(floor.id)}><Trash2 className="size-4" /></button>
                 </div>
               ))}
               <button type="button" className="flex h-9 w-full items-center justify-center gap-2 rounded border border-[var(--editor-border)] hover:bg-[var(--editor-hover)]" onClick={addFloor}><Plus className="size-4" />층 추가</button>

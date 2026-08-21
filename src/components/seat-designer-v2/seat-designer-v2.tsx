@@ -84,6 +84,7 @@ import { ReferenceStart } from "./reference-start";
 import { fitReferenceAsset } from "./reference-layout";
 import { buildMultipleRows } from "./row-geometry";
 import { ServiceCredentialsPanel } from "./service-credentials-panel";
+import { SeatViewDialog } from "./seat-view-dialog";
 import { deriveSmartGuides, type SmartGuide } from "./smart-guides";
 import { Toolbar } from "./toolbar";
 import { toolSpec, V2_TOOLS, type V2ToolId } from "./tool-catalog";
@@ -148,6 +149,7 @@ export function SeatDesignerV2() {
   const [preview, setPreview] = useState(false);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [seatViewOpen, setSeatViewOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [imagePoint, setImagePoint] = useState<V2Point | null>(null);
@@ -188,6 +190,14 @@ export function SeatDesignerV2() {
     [multipleBase, state.draft, state.multipleRowLayout, state.rowSpacing],
   );
   const previewObjects = multiplePreview ?? (draftPreview ? [draftPreview] : []);
+  const selectedSeat = useMemo(() => {
+    for (const object of state.objects) {
+      if (object.type !== "row" && object.type !== "table") continue;
+      const seat = object.seats.find((candidate) => state.selectedSeatIds.includes(candidate.id));
+      if (seat) return seat;
+    }
+    return null;
+  }, [state.objects, state.selectedSeatIds]);
   const visibleObjects = useMemo(
     () => state.objects.filter((object) =>
       (object.floorId ?? "floor_1") === state.activeFloorId &&
@@ -975,7 +985,7 @@ export function SeatDesignerV2() {
 
   return (
     <div
-      className="seat-designer-shell flex h-[100dvh] min-h-[620px] flex-col overflow-hidden bg-white text-[13px] text-[var(--editor-text)]"
+      className="seat-designer-shell flex h-[100dvh] min-h-[620px] flex-col overflow-hidden bg-[var(--editor-surface)] text-[13px] text-[var(--editor-text)]"
       data-testid="seat-designer-v2-shell"
     >
       {!started && (
@@ -1028,6 +1038,7 @@ export function SeatDesignerV2() {
             <Grid3X3 />
           </TopButton>
           <span className="hidden md:contents">
+            <TopButton label="좌석 시점" onClick={() => setSeatViewOpen(true)} disabled={!selectedSeat}><Eye /></TopButton>
             <TopButton label="스냅" onClick={() => setState((current) => ({ ...current, snapToGrid: !current.snapToGrid }))}><Magnet /></TopButton>
             <TopButton label="좌석 라벨" onClick={() => setState((current) => ({ ...current, showLabels: !current.showLabels }))}><Tags /></TopButton>
             <TopButton label="구역 내용" onClick={() => setState((current) => ({ ...current, showSectionContents: !current.showSectionContents }))}><Eye /></TopButton>
@@ -1146,9 +1157,9 @@ export function SeatDesignerV2() {
       </header>
       <div className="flex min-h-0 flex-1">
         <Toolbar active={state.tool} onSelect={selectTool} />
-        <main className="relative min-w-0 flex-1 overflow-hidden bg-white">
+        <main className="relative min-w-0 flex-1 overflow-hidden bg-[var(--editor-surface)]">
           <FloorBar state={state} onState={setState} />
-          <label className="absolute left-3 top-14 z-10 w-44 rounded border border-[var(--editor-border)] bg-white px-3 py-2 shadow-sm">
+          <label className="absolute left-3 top-14 z-10 w-44 rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] px-3 py-2 shadow-sm">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--editor-muted)]">
               선택 레이어
             </span>
@@ -1288,7 +1299,7 @@ export function SeatDesignerV2() {
                         <text
                           textAnchor="middle"
                           dominantBaseline="central"
-                          fill="white"
+                          fill="var(--editor-surface)"
                           fontSize="12"
                         >
                           {multiplePreview
@@ -1321,7 +1332,7 @@ export function SeatDesignerV2() {
               )}
             </g>
           </svg>
-          <div className="absolute bottom-3 left-3 flex items-center rounded-full border border-[var(--editor-border)] bg-white p-1 shadow-sm">
+          <div className="absolute bottom-3 left-3 flex items-center rounded-full border border-[var(--editor-border)] bg-[var(--editor-surface)] p-1 shadow-sm">
             <button
               className="size-8"
               type="button"
@@ -1370,14 +1381,14 @@ export function SeatDesignerV2() {
         <button
           type="button"
           title="속성 패널"
-          className="absolute bottom-14 right-3 z-20 grid size-10 place-items-center rounded-full bg-[var(--editor-accent)] text-white shadow-lg lg:hidden"
+          className="absolute bottom-14 right-3 z-20 grid size-10 place-items-center rounded-full bg-[var(--editor-accent)] text-[var(--editor-on-accent)] shadow-lg lg:hidden"
           onClick={() => setInspectorOpen(true)}
         >
           <SlidersHorizontal className="size-4" />
         </button>
       </div>
       <footer
-        className="flex min-h-9 shrink-0 flex-wrap items-center gap-2 overflow-x-auto border-t border-[var(--editor-border)] bg-white px-4 py-1 sm:h-9 sm:flex-nowrap sm:py-0 sm:whitespace-nowrap"
+        className={`min-h-9 shrink-0 flex-wrap items-center gap-2 overflow-x-auto border-t border-[var(--editor-border)] bg-[var(--editor-surface)] px-4 py-1 sm:h-9 sm:flex-nowrap sm:py-0 sm:whitespace-nowrap ${inspectorOpen ? "hidden lg:flex" : "flex"}`}
         data-testid="seat-designer-v2-help-strip"
       >
         <strong>{activeSpec.label}</strong>
@@ -1409,13 +1420,13 @@ export function SeatDesignerV2() {
       />
       {preview && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-6"
+          className="fixed inset-0 z-50 grid place-items-center bg-[var(--editor-overlay)] p-6"
           data-testid="seat-designer-v2-preview"
         >
-          <div className="relative h-[80dvh] w-[90vw] rounded bg-white shadow-2xl">
+          <div className="relative h-[80dvh] w-[90vw] rounded bg-[var(--editor-surface)] shadow-2xl">
             <button
               type="button"
-              className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-white shadow"
+              className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-[var(--editor-surface)] shadow"
               onClick={() => setPreview(false)}
             >
               <X className="size-4" />
@@ -1435,8 +1446,9 @@ export function SeatDesignerV2() {
         <ServiceCredentialsPanel onClose={() => setCredentialsOpen(false)} />
       )}
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+      {seatViewOpen && selectedSeat && <SeatViewDialog seat={selectedSeat} onClose={() => setSeatViewOpen(false)} />}
       {inspectorOpen && (
-        <div className="fixed inset-y-[46px] right-0 z-[60] flex w-[min(336px,92vw)] flex-col bg-white shadow-2xl lg:hidden">
+        <div className="fixed inset-y-[46px] right-0 z-[60] flex w-[min(336px,92vw)] flex-col bg-[var(--editor-surface)] shadow-2xl lg:hidden">
           <button type="button" title="속성 패널 닫기" className="absolute right-2 top-2 z-10 grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)]" onClick={() => setInspectorOpen(false)}><X className="size-4" /></button>
           <div className="flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--editor-border)] px-3 pr-12 whitespace-nowrap" data-testid="seat-designer-v2-mobile-actions">
             <button type="button" disabled={pendingUploads > 0} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:cursor-not-allowed disabled:opacity-40" onClick={() => void save()}>저장</button>
@@ -1447,6 +1459,7 @@ export function SeatDesignerV2() {
             <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={deleteSelected}>삭제</button>
             <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => flipSelected("horizontal")}>좌우 반전</button>
             <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => flipSelected("vertical")}>상하 반전</button>
+            <button type="button" disabled={!selectedSeat} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:cursor-not-allowed disabled:opacity-40" onClick={() => { setInspectorOpen(false); setSeatViewOpen(true); }}>좌석 시점</button>
             <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => { setInspectorOpen(false); setCredentialsOpen(true); }}>API 연결</button>
             <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => { setInspectorOpen(false); setHelpOpen(true); }}>도움말</button>
           </div>

@@ -69,7 +69,7 @@ export function Toolbar({
             </button>
             {open === group.id && group.tools.length > 1 && (
               <div
-                className="absolute left-[38px] top-0 z-30 min-w-48 rounded border border-[var(--editor-border)] bg-white py-1 shadow-lg"
+                className="absolute left-[38px] top-0 z-30 min-w-48 rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] py-1 shadow-lg"
                 data-testid={`seat-designer-v2-flyout-${group.id}`}
               >
                 {group.tools.map((tool) => {

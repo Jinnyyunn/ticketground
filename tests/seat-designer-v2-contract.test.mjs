@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 test("admin seat designer is replaced by the clean-room v2 editor", async () => {
   const page = await readFile("src/app/admin/seat-designer/page.tsx", "utf8");
-  const editorFiles = ["seat-designer-v2.tsx", "reference-start.tsx", "toolbar.tsx", "inspector.tsx", "service-credentials-panel.tsx", "object-factory.ts", "object-transform.ts", "canvas-objects.tsx", "design-tokens.ts", "floor-bar.tsx", "help-dialog.tsx", "row-geometry.ts", "smart-guides.ts", "node-geometry.ts", "reference-layout.ts"];
+  const editorFiles = ["seat-designer-v2.tsx", "reference-start.tsx", "toolbar.tsx", "inspector.tsx", "service-credentials-panel.tsx", "seat-view-dialog.tsx", "object-factory.ts", "object-transform.ts", "canvas-objects.tsx", "design-tokens.ts", "floor-bar.tsx", "help-dialog.tsx", "row-geometry.ts", "smart-guides.ts", "node-geometry.ts", "reference-layout.ts"];
   const editor = (await Promise.all(editorFiles.map((file) => readFile(`src/components/seat-designer-v2/${file}`, "utf8")))).join("\n");
 
   assert.match(page, /seat-designer-v2\/seat-designer-v2/);
@@ -23,12 +23,15 @@ test("admin seat designer is replaced by the clean-room v2 editor", async () => 
     "seat-designer-v2-floor-bar",
     "seat-designer-v2-help-dialog",
     "seat-designer-v2-seat-fields",
+    "seat-designer-v2-seat-view-dialog",
     "seat-designer-v2-node-add-handle",
     "seat-designer-v2-guide-",
   ]) assert.match(editor, new RegExp(contract));
   assert.doesNotMatch(editor, /@\/lib\/seat-designer\//);
   assert.doesNotMatch(editor, /@\/components\/seat-designer\//);
   assert.doesNotMatch(editor.replace(/export const V2_OBJECT_COLORS = \{[\s\S]*?\} as const;/, ""), /#[0-9a-f]{3,8}|rgba?\(/i);
+  assert.doesNotMatch(editor, /\b(?:bg|text|border)-(?:white|black|red-[0-9]+)/);
+  assert.doesNotMatch(editor, /(?:fill|stroke)="white"/);
 });
 
 test("v2 tool catalog owns every reference tool family", async () => {

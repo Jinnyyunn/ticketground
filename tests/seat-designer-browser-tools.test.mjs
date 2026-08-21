@@ -19,6 +19,13 @@ test("every clean-room designer tool family is operable in the real admin browse
   await page.getByTestId("seat-designer-v2-reference-start").waitFor({ state: "hidden" });
   const { canvas, box, click, drag, point } = await canvasGeometry(page);
 
+  for (const [tool, group] of [["row", "row"], ["roundTable", "table"], ["rectangularArea", "area"], ["rectangle", "shape"]]) {
+    await page.getByTestId(`seat-designer-v2-tool-${tool}`).first().click();
+    await page.getByTestId(`seat-designer-v2-flyout-${group}`).waitFor();
+    await page.screenshot({ path: path.join(evidenceRoot, `flyout-${group}.png`), fullPage: true });
+    await page.getByTestId(`seat-designer-v2-tool-${tool}`).first().click();
+  }
+
   await chooseTool(page, "row");
   await drag(150, 110, 360, 110);
   await chooseTool(page, "segmentedRow");
@@ -81,8 +88,20 @@ test("every clean-room designer tool family is operable in the real admin browse
   const seatFields = page.getByTestId("seat-designer-v2-seat-fields");
   await seatFields.waitFor();
   await seatFields.getByText("휠체어 좌석", { exact: true }).click();
-  await seatFields.getByLabel("좌석 시점 이미지 URL").fill("/images/seats/a-1.webp");
+  const uploadedSeatViewHref = await page.locator('[data-object-type="image"] image').getAttribute("href");
+  assert.ok(uploadedSeatViewHref);
+  await seatFields.getByLabel("좌석 시점 이미지 URL").fill(uploadedSeatViewHref);
   await page.screenshot({ path: path.join(evidenceRoot, "seat-properties.png"), fullPage: true });
+  await page.getByTitle("좌석 시점").click();
+  const seatView = page.getByTestId("seat-designer-v2-seat-view-dialog");
+  const seatViewImage = seatView.getByRole("img", { name: "1 좌석 시점" });
+  await seatViewImage.waitFor();
+  await page.waitForFunction(() => {
+    const image = document.querySelector('[data-testid="seat-designer-v2-seat-view-dialog"] img');
+    return image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0;
+  });
+  await page.screenshot({ path: path.join(evidenceRoot, "seat-view.png"), fullPage: true });
+  await seatView.getByTitle("좌석 시점 닫기").click();
   await chooseTool(page, "brush");
   const seat = await page.locator('[data-object-type="row"] circle').nth(1).boundingBox();
   assert.ok(seat);

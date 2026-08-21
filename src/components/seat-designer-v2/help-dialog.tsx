@@ -6,6 +6,7 @@ type HelpDialogProps = {
 };
 
 const SHORTCUTS = [
+  ["좌석 시점", "선택한 좌석의 등록 이미지 확인"],
   ["⌘/Ctrl + Z", "실행 취소"],
   ["⌘/Ctrl + Shift + Z", "다시 실행"],
   ["⌘/Ctrl + C / V", "복사 / 붙여넣기"],
@@ -19,13 +20,13 @@ const SHORTCUTS = [
 export function HelpDialog({ onClose }: HelpDialogProps) {
   return (
     <div
-      className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4"
+      className="fixed inset-0 z-[70] grid place-items-center bg-[var(--editor-overlay)] p-4"
       data-testid="seat-designer-v2-help-dialog"
       role="dialog"
       aria-modal="true"
       aria-label="좌석 디자이너 도움말"
     >
-      <section className="flex max-h-[86dvh] w-full max-w-[920px] flex-col overflow-hidden rounded border border-[var(--editor-border)] bg-white shadow-2xl">
+      <section className="flex max-h-[86dvh] w-full max-w-[920px] flex-col overflow-hidden rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] shadow-2xl">
         <header className="flex items-center justify-between border-b border-[var(--editor-border)] px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold">도구와 단축키</h2>
@@ -56,7 +57,7 @@ export function HelpDialog({ onClose }: HelpDialogProps) {
                       </kbd>
                     )}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-[var(--editor-muted)]">
+                  <p className="mt-2 break-keep text-xs leading-5 text-[var(--editor-muted)]">
                     {tool.help.join(" · ")}
                   </p>
                 </article>
@@ -64,16 +65,16 @@ export function HelpDialog({ onClose }: HelpDialogProps) {
             </div>
           </section>
           <section>
-            <h3 className="mb-3 font-semibold">공통 단축키</h3>
+            <h3 className="mb-3 font-semibold">공통 명령·단축키</h3>
             <dl className="divide-y divide-[var(--editor-border)] rounded border border-[var(--editor-border)]">
               {SHORTCUTS.map(([keys, description]) => (
                 <div key={keys} className="grid grid-cols-[9rem_1fr] gap-3 px-3 py-3">
                   <dt><kbd className="rounded bg-[var(--editor-hover)] px-2 py-1 text-xs">{keys}</kbd></dt>
-                  <dd className="text-sm text-[var(--editor-muted)]">{description}</dd>
+                  <dd className="break-keep text-sm text-[var(--editor-muted)]">{description}</dd>
                 </div>
               ))}
             </dl>
-            <p className="mt-4 rounded border border-[var(--editor-border)] bg-[var(--editor-accent-soft)] p-3 text-sm leading-6 text-[var(--editor-accent-strong)]">
+            <p className="mt-4 break-keep rounded border border-[var(--editor-border)] bg-[var(--editor-accent-soft)] p-3 text-sm leading-6 text-[var(--editor-accent-strong)]">
               여러 행은 먼저 기준 행을 드래그한 뒤, 두 번째 드래그로 행 수와 방향을
               정합니다. 구간 행은 마지막 좌석을 다시 클릭하거나 Enter로 완성합니다.
             </p>

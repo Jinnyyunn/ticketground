@@ -163,6 +163,7 @@
     --editor-canvas: #ffffff;
     --editor-panel: #f4f5f7;
     --editor-surface: #ffffff;
+    --editor-on-accent: #ffffff;
     --editor-text: #333333;
     --editor-muted: #667085;
     --editor-accent: #0784fa;
@@ -179,6 +180,9 @@
     --editor-guide-axis: #22a55b;
     --editor-guide-extension: #f59e0b;
     --editor-danger: #e11d48;
+    --editor-danger-soft: #fff1f2;
+    --editor-danger-border: #fecdd3;
+    --editor-overlay: rgb(17 24 39 / 48%);
     --editor-status: #287b42;
     --editor-status-soft: #e9f7ed;
     --editor-seat: #c4c9ce;
