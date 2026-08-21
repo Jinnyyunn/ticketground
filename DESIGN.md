@@ -24,6 +24,18 @@ Ticketground screens must feel like a dense Korean ticketing service: functional
 - The mobile menu button exposes its state with `aria-expanded`; the menu closes after navigation and on `Escape`. Keep each workspace usable at `390px` without horizontal scrolling.
 - Mutation feedback stays beside the active workspace action, in Korean, and in an `aria-live="polite"` region. Access-denied states explain the missing permission without attempting to load that workspace's data.
 
+## Seat Designer
+
+- `/admin/seat-designer` has two separate surfaces: a chart library and a full-screen editor. The editor never embeds the library, template rail, server credential panel, or validation checklist beside the canvas.
+- The editor frame is fixed to four regions: a `45px` top toolbar, `41px` left tool rail, fluid canvas, and `336px` contextual inspector. The inspector uses a `#f5f5f5` panel over a white canvas; controls are `35px` square with compact Roboto-like admin typography and visible keyboard focus.
+- New charts start blank. The first canvas state offers `이미지 불러오기` and supports PNG, JPEG, GIF, WEBP, and SVG up to `10 MB`; importing creates a normal editable image object, not a screenshot-backed interface.
+- Tool completion is behavioral. A tool is not present merely because its icon or label exists: click/shortcut activation, cursor/help state, creation gesture, live preview, commit/cancel, selected handles, contextual fields, undo/redo, copy/duplicate/delete, and serialized output must all work.
+- Tool groups mirror the reference interaction model: row / segmented row / multiple rows / section; round / rectangular table; rectangular / elliptic / polygonal area; rectangle / ellipse / polygon; line; text; image; icon; focal point; select; seat select; brush; same-type; node; and hand.
+- Reference defaults are first-class tokens: row spacing `14pt`, seat spacing `5pt`, round table `6` chairs, rectangular table `4/4/0/0` chairs at `120x36pt`, booth `50x50pt`, and icon `40pt`.
+- Shape selection exposes real resize, rotation, vertex, and side-insertion handles. The node tool moves vertices, inserts a vertex on an edge, and removes a vertex while rejecting invalid geometry.
+- The buyer-visible state changes only through venue publish. Saving edits creates/updates a draft; publishing atomically activates the chart for its bound venue. No show-specific chart binding is introduced.
+- Seats.io remains a behavior and visual reference only. TIG does not ship its SDK, runtime, code, account identifiers, keys, fonts, icons, assets, screenshots, or network calls.
+
 ## States
 - Backend-backed controls must show loading, success, and error text near the action that caused the state.
 - Disabled controls must use existing muted surface tokens and remain readable.
