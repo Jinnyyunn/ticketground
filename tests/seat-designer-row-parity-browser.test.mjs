@@ -22,6 +22,17 @@ test("row gestures expose live guides, variable depth, and staggered preview in 
   await page.getByTestId("seat-designer-v2-row-count").waitFor();
   await page.mouse.up();
 
+  await chooseTool(page, "segmentedRow");
+  await page.mouse.click(point(180, 270).x, point(180, 270).y);
+  await page.mouse.click(point(320, 270).x, point(320, 270).y);
+  await page.mouse.move(point(460, 270).x, point(460, 270).y, { steps: 4 });
+  assert.equal(await page.getByTestId("seat-designer-v2-segmented-path").count(), 1);
+  assert.ok(await page.locator('[data-testid^="seat-designer-v2-guide-"]').count() >= 1);
+  const evidenceRoot = path.resolve(".omo/evidence/seat-designer-v2/browser");
+  await mkdir(evidenceRoot, { recursive: true });
+  await page.screenshot({ path: path.join(evidenceRoot, "segmented-row-path-and-guides.png"), fullPage: true });
+  await page.keyboard.press("Escape");
+
   await chooseTool(page, "multipleRows");
   await page.keyboard.press("Escape");
   await page.getByTestId("seat-designer-v2-multiple-layout").selectOption("staggered");
@@ -34,8 +45,6 @@ test("row gestures expose live guides, variable depth, and staggered preview in 
   assert.match(await count.textContent(), /^6 × /);
   assert.equal(await page.getByTestId("seat-designer-v2-row-preview").locator('[data-object-type="row"]').count(), 6);
 
-  const evidenceRoot = path.resolve(".omo/evidence/seat-designer-v2/browser");
-  await mkdir(evidenceRoot, { recursive: true });
   await page.screenshot({ path: path.join(evidenceRoot, "row-guides-and-multiple-preview.png"), fullPage: true });
   await page.mouse.up();
   assert.equal(await page.locator('[data-object-type="row"]').count(), 7);

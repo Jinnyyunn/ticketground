@@ -13,7 +13,7 @@ export function SeatDesignerV2() {
   const editor = useSeatDesignerController(imageInput);
   const state = editor.state;
   return (
-    <div className="seat-designer-shell flex h-[100dvh] min-h-[620px] flex-col overflow-hidden bg-[var(--editor-surface)] text-[13px] text-[var(--editor-text)]" data-testid="seat-designer-v2-shell">
+    <div className="seat-designer-shell flex h-[var(--editor-shell-height)] min-h-[var(--editor-shell-min-height)] flex-col overflow-hidden bg-[var(--editor-surface)] text-[length:var(--editor-shell-font-size)] text-[var(--editor-text)]" data-testid="seat-designer-v2-shell">
       {!editor.started && <ReferenceStart onBlank={(venue) => editor.start(null, venue)} onReady={editor.start} />}
       <EditorHeader
         state={state}

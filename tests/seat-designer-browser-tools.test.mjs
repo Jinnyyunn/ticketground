@@ -9,6 +9,23 @@ import {
   selectVenue,
 } from "./seat-designer-v2-browser-utils.mjs";
 
+function channel(value) {
+  const normalized = value / 255;
+  return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+}
+
+function contrast(first, second) {
+  const luminance = ([red, green, blue]) => 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue);
+  const [lighter, darker] = [luminance(first), luminance(second)].toSorted((left, right) => right - left);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function rgb(value) {
+  const channels = value.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number);
+  assert.equal(channels?.length, 3, `expected an RGB color, received ${value}`);
+  return channels;
+}
+
 test("every clean-room designer tool family is operable in the real admin browser", async (t) => {
   const { page, server, runtimeErrors } = await openV2Editor(t);
   await selectVenue(page);
@@ -127,6 +144,23 @@ test("every clean-room designer tool family is operable in the real admin browse
   await page.getByTitle("구역 내용").click();
   await page.getByTitle("캔버스 테마").click();
   assert.equal(await canvas.locator("rect").first().getAttribute("fill"), "var(--editor-canvas-dark)");
+  const darkColors = await page.evaluate(() => {
+    const canvas = document.querySelector('[data-testid="seat-designer-v2-canvas"]');
+    const background = canvas?.querySelector(':scope > rect');
+    const text = canvas?.querySelector('[data-object-type="text"] text');
+    const icon = canvas?.querySelector('[data-object-type="icon"] svg');
+    const seatLabel = canvas?.querySelector('[data-seat-id] text');
+    if (!(background && text && icon && seatLabel)) throw new Error("dark canvas contrast subjects are missing");
+    return {
+      background: getComputedStyle(background).fill,
+      text: getComputedStyle(text).fill,
+      icon: getComputedStyle(icon).stroke,
+      seatLabel: getComputedStyle(seatLabel).fill,
+    };
+  });
+  for (const [label, foreground] of Object.entries(darkColors).filter(([label]) => label !== "background")) {
+    assert.ok(contrast(rgb(foreground), rgb(darkColors.background)) >= 4.5, `${label} (${foreground}) must remain readable on the dark canvas (${darkColors.background})`);
+  }
   await page.screenshot({ path: path.join(evidenceRoot, "dark-canvas.png"), fullPage: true });
   await page.getByTitle("캔버스 테마").click();
 

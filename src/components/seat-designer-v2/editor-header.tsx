@@ -37,7 +37,7 @@ export function EditorHeader(props: HeaderProps) {
   const { state, setState } = props;
   const toggle = (field: "showGrid" | "snapToGrid" | "showLabels" | "showSectionContents" | "darkCanvas") => setState((current) => ({ ...current, [field]: !current[field] }));
   return (
-    <header className="flex h-[46px] shrink-0 items-center border-b border-[var(--editor-border)] bg-[var(--editor-panel)]">
+    <header className="flex h-[var(--editor-header-height)] shrink-0 items-center border-b border-[var(--editor-border)] bg-[var(--editor-panel)]">
       <div className="flex min-w-0 flex-1 items-center gap-3 px-3">
         <button type="button" title="닫기" className="grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)]"><X className="size-4" /></button>
         <input aria-label="좌석 배치도 이름" className="min-w-0 max-w-52 bg-transparent text-sm outline-none" value={state.name} onChange={(event) => { const name = event.currentTarget.value; setState((current) => ({ ...current, name })); }} />

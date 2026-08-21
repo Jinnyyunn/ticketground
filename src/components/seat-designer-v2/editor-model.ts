@@ -55,7 +55,7 @@ export type V2EditorState = {
 };
 
 export const INITIAL_STATE: V2EditorState = {
-  tool: "row",
+  tool: "select",
   name: "새 좌석 배치도",
   venue: null,
   objects: [],

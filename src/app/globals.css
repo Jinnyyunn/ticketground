@@ -175,6 +175,18 @@
     --editor-hover: #eeeeee;
     --editor-canvas-dark: #20252b;
     --editor-grid-dark: #343b45;
+    --editor-canvas-foreground: #333333;
+    --editor-canvas-icon: #495057;
+    --editor-canvas-foreground-dark: #f8fafc;
+    --editor-canvas-icon-dark: #e2e8f0;
+    --editor-header-height: 46px;
+    --editor-toolbar-width: 42px;
+    --editor-inspector-width: 336px;
+    --editor-shell-height: 100dvh;
+    --editor-shell-min-height: 620px;
+    --editor-shell-font-size: 13px;
+    --editor-tool-icon-size: 18px;
+    --editor-flyout-offset: 38px;
     --editor-guide-center: #ef4444;
     --editor-guide-projection: #2787ff;
     --editor-guide-axis: #22a55b;
@@ -206,6 +218,10 @@
     background: var(--editor-surface);
     color: var(--editor-text);
     font-family: Roboto, "Noto Sans KR", "Apple SD Gothic Neo", Helvetica, sans-serif;
+  }
+  .seat-designer-v2-canvas[data-canvas-theme="dark"] {
+    --editor-canvas-foreground: var(--editor-canvas-foreground-dark);
+    --editor-canvas-icon: var(--editor-canvas-icon-dark);
   }
   .seat-designer-toolbar {
     background: var(--editor-surface);

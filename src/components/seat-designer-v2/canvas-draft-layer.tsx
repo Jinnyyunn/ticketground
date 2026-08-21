@@ -17,7 +17,7 @@ export function CanvasDraftLayer({ state, previewObjects, smartGuides }: { reado
           {row && <><line x1={row.start.x - (row.end.x - row.start.x) * 2} y1={row.start.y - (row.end.y - row.start.y) * 2} x2={row.end.x + (row.end.x - row.start.x) * 2} y2={row.end.y + (row.end.y - row.start.y) * 2} stroke="var(--editor-guide-extension)" /><g transform={`translate(${(row.start.x + row.end.x) / 2},${(row.start.y + row.end.y) / 2 - 20})`} data-testid="seat-designer-v2-row-count"><rect x="-28" y="-12" width="56" height="24" rx="4" fill="var(--editor-text)" /><text textAnchor="middle" dominantBaseline="central" fill="var(--editor-surface)" fontSize="12">{previewObjects.length > 1 ? `${previewObjects.length} × ${row.seats.length}` : row.seats.length}</text></g></>}
         </g>
       )}
-      {state.draft && PATH_TOOLS.includes(state.tool) && <polyline points={state.draft.points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="var(--editor-accent)" strokeWidth="2" />}
+      {state.draft && PATH_TOOLS.includes(state.tool) && <polyline data-testid={state.tool === "segmentedRow" ? "seat-designer-v2-segmented-path" : undefined} points={state.draft.points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="var(--editor-accent)" strokeWidth="2" />}
       {state.focalPoint && <g transform={`translate(${state.focalPoint.x} ${state.focalPoint.y})`} data-testid="seat-designer-v2-focal-point"><circle r="10" fill="none" stroke="var(--editor-danger)" /><path d="M-15 0H15M0-15V15" stroke="var(--editor-danger)" /></g>}
     </>
   );

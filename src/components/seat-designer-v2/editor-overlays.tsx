@@ -54,7 +54,7 @@ export function EditorOverlays(props: OverlayProps) {
 function MobileInspector(props: OverlayProps) {
   const state = props.state;
   return (
-    <div className="fixed inset-y-[46px] right-0 z-[60] flex w-[min(336px,92vw)] flex-col bg-[var(--editor-surface)] shadow-2xl lg:hidden">
+    <div className="fixed inset-y-[var(--editor-header-height)] right-0 z-[60] flex w-[min(var(--editor-inspector-width),92vw)] flex-col bg-[var(--editor-surface)] shadow-2xl lg:hidden">
       <button type="button" title="속성 패널 닫기" className="absolute right-0 top-0 z-10 grid size-11 place-items-center rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] shadow-sm hover:bg-[var(--editor-hover)]" onClick={props.onCloseInspector}><X className="size-4" /></button>
       <div className="flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--editor-border)] px-3 pr-12 whitespace-nowrap" data-testid="seat-designer-v2-mobile-actions">
         <button type="button" disabled={props.pendingUploads > 0} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:opacity-40" onClick={() => void props.onSave()}>저장</button>

@@ -33,7 +33,7 @@ export function Toolbar({
   const [open, setOpen] = useState<string | null>(null);
   return (
     <nav
-      className="relative z-20 flex w-[42px] shrink-0 flex-col items-center border-r border-[var(--editor-border)] bg-[var(--editor-panel)] py-2"
+      className="relative z-20 flex w-[var(--editor-toolbar-width)] shrink-0 flex-col items-center border-r border-[var(--editor-border)] bg-[var(--editor-panel)] py-2"
       aria-label="좌석 배치 도구"
     >
       {GROUPS.map((group, index) => {
@@ -69,7 +69,7 @@ export function Toolbar({
             </button>
             {open === group.id && group.tools.length > 1 && (
               <div
-                className="absolute left-[38px] top-0 z-30 min-w-48 rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] py-1 shadow-lg"
+                className="absolute left-[var(--editor-flyout-offset)] top-0 z-30 min-w-48 rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] py-1 shadow-lg"
                 data-testid={`seat-designer-v2-flyout-${group.id}`}
               >
                 {group.tools.map((tool) => {

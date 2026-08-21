@@ -25,7 +25,7 @@ export function Inspector({ state, onState, onObject, onSeat, onEnterSection, on
     .find((seat) => state.selectedSeatIds.includes(seat.id));
   const spec = toolSpec(state.tool);
   return (
-    <aside className="flex w-[336px] shrink-0 flex-col border-l border-[var(--editor-border)] bg-[var(--editor-panel)]" data-testid="seat-designer-v2-inspector">
+    <aside className="flex w-[var(--editor-inspector-width)] shrink-0 flex-col border-l border-[var(--editor-border)] bg-[var(--editor-panel)]" data-testid="seat-designer-v2-inspector">
       <h2 className="border-b border-[var(--editor-border)] bg-[var(--editor-surface)] px-4 py-4 text-base font-semibold">
         {selectedSeat ? "좌석 설정" : selected ? "객체 설정" : `${spec.label} 도구`}
       </h2>

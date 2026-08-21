@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import type { V2ToolId } from "./tool-catalog";
 
 export function V2ToolIcon({ id }: { readonly id: V2ToolId }): ReactNode {
-  const props = { className: "size-[18px]", strokeWidth: 1.8 } as const;
+  const props = { className: "size-[var(--editor-tool-icon-size)]", strokeWidth: 1.8 } as const;
   switch (id) {
     case "select": return <MousePointer2 {...props} />;
     case "seatSelect": return <CircleDot {...props} />;

@@ -73,6 +73,36 @@ test("save and publish status use shared semantic severity", async () => {
   assert.match(status, /"게시 완료"[\s\S]*?"success"/);
 });
 
+test("canvas contrast and editor geometry use shared semantic tokens", async () => {
+  const css = await readFile("src/app/globals.css", "utf8");
+  const workspace = await readFile(`${editorRoot}/editor-workspace.tsx`, "utf8");
+  const renderer = await readFile(`${editorRoot}/canvas-object-renderer.tsx`, "utf8");
+  const icons = await readFile(`${editorRoot}/icon-node.tsx`, "utf8");
+  const shell = await readFile(`${editorRoot}/seat-designer-v2.tsx`, "utf8");
+  const toolbar = await readFile(`${editorRoot}/toolbar.tsx`, "utf8");
+  const inspector = await readFile(`${editorRoot}/inspector.tsx`, "utf8");
+  const header = await readFile(`${editorRoot}/editor-header.tsx`, "utf8");
+  const model = await readFile(`${editorRoot}/editor-model.ts`, "utf8");
+
+  for (const token of [
+    "--editor-canvas-foreground-dark",
+    "--editor-canvas-icon-dark",
+    "--editor-header-height",
+    "--editor-toolbar-width",
+    "--editor-inspector-width",
+    "--editor-shell-font-size",
+    "--editor-shell-min-height",
+  ]) assert.match(css, new RegExp(token));
+  assert.match(workspace, /data-canvas-theme/);
+  assert.match(renderer, /--editor-canvas-foreground/);
+  assert.match(icons, /--editor-canvas-icon/);
+  assert.doesNotMatch(shell, /(?:min-h|text)-\[(?:620px|13px)\]/);
+  assert.doesNotMatch(toolbar, /w-\[42px\]/);
+  assert.doesNotMatch(inspector, /w-\[336px\]/);
+  assert.doesNotMatch(header, /h-\[46px\]/);
+  assert.match(model, /tool:\s*"select"[\s\S]*?objects:\s*\[\]/);
+});
+
 test("v2 tool catalog owns every reference tool family", async () => {
   const catalog = await readFile("src/components/seat-designer-v2/tool-catalog.ts", "utf8");
   for (const tool of [
