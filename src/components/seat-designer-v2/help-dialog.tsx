@@ -68,7 +68,7 @@ export function HelpDialog({ onClose }: HelpDialogProps) {
             <h3 className="mb-3 font-semibold">공통 명령·단축키</h3>
             <dl className="divide-y divide-[var(--editor-border)] rounded border border-[var(--editor-border)]">
               {SHORTCUTS.map(([keys, description]) => (
-                <div key={keys} className="grid grid-cols-[9rem_1fr] gap-3 px-3 py-3">
+                <div key={keys} className="grid grid-cols-[11rem_1fr] gap-3 px-3 py-3">
                   <dt><kbd className="whitespace-nowrap rounded bg-[var(--editor-hover)] px-2 py-1 text-xs">{keys}</kbd></dt>
                   <dd className="break-keep text-sm text-[var(--editor-muted)]">{description}</dd>
                 </div>

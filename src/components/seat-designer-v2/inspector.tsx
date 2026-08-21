@@ -210,7 +210,7 @@ export function Inspector({
         )}
       </div>
       <div className="border-t border-[var(--editor-border)] bg-[var(--editor-surface)] p-4">
-        <p className="flex items-center gap-2 text-green-600">
+        <p className="flex items-center gap-2 text-[var(--editor-status)]">
           <Check className="size-4" />
           중복 객체 없음
         </p>

@@ -30,7 +30,7 @@ test("admin seat designer is replaced by the clean-room v2 editor", async () => 
   assert.doesNotMatch(editor, /@\/lib\/seat-designer\//);
   assert.doesNotMatch(editor, /@\/components\/seat-designer\//);
   assert.doesNotMatch(editor.replace(/export const V2_OBJECT_COLORS = \{[\s\S]*?\} as const;/, ""), /#[0-9a-f]{3,8}|rgba?\(/i);
-  assert.doesNotMatch(editor, /\b(?:bg|text|border)-(?:white|black|red-[0-9]+)/);
+  assert.doesNotMatch(editor, /\b(?:bg|text|border)-(?:white|black|red-[0-9]+|green-[0-9]+)/);
   assert.doesNotMatch(editor, /(?:fill|stroke)="white"/);
   assert.doesNotMatch(editor, /["']white["']/);
   assert.doesNotMatch(editor, /(?:bg|text|border)-amber-[0-9]+/);

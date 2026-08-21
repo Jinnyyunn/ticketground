@@ -150,6 +150,13 @@ test("the image-first editor stays usable without horizontal overflow at tablet 
     return range.getClientRects().length;
   });
   assert.equal(redoLineCount, 1, "redo shortcut must stay on one line");
+  const redoShortcutBox = await redoShortcut.boundingBox();
+  const redoDescriptionBox = await page.getByText("다시 실행", { exact: true }).boundingBox();
+  assert.ok(redoShortcutBox && redoDescriptionBox, "redo help row must have measurable geometry");
+  assert.ok(
+    redoShortcutBox.x + redoShortcutBox.width <= redoDescriptionBox.x,
+    "redo shortcut must not overlap its description",
+  );
   await page.getByTitle("도움말 닫기").click();
   await page.getByTitle("속성 패널").click();
   await page.getByTitle("속성 패널 닫기").click();
