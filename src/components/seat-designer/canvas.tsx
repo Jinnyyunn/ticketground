@@ -9,6 +9,7 @@ import { ko, toolLabel } from "@/lib/seat-designer/i18n";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import { cn } from "@/lib/utils";
 import { marqueeObjectSelection, sameTypeSelection } from "@/lib/seat-designer/selection";
+import { pointInObjectFrame } from "@/lib/seat-designer/transforms";
 import { ImageImportControl } from "./image-import-control";
 import { SelectionOverlay } from "./selection-overlay";
 import { insertionIndexForPoint, verticesOf } from "@/lib/seat-designer/vertices";
@@ -89,7 +90,8 @@ function ObjectView({
   onBeginMove: (id: string, e: ReactPointerEvent) => void;
 }) {
   const catColor = categoryColor(chart.categories, obj.categoryKey, obj.type === "section" ? obj.fill : undefined);
-  const stroke = selected ? "#0784fa" : "rgba(0,0,0,0.2)";
+  const configuredStroke = "stroke" in obj ? obj.stroke : undefined;
+  const stroke = selected ? "#0784fa" : (configuredStroke ?? "rgba(0,0,0,0.2)");
   const sw = selected ? 2 : 1;
   const ox = selected && dragOffset ? dragOffset.x : 0;
   const oy = selected && dragOffset ? dragOffset.y : 0;
@@ -455,6 +457,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     removePolygonNode,
     commitResize,
     commitRotation,
+    addImageFileAtPoint,
   } = api;
   const { chart, viewport, settings, tool, toolMode, selectedIds, selectedSeatIds, draftPoints, status, fitGeneration } =
     state;
@@ -707,16 +710,20 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     }
 
     if (drag.mode === "node" && drag.nodeObjectId != null && drag.nodeIndex != null) {
-      setLiveNode({ objectId: drag.nodeObjectId, index: drag.nodeIndex, point: world });
+      const object = chart.objects.find((candidate) => candidate.id === drag.nodeObjectId);
+      const point = object?.rotation ? pointInObjectFrame(world, objectCenter(object), object.rotation) : world;
+      setLiveNode({ objectId: drag.nodeObjectId, index: drag.nodeIndex, point });
       drag.moved = true;
       return;
     }
 
     if (drag.mode === "row-end" && drag.nodeObjectId && drag.rowEnd) {
+      const object = chart.objects.find((candidate) => candidate.id === drag.nodeObjectId);
+      const point = object?.rotation ? pointInObjectFrame(world, objectCenter(object), object.rotation) : world;
       setLiveNode({
         objectId: drag.nodeObjectId,
         index: drag.rowEnd === "start" ? 0 : 1,
-        point: world,
+        point,
       });
       drag.moved = true;
       return;
@@ -866,6 +873,18 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onDoubleClick={onDoubleClick}
+      onDragOver={(event) => {
+        if (tool === "image") event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (tool !== "image") return;
+        event.preventDefault();
+        const file = event.dataTransfer.files[0];
+        const rect = wrapRef.current?.getBoundingClientRect();
+        if (!file || !rect) return;
+        const world = screenToWorld(event.clientX, event.clientY, rect);
+        void addImageFileAtPoint(file, world);
+      }}
       onContextMenu={(event) => {
         if (draftPoints.length > 0) event.preventDefault();
       }}
@@ -952,12 +971,14 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
 
           {/* Node / row endpoint handles */}
           {nodeTargets.map((obj) => {
+            const nodeCenter = objectCenter(obj);
+            const nodeTransform = obj.rotation ? `rotate(${obj.rotation} ${nodeCenter.x} ${nodeCenter.y})` : undefined;
             if (!(obj.type === "row" && !obj.path)) {
               const points = verticesOf(obj);
               const closed = obj.type === "section" || obj.type === "area" || (obj.type === "rectangle" && obj.shape === "polygon");
               const pathPoints = closed ? [...points, points[0]] : points;
               return (
-                <g key={`${obj.id}-nodes`}>
+                <g key={`${obj.id}-nodes`} transform={nodeTransform}>
                   <polyline
                     data-testid="node-edge"
                     points={pathPoints.map((point) => `${point.x},${point.y}`).join(" ")}
@@ -969,7 +990,8 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
                       event.stopPropagation();
                       const rect = wrapRef.current?.getBoundingClientRect();
                       if (!rect) return;
-                      const point = screenToWorld(event.clientX, event.clientY, rect);
+                      const world = screenToWorld(event.clientX, event.clientY, rect);
+                      const point = obj.rotation ? pointInObjectFrame(world, nodeCenter, obj.rotation) : world;
                       addPolygonNode(obj.id, insertionIndexForPoint(points, point, closed), point);
                     }}
                   />
@@ -996,15 +1018,16 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
                           const rect = wrapRef.current?.getBoundingClientRect();
                           if (!rect) return;
                           const world = screenToWorld(e.clientX, e.clientY, rect);
+                          const point = obj.rotation ? pointInObjectFrame(world, nodeCenter, obj.rotation) : world;
                           dragRef.current = {
                             mode: "node",
                             startScreen: { x: e.clientX, y: e.clientY },
-                            startWorld: world,
+                            startWorld: point,
                             originViewport: { ...viewport },
                             nodeObjectId: obj.id,
                             nodeIndex: index,
                           };
-                          setLiveNode({ objectId: obj.id, index, point: world });
+                          setLiveNode({ objectId: obj.id, index, point });
                         }}
                       />
                     );
@@ -1017,7 +1040,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
                 { key: "start" as const, p: obj.start },
                 { key: "end" as const, p: obj.end },
               ];
-              return ends.map(({ key, p }, index) => {
+              return <g key={`${obj.id}-endpoints`} transform={nodeTransform}>{ends.map(({ key, p }, index) => {
                 const pt =
                   liveNode && liveNode.objectId === obj.id && liveNode.index === index ? liveNode.point : p;
                 return (
@@ -1035,19 +1058,20 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
                       const rect = wrapRef.current?.getBoundingClientRect();
                       if (!rect) return;
                       const world = screenToWorld(e.clientX, e.clientY, rect);
+                      const point = obj.rotation ? pointInObjectFrame(world, nodeCenter, obj.rotation) : world;
                       dragRef.current = {
                         mode: "row-end",
                         startScreen: { x: e.clientX, y: e.clientY },
-                        startWorld: world,
+                        startWorld: point,
                         originViewport: { ...viewport },
                         nodeObjectId: obj.id,
                         rowEnd: key,
                       };
-                      setLiveNode({ objectId: obj.id, index, point: world });
+                      setLiveNode({ objectId: obj.id, index, point });
                     }}
                   />
                 );
-              });
+              })}</g>;
             }
             return null;
           })}

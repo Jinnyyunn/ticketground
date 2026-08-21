@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -184,4 +184,69 @@ test("reference import rejects files above ten megabytes before upload", async (
   });
   await dialog.getByRole("alert").filter({ hasText: "도면 파일은 최대 10MB까지 불러올 수 있습니다." }).waitFor();
   assert.equal(await dialog.getByRole("button", { name: "도면만 불러오기" }).isDisabled(), true);
+});
+
+test("rotated polygon node controls follow the rendered geometry", async (t) => {
+  const polygon = { id: "polygon", type: "rectangle", shape: "polygon", label: "다각형", layer: "background", rotation: 90, x: 100, y: 100, width: 220, height: 80, points: [{ x: 100, y: 100 }, { x: 320, y: 100 }, { x: 280, y: 180 }, { x: 100, y: 180 }] };
+  const restored = { id: "rotated-chart", name: "회전 노드", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [polygon] };
+  const { page } = await openEditor(t, restored);
+  const shape = page.locator('[data-object-id="polygon"] path');
+  await shape.click({ force: true });
+  await page.getByTestId("tool-node").click();
+  const edge = page.getByTestId("node-edge");
+  const shapeBox = await shape.boundingBox();
+  const edgeBox = await edge.boundingBox();
+  assert.ok(shapeBox && edgeBox);
+  assert.ok(Math.abs(shapeBox.x + shapeBox.width / 2 - edgeBox.x - edgeBox.width / 2) < 1);
+  assert.ok(Math.abs(shapeBox.y + shapeBox.height / 2 - edgeBox.y - edgeBox.height / 2) < 1);
+  const nodeOffsets = await shape.evaluate((element, points) => {
+    const matrix = element.getScreenCTM();
+    const handles = [...document.querySelectorAll('[data-testid="node-handle"]')];
+    if (!matrix || handles.length !== points.length) return null;
+    return points.map((point, index) => {
+      const expected = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+      const box = handles[index].getBoundingClientRect();
+      return { x: box.x + box.width / 2 - expected.x, y: box.y + box.height / 2 - expected.y };
+    });
+  }, polygon.points);
+  assert.ok(nodeOffsets);
+  for (const offset of nodeOffsets) {
+    assert.ok(Math.abs(offset.x) < 1, `rotated node x offset ${offset.x} must align with its vertex`);
+    assert.ok(Math.abs(offset.y) < 1, `rotated node y offset ${offset.y} must align with its vertex`);
+  }
+});
+
+test("shape border edits render after deselection", async (t) => {
+  const ellipse = { id: "ellipse", type: "rectangle", shape: "ellipse", label: "타원", layer: "background", x: 100, y: 100, width: 220, height: 100, fill: "#eeeeee", stroke: "#111111" };
+  const restored = { id: "stroke-chart", name: "도형 테두리", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [ellipse] };
+  const { page } = await openEditor(t, restored);
+  const shape = page.locator('[data-object-id="ellipse"] ellipse');
+  await shape.click({ force: true });
+  await page.getByLabel("테두리").fill("#bc204b");
+  await page.getByTestId("designer-canvas").click({ position: { x: 1000, y: 700 } });
+  assert.equal(await shape.getAttribute("stroke"), "#bc204b");
+});
+
+test("oversized image replacement reports a visible error", async (t) => {
+  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 240, height: 160, href: "/images/header/partner-nol.png" };
+  const restored = { id: "image-chart", name: "이미지 교체", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
+  const { page } = await openEditor(t, restored);
+  await page.locator('[data-object-id="image"] image').click({ force: true });
+  await page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]').setInputFiles({ name: "too-large.png", mimeType: "image/png", buffer: Buffer.alloc(10 * 1024 * 1024 + 1) });
+  await page.getByText("이미지는 10MB 이하여야 합니다.", { exact: true }).waitFor();
+});
+
+test("active image mode accepts a file dropped on the canvas", async (t) => {
+  const { page } = await openEditor(t);
+  await beginBlank(page);
+  await page.getByTestId("tool-image").click();
+  const png = await readFile(path.resolve("public/images/header/partner-nol.png"));
+  await page.getByTestId("designer-canvas").evaluate((element, base64) => {
+    const transfer = new DataTransfer();
+    const source = atob(base64);
+    transfer.items.add(new File([Uint8Array.from(source, (character) => character.charCodeAt(0))], "dropped.png", { type: "image/png" }));
+    const rect = element.getBoundingClientRect();
+    element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
+  }, png.toString("base64"));
+  await page.locator('[data-object-type="image"]').waitFor();
 });

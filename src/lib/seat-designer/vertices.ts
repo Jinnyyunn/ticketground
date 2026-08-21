@@ -46,7 +46,20 @@ function withVertices(object: ChartObject, points: readonly Point[]): ChartObjec
   if (object.type === "line") {
     return { ...object, start: points[0], end: points[points.length - 1], points };
   }
-  if (object.type === "rectangle" && object.shape === "polygon") return { ...object, points };
+  if (object.type === "rectangle" && object.shape === "polygon") {
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return {
+      ...object,
+      points,
+      x,
+      y,
+      width: Math.max(...xs) - x,
+      height: Math.max(...ys) - y,
+    };
+  }
   return object;
 }
 

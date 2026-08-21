@@ -30,6 +30,7 @@ import {
   setTableProps,
   translateMany,
 } from "./chart-ops";
+import { referenceAssetSizeError } from "./reference-asset-policy";
 import { snapPoint, uid } from "./geometry";
 import { ko } from "./i18n";
 import { buildTemplate, type TemplateId } from "./templates";
@@ -664,6 +665,35 @@ export function useSeatEditor() {
     [state.chart, state.toolMode],
   );
 
+  const addImageFileAtPoint = useCallback(async (file: File, world: Point) => {
+    if (referenceAssetSizeError(file.size)) {
+      dispatch({ type: "SET_STATUS", status: "이미지는 10MB 이하여야 합니다." });
+      return false;
+    }
+    try {
+      const { apiUploadReferenceAsset } = await import("@/lib/seat-charts/client");
+      const { asset, url: href } = await apiUploadReferenceAsset({ file, purpose: "object" });
+      const scale = Math.min(1, 560 / asset.width, 420 / asset.height);
+      const object: ChartObject = {
+        id: uid("image"),
+        type: "image",
+        label: file.name || "이미지",
+        layer: "background",
+        floorId: state.chart.activeFloorId,
+        x: world.x,
+        y: world.y,
+        width: asset.width * scale,
+        height: asset.height * scale,
+        href,
+      };
+      dispatch({ type: "ADD_OBJECT", object, status: ko.imageAdded, select: true });
+      return true;
+    } catch {
+      dispatch({ type: "SET_STATUS", status: "이미지 업로드 실패" });
+      return false;
+    }
+  }, [state.chart.activeFloorId]);
+
   const placeObjectAt = useCallback(
     (world: Point) => {
       const { tool, toolMode, chart, settings, draftPoints } = state;
@@ -732,29 +762,7 @@ export function useSeatEditor() {
         input.onchange = () => {
           const file = input.files?.[0];
           if (!file) return;
-          if (file.size > 10 * 1024 * 1024) {
-            dispatch({ type: "SET_STATUS", status: "이미지는 10MB 이하여야 합니다." });
-            return;
-          }
-          void import("@/lib/seat-charts/client")
-            .then(({ apiUploadReferenceAsset }) => apiUploadReferenceAsset({ file, purpose: "object" }))
-            .then(({ asset, url: href }) => {
-            const scale = Math.min(1, 560 / asset.width, 420 / asset.height);
-            const obj: ChartObject = {
-              id: uid("image"),
-              type: "image",
-              label: file.name || "이미지",
-              layer: "background",
-              floorId,
-              x: world.x,
-              y: world.y,
-              width: asset.width * scale,
-              height: asset.height * scale,
-              href,
-            };
-            dispatch({ type: "ADD_OBJECT", object: obj, status: ko.imageAdded, select: true });
-            })
-            .catch(() => dispatch({ type: "SET_STATUS", status: "이미지 업로드 실패" }));
+          void addImageFileAtPoint(file, world);
         };
         input.click();
         return;
@@ -798,7 +806,7 @@ export function useSeatEditor() {
         });
       }
     },
-    [commitCreatedObjects, state],
+    [addImageFileAtPoint, commitCreatedObjects, state],
   );
 
   const finishPolygon = useCallback(() => {
@@ -979,7 +987,11 @@ export function useSeatEditor() {
   );
 
   const replaceSelectedImage = useCallback(async (file: File) => {
-    if (state.selectedIds.length !== 1 || file.size > 10 * 1024 * 1024) return false;
+    if (state.selectedIds.length !== 1) return false;
+    if (referenceAssetSizeError(file.size)) {
+      dispatch({ type: "SET_STATUS", status: "이미지는 10MB 이하여야 합니다." });
+      return false;
+    }
     const selected = state.chart.objects.find((object) => object.id === state.selectedIds[0]);
     if (!selected || selected.type !== "image") return false;
     try {
@@ -1147,6 +1159,7 @@ export function useSeatEditor() {
     updateCategories,
     screenToWorld,
     placeObjectAt,
+    addImageFileAtPoint,
     finishPolygon,
     finishRectangle,
     patchSelectedLabel,
