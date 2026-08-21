@@ -1208,7 +1208,7 @@ export function SeatDesignerV2() {
             <rect
               width="100%"
               height="100%"
-              fill={state.darkCanvas ? "var(--editor-canvas-dark)" : "white"}
+              fill={state.darkCanvas ? "var(--editor-canvas-dark)" : "var(--editor-canvas)"}
             />
             {state.showGrid && <rect width="100%" height="100%" fill="url(#v2-grid)" />}
             <g
