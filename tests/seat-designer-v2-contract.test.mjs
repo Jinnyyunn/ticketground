@@ -1,11 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+
+const editorRoot = "src/components/seat-designer-v2";
+
+async function editorModules(directory = editorRoot) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) return editorModules(target);
+    return /\.(?:ts|tsx)$/.test(entry.name) ? [target] : [];
+  }));
+  return nested.flat();
+}
+
+function pureLines(source) {
+  return source.split("\n").filter((line) => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && !trimmed.startsWith("//");
+  }).length;
+}
 
 test("admin seat designer is replaced by the clean-room v2 editor", async () => {
   const page = await readFile("src/app/admin/seat-designer/page.tsx", "utf8");
-  const editorFiles = ["seat-designer-v2.tsx", "reference-start.tsx", "toolbar.tsx", "inspector.tsx", "service-credentials-panel.tsx", "seat-view-dialog.tsx", "object-factory.ts", "object-transform.ts", "canvas-objects.tsx", "design-tokens.ts", "floor-bar.tsx", "help-dialog.tsx", "row-geometry.ts", "smart-guides.ts", "node-geometry.ts", "reference-layout.ts"];
-  const editor = (await Promise.all(editorFiles.map((file) => readFile(`src/components/seat-designer-v2/${file}`, "utf8")))).join("\n");
+  const editor = (await Promise.all((await editorModules()).map((file) => readFile(file, "utf8")))).join("\n");
 
   assert.match(page, /seat-designer-v2\/seat-designer-v2/);
   assert.doesNotMatch(page, /components\/seat-designer\/seat-designer/);
@@ -34,6 +53,24 @@ test("admin seat designer is replaced by the clean-room v2 editor", async () => 
   assert.doesNotMatch(editor, /(?:fill|stroke)="white"/);
   assert.doesNotMatch(editor, /["']white["']/);
   assert.doesNotMatch(editor, /(?:bg|text|border)-amber-[0-9]+/);
+});
+
+test("every clean-room v2 TypeScript module stays within 250 pure lines", async () => {
+  const oversized = [];
+  for (const file of await editorModules()) {
+    const count = pureLines(await readFile(file, "utf8"));
+    if (count > 250) oversized.push(`${file}: ${count}`);
+  }
+  assert.deepEqual(oversized, []);
+});
+
+test("save and publish status use shared semantic severity", async () => {
+  const status = await readFile(`${editorRoot}/status.ts`, "utf8");
+  assert.match(status, /type EditorStatusTone = "neutral" \| "success" \| "danger"/);
+  assert.match(status, /"저장 실패"[\s\S]*?"danger"/);
+  assert.match(status, /"게시 실패"[\s\S]*?"danger"/);
+  assert.match(status, /"초안 저장 완료"[\s\S]*?"success"/);
+  assert.match(status, /"게시 완료"[\s\S]*?"success"/);
 });
 
 test("v2 tool catalog owns every reference tool family", async () => {

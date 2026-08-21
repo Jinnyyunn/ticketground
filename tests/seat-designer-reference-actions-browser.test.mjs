@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import {
@@ -10,6 +11,8 @@ import {
 
 test("reference import, geometry controls, object transforms, and node editing are observable", async (t) => {
   const { page, runtimeErrors } = await openV2Editor(t);
+  const evidenceRoot = path.resolve(".omo/evidence/seat-designer-v2/browser");
+  await mkdir(evidenceRoot, { recursive: true });
   await beginWithReference(page, path.resolve("public/images/misc/2b6c799906bc4462.png"));
   const reference = page.getByTestId("seat-designer-v2-reference-plan");
   assert.equal(await reference.getAttribute("opacity"), "0.5");
@@ -77,6 +80,7 @@ test("reference import, geometry controls, object transforms, and node editing a
   assert.equal(await page.getByTestId("seat-designer-v2-node-add-handle").count(), 4);
   await page.getByTestId("seat-designer-v2-node-add-handle").first().click({ force: true });
   assert.equal(await page.getByTestId("seat-designer-v2-node-handle").count(), 5);
+  await page.screenshot({ path: path.join(evidenceRoot, "node-edit.png"), fullPage: true });
   await page.keyboard.down("Alt");
   assert.equal(await page.getByTestId("seat-designer-v2-node-add-handle").count(), 0);
   await page.keyboard.up("Alt");

@@ -113,6 +113,7 @@ test("every clean-room designer tool family is operable in the real admin browse
   await chooseTool(page, "sameType");
   await page.locator('[data-object-type="row"] circle').first().click({ force: true });
   assert.ok(await page.getByTestId("seat-designer-v2-selection-handles").count() >= 6);
+  await page.screenshot({ path: path.join(evidenceRoot, "multi-select.png"), fullPage: true });
   await page.getByTitle("가로 균등 배치").click();
   await page.getByTitle("세로 균등 배치").click();
   await page.getByTitle("좌우 반전").click();
@@ -126,6 +127,7 @@ test("every clean-room designer tool family is operable in the real admin browse
   await page.getByTitle("구역 내용").click();
   await page.getByTitle("캔버스 테마").click();
   assert.equal(await canvas.locator("rect").first().getAttribute("fill"), "var(--editor-canvas-dark)");
+  await page.screenshot({ path: path.join(evidenceRoot, "dark-canvas.png"), fullPage: true });
   await page.getByTitle("캔버스 테마").click();
 
   await chooseTool(page, "select");
@@ -166,6 +168,7 @@ test("every clean-room designer tool family is operable in the real admin browse
 
   await page.getByTitle("미리보기").click();
   await page.getByTestId("seat-designer-v2-preview").waitFor();
+  await page.screenshot({ path: path.join(evidenceRoot, "preview.png"), fullPage: true });
   await page.getByTestId("seat-designer-v2-preview").getByRole("button").click();
 
   await page.getByTitle("도움말").click();
@@ -181,6 +184,7 @@ test("every clean-room designer tool family is operable in the real admin browse
   await page.getByRole("button", { name: "게시", exact: true }).click();
   assert.equal((await publishResponse).status(), 200);
   await page.getByText("게시 완료", { exact: true }).waitFor();
+  await page.screenshot({ path: path.join(evidenceRoot, "venue-published.png"), fullPage: true });
   await page.getByTitle("API 연결").click();
   const credentials = page.getByTestId("seat-designer-v2-service-credentials");
   await credentials.waitFor();
