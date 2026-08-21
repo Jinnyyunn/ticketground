@@ -24,6 +24,7 @@ export type SellableSeat = {
   readonly memberSeats?: readonly { readonly label: string; readonly price: number }[];
   readonly backendTicketIds?: readonly string[];
   readonly availableTicketIds?: readonly string[];
+  readonly availableTicketPrices?: readonly number[];
 };
 
 export type InventoryResult = {

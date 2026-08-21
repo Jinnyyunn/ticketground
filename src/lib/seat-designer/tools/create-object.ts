@@ -15,10 +15,10 @@ type CreationInput = {
   readonly mode?: ToolMode;
 };
 
-function lineSeats(start: Point, end: Point, count: number) {
+function lineSeats(start: Point, end: Point, count: number, rowLabel: string) {
   return Array.from({ length: count }, (_, index) => {
     const ratio = count === 1 ? 0 : index / (count - 1);
-    return { id: uid("seat"), label: String(index + 1), x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio };
+    return { id: uid("seat"), label: `${rowLabel}-${index + 1}`, x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio };
   });
 }
 
@@ -92,7 +92,7 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
       seatCount,
       seats: input.mode === "rowSegmented"
         ? seatsAlongPolyline(input.points, seatCount, `R${input.sequence}`, input.categoryKey)
-        : lineSeats(input.start, input.end, seatCount),
+        : lineSeats(input.start, input.end, seatCount, `R${input.sequence}`),
       path: input.mode === "rowSegmented" ? [...input.points] : undefined,
       rowStyle: input.mode === "rowSegmented" ? "segmented" : input.mode === "rowsMultiple" ? "multiple" : "straight",
       rowSpacing: 14,

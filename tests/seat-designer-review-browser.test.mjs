@@ -62,6 +62,14 @@ test("a restored local draft bypasses the destructive new-chart dialog", async (
   assert.equal(await page.locator('[data-object-id="row-1"]').count(), 1);
 });
 
+test("the initial dialog opens the existing server chart library without saving", async (t) => {
+  const { page } = await openEditor(t);
+  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
+  await dialog.getByRole("button", { name: "기존 차트 열기" }).click();
+  await page.getByTestId("seat-chart-library-screen").waitFor();
+  assert.equal(await dialog.count(), 0);
+});
+
 test("snap, Shift, clipboard, lock, and table inspectors preserve their visible contracts", async (t) => {
   const { page } = await openEditor(t);
   await beginBlank(page);

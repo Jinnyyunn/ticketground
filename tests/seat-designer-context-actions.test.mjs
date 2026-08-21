@@ -61,6 +61,21 @@ test("copy labels remain unique under backend whitespace normalization", () => {
   assert.deepEqual(duplicated.objects[2].seats.map((seat) => seat.label), ["A 복사 2-1", "A 복사 2-2"]);
 });
 
+test("copy labels account for canonical seats left behind by an object rename", () => {
+  const source = {
+    ...section.nestedRows[0],
+    seats: section.nestedRows[0].seats.map((seat, index) => ({ ...seat, label: `A-${index + 1}` })),
+  };
+  const renamed = {
+    ...source,
+    id: "renamed-copy",
+    label: "B",
+    seats: source.seats.map((seat, index) => ({ ...seat, id: `renamed-${index}`, label: `A복사-${index + 1}` })),
+  };
+  const duplicated = duplicateObjects({ ...chart, objects: [source, renamed] }, [source.id], 24);
+  assert.equal(duplicated.objects[2].label, "A 복사 2");
+});
+
 test("flipping visible geometry negates top-level and nested rotations", () => {
   const rotatedSection = {
     ...section,

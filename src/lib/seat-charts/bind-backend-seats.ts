@@ -31,6 +31,7 @@ export function bindChartLayoutToBackendSeats(
       const backendGroup = grouped.map((matches) => matches?.[0]).filter((seat): seat is ApiSeat => Boolean(seat));
       for (const backendSeat of backendGroup) backendByKey.delete(seatBindingKey(backendSeat.price, backendSeat.label));
       const availableTicketIds = backendGroup.filter((seat) => seat.available).map((seat) => seat.id);
+      const availableTicketPrices = backendGroup.filter((seat) => seat.available).map((seat) => seat.price);
       const minimum = layoutSeat.bookingMode === "whole"
         ? backendGroup.length
         : Math.max(1, layoutSeat.minOccupancy ?? 1);
@@ -42,6 +43,7 @@ export function bindChartLayoutToBackendSeats(
         price: pricedSeats.reduce((sum, seat) => sum + seat.price, 0),
         backendTicketIds: backendGroup.map((seat) => seat.id),
         availableTicketIds,
+        availableTicketPrices,
         sold: availableTicketIds.length < minimum,
       });
       continue;

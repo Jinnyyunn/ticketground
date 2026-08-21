@@ -7,7 +7,7 @@ import type { SeatChartVenue } from "@/lib/seat-charts/types";
 import { listBindableVenues } from "@/lib/seat-charts/venues";
 import { ReferenceChartPanel } from "./reference-chart-panel";
 
-export function NewChartDialog({ api, open, onClose }: { readonly api: SeatEditorApi; readonly open: boolean; readonly onClose: () => void }) {
+export function NewChartDialog({ api, open, onClose, onOpenLibrary }: { readonly api: SeatEditorApi; readonly open: boolean; readonly onClose: () => void; readonly onOpenLibrary?: () => void }) {
   const [mode, setMode] = useState<"choice" | "reference">("choice");
   const [venues, setVenues] = useState<readonly SeatChartVenue[]>([]);
   const [venue, setVenue] = useState<SeatChartVenue | null>(null);
@@ -62,6 +62,7 @@ export function NewChartDialog({ api, open, onClose }: { readonly api: SeatEdito
           <div className="grid gap-3 sm:grid-cols-2">
             <button type="button" className="rounded-xl border border-black/10 p-5 text-left hover:border-[#0784fa] hover:bg-[#f5f9ff]" onClick={() => { if (begin(true)) close(); }}><Plus className="mb-8 size-7 text-[#0784fa]" /><strong className="block text-sm">빈 캔버스</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">모든 좌석과 도형을 직접 배치합니다.</span></button>
             <button type="button" className="rounded-xl border border-[#9dccf8] bg-[#f5f9ff] p-5 text-left hover:border-[#0784fa]" onClick={() => { if (begin(false)) setMode("reference"); }}><FileImage className="mb-8 size-7 text-[#0784fa]" /><strong className="block text-sm">도면 불러오기</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">이미지를 불러와 편집하거나 좌석을 자동 인식합니다.</span></button>
+            {onOpenLibrary && <button type="button" className="rounded-xl border border-black/10 p-4 text-left sm:col-span-2 hover:border-[#0784fa] hover:bg-[#f5f9ff]" onClick={onOpenLibrary}><strong className="block text-sm">기존 차트 열기</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">저장된 공연장 좌석 배치도를 불러와 계속 편집합니다.</span></button>}
           </div>
         ) : (
           <ReferenceChartPanel onBack={() => setMode("choice")} onComplete={(input) => { api.startFromReference({ ...input, name: name.trim() }); api.dispatch({ type: "SET_BOUND_VENUE", venue }); close(); }} />

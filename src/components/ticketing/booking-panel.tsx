@@ -143,6 +143,13 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     [backendSeats, chartRequestKey, publishedChart],
   );
   const boundChartSeats = useMemo(() => allBoundChartSeats.filter((seat) => !seat.sold), [allBoundChartSeats]);
+  const displayedChartSeats = useMemo(() => boundChartSeats.map((seat) => {
+    if (seat.bookingMode !== "variable" || !seat.availableTicketPrices?.length) return seat;
+    const minimum = Math.max(1, seat.minOccupancy ?? 1);
+    const maximum = Math.max(minimum, seat.maxOccupancy ?? seat.availableTicketPrices.length);
+    const count = Math.min(seat.availableTicketPrices.length, maximum, Math.max(minimum, quantity));
+    return { ...seat, price: seat.availableTicketPrices.slice(0, count).reduce((sum, price) => sum + price, 0) };
+  }), [boundChartSeats, quantity]);
   const maximumQuantity = useMemo(() => Math.max(
     maxSelectableSeats,
     ...boundChartSeats.map((seat) => {
@@ -328,7 +335,7 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
               <div className="mt-5 min-w-0 space-y-4">
                 {seatMap && usePublishedChart && publishedChart?.inventory ? (
                     <ChartSeatMap
-                      seats={boundChartSeats}
+                      seats={displayedChartSeats}
                       bounds={publishedChart.inventory.bounds}
                       selectedSeatIds={selectedChartSeatIds}
                       onSelect={selectChartSeat}

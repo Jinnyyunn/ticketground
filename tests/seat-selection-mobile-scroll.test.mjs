@@ -218,6 +218,43 @@ test("variable table markers select the requested backend chair tickets as one u
   assert.deepEqual(checkout.searchParams.get("ticketIds")?.split(","), ["table-ticket-1", "table-ticket-2"]);
 });
 
+test("variable table markers price the buyer's requested occupancy", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  t.after(() => page.close());
+  const backendSeats = [
+    { ...apiSeat("variable-1", "T3-1", 42), price: 190000 },
+    { ...apiSeat("variable-2", "T3-2", 48), price: 160000 },
+    { ...apiSeat("variable-3", "T3-3", 54), price: 120000 },
+    { ...apiSeat("variable-4", "T3-4", 60), price: 80000 },
+  ];
+  await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
+  await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({ json: {
+    ok: true,
+    source: "published",
+    chart: null,
+    record: { id: "variable-price-chart", name: "가변 가격 테이블", boundVenue: { id: "venue-1", name: "예술의전당" } },
+    inventory: {
+      seats: [{ id: "variable-table", label: "T3", displayLabel: "T3", tier: "VIP", price: 350000, sold: false, x: 50, y: 50, objectId: "table-3", objectType: "table", bookingMode: "variable", minOccupancy: 2, maxOccupancy: 4, memberLabels: ["T3-1", "T3-2", "T3-3", "T3-4"], memberSeats: [{ label: "T3-1", price: 190000 }, { label: "T3-2", price: 160000 }, { label: "T3-3", price: 120000 }, { label: "T3-4", price: 80000 }] }],
+      bounds: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+    },
+  } }));
+
+  await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "9월 12일" }).click();
+  await page.getByRole("button", { name: "19:00" }).click();
+  await page.getByRole("button", { name: "4매" }).click();
+  await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
+  const table = page.locator('[data-seat-map-seat="variable-table"]');
+  await table.waitFor();
+  assert.match(await table.getAttribute("aria-label"), /550,000원$/);
+  await table.click();
+  await page.locator("aside").getByText("550,000원", { exact: true }).waitFor();
+  await page.locator("aside").getByText("4/4매", { exact: true }).waitFor();
+});
+
 test("whole-table markers display the exact mixed-tier total before selection", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });

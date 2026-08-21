@@ -70,6 +70,15 @@ test("area, shape, row, and line variants retain their editable geometry", () =>
   assert.deepEqual(polyline.points, common.points);
 });
 
+test("straight and multiple rows prefix canonical seats with their row identity", () => {
+  for (const mode of ["row", "rowsMultiple"]) {
+    const row = createObjectForTool({ tool: "row", mode, start, end, points: [start, end], sequence: 3, floorId: "floor-1" });
+    assert.ok(row);
+    assert.equal(row.seats[0].label, "R3-1");
+    assert.equal(row.seats.at(-1).label, `R3-${row.seatCount}`);
+  }
+});
+
 test("Shift angle constraints match row and node tool increments", () => {
   const origin = { x: 0, y: 0 };
   const rowPoint = constrainPointToAngle(origin, { x: 100, y: 20 }, 15);
