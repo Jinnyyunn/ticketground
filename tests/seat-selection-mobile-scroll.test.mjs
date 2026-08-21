@@ -262,6 +262,38 @@ test("variable table markers price the buyer's requested occupancy", async (t) =
   await page.locator("aside").getByText("4/2매", { exact: true }).waitFor();
 });
 
+test("large table occupancy uses one full-size scalable quantity control", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  page.setDefaultTimeout(8_000);
+  t.after(() => page.close());
+  const backendSeats = Array.from({ length: 48 }, (_, index) => apiSeat(`large-table-${index + 1}`, `T48-${index + 1}`, 40 + index));
+  await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
+  await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({ json: {
+    ok: true,
+    source: "published",
+    chart: null,
+    record: { id: "large-table-chart", name: "48석 테이블", boundVenue: { id: "venue-1", name: "예술의전당" } },
+    inventory: {
+      seats: [{ id: "large-variable-table", label: "T48", displayLabel: "T48", tier: "R", price: 165000, sold: false, x: 50, y: 50, objectId: "table-48", objectType: "table", bookingMode: "variable", minOccupancy: 1, maxOccupancy: 48, memberLabels: backendSeats.map((seat) => seat.label), memberSeats: backendSeats.map((seat) => ({ label: seat.label, price: seat.price })) }],
+      bounds: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+    },
+  } }));
+
+  await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "9월 12일" }).click();
+  await page.getByRole("button", { name: "19:00" }).click();
+  await page.getByText("최대 48매까지 선택할 수 있습니다.", { exact: true }).waitFor();
+  const quantity = page.getByRole("combobox", { name: "매수" });
+  await quantity.selectOption("48");
+  assert.equal(await quantity.inputValue(), "48");
+  const box = await quantity.boundingBox();
+  assert.ok(box && box.height >= 44 && box.width >= 180, `quantity control was ${box?.width}x${box?.height}`);
+  assert.equal(await page.getByRole("button", { name: "48매" }).count(), 0);
+});
+
 test("whole-table markers display the exact mixed-tier total before selection", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });

@@ -9,6 +9,7 @@ import {
   setRowGeometry,
   setTableProps,
 } from "../src/lib/seat-designer/chart-ops.ts";
+import { blockingValidationItems } from "../src/lib/seat-designer/validation.ts";
 
 function base(objects) {
   return { id: "chart", name: "테스트", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects };
@@ -105,6 +106,28 @@ test("table occupancy and rectangular chair counts remain valid after direct num
   assert.equal(shrunk.seatCount, 2);
   assert.equal(shrunk.minOccupancy, 2);
   assert.equal(shrunk.maxOccupancy, 2);
+});
+
+test("a rectangular table without chairs cannot remain bookable", () => {
+  const table = {
+    ...createTable({ x: 50, y: 50 }, 30, 4, "T1"),
+    shape: "rectangle",
+    width: 120,
+    height: 36,
+    chairs: { top: 2, right: 0, bottom: 2, left: 0 },
+    bookAsWhole: true,
+  };
+  const empty = setTableProps(base([table]), table.id, {
+    chairs: { top: 0, right: 0, bottom: 0, left: 0 },
+    bookAsWhole: true,
+    variableOccupancy: true,
+  }).objects[0];
+  assert.equal(empty.seats.length, 0);
+  assert.equal(empty.bookAsWhole, false);
+  assert.equal(empty.variableOccupancy, false);
+
+  const malformed = { ...empty, bookAsWhole: true };
+  assert.ok(blockingValidationItems(base([malformed])).some((item) => item.id === "tableOccupancy"));
 });
 
 test("decoration inspector edits only properties supported by the selected type", () => {

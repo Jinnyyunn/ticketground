@@ -614,7 +614,8 @@ export function setTableProps(
     left: normalizeChairCount(inputChairs.left),
   };
   const rectangularSeatCount = chairs.top + chairs.right + chairs.bottom + chairs.left;
-  const variableOccupancy = patch.variableOccupancy ?? obj.variableOccupancy;
+  const hasBookableSeats = obj.shape !== "rectangle" || rectangularSeatCount > 0;
+  const variableOccupancy = hasBookableSeats && (patch.variableOccupancy ?? obj.variableOccupancy);
   const finalSeatCount = Math.max(1, obj.shape === "rectangle" ? rectangularSeatCount : seatCount);
   const minOccupancy = Math.min(finalSeatCount, Math.max(1, patch.minOccupancy ?? obj.minOccupancy ?? 1));
   const maxOccupancy = patch.maxOccupancy !== undefined
@@ -659,7 +660,7 @@ export function setTableProps(
   return updateObject(chart, id, {
     radius,
     label,
-    bookAsWhole: patch.bookAsWhole ?? obj.bookAsWhole,
+    bookAsWhole: hasBookableSeats && (patch.bookAsWhole ?? obj.bookAsWhole),
     variableOccupancy,
     minOccupancy,
     maxOccupancy,

@@ -311,11 +311,23 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-ink">매수</h3>
-                  <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
-                    {quantityOptions.map((count) => (
-                      <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black transition-colors", quantity === count ? "bg-ticketground text-white shadow-ticket-1" : "text-ink-3 hover:bg-surface hover:text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-ink-3")}>{count}매</button>
-                    ))}
-                  </div>
+                  {maximumQuantity <= 8 ? (
+                    <div className="mt-3 flex rounded-sm border border-line bg-card p-1">
+                      {quantityOptions.map((count) => (
+                        <button disabled={!show.sale.bookable} key={count} type="button" onClick={() => setQuantity(count)} className={cn("h-11 flex-1 rounded-[6px] text-base font-black transition-colors", quantity === count ? "bg-ticketground text-white shadow-ticket-1" : "text-ink-3 hover:bg-surface hover:text-ink", !show.sale.bookable && "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-ink-3")}>{count}매</button>
+                      ))}
+                    </div>
+                  ) : (
+                    <select
+                      aria-label="매수"
+                      disabled={!show.sale.bookable}
+                      value={quantity}
+                      onChange={(event) => setQuantity(Number(event.target.value))}
+                      className="mt-3 h-11 w-full min-w-[180px] rounded-sm border border-line bg-card px-3 text-base font-black text-ink outline-none focus:border-ticketground focus:ring-2 focus:ring-ticketground/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {quantityOptions.map((count) => <option key={count} value={count}>{count}매</option>)}
+                    </select>
+                  )}
                   <p className="mt-3 break-keep text-sm font-bold text-ink-3">최대 {maximumQuantity}매까지 선택할 수 있습니다.</p>
                 </div>
               </div>
