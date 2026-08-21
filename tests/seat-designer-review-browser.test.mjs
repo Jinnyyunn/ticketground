@@ -121,6 +121,48 @@ test("the image-first editor stays usable without horizontal overflow at tablet 
   assert.equal(await page.getByTestId("seat-designer-v2-inspector").isVisible(), false);
   assert.equal(await page.getByRole("navigation", { name: "좌석 배치 도구" }).isVisible(), true);
   assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isVisible(), true);
+  assert.equal(await page.getByText("선택 추가", { exact: true }).isVisible(), true);
+  await page.getByTitle("속성 패널").click();
+  const closeInspector = page.getByTitle("속성 패널 닫기");
+  const closeInspectorBox = await closeInspector.boundingBox();
+  assert.ok(closeInspectorBox, "mobile inspector close control must be visible");
+  assert.ok(closeInspectorBox.width >= 44, "mobile inspector close control must be at least 44px wide");
+  assert.ok(closeInspectorBox.height >= 44, "mobile inspector close control must be at least 44px high");
+  assert.notEqual(
+    await closeInspector.evaluate((element) => getComputedStyle(element).backgroundColor),
+    "rgba(0, 0, 0, 0)",
+    "mobile inspector close control must stay visually distinct over scrolling actions",
+  );
+  const mobileInspector = page.getByTestId("seat-designer-v2-inspector").last();
+  await mobileInspector.getByText("캔버스 표시", { exact: true }).waitFor();
+  assert.equal(await mobileInspector.getByLabel("스냅").isChecked(), true);
+  await page.screenshot({ path: path.join(evidenceRoot, "mobile-inspector.png"), fullPage: true });
+  const mobileActions = page.getByTestId("seat-designer-v2-mobile-actions");
+  assert.equal(await mobileActions.getByRole("button", { name: "좌석 시점", exact: true }).count(), 1);
+  for (const action of ["왼쪽 정렬", "가운데 정렬", "오른쪽 정렬", "위 정렬", "중간 정렬", "아래 정렬", "가로 균등 배치", "세로 균등 배치"]) {
+    assert.equal(await mobileActions.getByRole("button", { name: action, exact: true }).count(), 1, `${action} must remain reachable below desktop width`);
+  }
+  await mobileActions.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByTestId("seat-designer-v2-mobile-status").getByText("초안 저장 완료", { exact: true }).waitFor();
+  await mobileActions.getByRole("button", { name: "도움말", exact: true }).click();
+  await page.getByTestId("seat-designer-v2-help-dialog").waitFor();
+  const redoShortcut = page.getByText("⌘/Ctrl + Shift + Z", { exact: true });
+  const redoLineCount = await redoShortcut.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return range.getClientRects().length;
+  });
+  assert.equal(redoLineCount, 1, "redo shortcut must stay on one line");
+  const redoShortcutBox = await redoShortcut.boundingBox();
+  const redoDescriptionBox = await page.getByText("다시 실행", { exact: true }).boundingBox();
+  assert.ok(redoShortcutBox && redoDescriptionBox, "redo help row must have measurable geometry");
+  assert.ok(
+    redoShortcutBox.x + redoShortcutBox.width <= redoDescriptionBox.x,
+    "redo shortcut must not overlap its description",
+  );
+  await page.getByTitle("도움말 닫기").click();
+  await page.getByTitle("속성 패널").click();
+  await page.getByTitle("속성 패널 닫기").click();
   await page.screenshot({ path: path.join(evidenceRoot, "mobile.png"), fullPage: true });
   assert.deepEqual(runtimeErrors, []);
 });

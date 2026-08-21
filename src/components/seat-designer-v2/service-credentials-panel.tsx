@@ -1,5 +1,3 @@
-"use client";
-
 import { Copy, KeyRound, RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -79,21 +77,21 @@ export function ServiceCredentialsPanel({
 
   return (
     <div
-      className="fixed inset-0 z-[70] grid place-items-center bg-black/50 p-6"
+      className="fixed inset-0 z-[70] grid place-items-center bg-[var(--editor-overlay)] p-6"
       data-testid="seat-designer-v2-service-credentials"
     >
-      <section className="w-full max-w-2xl rounded border border-[#ccc] bg-white shadow-2xl">
-        <header className="flex items-center gap-3 border-b border-[#ddd] px-5 py-4">
+      <section className="w-full max-w-2xl rounded border border-[var(--editor-border)] bg-[var(--editor-surface)] shadow-2xl">
+        <header className="flex items-center gap-3 border-b border-[var(--editor-border)] px-5 py-4">
           <KeyRound className="size-5" />
           <div className="flex-1">
             <h2 className="text-base font-semibold">좌석 배치도 API 연결</h2>
-            <p className="mt-0.5 text-xs text-[#666]">
+            <p className="mt-0.5 text-xs text-[var(--editor-muted)]">
               게시된 공연장 좌석 배치도를 서버에서 읽는 전용 키입니다.
             </p>
           </div>
           <button
             type="button"
-            className="grid size-8 place-items-center rounded hover:bg-[#eee]"
+            className="grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)]"
             onClick={onClose}
           >
             <X className="size-4" />
@@ -101,17 +99,17 @@ export function ServiceCredentialsPanel({
         </header>
         <div className="space-y-4 p-5">
           {issued && (
-            <div className="rounded border border-amber-300 bg-amber-50 p-4">
+            <div className="rounded border border-[var(--editor-warning-border)] bg-[var(--editor-warning-soft)] p-4 text-[var(--editor-warning)]">
               <strong className="text-sm">
                 이 키는 지금 한 번만 표시됩니다.
               </strong>
               <div className="mt-2 flex items-center gap-2">
-                <code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-3 py-2 text-xs">
+                <code className="min-w-0 flex-1 overflow-x-auto rounded bg-[var(--editor-surface)] px-3 py-2 text-xs">
                   {issued}
                 </code>
                 <button
                   type="button"
-                  className="grid size-9 place-items-center rounded border bg-white"
+                  className="grid size-9 place-items-center rounded border bg-[var(--editor-surface)]"
                   title="복사"
                   onClick={() => void navigator.clipboard.writeText(issued)}
                 >
@@ -121,19 +119,19 @@ export function ServiceCredentialsPanel({
             </div>
           )}
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[#555]">
+            <p className="text-sm text-[var(--editor-muted)]">
               Authorization: Bearer 헤더로 공연장 공개 리비전을 조회합니다.
             </p>
             <button
               type="button"
-              className="flex h-9 items-center gap-2 rounded bg-[#087ffa] px-3 font-semibold text-white"
+              className="flex h-9 items-center gap-2 rounded bg-[var(--editor-accent)] px-3 font-semibold text-[var(--editor-on-accent)]"
               onClick={() => void issue()}
             >
               <KeyRound className="size-4" />
               읽기 키 발급
             </button>
           </div>
-          <div className="divide-y rounded border border-[#ddd] bg-white">
+          <div className="divide-y rounded border border-[var(--editor-border)] bg-[var(--editor-surface)]">
             {records.length ? (
               records.map((record) => (
                 <div
@@ -142,7 +140,7 @@ export function ServiceCredentialsPanel({
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{record.label}</p>
-                    <p className="mt-1 text-xs text-[#777]">
+                    <p className="mt-1 text-xs text-[var(--editor-muted)]">
                       {record.prefix}••••{record.suffix} · 만료{" "}
                       {new Date(record.expiresAt).toLocaleDateString("ko-KR")}
                       {record.revokedAt ? " · 폐기됨" : ""}
@@ -151,7 +149,7 @@ export function ServiceCredentialsPanel({
                   {!record.revokedAt && (
                     <button
                       type="button"
-                      className="grid size-8 place-items-center rounded text-red-600 hover:bg-red-50"
+                      className="grid size-8 place-items-center rounded text-[var(--editor-danger)] hover:bg-[var(--editor-danger-soft)]"
                       title="키 폐기"
                       onClick={() => void revoke(record.id)}
                     >
@@ -161,14 +159,14 @@ export function ServiceCredentialsPanel({
                 </div>
               ))
             ) : (
-              <p className="p-4 text-sm text-[#777]">
+              <p className="p-4 text-sm text-[var(--editor-muted)]">
                 발급된 API 키가 없습니다.
               </p>
             )}
           </div>
           {status && (
             <p
-              className="flex items-center gap-2 text-sm text-[#666]"
+              className="flex items-center gap-2 text-sm text-[var(--editor-muted)]"
               aria-live="polite"
             >
               <RefreshCw className="size-4" />

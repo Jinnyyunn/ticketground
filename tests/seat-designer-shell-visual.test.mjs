@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("the replacement shell owns its visual structure and stable controls without legacy editor imports", async () => {
+  const moduleNames = (await readdir("src/components/seat-designer-v2")).filter((name) => /\.(?:ts|tsx)$/.test(name));
   const [page, shell, tools, inspector, start] = await Promise.all([
     readFile("src/app/admin/seat-designer/page.tsx", "utf8"),
-    readFile("src/components/seat-designer-v2/seat-designer-v2.tsx", "utf8"),
+    Promise.all(moduleNames.map((name) => readFile(`src/components/seat-designer-v2/${name}`, "utf8"))).then((files) => files.join("\n")),
     readFile("src/components/seat-designer-v2/toolbar.tsx", "utf8"),
     readFile("src/components/seat-designer-v2/inspector.tsx", "utf8"),
     readFile("src/components/seat-designer-v2/reference-start.tsx", "utf8"),

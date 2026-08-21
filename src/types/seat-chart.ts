@@ -86,6 +86,7 @@ export type SeatPlace = {
   readonly viewFromSeatHref?: string;
   readonly accessible?: boolean;
   readonly companion?: boolean;
+  readonly transferSeat?: boolean;
   readonly restrictedView?: boolean;
 };
 
@@ -95,6 +96,8 @@ export type BaseObject = {
   readonly layer: ObjectLayer;
   readonly categoryKey?: string;
   readonly rotation?: number;
+  readonly flipX?: boolean;
+  readonly flipY?: boolean;
   readonly locked?: boolean;
   /** Buyer-facing displayed label (displayedLabels feature) */
   readonly displayedLabel?: string;
@@ -102,6 +105,7 @@ export type BaseObject = {
   readonly viewFromSeatHref?: string;
   /** Floor this object belongs to */
   readonly floorId?: string;
+  readonly sectionId?: string;
   /** Zone this object belongs to */
   readonly zoneId?: string;
 };
@@ -206,6 +210,7 @@ export type ImageObject = BaseObject & {
   readonly height: number;
   readonly href: string;
   readonly opacity?: number;
+  readonly aspectRatioLocked?: boolean;
 };
 
 export type IconObject = BaseObject & {
@@ -231,6 +236,7 @@ export type ChartObject =
 export type Floor = {
   readonly id: string;
   readonly name: string;
+  readonly abbreviation?: string;
   readonly index: number;
 };
 

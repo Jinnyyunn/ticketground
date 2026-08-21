@@ -1,8 +1,9 @@
 import type { AreaObject, ChartDocument, ChartObject, IconObject, Point, RowObject, SeatPlace, TableObject } from "@/types/seat-chart";
 import type { V2EditorState, V2Point } from "./editor-model";
 import type { V2ToolId } from "./tool-catalog";
+import { V2_OBJECT_COLORS } from "./design-tokens.ts";
 
-const DEFAULT_CATEGORY = { key: "general", label: "일반석", color: "#7b8a9a" } as const;
+const DEFAULT_CATEGORY = { key: "general", label: "일반석", color: V2_OBJECT_COLORS.category } as const;
 const MIN_SIZE = 8;
 
 function uid(prefix: string): string {
@@ -81,10 +82,10 @@ export function createDraggedObject(tool: V2ToolId, start: V2Point, end: V2Point
     const seats = rowSeats(start, end, state.seatSpacing, id);
     return { ...common, id, type: "row", start, end, seatCount: seats.length, seats, rowStyle: tool === "multipleRows" ? "multiple" : "straight", rowSpacing: 14, seatSpacing: state.seatSpacing } satisfies RowObject;
   }
-  if (tool === "rectangle" || tool === "ellipse") return { ...common, type: "rectangle", ...box, shape: tool, fill: "#d9dfe5", stroke: "#6b7280", opacity: 0.68 };
+  if (tool === "rectangle" || tool === "ellipse") return { ...common, type: "rectangle", ...box, shape: tool, fill: V2_OBJECT_COLORS.object, stroke: V2_OBJECT_COLORS.objectStroke, opacity: 0.68 };
   if (tool === "rectangularArea" || tool === "ellipticArea") return { ...common, type: "area", points: [{ x: box.x, y: box.y }, { x: box.x + box.width, y: box.y }, { x: box.x + box.width, y: box.y + box.height }, { x: box.x, y: box.y + box.height }], capacity: 1, shape: tool === "rectangularArea" ? "rectangle" : "ellipse" } satisfies AreaObject;
   if (tool === "booth") return { ...common, type: "booth", ...box };
-  if (tool === "line") return { ...common, type: "line", start, end, stroke: "#5b6570", points: [start, end] };
+  if (tool === "line") return { ...common, type: "line", start, end, stroke: V2_OBJECT_COLORS.line, points: [start, end] };
   return null;
 }
 
@@ -97,15 +98,15 @@ export function createPointObject(tool: V2ToolId, point: V2Point, objectCount: n
     const table = { ...common, id, type: "table", center: point, radius: round ? 28 : 18, seatCount: round ? 6 : 8, seats: [], shape: round ? "round" : "rectangle", width: round ? 56 : 120, height: round ? 56 : 36, chairs: round ? undefined : { top: 4, right: 0, bottom: 4, left: 0 } } satisfies TableObject;
     return updateTableGeometry(table, {});
   }
-  if (tool === "text") return { ...common, type: "text", position: point, text: "텍스트", fontSize: 18, color: "#333333", weight: 500, align: "center" };
-  if (tool === "icon") return { ...common, type: "icon", position: point, icon: "people", size: 40, color: "#495057" } satisfies IconObject;
+  if (tool === "text") return { ...common, type: "text", position: point, text: "텍스트", fontSize: 18, color: V2_OBJECT_COLORS.text, weight: 500, align: "center" };
+  if (tool === "icon") return { ...common, type: "icon", position: point, icon: "people", size: 40, color: V2_OBJECT_COLORS.icon } satisfies IconObject;
   return null;
 }
 
 export function createPathObject(tool: V2ToolId, points: readonly Point[], objectCount: number): ChartObject | null {
   if (points.length < 2) return null;
   const common = { id: uid(tool), label: `${tool}-${objectCount + 1}`, layer: "interactive" as const, categoryKey: DEFAULT_CATEGORY.key };
-  if (tool === "section") return points.length >= 3 ? { ...common, type: "section", points, fill: "#d9e9f8", capacity: 0 } : null;
+  if (tool === "section") return points.length >= 3 ? { ...common, type: "section", points, fill: V2_OBJECT_COLORS.section, capacity: 0 } : null;
   if (tool === "segmentedRow") {
     const id = uid("row");
     const seats = points.slice(0, -1).flatMap((point, index) => rowSeats(point, points[index + 1] ?? point, 5, `${id}_${index}`)).filter((seat, index, all) => index === 0 || Math.hypot(seat.x - (all[index - 1]?.x ?? seat.x), seat.y - (all[index - 1]?.y ?? seat.y)) > 2).map((seat, index) => ({ ...seat, label: `${index + 1}` }));
@@ -115,9 +116,9 @@ export function createPathObject(tool: V2ToolId, points: readonly Point[], objec
   if (tool === "polygon") {
     const xs = points.map((point) => point.x);
     const ys = points.map((point) => point.y);
-    return points.length >= 3 ? { ...common, type: "rectangle", x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys), shape: "polygon", points, fill: "#d9dfe5", stroke: "#6b7280" } : null;
+    return points.length >= 3 ? { ...common, type: "rectangle", x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys), shape: "polygon", points, fill: V2_OBJECT_COLORS.object, stroke: V2_OBJECT_COLORS.objectStroke } : null;
   }
-  if (tool === "line") return { ...common, type: "line", start: points[0] ?? { x: 0, y: 0 }, end: points.at(-1) ?? { x: 0, y: 0 }, points, stroke: "#5b6570" };
+  if (tool === "line") return { ...common, type: "line", start: points[0] ?? { x: 0, y: 0 }, end: points.at(-1) ?? { x: 0, y: 0 }, points, stroke: V2_OBJECT_COLORS.line };
   return null;
 }
 
@@ -127,8 +128,8 @@ export function chartDocument(state: V2EditorState): ChartDocument {
     name: state.name,
     categories: [DEFAULT_CATEGORY],
     objects: state.objects,
-    floors: [{ id: "floor_1", name: "1층", index: 1 }],
-    activeFloorId: "floor_1",
+    floors: state.floors,
+    activeFloorId: state.activeFloorId,
     focalPoint: state.focalPoint ?? undefined,
     referenceChart: state.referencePlan ? { href: state.referencePlan.href, x: state.referencePlan.x, y: state.referencePlan.y, width: state.referencePlan.width, height: state.referencePlan.height, opacity: state.referencePlan.opacity, locked: state.referencePlan.locked } : undefined,
     assets: state.assets,

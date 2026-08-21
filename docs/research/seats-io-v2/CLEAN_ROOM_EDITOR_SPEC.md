@@ -28,6 +28,21 @@
 - Default row spacing `14 pt`; seat spacing `5 pt`.
 - Drag shows seats immediately, extends construction lines beyond endpoints, and displays the current count in a black badge.
 - `Shift` constrains to 15 degrees. `Alt` bypasses snapping. Escape cancels.
+- Segmented Row completes by clicking its last seat again or pressing `Enter`.
+- Multiple Rows uses two gestures: draw one base row, then drag perpendicular to it to choose direction and live row count. `aligned` and half-seat `staggered` layouts are available.
+- Smart guides use red for matching centers, blue for projected bounds, and green for the active drawing axis. Holding `Alt` hides node insertion handles as well as bypassing snap.
+
+## Hierarchy and properties
+
+- Floors keep editable name and abbreviation values and switch the visible editing scope without deleting other floors.
+- A Section can be entered as an independent interior scope and exited through the floor breadcrumb.
+- A selected seat exposes buyer label, wheelchair, companion, transfer-seat, restricted-view, and view-from-seat image properties. The global `좌석 시점` command opens the selected seat image in a dedicated preview.
+- Reference and object images preserve their source ratio by default. Reference imports accept up to `15 MB`.
+- Multi-selection supports edge/center alignment plus horizontal and vertical equal distribution.
+- Help opens a complete tool and keyboard reference rather than acting as a decorative button.
+- Grid visibility and snapping are independent. Theme, labels, section-content visibility, horizontal/vertical flip, and temporary `Space` pan remain available as global editor commands.
+- Mobile keeps the inspector and selected-object commands in a responsive property drawer, and the complete active-tool help reflows instead of clipping.
+- Editor colors, selection states, guide colors, surfaces, borders, and elevation consume shared semantic `--editor-*` tokens; persisted object defaults are centralized in `design-tokens.ts`.
 
 ## Shape defaults
 

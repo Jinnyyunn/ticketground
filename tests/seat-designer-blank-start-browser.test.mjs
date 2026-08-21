@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 import { beginBlank, openV2Editor } from "./seat-designer-v2-browser-utils.mjs";
 
@@ -9,6 +11,9 @@ test("the clean-room designer starts image-first and can deliberately open a bla
   assert.equal(await page.getByText("적용 공연장", { exact: true }).count(), 1);
   assert.match(await start.locator('input[type="file"]').getAttribute("accept"), /application\/pdf/);
   assert.equal(await start.getByRole("button", { name: "빈 캔버스로 시작" }).isDisabled(), false);
+  const evidenceRoot = path.resolve(".omo/evidence/seat-designer-v2/browser");
+  await mkdir(evidenceRoot, { recursive: true });
+  await page.screenshot({ path: path.join(evidenceRoot, "image-first.png"), fullPage: true });
 
   await beginBlank(page);
   assert.equal(await page.locator("[data-object-type]").count(), 0, "blank mode must not seed legacy TIG geometry");

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDraggedObject, createPathObject, createPointObject, updateTableGeometry } from "../src/components/seat-designer-v2/object-factory.ts";
+import { chartDocument, createDraggedObject, createPathObject, createPointObject, updateTableGeometry } from "../src/components/seat-designer-v2/object-factory.ts";
 
 test("place-bearing v2 objects are publishable and segmented seat labels stay unique", () => {
   const state = { seatSpacing: 5, objects: [] };
@@ -28,4 +28,22 @@ test("rectangular tables keep side chair controls and unique seat identities", (
   assert.equal(new Set(edited.seats.map((seat) => seat.id)).size, 10);
   assert.equal(edited.seats.filter((seat) => seat.y === edited.center.y - 42).length, 3);
   assert.equal(edited.seats.filter((seat) => seat.x === edited.center.x + 92).length, 2);
+});
+
+test("published documents preserve the configured floors and active floor", () => {
+  const floors = [
+    { id: "floor_1", name: "1층", abbreviation: "1F", index: 1 },
+    { id: "floor_2", name: "2층", abbreviation: "2F", index: 2 },
+  ];
+  const document = chartDocument({
+    tool: "row", name: "공연장", venue: null, objects: [], selectedIds: [],
+    selectedSeatIds: [], referencePlan: null, rowSpacing: 14, seatSpacing: 5,
+    multipleRowLayout: "aligned", focalPoint: null, draft: null,
+    pan: { x: 0, y: 0 }, zoom: 1, showGrid: true, selectionLayer: "all",
+    snapToGrid: true, showLabels: true, showSectionContents: false, darkCanvas: false,
+    status: "준비", chartId: "chart_floor", assets: [], floors,
+    activeFloorId: "floor_2", activeSectionId: null,
+  });
+  assert.deepEqual(document.floors, floors);
+  assert.equal(document.activeFloorId, "floor_2");
 });
