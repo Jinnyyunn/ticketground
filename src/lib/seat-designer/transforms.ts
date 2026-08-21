@@ -59,6 +59,41 @@ export function pointInObjectFrame(point: Point, center: Point, rotation: number
   };
 }
 
+export type ResizeCorner = "nw" | "ne" | "se" | "sw";
+
+export function resizeCornerForRotatedPointer(
+  pointer: Point,
+  bounds: ObjectBounds,
+  pivot: Point,
+  corner: ResizeCorner,
+  rotation: number,
+): Point {
+  if (rotation === 0) return pointer;
+  const alpha = (pivot.x - bounds.x) / bounds.width;
+  const beta = (pivot.y - bounds.y) / bounds.height;
+  const east = corner === "ne" || corner === "se";
+  const south = corner === "se" || corner === "sw";
+  const pivotXFactor = east ? alpha : 1 - alpha;
+  const pivotYFactor = south ? beta : 1 - beta;
+  const pivotXConstant = east ? (1 - alpha) * bounds.x : alpha * (bounds.x + bounds.width);
+  const pivotYConstant = south ? (1 - beta) * bounds.y : beta * (bounds.y + bounds.height);
+  const radians = rotation * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const a11 = pivotXFactor + cosine * (1 - pivotXFactor);
+  const a12 = -sine * (1 - pivotYFactor);
+  const a21 = sine * (1 - pivotXFactor);
+  const a22 = pivotYFactor + cosine * (1 - pivotYFactor);
+  const translatedX = pointer.x - ((1 - cosine) * pivotXConstant + sine * pivotYConstant);
+  const translatedY = pointer.y - (-sine * pivotXConstant + (1 - cosine) * pivotYConstant);
+  const determinant = a11 * a22 - a12 * a21;
+  if (Math.abs(determinant) < 1e-9) return pointInObjectFrame(pointer, pivot, rotation);
+  return {
+    x: (translatedX * a22 - a12 * translatedY) / determinant,
+    y: (a11 * translatedY - translatedX * a21) / determinant,
+  };
+}
+
 function affine(from: ObjectBounds, to: ObjectBounds) {
   const scaleX = to.width / Math.max(from.width, 1);
   const scaleY = to.height / Math.max(from.height, 1);

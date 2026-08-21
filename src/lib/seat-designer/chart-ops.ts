@@ -552,11 +552,26 @@ export function setTableProps(
   const generatedSeats = obj.shape === "rectangle"
     ? seatsAroundRectangularTable(obj.center, width, height, chairs, label, obj.categoryKey)
     : seatsAroundTable(obj.center, radius, seatCount, label, obj.categoryKey);
+  const previousChairs = obj.chairs ?? { top: 4, right: 0, bottom: 4, left: 0 };
   const geometryChanged = obj.shape === "rectangle"
-    ? width !== (obj.width ?? 120) || height !== (obj.height ?? 36) || Object.keys(chairs).some((side) => chairs[side as keyof typeof chairs] !== (obj.chairs ?? { top: 4, right: 0, bottom: 4, left: 0 })[side as keyof typeof chairs])
+    ? width !== (obj.width ?? 120) || height !== (obj.height ?? 36) || Object.keys(chairs).some((side) => chairs[side as keyof typeof chairs] !== previousChairs[side as keyof typeof chairs])
     : radius !== obj.radius || seatCount !== obj.seatCount;
+  const rectangularSeats = () => {
+    const sides = ["top", "right", "bottom", "left"] as const;
+    let previousOffset = 0;
+    let nextOffset = 0;
+    return sides.flatMap((side) => {
+      const mapped = generatedSeats.slice(nextOffset, nextOffset + chairs[side]).map((seat, index) => {
+        const previous = index < previousChairs[side] ? obj.seats[previousOffset + index] : undefined;
+        return previous ? { ...previous, x: seat.x, y: seat.y } : seat;
+      });
+      previousOffset += previousChairs[side];
+      nextOffset += chairs[side];
+      return mapped;
+    });
+  };
   const seats = geometryChanged
-    ? generatedSeats.map((seat, index) => obj.seats[index] ? { ...obj.seats[index], x: seat.x, y: seat.y } : seat)
+    ? obj.shape === "rectangle" ? rectangularSeats() : generatedSeats.map((seat, index) => obj.seats[index] ? { ...obj.seats[index], x: seat.x, y: seat.y } : seat)
     : obj.seats;
   return updateObject(chart, id, {
     radius,

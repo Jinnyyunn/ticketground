@@ -130,7 +130,7 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
                 pickImage("background", (href, asset) =>
-                  dispatch({ type: "SET_OVERLAY_ASSET", key: "backgroundImage", overlay: bg ? { ...bg, href } : defaultOverlay(href), asset, status: "배경 이미지 변경" }),
+                  dispatch({ type: "SET_OVERLAY_ASSET", key: "backgroundImage", href, fallback: defaultOverlay(href), asset, status: "배경 이미지 변경" }),
                 )
               }
             >
@@ -177,7 +177,7 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
                 pickImage("reference", (href, asset) =>
-                  dispatch({ type: "SET_OVERLAY_ASSET", key: "referenceChart", overlay: ref ? { ...ref, href } : { ...defaultOverlay(href), opacity: 0.55 }, asset, status: "참조 도면 변경" }),
+                  dispatch({ type: "SET_OVERLAY_ASSET", key: "referenceChart", href, fallback: { ...defaultOverlay(href), opacity: 0.55 }, asset, status: "참조 도면 변경" }),
                 )
               }
             >

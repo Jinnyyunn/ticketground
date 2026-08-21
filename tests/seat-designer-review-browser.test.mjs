@@ -284,7 +284,7 @@ test("locked objects remain selectable so they can be unlocked", async (t) => {
 });
 
 test("selection overlay rotates around the rendered object pivot", async (t) => {
-  const section = { id: "section", type: "section", label: "비대칭 구역", layer: "interactive", rotation: 45, points: [{ x: 100, y: 100 }, { x: 340, y: 100 }, { x: 180, y: 180 }], capacity: 30 };
+  const section = { id: "section", type: "section", label: "비대칭 구역", layer: "interactive", rotation: 135, points: [{ x: 100, y: 100 }, { x: 500, y: 100 }, { x: 500, y: 110 }, { x: 500, y: 120 }, { x: 500, y: 300 }], capacity: 30 };
   const restored = { id: "pivot-chart", name: "회전 중심", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [section] };
   const { page } = await openEditor(t, restored);
   const shape = page.locator('[data-object-id="section"] path');
@@ -314,11 +314,19 @@ test("concurrent settings uploads merge overlays and assets into the latest char
   await beginBlank(page);
   let releaseFirst;
   const firstBlocked = new Promise((resolve) => { releaseFirst = resolve; });
+  let releaseReplacement;
+  const replacementBlocked = new Promise((resolve) => { releaseReplacement = resolve; });
+  let markReplacementStarted;
+  const replacementStarted = new Promise((resolve) => { markReplacementStarted = resolve; });
   let uploadCount = 0;
   await page.route("**/api/seat-charts", async (route) => {
     if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
     uploadCount += 1;
     if (uploadCount === 1) await firstBlocked;
+    if (uploadCount === 3) {
+      markReplacementStarted();
+      await replacementBlocked;
+    }
     await route.continue();
   });
   await page.getByTitle("차트 설정 (공연장 연결·배경·참조도면·존)").click();
@@ -334,6 +342,14 @@ test("concurrent settings uploads merge overlays and assets into the latest char
   await reference.getByRole("button", { name: "도면 교체" }).waitFor();
   releaseFirst();
   await background.getByRole("button", { name: "이미지 교체" }).waitFor();
+  chooser = page.waitForEvent("filechooser");
+  await background.getByRole("button", { name: "이미지 교체" }).click();
+  await (await chooser).setFiles(path.resolve("public/images/misc/2b6c799906bc4462.png"));
+  await replacementStarted;
+  await background.locator('input[type="range"]').fill("0.25");
+  await page.getByText("차트 설정 변경", { exact: true }).waitFor();
+  releaseReplacement();
+  await page.getByText("배경 이미지 변경", { exact: true }).waitFor();
   await settings.getByRole("button").first().click();
   await page.getByRole("button", { name: "저장 후 나가기" }).click();
   await page.getByText("저장된 좌석 차트", { exact: true }).waitFor();
@@ -343,7 +359,8 @@ test("concurrent settings uploads merge overlays and assets into the latest char
   });
   assert.ok(saved.record.chart.backgroundImage);
   assert.ok(saved.record.chart.referenceChart);
-  assert.deepEqual(saved.record.chart.assets.map((asset) => asset.kind).sort(), ["background", "reference"]);
+  assert.equal(saved.record.chart.backgroundImage.opacity, 0.25);
+  assert.deepEqual(saved.record.chart.assets.map((asset) => asset.kind).sort(), ["background", "background", "reference"]);
 });
 
 test("Enter inside inspector search never commits an unfinished draft", async (t) => {
