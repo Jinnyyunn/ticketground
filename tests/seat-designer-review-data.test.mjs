@@ -102,6 +102,7 @@ test("grouped tables retain each chair category price for backend binding", () =
     { label: "T2-1", price: 100_000 },
     { label: "T2-2", price: 80_000 },
   ]);
+  assert.equal(result.seats[0].price, 180_000);
 });
 
 test("polygon-area inventory never leaves the visible polygon", () => {

@@ -45,6 +45,22 @@ test("duplicated rows regenerate canonical labels while preserving seat metadata
   assert.equal(new Set(duplicatedAgain.objects.flatMap((object) => object.seats?.map((seat) => seat.label) ?? [])).size, 6);
 });
 
+test("copy labels remain unique under backend whitespace normalization", () => {
+  const source = {
+    ...section.nestedRows[0],
+    seats: section.nestedRows[0].seats.map((seat, index) => ({ ...seat, label: `A-${index + 1}` })),
+  };
+  const compactCopy = {
+    ...source,
+    id: "compact-copy",
+    label: "A복사",
+    seats: source.seats.map((seat, index) => ({ ...seat, id: `compact-${index}`, label: `A복사-${index + 1}` })),
+  };
+  const duplicated = duplicateObjects({ ...chart, objects: [source, compactCopy] }, [source.id], 24);
+  assert.equal(duplicated.objects[2].label, "A 복사 2");
+  assert.deepEqual(duplicated.objects[2].seats.map((seat) => seat.label), ["A 복사 2-1", "A 복사 2-2"]);
+});
+
 test("flipping visible geometry negates top-level and nested rotations", () => {
   const rotatedSection = {
     ...section,

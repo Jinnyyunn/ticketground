@@ -34,8 +34,12 @@ export function bindChartLayoutToBackendSeats(
       const minimum = layoutSeat.bookingMode === "whole"
         ? backendGroup.length
         : Math.max(1, layoutSeat.minOccupancy ?? 1);
+      const pricedSeats = layoutSeat.bookingMode === "whole"
+        ? backendGroup
+        : backendGroup.filter((seat) => seat.available).slice(0, minimum);
       bound.push({
         ...layoutSeat,
+        price: pricedSeats.reduce((sum, seat) => sum + seat.price, 0),
         backendTicketIds: backendGroup.map((seat) => seat.id),
         availableTicketIds,
         sold: availableTicketIds.length < minimum,

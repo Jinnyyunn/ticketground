@@ -218,6 +218,54 @@ test("variable table markers select the requested backend chair tickets as one u
   assert.deepEqual(checkout.searchParams.get("ticketIds")?.split(","), ["table-ticket-1", "table-ticket-2"]);
 });
 
+test("whole-table markers display the exact mixed-tier total before selection", async (t) => {
+  const { baseUrl } = await startServer(t);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  t.after(() => page.close());
+
+  const backendSeats = [
+    { ...apiSeat("mixed-vip", "T2-1", 46), price: 190000 },
+    { ...apiSeat("mixed-r", "T2-2", 54), price: 160000 },
+  ];
+  await page.route("**/api/seat-map?**", (route) => route.fulfill({ json: seatMapEnvelope(backendSeats) }));
+  await page.route("**/api/seat-charts/for-show/iu-world-tour?**", (route) => route.fulfill({
+    json: {
+      ok: true,
+      source: "published",
+      chart: null,
+      record: { id: "mixed-table-chart", name: "혼합 등급 테이블", boundVenue: { id: "venue-1", name: "예술의전당" } },
+      inventory: {
+        seats: [{
+          id: "mixed-table",
+          label: "T2",
+          displayLabel: "T2",
+          tier: "VIP",
+          price: 350000,
+          sold: false,
+          x: 50,
+          y: 50,
+          objectId: "table-2",
+          objectType: "table",
+          bookingMode: "whole",
+          memberLabels: ["T2-1", "T2-2"],
+          memberSeats: [{ label: "T2-1", price: 190000 }, { label: "T2-2", price: 160000 }],
+        }],
+        bounds: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+      },
+    },
+  }));
+
+  await openSeatStep(page, baseUrl);
+  const table = page.locator('[data-seat-map-seat="mixed-table"]');
+  await table.waitFor();
+  assert.match(await table.getAttribute("aria-label"), /350,000원$/);
+  await table.click();
+  await page.locator("aside").getByText("350,000원", { exact: true }).waitFor();
+  await page.locator("aside").getByText("2/2매", { exact: true }).waitFor();
+});
+
 test("published charts keep sold-seat spacing, visible labels, and reliable mobile scrolling", async (t) => {
   const { baseUrl } = await startServer(t);
   const browser = await chromium.launch({ channel: "chrome", headless: true });

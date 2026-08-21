@@ -77,7 +77,7 @@ export function chartToSellableSeats(
     object: ChartObject,
     objectType: ChartObject["type"],
     fallbackCategory?: string,
-    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy" | "memberLabels" | "memberSeats">,
+    booking?: Pick<SellableSeat, "bookingMode" | "minOccupancy" | "maxOccupancy" | "memberLabels" | "memberSeats" | "price">,
   ) => {
     const position = object.rotation
       ? rotateAround(place, objectCenter(object), object.rotation)
@@ -119,6 +119,9 @@ export function chartToSellableSeats(
           const memberTier = tierFromCategory(chart, seat.categoryKey ?? obj.categoryKey).tier;
           return { label: seat.label, price: prices[memberTier] };
         });
+        const bookingPrice = memberSeats
+          .slice(0, obj.variableOccupancy ? Math.max(1, obj.minOccupancy ?? 1) : memberSeats.length)
+          .reduce((sum, member) => sum + member.price, 0);
         pushSeat(
           {
             id: `${obj.id}__whole`,
@@ -132,8 +135,8 @@ export function chartToSellableSeats(
           "table",
           obj.categoryKey,
           obj.variableOccupancy
-            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount, memberLabels: obj.seats.map((seat) => seat.label), memberSeats }
-            : { bookingMode: "whole", memberLabels: obj.seats.map((seat) => seat.label), memberSeats },
+            ? { bookingMode: "variable", minOccupancy: obj.minOccupancy ?? 1, maxOccupancy: obj.maxOccupancy ?? obj.seatCount, memberLabels: obj.seats.map((seat) => seat.label), memberSeats, price: bookingPrice }
+            : { bookingMode: "whole", memberLabels: obj.seats.map((seat) => seat.label), memberSeats, price: bookingPrice },
         );
       } else {
         for (const s of obj.seats) pushSeat(s, obj, "table", obj.categoryKey);

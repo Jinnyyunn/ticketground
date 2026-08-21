@@ -216,6 +216,7 @@ test("binds grouped table members with their individual category prices", () => 
   const bound = bindChartLayoutToBackendSeats([groupedTable], backend);
 
   assert.deepEqual(bound[0].backendTicketIds, ["ticket-vip", "ticket-r"]);
+  assert.equal(bound[0].price, 350000);
   assert.equal(chartCoversAllBackendSeats(bound, backend), true);
 });
 

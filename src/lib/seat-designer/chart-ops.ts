@@ -210,15 +210,16 @@ function objectLabels(objects: readonly ChartObject[]): readonly string[] {
 }
 
 export function cloneObjectsWithUniqueLabels(chart: ChartDocument, objects: readonly ChartObject[], d: number): readonly ChartObject[] {
-  const used = new Set(objectLabels(chart.objects));
+  const normalize = (value: string) => value.trim().toLocaleLowerCase("ko-KR").replaceAll(/\s+/g, "");
+  const used = new Set(objectLabels(chart.objects).map(normalize));
   const nextLabel = (source: string) => {
     let candidate = `${source} 복사`;
     let copy = 2;
-    while (used.has(candidate)) {
+    while (used.has(normalize(candidate))) {
       candidate = `${source} 복사 ${copy}`;
       copy += 1;
     }
-    used.add(candidate);
+    used.add(normalize(candidate));
     return candidate;
   };
   return objects.map((object) => cloneObjectWithOffset(object, d, nextLabel));
