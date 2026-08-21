@@ -37,12 +37,14 @@ test("reference defaults are preserved by the matching creation modes", () => {
   const common = { start, end, points: [start, { x: 70, y: 20 }, end], sequence: 1, floorId: "floor-1", categoryKey: "vip" };
   const roundTable = createObjectForTool({ ...common, tool: "table", mode: "tableRound" });
   assert.equal(roundTable.seatCount, 6);
+  assert.deepEqual(roundTable.seats.map((seat) => seat.label), ["테이블 1-1", "테이블 1-2", "테이블 1-3", "테이블 1-4", "테이블 1-5", "테이블 1-6"]);
 
   const rectangularTable = createObjectForTool({ ...common, tool: "table", mode: "tableRectangular", end: start });
   assert.equal(rectangularTable.shape, "rectangle");
   assert.equal(rectangularTable.width, 120);
   assert.equal(rectangularTable.height, 36);
   assert.deepEqual(rectangularTable.chairs, { top: 4, right: 0, bottom: 4, left: 0 });
+  assert.deepEqual(rectangularTable.seats.map((seat) => seat.label), Array.from({ length: 8 }, (_, index) => `테이블 1-${index + 1}`));
 
   const booth = createObjectForTool({ ...common, tool: "booth", start, end: start, mode: "booth" });
   assert.equal(booth.width, 50);

@@ -158,7 +158,10 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
   const maximumQuantity = useMemo(() => Math.max(
     maxSelectableSeats,
     ...boundChartSeats.map((seat) => {
-      if (seat.bookingMode === "variable") return seat.maxOccupancy ?? maxSelectableSeats;
+      if (seat.bookingMode === "variable") return Math.min(
+        seat.maxOccupancy ?? maxSelectableSeats,
+        seat.availableTicketIds?.length ?? seat.memberLabels?.length ?? maxSelectableSeats,
+      );
       if (seat.bookingMode === "whole") return seat.availableTicketIds?.length ?? seat.memberLabels?.length ?? maxSelectableSeats;
       return maxSelectableSeats;
     }),

@@ -58,7 +58,7 @@ test("rectangular table chairs have unique sequential labels at creation", () =>
     points: [{ x: 0, y: 0 }, { x: 120, y: 36 }],
   });
   assert.ok(table);
-  assert.deepEqual(table.seats.map((seat) => seat.label), ["1", "2", "3", "4", "5", "6", "7", "8"]);
+  assert.deepEqual(table.seats.map((seat) => seat.label), ["테이블 1-1", "테이블 1-2", "테이블 1-3", "테이블 1-4", "테이블 1-5", "테이블 1-6", "테이블 1-7", "테이블 1-8"]);
 });
 
 test("row creation applies the declared five-point gap between ten-point seats", () => {

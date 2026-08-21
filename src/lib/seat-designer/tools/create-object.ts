@@ -22,10 +22,10 @@ function lineSeats(start: Point, end: Point, count: number, rowLabel: string) {
   });
 }
 
-function tableSeats(center: Point, radius: number, count: number) {
+function tableSeats(center: Point, radius: number, count: number, tableLabel: string) {
   return Array.from({ length: count }, (_, index) => {
     const angle = (index / count) * Math.PI * 2 - Math.PI / 2;
-    return { id: uid("seat"), label: String(index + 1), x: center.x + Math.cos(angle) * (radius + 14), y: center.y + Math.sin(angle) * (radius + 14) };
+    return { id: uid("seat"), label: `${tableLabel}-${index + 1}`, x: center.x + Math.cos(angle) * (radius + 14), y: center.y + Math.sin(angle) * (radius + 14) };
   });
 }
 
@@ -41,7 +41,7 @@ function sideSeats(start: Point, end: Point, count: number, offset: Point): Seat
   });
 }
 
-function rectangularTableSeats(center: Point, width: number, height: number) {
+function rectangularTableSeats(center: Point, width: number, height: number, tableLabel: string) {
   const left = center.x - width / 2;
   const right = center.x + width / 2;
   const top = center.y - height / 2;
@@ -49,7 +49,7 @@ function rectangularTableSeats(center: Point, width: number, height: number) {
   return [
     ...sideSeats({ x: left, y: top }, { x: right, y: top }, 4, { x: 0, y: -14 }),
     ...sideSeats({ x: right, y: bottom }, { x: left, y: bottom }, 4, { x: 0, y: 14 }),
-  ].map((seat, index) => ({ ...seat, label: String(index + 1) }));
+  ].map((seat, index) => ({ ...seat, label: `${tableLabel}-${index + 1}` }));
 }
 
 function pathLength(points: readonly Point[]): number {
@@ -105,6 +105,7 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
     return { id: uid("section"), type: "section", label: `구역 ${input.sequence}`, layer: "interactive", categoryKey: input.categoryKey, points: [...input.points], ...common };
   }
   if (input.tool === "table") {
+    const tableLabel = `테이블 ${input.sequence}`;
     if (input.mode === "tableRectangular") {
       const tableWidth = width < 4 ? 120 : width;
       const tableHeight = height < 4 ? 36 : height;
@@ -112,7 +113,7 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
       return {
         id: uid("table"),
         type: "table",
-        label: `테이블 ${input.sequence}`,
+        label: tableLabel,
         layer: "interactive",
         categoryKey: input.categoryKey,
         center,
@@ -122,12 +123,12 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
         width: tableWidth,
         height: tableHeight,
         chairs: { top: 4, right: 0, bottom: 4, left: 0 },
-        seats: rectangularTableSeats(center, tableWidth, tableHeight),
+        seats: rectangularTableSeats(center, tableWidth, tableHeight, tableLabel),
         ...common,
       };
     }
     const radius = Math.max(18, Math.hypot(width, height));
-    return { id: uid("table"), type: "table", label: `테이블 ${input.sequence}`, layer: "interactive", categoryKey: input.categoryKey, center: input.start, radius, seatCount: 6, shape: "round", seats: tableSeats(input.start, radius, 6), ...common };
+    return { id: uid("table"), type: "table", label: tableLabel, layer: "interactive", categoryKey: input.categoryKey, center: input.start, radius, seatCount: 6, shape: "round", seats: tableSeats(input.start, radius, 6, tableLabel), ...common };
   }
   if (input.tool === "area") {
     const polygonal = input.mode === "areaPolygon" || input.mode === "area" || input.mode == null;

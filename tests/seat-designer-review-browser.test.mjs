@@ -378,6 +378,9 @@ test("save and publish stay disabled until an image upload settles", async (t) =
   await uploadStarted;
   assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isDisabled(), true);
   assert.equal(await page.getByTestId("seat-designer-publish").isDisabled(), true);
+  await page.getByTitle("미리보기").click();
+  assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isDisabled(), true, "preview publishing must remain blocked during uploads");
+  await page.getByRole("button", { name: "미리보기 종료", exact: true }).click();
   releaseUpload();
   await page.locator('[data-object-type="image"]').waitFor();
   assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isEnabled(), true);
@@ -454,6 +457,21 @@ test("active image mode accepts a file dropped on the canvas", async (t) => {
     element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
   }, png.toString("base64"));
   await page.locator('[data-object-type="image"]').waitFor();
+});
+
+test("compact image import fits the new image into the current canvas", async (t) => {
+  const farObject = { id: "far-stage", type: "rectangle", shape: "rectangle", label: "먼 무대", layer: "background", x: 5000, y: 5000, width: 300, height: 180 };
+  const restored = { id: "far-chart", name: "이동된 차트", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [farObject] };
+  const { page } = await openEditor(t, restored);
+  const canvas = page.getByTestId("designer-canvas");
+  const canvasBox = await canvas.boundingBox();
+  assert.ok(canvasBox);
+  await page.getByText("이미지 불러오기", { exact: true }).locator("..").locator('input[type="file"]').setInputFiles(path.resolve("public/images/header/partner-nol.png"));
+  const image = page.locator('[data-object-type="image"]');
+  await image.waitFor();
+  const imageBox = await image.boundingBox();
+  assert.ok(imageBox);
+  assert.ok(imageBox.x < canvasBox.x + canvasBox.width && imageBox.x + imageBox.width > canvasBox.x && imageBox.y < canvasBox.y + canvasBox.height && imageBox.y + imageBox.height > canvasBox.y, "imported image must be visible in the canvas viewport");
 });
 
 test("locked objects remain selectable so they can be unlocked", async (t) => {

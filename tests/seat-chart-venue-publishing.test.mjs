@@ -57,6 +57,11 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   await page.mouse.move(canvasBox.x + 620, canvasBox.y + 260);
   await page.mouse.up();
   await page.locator('[data-object-type="row"]').waitFor();
+  await page.getByTestId("tool-image").click();
+  const imageChooser = page.waitForEvent("filechooser");
+  await page.mouse.click(canvasBox.x + 700, canvasBox.y + 380);
+  await (await imageChooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
+  await page.locator('[data-object-type="image"]').waitFor();
 
   const beforePublish = await fetch(`${server.baseUrl}/api/seat-charts/for-show/${encodeURIComponent(event.slug)}`);
   assert.equal(beforePublish.status, 200);
@@ -90,6 +95,8 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   const published = await response.json();
   assert.equal(published.source, "published");
   assert.deepEqual(published.record.boundVenue, { id: venue.id, name: venue.name });
+  assert.ok(published.chart.assets.length > 0);
+  assert.equal(published.chart.assets.some((asset) => "originalName" in asset), false, "buyer chart must not expose admin file names");
 
   const credentialResponse = await fetch(`${server.adminUrl}/api/seat-charts`, {
     method: "POST",

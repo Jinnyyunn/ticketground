@@ -237,7 +237,7 @@ test("variable table markers price the buyer's requested occupancy", async (t) =
     chart: null,
     record: { id: "variable-price-chart", name: "가변 가격 테이블", boundVenue: { id: "venue-1", name: "예술의전당" } },
     inventory: {
-      seats: [{ id: "variable-table", label: "T3", displayLabel: "T3", tier: "VIP", price: 350000, sold: false, x: 50, y: 50, objectId: "table-3", objectType: "table", bookingMode: "variable", minOccupancy: 2, maxOccupancy: 4, memberLabels: ["T3-1", "T3-2", "T3-3", "T3-4"], memberSeats: [{ label: "T3-1", price: 190000 }, { label: "T3-2", price: 160000 }, { label: "T3-3", price: 120000 }, { label: "T3-4", price: 80000 }] }],
+      seats: [{ id: "variable-table", label: "T3", displayLabel: "T3", tier: "VIP", price: 350000, sold: false, x: 50, y: 50, objectId: "table-3", objectType: "table", bookingMode: "variable", minOccupancy: 2, maxOccupancy: 8, memberLabels: ["T3-1", "T3-2", "T3-3", "T3-4"], memberSeats: [{ label: "T3-1", price: 190000 }, { label: "T3-2", price: 160000 }, { label: "T3-3", price: 120000 }, { label: "T3-4", price: 80000 }] }],
       bounds: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
     },
   } }));
@@ -245,6 +245,7 @@ test("variable table markers price the buyer's requested occupancy", async (t) =
   await page.goto(`${baseUrl}/booking/iu-world-tour`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "9월 12일" }).click();
   await page.getByRole("button", { name: "19:00" }).click();
+  assert.equal(await page.getByRole("button", { name: "5매" }).count(), 0, "quantity options must not exceed available table chairs");
   await page.getByRole("button", { name: "4매" }).click();
   await page.getByRole("button", { name: "좌석 선택으로 이동" }).click();
   const table = page.locator('[data-seat-map-seat="variable-table"]');

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getShowBySlug } from "@/data/catalog-server";
 import { chartToSellableSeats, type SellableTier } from "@/lib/seat-charts/inventory";
+import { publicSeatChartDocument } from "@/lib/seat-charts/public-revision";
 import { getPublishedChartForVenue } from "@/lib/seat-charts/store";
+import type { SeatChartDocumentV2 } from "@/types/seat-chart";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +53,7 @@ export async function GET(
       updatedAt: rec.updatedAt,
       published: rec.chart.published,
     },
-    chart: rec.chart,
+    chart: publicSeatChartDocument(rec.chart as SeatChartDocumentV2),
     inventory,
   });
 }

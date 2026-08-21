@@ -14,15 +14,9 @@ export type PublicSeatChartRevision = {
   readonly document: PublicSeatChartDocument;
 };
 
-export function publicSeatChartRevision(revision: PublishedVenueRevision): PublicSeatChartRevision {
-  const { id, name, categories, objects, floors, activeFloorId, focalPoint, backgroundImage, referenceChart, version, chartKey, venueId, venueName, venueType, zones, assets } = revision.document;
+export function publicSeatChartDocument(document: SeatChartDocumentV2): PublicSeatChartDocument {
+  const { id, name, categories, objects, floors, activeFloorId, focalPoint, backgroundImage, referenceChart, version, chartKey, venueId, venueName, venueType, zones, assets } = document;
   return {
-    chartKey: revision.chartKey,
-    revisionId: revision.revisionId,
-    venueId: revision.venueId,
-    publishedAt: revision.publishedAt,
-    contentHash: revision.contentHash,
-    document: {
       id,
       name,
       categories,
@@ -47,7 +41,17 @@ export function publicSeatChartRevision(revision: PublishedVenueRevision): Publi
         ...(page === undefined ? {} : { page }),
         contentHash,
       })),
-    },
+  };
+}
+
+export function publicSeatChartRevision(revision: PublishedVenueRevision): PublicSeatChartRevision {
+  return {
+    chartKey: revision.chartKey,
+    revisionId: revision.revisionId,
+    venueId: revision.venueId,
+    publishedAt: revision.publishedAt,
+    contentHash: revision.contentHash,
+    document: publicSeatChartDocument(revision.document),
   };
 }
 

@@ -96,7 +96,7 @@ type Action =
   | { type: "RESTORE_LOCAL"; chart: ChartDocument }
   | { type: "BEGIN_ASSET_REQUEST"; key: string; requestId: string }
   | { type: "END_ASSET_REQUEST"; key: string; requestId: string }
-  | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean; targetChartId?: string; targetChartGeneration?: number; requestKey?: string; requestId?: string }
+  | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean; fit?: boolean; targetChartId?: string; targetChartGeneration?: number; requestKey?: string; requestId?: string }
   | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; aspectRatio: number; label: string; asset: SeatChartAsset; status: string; targetChartId: string; targetChartGeneration: number; requestKey: string; requestId: string }
   | { type: "SET_OVERLAY_ASSET"; key: "backgroundImage" | "referenceChart"; href: string; fallback: OverlayImage; replacesHref?: string; asset: SeatChartAsset; status: string; targetChartId: string; targetChartGeneration: number; requestKey: string; requestId: string }
   | { type: "SET_TOOL"; tool: ToolId }
@@ -222,9 +222,10 @@ function reducer(state: EditorState, action: Action): EditorState {
       const assetRequestIds = action.requestKey ? withoutAssetRequest(state, action.requestKey) : state.assetRequestIds;
       const chart = addObject(state.chart, action.object);
       const next = pushHistory({ ...state, assetRequestIds }, action.asset ? withChartAsset(chart, action.asset) : chart, action.status);
+      const fitted = { ...next, fitGeneration: action.fit ? next.fitGeneration + 1 : next.fitGeneration };
       return action.select
-        ? { ...next, selectedIds: [action.object.id], selectedSeatIds: [], tool: "select", toolMode: "select" }
-        : next;
+        ? { ...fitted, selectedIds: [action.object.id], selectedSeatIds: [], tool: "select", toolMode: "select" }
+        : fitted;
     }
     case "PATCH_IMAGE_ASSET": {
       if (action.targetChartId !== state.chart.id || action.targetChartGeneration !== state.chartGeneration || state.assetRequestIds[action.requestKey] !== action.requestId) return state;

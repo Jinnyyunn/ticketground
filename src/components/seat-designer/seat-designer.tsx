@@ -21,6 +21,7 @@ export function SeatDesigner() {
   const [layersOpen, setLayersOpen] = useState(false);
   const [newChartOpen, setNewChartOpen] = useState(true);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const assetUploadPending = Object.keys(state.assetRequestIds).length > 0;
 
   if (libraryOpen) {
     return (
@@ -74,7 +75,8 @@ export function SeatDesigner() {
             )}
             <button
               type="button"
-              className="rounded-md bg-white/10 px-3 py-1.5 hover:bg-white/15"
+              disabled={assetUploadPending}
+              className="rounded-md bg-white/10 px-3 py-1.5 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={() => void api.publishToServer(true)}
             >
               게시
