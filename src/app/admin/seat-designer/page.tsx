@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SeatDesigner } from "@/components/seat-designer/seat-designer";
+import { SeatDesignerV2 } from "@/components/seat-designer-v2/seat-designer-v2";
 
 export const metadata: Metadata = {
   title: "좌석 배치 디자이너 · Ticketground",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function SeatDesignerPage() {
-  return <SeatDesigner />;
+  return <SeatDesignerV2 />;
 }

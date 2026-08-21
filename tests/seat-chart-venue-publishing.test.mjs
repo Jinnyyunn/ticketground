@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 import { bootstrapAdminPassword, startServer } from "./backend-test-utils.mjs";
+import { chooseTool } from "./seat-designer-v2-browser-utils.mjs";
 
 async function adminCookie(adminUrl) {
   const response = await fetch(`${adminUrl}/api/admin/login`, {
@@ -41,23 +42,22 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   assert.ok(event);
   const venue = venues.data.venues.find((item) => item.id === event.venueId);
   assert.ok(venue);
-  const initialDialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
-  await initialDialog.locator("select").selectOption(venue.id);
-  await initialDialog.getByRole("button", { name: "빈 캔버스" }).click();
-  await initialDialog.waitFor({ state: "hidden" });
-  const canvas = page.getByTestId("designer-canvas");
+  const start = page.getByTestId("seat-designer-v2-reference-start");
+  await start.getByTestId("seat-designer-v2-venue").selectOption(venue.id);
+  await start.getByRole("button", { name: "빈 캔버스로 시작" }).click();
+  await start.waitFor({ state: "hidden" });
+  const canvas = page.getByTestId("seat-designer-v2-canvas");
   const canvasBox = await canvas.boundingBox();
   assert.ok(canvasBox);
-  await page.getByTestId("tool-focal").click();
+  await chooseTool(page, "focal");
   await page.mouse.click(canvasBox.x + 500, canvasBox.y + 120);
-  await page.getByTestId("tool-row").click();
-  await page.locator('[role="menuitem"][data-mode="row"]').click();
+  await chooseTool(page, "row");
   await page.mouse.move(canvasBox.x + 380, canvasBox.y + 260);
   await page.mouse.down();
   await page.mouse.move(canvasBox.x + 620, canvasBox.y + 260);
   await page.mouse.up();
   await page.locator('[data-object-type="row"]').waitFor();
-  await page.getByTestId("tool-image").click();
+  await chooseTool(page, "image");
   const imageChooser = page.waitForEvent("filechooser");
   await page.mouse.click(canvasBox.x + 700, canvasBox.y + 380);
   await (await imageChooser).setFiles({ name: "Jinny-private-plan.png", mimeType: "image/png", buffer: await readFile(path.resolve("public/images/header/partner-nol.png")) });
@@ -74,13 +74,7 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   assert.equal(await seatEntry.isDisabled(), true, "unpublished venue chart must fail closed in booking");
   await buyerPage.close();
 
-  await page.getByRole("button", { name: "설정", exact: true }).click();
-  const modal = page.locator("div.fixed.inset-0.z-50");
-  await modal.getByText("공연장", { exact: true }).waitFor();
-  assert.doesNotMatch(await modal.innerText(), /예매 적용 공연|연결된 공연/);
-  const venueButton = modal.getByRole("button", { name: venue.name, exact: true });
-  if (await venueButton.getAttribute("aria-pressed") !== "true") await venueButton.click();
-  await modal.locator("button").first().click();
+  assert.doesNotMatch(await page.getByTestId("seat-designer-v2-shell").innerText(), /예매 적용 공연|연결된 공연/);
 
   const publishButton = page.getByRole("button", { name: "게시", exact: true });
   assert.equal(await publishButton.isEnabled(), true);
@@ -88,7 +82,7 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   await publishButton.click();
   const publishResponse = await publishResponsePromise;
   assert.equal(publishResponse.status(), 200, `${publishResponse.url()} ${await publishResponse.text()}`);
-  await page.getByRole("button", { name: "게시됨", exact: true }).waitFor();
+  await page.getByText("게시 완료", { exact: true }).waitFor();
 
   const response = await fetch(`${server.baseUrl}/api/seat-charts/for-show/${encodeURIComponent(event.slug)}`);
   assert.equal(response.status, 200);

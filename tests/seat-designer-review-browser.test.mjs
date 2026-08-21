@@ -1,217 +1,58 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
-import os from "node:os";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "playwright";
-import sharp from "sharp";
-import { bootstrapAdminPassword, startServer } from "./backend-test-utils.mjs";
+import {
+  beginBlank,
+  beginWithReference,
+  canvasGeometry,
+  chooseTool,
+  openV2Editor,
+  selectVenue,
+} from "./seat-designer-v2-browser-utils.mjs";
 
-async function login(adminUrl) {
-  const response = await fetch(`${adminUrl}/api/admin/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "admin", password: bootstrapAdminPassword }),
-  });
-  assert.equal(response.status, 200);
-  const pair = response.headers.get("set-cookie").split(";")[0];
-  const separator = pair.indexOf("=");
-  return { name: pair.slice(0, separator), value: pair.slice(separator + 1) };
-}
-
-async function openEditor(t, initialize) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "ticketground-review-browser-"));
-  await mkdir(path.join(root, "charts"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const server = await startServer(t, { env: { TIG_SEAT_CHART_DATA_DIR: path.join(root, "charts"), TIG_SEAT_CHART_CREDENTIAL_DIR: path.join(root, "credentials") } });
-  const cookie = await login(server.adminUrl);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
-  t.after(() => browser.close());
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addCookies([{ ...cookie, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Lax" }]);
-  await context.addInitScript((seed) => {
-    localStorage.setItem("ticketground.seat-designer.tutorial.v1", "done");
-    if (seed && !localStorage.getItem("ticketground.seat-designer.chart.v5")) {
-      localStorage.setItem("ticketground.seat-designer.chart.v5", JSON.stringify(seed));
-    }
-  }, initialize ?? null);
-  const page = await context.newPage();
-  page.setDefaultTimeout(8_000);
-  await page.goto(`${server.adminUrl}/admin/seat-designer`, { waitUntil: "networkidle" });
-  await page.getByTestId("seat-designer-shell").waitFor();
-  return { page, server };
-}
-
-async function beginBlank(page) {
-  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
-  await dialog.locator("select").selectOption({ index: 1 });
-  await dialog.getByRole("button", { name: "빈 캔버스" }).click();
-  await dialog.waitFor({ state: "hidden" });
-}
-
-test("a restored local draft bypasses the destructive new-chart dialog", async (t) => {
-  const restored = {
-    id: "restored-chart",
-    name: "복원된 초안",
-    categories: [{ key: "vip", label: "VIP", color: "#111111" }],
-    floors: [{ id: "floor-1", name: "1층", index: 1 }],
-    activeFloorId: "floor-1",
-    objects: [{ id: "row-1", type: "row", label: "A", layer: "interactive", start: { x: 100, y: 100 }, end: { x: 300, y: 100 }, seatCount: 2, seats: [{ id: "a1", label: "1", x: 100, y: 100 }, { id: "a2", label: "2", x: 300, y: 100 }] }],
-  };
-  const { page } = await openEditor(t, restored);
-  assert.equal(await page.locator(".seat-designer-toolbar input").inputValue(), "복원된 초안");
-  assert.equal(await page.getByRole("dialog", { name: "새 좌석 차트 만들기" }).count(), 0);
-  assert.equal(await page.locator('[data-object-id="row-1"]').count(), 1);
-});
-
-test("new rows avoid canonical labels retained by renamed objects", async (t) => {
-  const retained = {
-    id: "renamed-row",
-    type: "row",
-    label: "B",
-    layer: "interactive",
-    start: { x: 100, y: 100 },
-    end: { x: 300, y: 100 },
-    seatCount: 2,
-    seats: [{ id: "r2-1", label: "R2-1", x: 100, y: 100 }, { id: "r2-2", label: "R2-2", x: 300, y: 100 }],
-  };
-  const restored = { id: "row-collision", name: "행 라벨", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [retained] };
-  const { page } = await openEditor(t, restored);
-  const canvas = page.getByTestId("designer-canvas");
-  const box = await canvas.boundingBox();
-  assert.ok(box);
-  await page.getByTestId("tool-row").click();
-  await page.locator('[role="menuitem"][data-mode="row"]').click();
-  await page.mouse.move(box.x + 500, box.y + 300);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 700, box.y + 300);
-  await page.mouse.up();
-  const labelInput = page.getByTestId("seat-designer-inspector").locator("input").first();
-  assert.notEqual(await labelInput.inputValue(), "R2");
-});
-
-test("browser draft save persists edits without exiting the designer", async (t) => {
-  const restored = { id: "save-draft", name: "저장 전", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [] };
-  const { page } = await openEditor(t, restored);
-  const name = page.locator(".seat-designer-toolbar input");
-  await name.fill("저장 후");
-  await page.getByTitle("브라우저에 저장").click();
-  await page.reload({ waitUntil: "networkidle" });
-  await page.getByTestId("seat-designer-shell").waitFor();
-  assert.equal(await page.locator(".seat-designer-toolbar input").inputValue(), "저장 후");
-});
-
-test("the initial dialog opens the existing server chart library without saving", async (t) => {
-  const { page } = await openEditor(t);
-  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
-  await dialog.getByRole("button", { name: "기존 차트 열기" }).click();
-  await page.getByTestId("seat-chart-library-screen").waitFor();
-  assert.equal(await dialog.count(), 0);
-});
-
-test("a failed existing-chart load keeps the library open for retry", async (t) => {
-  const { page } = await openEditor(t);
-  await page.route("**/api/seat-charts", (route) => {
-    if (route.request().method() !== "GET") return route.continue();
-    return route.fulfill({ json: { ok: true, charts: [{ id: "broken-chart", name: "불러오기 실패 차트", placeCount: 10, published: false, boundVenue: null }] } });
-  });
-  await page.route("**/api/seat-charts/broken-chart", (route) => route.fulfill({ status: 500, json: { ok: false } }));
-  await page.getByRole("dialog", { name: "새 좌석 차트 만들기" }).getByRole("button", { name: "기존 차트 열기" }).click();
-  const library = page.getByTestId("seat-chart-library-screen");
-  await library.getByText("불러오기 실패 차트", { exact: true }).waitFor();
-  await library.getByRole("button", { name: "열기", exact: true }).click();
-  await page.getByText("불러오기 실패", { exact: true }).waitFor();
-  await library.waitFor();
-});
-
-test("snap, Shift, clipboard, lock, and table inspectors preserve their visible contracts", async (t) => {
-  const { page } = await openEditor(t);
+test("image uploads preserve intervening edits and block save or publish until settled", async (t) => {
+  const { page, runtimeErrors } = await openV2Editor(t);
   await beginBlank(page);
-  const canvas = page.getByTestId("designer-canvas");
-  const box = await canvas.boundingBox();
-  assert.ok(box);
-  const point = (x, y) => ({ x: box.x + x, y: box.y + y });
-  const drag = async (from, to) => {
-    await page.mouse.move(from.x, from.y);
-    await page.mouse.down();
-    await page.mouse.move(to.x, to.y);
-    await page.mouse.up();
-  };
+  let releaseUpload;
+  let uploadStarted;
+  const release = new Promise((resolve) => { releaseUpload = resolve; });
+  const started = new Promise((resolve) => { uploadStarted = resolve; });
+  await page.route("**/api/seat-charts", async (route) => {
+    if (route.request().method() === "POST" && route.request().headers()["content-type"]?.includes("multipart/form-data")) {
+      uploadStarted();
+      await release;
+    }
+    await route.continue();
+  });
 
-  await page.getByTitle("그리드에 맞추기").click();
-  await page.getByTestId("tool-row").click();
-  await page.locator('[role="menuitem"][data-mode="row"]').click();
-  await drag(point(101.5, 111.5), point(204.5, 145.5));
-  const freeRow = page.locator('[data-object-type="row"]').first();
-  const freeX = Number(await freeRow.locator("circle").first().getAttribute("cx"));
-  assert.notEqual(Math.round(freeX * 1000) % 8000, 0, "snap-off coordinates must remain free");
+  const { click } = await canvasGeometry(page);
+  await chooseTool(page, "image");
+  const chooser = page.waitForEvent("filechooser");
+  await click(280, 230);
+  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
+  await started;
+  await page.getByRole("button", { name: "게시", exact: true }).waitFor({ state: "visible" });
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((button) => button.textContent?.trim() === "게시" && button.disabled));
+  assert.equal(await page.getByRole("button", { name: "저장", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isDisabled(), true);
 
-  await page.keyboard.down("Shift");
-  await drag(point(310, 130), point(485, 195));
-  await page.keyboard.up("Shift");
-  const constrained = page.locator('[data-object-type="row"]').nth(1);
-  const constrainedSeats = constrained.locator("circle");
-  const first = { x: Number(await constrainedSeats.first().getAttribute("cx")), y: Number(await constrainedSeats.first().getAttribute("cy")) };
-  const last = { x: Number(await constrainedSeats.last().getAttribute("cx")), y: Number(await constrainedSeats.last().getAttribute("cy")) };
-  const angle = Math.atan2(last.y - first.y, last.x - first.x) * 180 / Math.PI;
-  assert.ok(Math.abs(angle / 15 - Math.round(angle / 15)) < 0.01, `row angle ${angle} must honor Shift`);
-
-  await page.getByTestId("tool-row").click();
-  await page.locator('[role="menuitem"][data-mode="rowSegmented"]').click();
-  for (const location of [point(600, 180), point(680, 240), point(760, 180)]) await page.mouse.click(location.x, location.y);
-  await page.keyboard.press("Enter");
-  const segmented = page.locator('[data-object-type="row"]').last();
-  const sourcePoints = (await segmented.locator("polyline").first().getAttribute("points")).split(" ").map((entry) => entry.split(",").map(Number));
-  await page.getByTestId("tool-select").click();
-  await segmented.locator("polyline").first().dispatchEvent("click");
-  await page.getByTestId("selection-overlay").waitFor();
-  const rowCountBeforePaste = await page.locator('[data-object-type="row"]').count();
-  await page.getByTitle("복사 (⌘C)").click();
-  await page.getByTitle("붙여넣기 (⌘V)").click();
-  assert.equal(await page.locator('[data-object-type="row"]').count(), rowCountBeforePaste + 1);
-  const pasted = page.locator('[data-object-type="row"]').last();
-  const pastedPoints = (await pasted.locator("polyline").first().getAttribute("points")).split(" ").map((entry) => entry.split(",").map(Number));
-  assert.deepEqual(pastedPoints, sourcePoints.map(([x, y]) => [x + 32, y + 32]));
-
-  const rowCountBeforeLock = await page.locator('[data-object-type="row"]').count();
-  await page.getByLabel("잠금").check();
-  await page.getByTitle("삭제").click();
-  assert.equal(await page.locator('[data-object-type="row"]').count(), rowCountBeforeLock);
-
-  await page.getByTestId("tool-table").click();
-  await page.locator('[role="menuitem"][data-mode="tableRound"]').click();
-  await page.mouse.click(point(900, 260).x, point(900, 260).y);
-  const round = page.locator('[data-object-type="table"]').last();
-  await page.getByTestId("tool-select").click();
-  await round.locator("circle").first().click({ force: true });
-  await page.getByLabel("가변 점유").check();
-  await page.getByLabel("최소 인원").waitFor();
-  await page.getByLabel("최대 인원").waitFor();
-
-  await page.getByTestId("tool-table").click();
-  await page.locator('[role="menuitem"][data-mode="tableRectangular"]').click();
-  await page.mouse.click(point(980, 500).x, point(980, 500).y);
-  const rectangular = page.locator('[data-object-type="table"]').last();
-  assert.equal(Number(await rectangular.locator("rect").getAttribute("width")), 120);
-  assert.equal(Number(await rectangular.locator("rect").getAttribute("height")), 36);
-  await page.getByTestId("tool-select").click();
-  await rectangular.locator("rect").click({ force: true });
-  await page.getByLabel("전체 테이블로 예매").waitFor();
-  await page.getByLabel("가변 점유").check();
-  await page.getByLabel("최소 인원").waitFor();
-  await page.getByLabel("최대 인원").waitFor();
+  await chooseTool(page, "icon");
+  await click(520, 260);
+  assert.equal(await page.locator('[data-object-type="icon"]').count(), 1);
+  releaseUpload();
+  await page.locator('[data-object-type="image"]').waitFor();
+  assert.equal(await page.locator('[data-object-type="icon"]').count(), 1, "upload completion must merge into the latest editor state");
+  assert.equal(await page.getByRole("button", { name: "저장", exact: true }).isEnabled(), true);
+  assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isEnabled(), true);
+  assert.deepEqual(runtimeErrors, []);
 });
 
-test("reference names and concurrent image imports merge into the latest chart", async (t) => {
-  const { page } = await openEditor(t);
-  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
-  await dialog.locator("select").selectOption({ index: 1 });
-  await dialog.getByLabel("좌석 배치도 이름").fill("공연장 기준 도면");
-  await dialog.getByRole("button", { name: /도면 불러오기/ }).click();
-  await dialog.locator('input[type="file"]').setInputFiles(path.resolve("public/images/misc/2b6c799906bc4462.png"));
-  await dialog.getByRole("button", { name: "도면만 불러오기" }).click();
-  await dialog.waitFor({ state: "hidden" });
-  assert.equal(await page.locator(".seat-designer-toolbar input").inputValue(), "공연장 기준 도면");
+test("removing a reference invalidates a slower replacement and every advertised start format remains available", async (t) => {
+  const { page, runtimeErrors } = await openV2Editor(t);
+  const startInput = page.getByTestId("seat-designer-v2-reference-start").locator('input[type="file"]');
+  assert.equal(await startInput.getAttribute("accept"), "image/png,image/jpeg,image/gif,image/webp,image/svg+xml,application/pdf");
+  await beginWithReference(page, path.resolve("public/images/misc/2b6c799906bc4462.png"));
 
   let releaseUpload;
   let uploadStarted;
@@ -224,424 +65,62 @@ test("reference names and concurrent image imports merge into the latest chart",
     }
     await route.continue();
   });
-  const canvas = page.getByTestId("designer-canvas");
-  const box = await canvas.boundingBox();
-  assert.ok(box);
-  await page.getByTestId("tool-image").click();
-  assert.equal(await page.getByTestId("tool-image").getAttribute("aria-pressed"), "true");
-  const chooser = page.waitForEvent("filechooser");
-  await page.mouse.click(box.x + 260, box.y + 220);
-  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
+  const controls = page.getByTestId("seat-designer-v2-reference-controls");
+  await controls.getByText("도면 교체", { exact: true }).locator('input[type="file"]').setInputFiles(path.resolve("public/images/header/partner-nol.png"));
   await started;
-  await page.getByTestId("tool-icon").click();
-  await page.mouse.click(box.x + 520, box.y + 260);
-  assert.equal(await page.locator('[data-object-type="icon"]').count(), 1);
+  await controls.getByRole("button", { name: "참조 도면 제거" }).click();
   releaseUpload();
-  await page.locator('[data-object-type="image"]').waitFor();
-  assert.equal(await page.locator('[data-object-type="icon"]').count(), 1, "upload completion must preserve intervening edits");
-  await page.getByRole("button", { name: "저장 후 나가기" }).click();
-  await page.getByText("저장된 좌석 차트", { exact: true }).waitFor();
-  const savedAssets = await page.evaluate(async () => {
-    const list = await fetch("/api/seat-charts").then((response) => response.json());
-    const latest = list.charts[0];
-    const detail = await fetch(`/api/seat-charts/${latest.id}`).then((response) => response.json());
-    return detail.record.chart.assets;
-  });
-  assert.equal(savedAssets.length, 2);
-  assert.deepEqual(savedAssets.map((asset) => asset.kind).sort(), ["object", "reference"]);
+  await page.getByTestId("seat-designer-v2-reference-plan").waitFor({ state: "detached" });
+  assert.equal(await page.getByTestId("seat-designer-v2-reference-plan").count(), 0);
+  assert.deepEqual(runtimeErrors, []);
 });
 
-test("reference import rejects files above ten megabytes before upload", async (t) => {
-  const { page } = await openEditor(t);
-  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
-  await dialog.locator("select").selectOption({ index: 1 });
-  await dialog.getByRole("button", { name: /도면 불러오기/ }).click();
-  await dialog.locator('input[type="file"]').setInputFiles({
-    name: "too-large.png",
-    mimeType: "image/png",
-    buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
-  });
-  await dialog.getByRole("alert").filter({ hasText: "도면 파일은 최대 10MB까지 불러올 수 있습니다." }).waitFor();
-  assert.equal(await dialog.getByRole("button", { name: "도면만 불러오기" }).isDisabled(), true);
-});
-
-test("first-time reference import supports every advertised format and can return to the start choice", async (t) => {
-  const { page } = await openEditor(t);
-  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
-  await dialog.locator("select").selectOption({ index: 1 });
-  await dialog.getByRole("button", { name: /도면 불러오기/ }).click();
-  const picker = dialog.locator('input[type="file"]');
-  assert.equal(await picker.getAttribute("accept"), "image/png,image/jpeg,image/gif,image/webp,image/svg+xml,application/pdf");
-  await dialog.getByRole("button", { name: "이전" }).click();
-  await dialog.getByRole("button", { name: "빈 캔버스" }).waitFor();
-});
-
-test("rotated polygon node controls follow the rendered geometry", async (t) => {
-  const polygon = { id: "polygon", type: "rectangle", shape: "polygon", label: "다각형", layer: "background", rotation: 90, x: 100, y: 100, width: 220, height: 80, points: [{ x: 100, y: 100 }, { x: 320, y: 100 }, { x: 280, y: 180 }, { x: 100, y: 180 }] };
-  const restored = { id: "rotated-chart", name: "회전 노드", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [polygon] };
-  const { page } = await openEditor(t, restored);
-  const shape = page.locator('[data-object-id="polygon"] path');
+test("locked geometry remains selectable but cannot move, duplicate, or delete", async (t) => {
+  const { page, runtimeErrors } = await openV2Editor(t);
+  await beginBlank(page);
+  const { drag } = await canvasGeometry(page);
+  await chooseTool(page, "rectangle");
+  await drag(260, 180, 500, 320);
+  await chooseTool(page, "select");
+  const shape = page.locator('[data-object-type="rectangle"] > rect').first();
   await shape.click({ force: true });
-  await page.getByTestId("tool-node").click();
-  const edge = page.getByTestId("node-edge");
+  const fields = page.getByTestId("seat-designer-v2-object-fields");
+  await fields.getByLabel("객체 잠금").check();
+  assert.equal(await page.getByTestId("seat-designer-v2-selection-handles").count(), 0);
+  const before = await shape.getAttribute("x");
   const shapeBox = await shape.boundingBox();
-  const edgeBox = await edge.boundingBox();
-  assert.ok(shapeBox && edgeBox);
-  assert.ok(Math.abs(shapeBox.x + shapeBox.width / 2 - edgeBox.x - edgeBox.width / 2) < 1);
-  assert.ok(Math.abs(shapeBox.y + shapeBox.height / 2 - edgeBox.y - edgeBox.height / 2) < 1);
-  const nodeOffsets = await shape.evaluate((element, points) => {
-    const matrix = element.getScreenCTM();
-    const handles = [...document.querySelectorAll('[data-testid="node-handle"]')];
-    if (!matrix || handles.length !== points.length) return null;
-    return points.map((point, index) => {
-      const expected = new DOMPoint(point.x, point.y).matrixTransform(matrix);
-      const box = handles[index].getBoundingClientRect();
-      return { x: box.x + box.width / 2 - expected.x, y: box.y + box.height / 2 - expected.y };
-    });
-  }, polygon.points);
-  assert.ok(nodeOffsets);
-  for (const offset of nodeOffsets) {
-    assert.ok(Math.abs(offset.x) < 1, `rotated node x offset ${offset.x} must align with its vertex`);
-    assert.ok(Math.abs(offset.y) < 1, `rotated node y offset ${offset.y} must align with its vertex`);
-  }
-});
-
-test("shape border edits render after deselection", async (t) => {
-  const ellipse = { id: "ellipse", type: "rectangle", shape: "ellipse", label: "타원", layer: "background", x: 100, y: 100, width: 220, height: 100, fill: "#eeeeee", stroke: "#111111" };
-  const restored = { id: "stroke-chart", name: "도형 테두리", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [ellipse] };
-  const { page } = await openEditor(t, restored);
-  const shape = page.locator('[data-object-id="ellipse"] ellipse');
-  await shape.click({ force: true });
-  await page.getByLabel("테두리").fill("#bc204b");
-  await page.getByTestId("designer-canvas").click({ position: { x: 1000, y: 700 } });
-  assert.equal(await shape.getAttribute("stroke"), "#bc204b");
-});
-
-test("oversized image replacement reports a visible error", async (t) => {
-  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 240, height: 160, href: "/images/header/partner-nol.png" };
-  const restored = { id: "image-chart", name: "이미지 교체", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
-  const { page } = await openEditor(t, restored);
-  await page.locator('[data-object-id="image"] image').click({ force: true });
-  await page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]').setInputFiles({ name: "too-large.png", mimeType: "image/png", buffer: Buffer.alloc(10 * 1024 * 1024 + 1) });
-  await page.getByText("이미지는 10MB 이하여야 합니다.", { exact: true }).waitFor();
-});
-
-test("image replacement derives its aspect ratio from the latest edited width", async (t) => {
-  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 240, height: 160, href: "/images/header/partner-nol.png" };
-  const restored = { id: "image-chart", name: "이미지 경쟁 상태", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
-  const { page } = await openEditor(t, restored);
-  let releaseUpload;
-  let markUploadStarted;
-  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
-  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
-  const replacementMetadata = await sharp(path.resolve("public/images/header/partner-nol.png")).metadata();
-  assert.ok(replacementMetadata.width && replacementMetadata.height);
-  const replacementRatio = replacementMetadata.height / replacementMetadata.width;
-  await page.route("**/api/seat-charts", async (route) => {
-    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
-    markUploadStarted();
-    await uploadBlocked;
-    await route.continue();
-  });
-  await page.locator('[data-object-id="image"] image').click({ force: true });
-  const replacement = page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]');
-  await replacement.setInputFiles(path.resolve("public/images/header/partner-nol.png"));
-  await uploadStarted;
-  await page.getByLabel("너비").fill("480");
-  await page.waitForFunction(() => document.querySelector('[data-object-id="image"] image')?.getAttribute("width") === "480");
-  releaseUpload();
-  await page.waitForFunction(() => document.querySelector('[data-object-id="image"] image')?.getAttribute("href")?.includes("/api/seat-charts/assets/"));
-  const rendered = page.locator('[data-object-id="image"] image');
-  assert.equal(Number(await rendered.getAttribute("width")), 480);
-  const renderedHeight = Number(await rendered.getAttribute("height"));
-  assert.ok(Math.abs(renderedHeight - 480 * replacementRatio) < 0.01, `rendered height ${renderedHeight} must follow ratio ${replacementRatio}`);
-});
-
-test("pending image imports cannot append to a newly loaded chart", async (t) => {
-  const initialChart = { id: "same-chart-id", name: "기존 차트", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [] };
-  const { page } = await openEditor(t, initialChart);
-  let releaseUpload;
-  let markUploadStarted;
-  let markUploadCompleted;
-  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
-  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
-  const uploadCompleted = new Promise((resolve) => { markUploadCompleted = resolve; });
-  await page.route("**/api/seat-charts", async (route) => {
-    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
-    markUploadStarted();
-    await uploadBlocked;
-    await route.continue();
-    markUploadCompleted();
-  });
-  await page.getByTestId("tool-image").click();
-  const png = await readFile(path.resolve("public/images/header/partner-nol.png"));
-  await page.getByTestId("designer-canvas").evaluate((element, base64) => {
-    const transfer = new DataTransfer();
-    const source = atob(base64);
-    transfer.items.add(new File([Uint8Array.from(source, (character) => character.charCodeAt(0))], "pending.png", { type: "image/png" }));
-    const rect = element.getBoundingClientRect();
-    element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
-  }, png.toString("base64"));
-  await uploadStarted;
-  await page.getByTestId("tool-select").click();
-  const nextChart = { ...initialChart, name: "교체된 차트" };
-  await page.getByLabel("JSON 불러오기").setInputFiles({ name: "replacement.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(nextChart)) });
-  await page.waitForFunction(() => document.querySelector('.seat-designer-toolbar input')?.value === "교체된 차트");
-  releaseUpload();
-  await uploadCompleted;
-  await page.waitForTimeout(100);
-  assert.equal(await page.locator('[data-object-type="image"]').count(), 0);
-});
-
-test("save and publish stay disabled until an image upload settles", async (t) => {
-  const { page } = await openEditor(t);
-  await beginBlank(page);
-  let releaseUpload;
-  let markUploadStarted;
-  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
-  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
-  await page.route("**/api/seat-charts", async (route) => {
-    if (route.request().method() === "POST" && route.request().headers()["content-type"]?.includes("multipart/form-data")) {
-      markUploadStarted();
-      await uploadBlocked;
-    }
-    await route.continue();
-  });
-  const canvas = page.getByTestId("designer-canvas");
-  const box = await canvas.boundingBox();
-  assert.ok(box);
-  await page.getByTestId("tool-image").click();
-  const chooser = page.waitForEvent("filechooser");
-  await page.mouse.click(box.x + 240, box.y + 220);
-  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
-  await uploadStarted;
-  assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isDisabled(), true);
-  assert.equal(await page.getByTestId("seat-designer-publish").isDisabled(), true);
-  await page.getByTitle("미리보기").click();
-  assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isDisabled(), true, "preview publishing must remain blocked during uploads");
-  await page.getByRole("button", { name: "미리보기 종료", exact: true }).click();
-  releaseUpload();
-  await page.locator('[data-object-type="image"]').waitFor();
-  assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isEnabled(), true);
-  assert.equal(await page.getByTestId("seat-designer-publish").isEnabled(), true);
-});
-
-test("a slower image replacement cannot overwrite the latest choice", async (t) => {
-  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 300, height: 200, href: "/images/header/partner-nol.png" };
-  const restored = { id: "image-chart", name: "교체 순서", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
-  const { page } = await openEditor(t, restored);
-  let uploadCount = 0;
-  let releaseFirst;
-  let markFirstStarted;
-  const firstBlocked = new Promise((resolve) => { releaseFirst = resolve; });
-  const firstStarted = new Promise((resolve) => { markFirstStarted = resolve; });
-  await page.route("**/api/seat-charts", async (route) => {
-    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
-    uploadCount += 1;
-    if (uploadCount === 1) {
-      markFirstStarted();
-      await firstBlocked;
-    }
-    await route.continue();
-  });
-  const latestPath = path.resolve("public/images/header/partner-nol-global.png");
-  const latestMetadata = await sharp(latestPath).metadata();
-  assert.ok(latestMetadata.width && latestMetadata.height);
-  const latestHeight = 300 * latestMetadata.height / latestMetadata.width;
-  await page.locator('[data-object-id="image"] image').click({ force: true });
-  const replacement = page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]');
-  await replacement.setInputFiles(path.resolve("public/images/header/partner-nol.png"));
-  await firstStarted;
-  await replacement.setInputFiles(latestPath);
-  await page.waitForFunction((height) => Math.abs(Number(document.querySelector('[data-object-id="image"] image')?.getAttribute("height")) - height) < 0.01, latestHeight);
-  releaseFirst();
-  await page.waitForTimeout(200);
-  assert.ok(Math.abs(Number(await page.locator('[data-object-id="image"] image').getAttribute("height")) - latestHeight) < 0.01);
-});
-
-test("deleting an image while replacement uploads releases the editor save lock", async (t) => {
-  const image = { id: "image", type: "image", label: "도면", layer: "background", x: 100, y: 100, width: 300, height: 200, href: "/images/header/partner-nol.png" };
-  const restored = { id: "image-chart", name: "삭제 경쟁 상태", boundVenue: { id: "venue-1", name: "예술의전당" }, categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [image] };
-  const { page } = await openEditor(t, restored);
-  let releaseUpload;
-  let markUploadStarted;
-  const uploadBlocked = new Promise((resolve) => { releaseUpload = resolve; });
-  const uploadStarted = new Promise((resolve) => { markUploadStarted = resolve; });
-  await page.route("**/api/seat-charts", async (route) => {
-    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
-    markUploadStarted();
-    await uploadBlocked;
-    await route.continue();
-  });
-  await page.locator('[data-object-id="image"] image').click({ force: true });
-  await page.getByText("이미지 교체", { exact: true }).locator('input[type="file"]').setInputFiles(path.resolve("public/images/header/partner-nol-global.png"));
-  await uploadStarted;
-  await page.getByTitle("삭제").click();
-  assert.equal(await page.locator('[data-object-id="image"]').count(), 0);
-  releaseUpload();
-  await page.waitForTimeout(250);
-  assert.equal(await page.getByRole("button", { name: "저장 후 나가기" }).isEnabled(), true);
-});
-
-test("active image mode accepts a file dropped on the canvas", async (t) => {
-  const { page } = await openEditor(t);
-  await beginBlank(page);
-  await page.getByTestId("tool-image").click();
-  const png = await readFile(path.resolve("public/images/header/partner-nol.png"));
-  await page.getByTestId("designer-canvas").evaluate((element, base64) => {
-    const transfer = new DataTransfer();
-    const source = atob(base64);
-    transfer.items.add(new File([Uint8Array.from(source, (character) => character.charCodeAt(0))], "dropped.png", { type: "image/png" }));
-    const rect = element.getBoundingClientRect();
-    element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
-  }, png.toString("base64"));
-  await page.locator('[data-object-type="image"]').waitFor();
-});
-
-test("compact image import fits the new image into the current canvas", async (t) => {
-  const farObject = { id: "far-stage", type: "rectangle", shape: "rectangle", label: "먼 무대", layer: "background", x: 5000, y: 5000, width: 300, height: 180 };
-  const restored = { id: "far-chart", name: "이동된 차트", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [farObject] };
-  const { page } = await openEditor(t, restored);
-  const canvas = page.getByTestId("designer-canvas");
-  const canvasBox = await canvas.boundingBox();
-  assert.ok(canvasBox);
-  await page.getByText("이미지 불러오기", { exact: true }).locator("..").locator('input[type="file"]').setInputFiles(path.resolve("public/images/header/partner-nol.png"));
-  const image = page.locator('[data-object-type="image"]');
-  await image.waitFor();
-  const imageBox = await image.boundingBox();
-  assert.ok(imageBox);
-  assert.ok(imageBox.x < canvasBox.x + canvasBox.width && imageBox.x + imageBox.width > canvasBox.x && imageBox.y < canvasBox.y + canvasBox.height && imageBox.y + imageBox.height > canvasBox.y, "imported image must be visible in the canvas viewport");
-});
-
-test("locked objects remain selectable so they can be unlocked", async (t) => {
-  const locked = { id: "locked", type: "rectangle", shape: "rectangle", label: "잠긴 도형", layer: "background", locked: true, x: 100, y: 100, width: 220, height: 100 };
-  const restored = { id: "locked-chart", name: "잠금", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [locked] };
-  const { page } = await openEditor(t, restored);
-  await page.locator('[data-object-id="locked"] rect').click({ force: true });
-  const control = page.getByLabel("잠금");
-  await control.waitFor();
-  assert.equal(await control.isChecked(), true);
-  assert.equal(await page.getByTestId("selection-overlay").count(), 0, "locked objects must not expose move handles");
-  await page.getByTitle("복사 (⌘C)").click();
-  await page.getByTitle("붙여넣기 (⌘V)").click();
-  assert.equal(await page.locator('[data-object-type="rectangle"]').count(), 1, "locked objects must not enter the clipboard");
-  await control.uncheck();
-  await page.getByTestId("selection-overlay").waitFor();
-});
-
-test("selection overlay rotates around the rendered object pivot", async (t) => {
-  const section = { id: "section", type: "section", label: "비대칭 구역", layer: "interactive", rotation: 135, points: [{ x: 100, y: 100 }, { x: 500, y: 100 }, { x: 500, y: 110 }, { x: 500, y: 120 }, { x: 500, y: 300 }], capacity: 30 };
-  const restored = { id: "pivot-chart", name: "회전 중심", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [section] };
-  const { page } = await openEditor(t, restored);
-  const shape = page.locator('[data-object-id="section"] path');
-  await shape.click({ force: true });
-  const transforms = await shape.evaluate((element) => ({
-    object: element.parentElement?.parentElement?.getAttribute("transform"),
-    overlay: document.querySelector('[data-testid="selection-overlay"]')?.getAttribute("transform"),
-  }));
-  assert.equal(transforms.overlay, transforms.object);
-  await page.getByTitle("그리드에 맞추기").click();
-  const handle = page.locator('[data-testid="resize-handle"][data-corner="se"]');
-  const before = await handle.boundingBox();
-  assert.ok(before);
-  const target = { x: before.x + before.width / 2 + 90, y: before.y + before.height / 2 + 55 };
-  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  assert.ok(shapeBox);
+  await page.mouse.move(shapeBox.x + 30, shapeBox.y + 30);
   await page.mouse.down();
-  await page.mouse.move(target.x, target.y);
+  await page.mouse.move(shapeBox.x + 100, shapeBox.y + 80);
   await page.mouse.up();
-  const after = await handle.boundingBox();
-  assert.ok(after);
-  assert.ok(Math.abs(after.x + after.width / 2 - target.x) < 2);
-  assert.ok(Math.abs(after.y + after.height / 2 - target.y) < 2);
+  assert.equal(await shape.getAttribute("x"), before);
+  await page.getByTitle("복제").click();
+  await page.getByTitle("삭제").click();
+  assert.equal(await page.locator('[data-object-type="rectangle"]').count(), 1);
+  await shape.click({ force: true });
+  await fields.getByLabel("객체 잠금").uncheck();
+  await page.getByTestId("seat-designer-v2-selection-handles").waitFor();
+  assert.deepEqual(runtimeErrors, []);
 });
 
-test("concurrent settings uploads merge overlays and assets into the latest chart", async (t) => {
-  const { page } = await openEditor(t);
-  await beginBlank(page);
-  let releaseFirst;
-  const firstBlocked = new Promise((resolve) => { releaseFirst = resolve; });
-  let releaseReplacement;
-  const replacementBlocked = new Promise((resolve) => { releaseReplacement = resolve; });
-  let markReplacementStarted;
-  const replacementStarted = new Promise((resolve) => { markReplacementStarted = resolve; });
-  let releaseRemoval;
-  const removalBlocked = new Promise((resolve) => { releaseRemoval = resolve; });
-  let markRemovalStarted;
-  const removalStarted = new Promise((resolve) => { markRemovalStarted = resolve; });
-  let markRemovalCompleted;
-  const removalCompleted = new Promise((resolve) => { markRemovalCompleted = resolve; });
-  let uploadCount = 0;
-  await page.route("**/api/seat-charts", async (route) => {
-    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
-    uploadCount += 1;
-    if (uploadCount === 1) await firstBlocked;
-    if (uploadCount === 3) {
-      markReplacementStarted();
-      await replacementBlocked;
-    }
-    if (uploadCount === 4) {
-      markRemovalStarted();
-      await removalBlocked;
-    }
-    await route.continue();
-    if (uploadCount === 4) markRemovalCompleted();
-  });
-  await page.getByTitle("차트 설정 (공연장 연결·배경·참조도면·존)").click();
-  const settings = page.getByText("차트 설정 (고급)", { exact: true }).locator("../..");
-  const background = settings.locator("section").filter({ hasText: "배경 이미지" });
-  const reference = settings.locator("section").filter({ hasText: "참조 도면" });
-  let chooser = page.waitForEvent("filechooser");
-  await background.getByRole("button", { name: "이미지 추가" }).click();
-  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
-  chooser = page.waitForEvent("filechooser");
-  await reference.getByRole("button", { name: "도면 추가" }).click();
-  await (await chooser).setFiles(path.resolve("public/images/misc/2b6c799906bc4462.png"));
-  await reference.getByRole("button", { name: "도면 교체" }).waitFor();
-  releaseFirst();
-  await background.getByRole("button", { name: "이미지 교체" }).waitFor();
-  chooser = page.waitForEvent("filechooser");
-  await background.getByRole("button", { name: "이미지 교체" }).click();
-  await (await chooser).setFiles(path.resolve("public/images/misc/2b6c799906bc4462.png"));
-  await replacementStarted;
-  await background.locator('input[type="range"]').fill("0.25");
-  await page.getByText("차트 설정 변경", { exact: true }).waitFor();
-  releaseReplacement();
-  await page.getByText("배경 이미지 변경", { exact: true }).waitFor();
-  assert.equal(await background.locator('input[type="range"]').inputValue(), "0.25");
-  chooser = page.waitForEvent("filechooser");
-  await background.getByRole("button", { name: "이미지 교체" }).click();
-  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
-  await removalStarted;
-  await background.getByRole("button", { name: "제거" }).click();
-  await background.getByRole("button", { name: "이미지 추가" }).waitFor();
-  releaseRemoval();
-  await removalCompleted;
-  await background.getByRole("button", { name: "이미지 추가" }).waitFor();
-  await settings.getByRole("button").first().click();
-  await page.getByRole("button", { name: "저장 후 나가기" }).click();
-  await page.getByText("저장된 좌석 차트", { exact: true }).waitFor();
-  const saved = await page.evaluate(async () => {
-    const list = await fetch("/api/seat-charts").then((response) => response.json());
-    return fetch(`/api/seat-charts/${list.charts[0].id}`).then((response) => response.json());
-  });
-  assert.equal(saved.record.chart.backgroundImage, undefined);
-  assert.ok(saved.record.chart.referenceChart);
-  assert.deepEqual(saved.record.chart.assets.map((asset) => asset.kind).sort(), ["background", "background", "reference"]);
-});
+test("the image-first editor stays usable without horizontal overflow at tablet and phone widths", async (t) => {
+  const { page, runtimeErrors } = await openV2Editor(t, { viewport: { width: 1024, height: 768 } });
+  const evidenceRoot = path.resolve(".omo/evidence/seat-designer-v2/responsive");
+  await mkdir(evidenceRoot, { recursive: true });
+  await selectVenue(page);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await page.getByRole("button", { name: "빈 캔버스로 시작" }).click();
+  await page.getByTestId("seat-designer-v2-reference-start").waitFor({ state: "hidden" });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  assert.equal(await page.getByTestId("seat-designer-v2-inspector").isVisible(), true);
+  await page.screenshot({ path: path.join(evidenceRoot, "tablet.png"), fullPage: true });
 
-test("Enter inside inspector search never commits an unfinished draft", async (t) => {
-  const { page } = await openEditor(t);
-  await beginBlank(page);
-  const canvas = page.getByTestId("designer-canvas");
-  const box = await canvas.boundingBox();
-  assert.ok(box);
-  await page.getByTestId("tool-row").click();
-  await page.locator('[role="menuitem"][data-mode="rowSegmented"]').click();
-  await page.mouse.click(box.x + 200, box.y + 200);
-  await page.mouse.click(box.x + 280, box.y + 240);
-  await page.getByTitle("검색").click();
-  const input = page.getByPlaceholder("검색");
-  await input.fill("A열");
-  await input.press("Enter");
-  assert.equal(await page.locator('[data-object-type="row"]').count(), 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  assert.equal(await page.getByTestId("seat-designer-v2-inspector").isVisible(), false);
+  assert.equal(await page.getByRole("navigation", { name: "좌석 배치 도구" }).isVisible(), true);
+  assert.equal(await page.getByRole("button", { name: "게시", exact: true }).isVisible(), true);
+  await page.screenshot({ path: path.join(evidenceRoot, "mobile.png"), fullPage: true });
+  assert.deepEqual(runtimeErrors, []);
 });
