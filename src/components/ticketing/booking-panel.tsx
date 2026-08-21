@@ -147,9 +147,14 @@ export function BookingPanel({ show, initialSelection, initialTimerSeconds = 7 *
     if (seat.bookingMode !== "variable" || !seat.availableTicketPrices?.length) return seat;
     const minimum = Math.max(1, seat.minOccupancy ?? 1);
     const maximum = Math.max(minimum, seat.maxOccupancy ?? seat.availableTicketPrices.length);
-    const count = Math.min(seat.availableTicketPrices.length, maximum, Math.max(minimum, quantity));
+    const selectedCount = (seat.backendTicketIds ?? []).filter((id) => selectedBackendTicketIds.includes(id)).length;
+    const count = Math.min(
+      seat.availableTicketPrices.length,
+      maximum,
+      Math.max(minimum, selectedCount || quantity),
+    );
     return { ...seat, price: seat.availableTicketPrices.slice(0, count).reduce((sum, price) => sum + price, 0) };
-  }), [boundChartSeats, quantity]);
+  }), [boundChartSeats, quantity, selectedBackendTicketIds]);
   const maximumQuantity = useMemo(() => Math.max(
     maxSelectableSeats,
     ...boundChartSeats.map((seat) => {

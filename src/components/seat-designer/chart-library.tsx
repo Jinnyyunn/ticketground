@@ -38,6 +38,9 @@ export function ChartLibrary({ api, onOpen }: { readonly api: SeatEditorApi; rea
       </div>
       {loading && <p className="px-0.5 text-[10px] text-[#999]">불러오는 중…</p>}
       {error && <p className="px-0.5 text-[10px] text-red-500">{error}</p>}
+      {api.state.serverStatus && (
+        <p aria-live="polite" className="px-0.5 text-[10px] text-[#666]">{api.state.serverStatus}</p>
+      )}
       {!loading && charts.length === 0 && (
         <p className="px-0.5 text-[10px] leading-snug text-[#999]">저장된 차트 없음. 서버 저장 후 표시됩니다.</p>
       )}
@@ -55,7 +58,9 @@ export function ChartLibrary({ api, onOpen }: { readonly api: SeatEditorApi; rea
                 <button
                   type="button"
                   className="w-full text-left"
-                  onClick={() => void api.loadFromServer(c.id).then(onOpen)}
+                  onClick={() => void api.loadFromServer(c.id).then((loaded) => {
+                    if (loaded) onOpen?.();
+                  })}
                   title="불러오기"
                 >
                   <div className="text-[11px] font-semibold leading-tight text-[#333]">{c.name}</div>
@@ -75,7 +80,9 @@ export function ChartLibrary({ api, onOpen }: { readonly api: SeatEditorApi; rea
                   <button
                     type="button"
                     className="flex-1 rounded border border-black/10 py-0.5 text-[9px] hover:bg-black/[0.03]"
-                    onClick={() => void api.loadFromServer(c.id).then(onOpen)}
+                    onClick={() => void api.loadFromServer(c.id).then((loaded) => {
+                      if (loaded) onOpen?.();
+                    })}
                   >
                     열기
                   </button>

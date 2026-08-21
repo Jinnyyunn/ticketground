@@ -205,17 +205,20 @@ export function duplicateObjects(chart: ChartDocument, ids: readonly string[], o
 
 function copyLabelKeys(objects: readonly ChartObject[]): readonly string[] {
   return objects.flatMap((object) => {
-    const seatRoots = (object.type === "row" || object.type === "table")
-      ? object.seats.map((seat) => seat.label.replace(/-\d+$/, ""))
+    const seatLabels = (object.type === "row" || object.type === "table")
+      ? object.seats.map((seat) => seat.label)
       : [];
     const nested = object.type === "section" && object.nestedRows ? copyLabelKeys(object.nestedRows) : [];
-    return [object.label, ...seatRoots, ...nested];
+    return [object.label, ...seatLabels, ...nested];
   });
 }
 
 export function cloneObjectsWithUniqueLabels(chart: ChartDocument, objects: readonly ChartObject[], d: number): readonly ChartObject[] {
   const normalize = (value: string) => value.trim().toLocaleLowerCase("ko-KR").replaceAll(/\s+/g, "");
-  const used = new Set(copyLabelKeys(chart.objects).map(normalize));
+  const used = new Set(copyLabelKeys(chart.objects).flatMap((value) => {
+    const normalized = normalize(value);
+    return [normalized, normalized.replace(/-\d+$/, "")];
+  }));
   const nextLabel = (source: string) => {
     let candidate = `${source} 복사`;
     let copy = 2;

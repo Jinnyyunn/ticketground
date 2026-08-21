@@ -253,6 +253,12 @@ test("variable table markers price the buyer's requested occupancy", async (t) =
   await table.click();
   await page.locator("aside").getByText("550,000원", { exact: true }).waitFor();
   await page.locator("aside").getByText("4/4매", { exact: true }).waitFor();
+  await page.getByRole("button", { name: /1\. 날짜·회차/ }).click();
+  await page.getByRole("button", { name: "2매" }).click();
+  await page.getByRole("button", { name: /2\. 좌석 선택/ }).click();
+  assert.match(await table.getAttribute("aria-label"), /550,000원$/);
+  await page.locator("aside").getByText("550,000원", { exact: true }).waitFor();
+  await page.locator("aside").getByText("4/2매", { exact: true }).waitFor();
 });
 
 test("whole-table markers display the exact mixed-tier total before selection", async (t) => {

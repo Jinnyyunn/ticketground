@@ -461,8 +461,10 @@ export function useSeatEditor() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(rec.chart));
       dispatch({ type: "SET_STATUS", status: `불러옴: ${rec.chart.name}` });
       dispatch({ type: "SET_SERVER_STATUS", status: `서버 차트 · ${rec.updatedAt}` });
+      return true;
     } catch {
       dispatch({ type: "SET_SERVER_STATUS", status: "불러오기 실패" });
+      return false;
     }
   }, []);
 

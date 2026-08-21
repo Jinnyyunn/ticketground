@@ -70,7 +70,7 @@ test("copy labels account for canonical seats left behind by an object rename", 
     ...source,
     id: "renamed-copy",
     label: "B",
-    seats: source.seats.map((seat, index) => ({ ...seat, id: `renamed-${index}`, label: `A복사-${index + 1}` })),
+    seats: source.seats.map((seat, index) => ({ ...seat, id: `renamed-${index}`, label: ` A복사-${index + 1} ` })),
   };
   const duplicated = duplicateObjects({ ...chart, objects: [source, renamed] }, [source.id], 24);
   assert.equal(duplicated.objects[2].label, "A 복사 2");

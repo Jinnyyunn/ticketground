@@ -70,6 +70,21 @@ test("the initial dialog opens the existing server chart library without saving"
   assert.equal(await dialog.count(), 0);
 });
 
+test("a failed existing-chart load keeps the library open for retry", async (t) => {
+  const { page } = await openEditor(t);
+  await page.route("**/api/seat-charts", (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    return route.fulfill({ json: { ok: true, charts: [{ id: "broken-chart", name: "불러오기 실패 차트", placeCount: 10, published: false, boundVenue: null }] } });
+  });
+  await page.route("**/api/seat-charts/broken-chart", (route) => route.fulfill({ status: 500, json: { ok: false } }));
+  await page.getByRole("dialog", { name: "새 좌석 차트 만들기" }).getByRole("button", { name: "기존 차트 열기" }).click();
+  const library = page.getByTestId("seat-chart-library-screen");
+  await library.getByText("불러오기 실패 차트", { exact: true }).waitFor();
+  await library.getByRole("button", { name: "열기", exact: true }).click();
+  await page.getByText("불러오기 실패", { exact: true }).waitFor();
+  await library.waitFor();
+});
+
 test("snap, Shift, clipboard, lock, and table inspectors preserve their visible contracts", async (t) => {
   const { page } = await openEditor(t);
   await beginBlank(page);
