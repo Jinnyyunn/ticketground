@@ -68,3 +68,19 @@ test("ellipse areas do not expose unrelated polygon node handles", () => {
   const ellipse = { id: "ellipse", type: "area", label: "타원", layer: "interactive", shape: "ellipse", capacity: 20, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }] };
   assert.deepEqual(verticesOf(ellipse), []);
 });
+
+test("collapsing a segmented row path never erases configured seats", () => {
+  const row = {
+    id: "row-collapse",
+    type: "row",
+    label: "A",
+    layer: "interactive",
+    start: { x: 0, y: 0 },
+    end: { x: 100, y: 0 },
+    seatCount: 2,
+    path: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+    seats: [{ id: "stable-1", label: "A-1", x: 0, y: 0, accessible: true }, { id: "stable-2", label: "A-2", x: 100, y: 0, companion: true }],
+  };
+  const collapsed = moveVertex(row, 1, { x: 0, y: 0 });
+  assert.equal(collapsed, row);
+});

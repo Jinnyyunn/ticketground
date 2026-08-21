@@ -549,6 +549,15 @@ export function setTableProps(
   const variableOccupancy = patch.variableOccupancy ?? obj.variableOccupancy;
   const minOccupancy = Math.max(1, patch.minOccupancy ?? obj.minOccupancy ?? 1);
   const maxOccupancy = Math.max(minOccupancy, patch.maxOccupancy ?? obj.maxOccupancy ?? seatCount);
+  const generatedSeats = obj.shape === "rectangle"
+    ? seatsAroundRectangularTable(obj.center, width, height, chairs, label, obj.categoryKey)
+    : seatsAroundTable(obj.center, radius, seatCount, label, obj.categoryKey);
+  const geometryChanged = obj.shape === "rectangle"
+    ? width !== (obj.width ?? 120) || height !== (obj.height ?? 36) || Object.keys(chairs).some((side) => chairs[side as keyof typeof chairs] !== (obj.chairs ?? { top: 4, right: 0, bottom: 4, left: 0 })[side as keyof typeof chairs])
+    : radius !== obj.radius || seatCount !== obj.seatCount;
+  const seats = geometryChanged
+    ? generatedSeats.map((seat, index) => obj.seats[index] ? { ...obj.seats[index], x: seat.x, y: seat.y } : seat)
+    : obj.seats;
   return updateObject(chart, id, {
     radius,
     label,
@@ -563,9 +572,7 @@ export function setTableProps(
     height,
     chairs,
     seatCount: obj.shape === "rectangle" ? rectangularSeatCount : seatCount,
-    seats: obj.shape === "rectangle"
-      ? seatsAroundRectangularTable(obj.center, width, height, chairs, label, obj.categoryKey)
-      : seatsAroundTable(obj.center, radius, seatCount, label, obj.categoryKey),
+    seats,
   });
 }
 

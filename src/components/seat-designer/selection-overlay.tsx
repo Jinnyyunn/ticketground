@@ -40,10 +40,11 @@ export function SelectionOverlay({
     { id: "se", x: bounds.x + bounds.width, y: bounds.y + bounds.height },
     { id: "sw", x: bounds.x, y: bounds.y + bounds.height },
   ];
-  const center = {
-    x: bounds.x + (initial.width === 0 ? 0.5 : (initialCenter.x - initial.x) / initial.width) * bounds.width,
-    y: bounds.y + (initial.height === 0 ? 0.5 : (initialCenter.y - initial.y) / initial.height) * bounds.height,
-  };
+  const centerForBounds = (next: ObjectBounds): Point => ({
+    x: next.x + (initial.width === 0 ? 0.5 : (initialCenter.x - initial.x) / initial.width) * next.width,
+    y: next.y + (initial.height === 0 ? 0.5 : (initialCenter.y - initial.y) / initial.height) * next.height,
+  });
+  const center = centerForBounds(bounds);
   const rotation = liveRotation ?? object.rotation ?? 0;
 
   const move = (event: PointerEvent<SVGCircleElement>) => {
@@ -52,7 +53,11 @@ export function SelectionOverlay({
     const point = toWorld(event.clientX, event.clientY);
     if (!point) return;
     if (current.kind === "resize") {
-      setLiveBounds(resized(current.bounds, current.corner, pointInObjectFrame(point, initialCenter, object.rotation ?? 0)));
+      let next = current.bounds;
+      for (let iteration = 0; iteration < 12; iteration += 1) {
+        next = resized(current.bounds, current.corner, pointInObjectFrame(point, centerForBounds(next), object.rotation ?? 0));
+      }
+      setLiveBounds(next);
       return;
     }
     const degrees = Math.atan2(point.y - current.center.y, point.x - current.center.x) * 180 / Math.PI + 90;

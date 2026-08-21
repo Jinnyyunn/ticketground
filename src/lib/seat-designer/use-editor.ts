@@ -12,6 +12,7 @@ import type {
   Viewport,
   RowObject,
   SeatChartAsset,
+  OverlayImage,
 } from "@/types/seat-chart";
 import {
   addObject,
@@ -92,6 +93,7 @@ type Action =
   | { type: "RESTORE_LOCAL"; chart: ChartDocument }
   | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean }
   | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; height: number; label: string; asset: SeatChartAsset; status: string }
+  | { type: "SET_OVERLAY_ASSET"; key: "backgroundImage" | "referenceChart"; overlay: OverlayImage; asset: SeatChartAsset; status: string }
   | { type: "SET_TOOL"; tool: ToolId }
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_VIEWPORT"; viewport: Partial<Viewport> }
@@ -208,6 +210,8 @@ function reducer(state: EditorState, action: Action): EditorState {
         objects: state.chart.objects.map((object) => object.id === action.id ? { ...current, href: action.href, height: action.height, label: action.label } : object),
       }, action.asset), action.status);
     }
+    case "SET_OVERLAY_ASSET":
+      return pushHistory(state, withChartAsset({ ...state.chart, [action.key]: action.overlay }, action.asset), action.status);
     case "REQUEST_FIT":
       return { ...state, fitGeneration: state.fitGeneration + 1 };
     case "SET_TOOL":
@@ -564,7 +568,7 @@ export function useSeatEditor() {
   }, [state.chart, state.selectedIds]);
 
   const copySelected = useCallback(() => {
-    const objs = state.chart.objects.filter((o) => state.selectedIds.includes(o.id));
+    const objs = state.chart.objects.filter((o) => state.selectedIds.includes(o.id) && !o.locked);
     dispatch({ type: "SET_CLIPBOARD", objects: objs });
     dispatch({ type: "SET_STATUS", status: `${ko.copied} (${objs.length})` });
   }, [state.chart.objects, state.selectedIds]);

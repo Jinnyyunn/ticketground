@@ -276,6 +276,9 @@ test("locked objects remain selectable so they can be unlocked", async (t) => {
   await control.waitFor();
   assert.equal(await control.isChecked(), true);
   assert.equal(await page.getByTestId("selection-overlay").count(), 0, "locked objects must not expose move handles");
+  await page.getByTitle("복사 (⌘C)").click();
+  await page.getByTitle("붙여넣기 (⌘V)").click();
+  assert.equal(await page.locator('[data-object-type="rectangle"]').count(), 1, "locked objects must not enter the clipboard");
   await control.uncheck();
   await page.getByTestId("selection-overlay").waitFor();
 });
@@ -291,6 +294,56 @@ test("selection overlay rotates around the rendered object pivot", async (t) => 
     overlay: document.querySelector('[data-testid="selection-overlay"]')?.getAttribute("transform"),
   }));
   assert.equal(transforms.overlay, transforms.object);
+  await page.getByTitle("그리드에 맞추기").click();
+  const handle = page.locator('[data-testid="resize-handle"][data-corner="se"]');
+  const before = await handle.boundingBox();
+  assert.ok(before);
+  const target = { x: before.x + before.width / 2 + 90, y: before.y + before.height / 2 + 55 };
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x, target.y);
+  await page.mouse.up();
+  const after = await handle.boundingBox();
+  assert.ok(after);
+  assert.ok(Math.abs(after.x + after.width / 2 - target.x) < 2);
+  assert.ok(Math.abs(after.y + after.height / 2 - target.y) < 2);
+});
+
+test("concurrent settings uploads merge overlays and assets into the latest chart", async (t) => {
+  const { page } = await openEditor(t);
+  await beginBlank(page);
+  let releaseFirst;
+  const firstBlocked = new Promise((resolve) => { releaseFirst = resolve; });
+  let uploadCount = 0;
+  await page.route("**/api/seat-charts", async (route) => {
+    if (route.request().method() !== "POST" || !route.request().headers()["content-type"]?.includes("multipart/form-data")) return route.continue();
+    uploadCount += 1;
+    if (uploadCount === 1) await firstBlocked;
+    await route.continue();
+  });
+  await page.getByTitle("차트 설정 (공연장 연결·배경·참조도면·존)").click();
+  const settings = page.getByText("차트 설정 (고급)", { exact: true }).locator("../..");
+  const background = settings.locator("section").filter({ hasText: "배경 이미지" });
+  const reference = settings.locator("section").filter({ hasText: "참조 도면" });
+  let chooser = page.waitForEvent("filechooser");
+  await background.getByRole("button", { name: "이미지 추가" }).click();
+  await (await chooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
+  chooser = page.waitForEvent("filechooser");
+  await reference.getByRole("button", { name: "도면 추가" }).click();
+  await (await chooser).setFiles(path.resolve("public/images/misc/2b6c799906bc4462.png"));
+  await reference.getByRole("button", { name: "도면 교체" }).waitFor();
+  releaseFirst();
+  await background.getByRole("button", { name: "이미지 교체" }).waitFor();
+  await settings.getByRole("button").first().click();
+  await page.getByRole("button", { name: "저장 후 나가기" }).click();
+  await page.getByText("저장된 좌석 차트", { exact: true }).waitFor();
+  const saved = await page.evaluate(async () => {
+    const list = await fetch("/api/seat-charts").then((response) => response.json());
+    return fetch(`/api/seat-charts/${list.charts[0].id}`).then((response) => response.json());
+  });
+  assert.ok(saved.record.chart.backgroundImage);
+  assert.ok(saved.record.chart.referenceChart);
+  assert.deepEqual(saved.record.chart.assets.map((asset) => asset.kind).sort(), ["background", "reference"]);
 });
 
 test("Enter inside inspector search never commits an unfinished draft", async (t) => {

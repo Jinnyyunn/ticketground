@@ -37,6 +37,7 @@ function withVertices(object: ChartObject, points: readonly Point[]): ChartObjec
   if (object.type === "section" || object.type === "area") return { ...object, points };
   if (object.type === "row") {
     const generated = seatsAlongPolyline(points, object.seatCount, object.label, object.categoryKey);
+    if (generated.length === 0) return object;
     return {
       ...object,
       start: points[0],
