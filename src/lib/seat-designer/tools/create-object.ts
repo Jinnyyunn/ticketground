@@ -49,7 +49,11 @@ function rectangularTableSeats(center: Point, width: number, height: number) {
   return [
     ...sideSeats({ x: left, y: top }, { x: right, y: top }, 4, { x: 0, y: -14 }),
     ...sideSeats({ x: right, y: bottom }, { x: left, y: bottom }, 4, { x: 0, y: 14 }),
-  ];
+  ].map((seat, index) => ({ ...seat, label: String(index + 1) }));
+}
+
+function pathLength(points: readonly Point[]): number {
+  return points.slice(1).reduce((total, point, index) => total + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
 }
 
 function boundsPoints(start: Point, end: Point): Point[] {
@@ -73,7 +77,10 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
   const common = { floorId: input.floorId };
   if (input.tool === "row") {
     if (Math.hypot(width, height) < 8) return null;
-    const seatCount = Math.max(2, Math.round(Math.hypot(width, height) / 20));
+    const seatSpacing = 5;
+    const seatDiameter = 10;
+    const rowPath = input.mode === "rowSegmented" ? input.points : [input.start, input.end];
+    const seatCount = Math.max(2, Math.floor(pathLength(rowPath) / (seatDiameter + seatSpacing)) + 1);
     return {
       id: uid("row"),
       type: "row",
@@ -89,7 +96,7 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
       path: input.mode === "rowSegmented" ? [...input.points] : undefined,
       rowStyle: input.mode === "rowSegmented" ? "segmented" : input.mode === "rowsMultiple" ? "multiple" : "straight",
       rowSpacing: 14,
-      seatSpacing: 5,
+      seatSpacing,
       ...common,
     };
   }
@@ -134,8 +141,19 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
     return { id: uid("booth"), type: "booth", label: `부스 ${input.sequence}`, layer: "interactive", categoryKey: input.categoryKey, x, y, width: boothWidth, height: boothHeight, ...common };
   }
   if (input.tool === "rectangle") {
+    if (input.mode === "shapePolygon") {
+      if (input.points.length < 3) return null;
+      const xs = input.points.map((point) => point.x);
+      const ys = input.points.map((point) => point.y);
+      const polygonX = Math.min(...xs);
+      const polygonY = Math.min(...ys);
+      const polygonWidth = Math.max(...xs) - polygonX;
+      const polygonHeight = Math.max(...ys) - polygonY;
+      if (polygonWidth < 4 || polygonHeight < 4) return null;
+      return { id: uid("rectangle"), type: "rectangle", label: `도형 ${input.sequence}`, layer: "background", x: polygonX, y: polygonY, width: polygonWidth, height: polygonHeight, shape: "polygon", points: [...input.points], fill: "#e5e7eb", stroke: "#9ca3af", opacity: 1, ...common };
+    }
     if (width < 4 || height < 4) return null;
-    return { id: uid("rectangle"), type: "rectangle", label: `도형 ${input.sequence}`, layer: "background", x, y, width, height, shape: input.mode === "shapeEllipse" ? "ellipse" : input.mode === "shapePolygon" ? "polygon" : "rectangle", points: input.mode === "shapePolygon" ? [...input.points] : undefined, fill: "#e5e7eb", stroke: "#9ca3af", opacity: 1, ...common };
+    return { id: uid("rectangle"), type: "rectangle", label: `도형 ${input.sequence}`, layer: "background", x, y, width, height, shape: input.mode === "shapeEllipse" ? "ellipse" : "rectangle", fill: "#e5e7eb", stroke: "#9ca3af", opacity: 1, ...common };
   }
   if (input.tool === "line") {
     if (Math.hypot(width, height) < 4) return null;

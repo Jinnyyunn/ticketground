@@ -25,7 +25,19 @@ function geometryPoints(object: ChartObject): readonly Point[] {
     case "image": return [{ x: object.x, y: object.y }, { x: object.x + object.width, y: object.y + object.height }];
     case "area": return object.points;
     case "line": return object.points ?? [object.start, object.end];
-    case "text": return [{ x: object.position.x - 20, y: object.position.y - (object.fontSize ?? 14) }, { x: object.position.x + 20, y: object.position.y + 4 }];
+    case "text": {
+      const fontSize = object.fontSize ?? 14;
+      const width = Math.max(fontSize, Array.from(object.text).reduce((total, character) => {
+        if (/\s/.test(character)) return total + fontSize * 0.35;
+        return total + fontSize * (/^[\u0000-\u00ff]$/.test(character) ? 0.6 : 1);
+      }, 0));
+      const x = object.align === "left"
+        ? object.position.x
+        : object.align === "right"
+          ? object.position.x - width
+          : object.position.x - width / 2;
+      return [{ x, y: object.position.y - fontSize }, { x: x + width, y: object.position.y + fontSize * 0.2 }];
+    }
     case "icon": {
       const radius = (object.size ?? 40) / 2;
       return [{ x: object.position.x - radius, y: object.position.y - radius }, { x: object.position.x + radius, y: object.position.y + radius }];
@@ -35,6 +47,16 @@ function geometryPoints(object: ChartObject): readonly Point[] {
 
 export function objectBounds(object: ChartObject): ObjectBounds {
   return boundsOf(geometryPoints(object));
+}
+
+export function pointInObjectFrame(point: Point, center: Point, rotation: number): Point {
+  const radians = -rotation * Math.PI / 180;
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * Math.cos(radians) - dy * Math.sin(radians),
+    y: center.y + dx * Math.sin(radians) + dy * Math.cos(radians),
+  };
 }
 
 function affine(from: ObjectBounds, to: ObjectBounds) {

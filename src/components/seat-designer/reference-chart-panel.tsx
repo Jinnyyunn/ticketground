@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { FileImage, ScanSearch, Upload } from "lucide-react";
 import { apiUploadReferenceAsset } from "@/lib/seat-charts/client";
+import { referenceAssetSizeError } from "@/lib/seat-designer/reference-asset-policy";
 import { acceptScannerRows, type ScannerRow } from "@/lib/seat-designer/scanner";
 import { ScannerReview } from "./scanner-review";
 
@@ -106,8 +107,14 @@ export function ReferenceChartPanel({
       <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#b8c6d5] bg-[#f8fafc] px-5 text-center hover:border-[#0784fa] hover:bg-[#f3f8ff]">
         {sourceFile ? <FileImage className="mb-2 size-8 text-[#0784fa]" /> : <Upload className="mb-2 size-8 text-[#667085]" />}
         <span className="text-sm font-semibold">{sourceFile?.name ?? "JPG, PNG, WEBP 또는 PDF 도면 선택"}</span>
-        <span className="mt-1 text-xs text-[#667085]">최대 15MB · 원본 메타데이터 제거 · PDF 페이지 선택 지원</span>
-        <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={(event) => { setSourceFile(event.target.files?.[0] ?? null); setRows(null); }} />
+        <span className="mt-1 text-xs text-[#667085]">최대 10MB · 원본 메타데이터 제거 · PDF 페이지 선택 지원</span>
+        <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          const sizeError = file ? referenceAssetSizeError(file.size) : null;
+          setError(sizeError ?? "");
+          setSourceFile(sizeError ? null : file);
+          setRows(null);
+        }} />
       </label>
       {sourceFile?.type === "application/pdf" && (
         <label className="flex items-center gap-3 text-sm">PDF 페이지<input className="w-20 rounded-md border border-black/15 px-2 py-1" type="number" min={1} value={page} onChange={(event) => setPage(Number(event.target.value))} /></label>

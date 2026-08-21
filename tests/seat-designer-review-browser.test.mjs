@@ -171,3 +171,17 @@ test("reference names and concurrent image imports merge into the latest chart",
   await page.locator('[data-object-type="image"]').waitFor();
   assert.equal(await page.locator('[data-object-type="icon"]').count(), 1, "upload completion must preserve intervening edits");
 });
+
+test("reference import rejects files above ten megabytes before upload", async (t) => {
+  const { page } = await openEditor(t);
+  const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
+  await dialog.locator("select").selectOption({ index: 1 });
+  await dialog.getByRole("button", { name: /도면 불러오기/ }).click();
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: "too-large.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
+  });
+  await dialog.getByRole("alert").filter({ hasText: "도면 파일은 최대 10MB까지 불러올 수 있습니다." }).waitFor();
+  assert.equal(await dialog.getByRole("button", { name: "도면만 불러오기" }).isDisabled(), true);
+});

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { marqueeObjectSelection, sameTypeSelection } from "@/lib/seat-designer/selection";
 import { ImageImportControl } from "./image-import-control";
 import { SelectionOverlay } from "./selection-overlay";
-import { verticesOf } from "@/lib/seat-designer/vertices";
+import { insertionIndexForPoint, verticesOf } from "@/lib/seat-designer/vertices";
 
 function constrainedDrawEnd(mode: ToolMode, start: Point, end: Point, shiftKey: boolean): Point {
   if (!shiftKey) return end;
@@ -970,20 +970,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
                       const rect = wrapRef.current?.getBoundingClientRect();
                       if (!rect) return;
                       const point = screenToWorld(event.clientX, event.clientY, rect);
-                      let closestIndex = 0;
-                      let closestDistance = Infinity;
-                      const segmentCount = closed ? points.length : points.length - 1;
-                      for (let index = 0; index < segmentCount; index += 1) {
-                        const first = points[index];
-                        const second = points[(index + 1) % points.length];
-                        const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
-                        const distance = Math.hypot(midpoint.x - point.x, midpoint.y - point.y);
-                        if (distance < closestDistance) {
-                          closestDistance = distance;
-                          closestIndex = index;
-                        }
-                      }
-                      addPolygonNode(obj.id, closestIndex + 1, point);
+                      addPolygonNode(obj.id, insertionIndexForPoint(points, point, closed), point);
                     }}
                   />
                   {points.map((p, index) => {

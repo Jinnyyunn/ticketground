@@ -148,6 +148,29 @@ export function chartToSellableSeats(
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
       const n = Math.max(1, obj.capacity);
+      if (obj.shape === "ellipse") {
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        const radiusX = (maxX - minX) / 2;
+        const radiusY = (maxY - minY) / 2;
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+        for (let i = 0; i < n; i += 1) {
+          const radial = Math.sqrt((i + 0.5) / n) * 0.92;
+          pushSeat(
+            {
+              id: `${obj.id}__ga_${i + 1}`,
+              label: `${obj.label}-${i + 1}`,
+              x: centerX + Math.cos(i * goldenAngle) * radiusX * radial,
+              y: centerY + Math.sin(i * goldenAngle) * radiusY * radial,
+              categoryKey: obj.categoryKey,
+            },
+            obj,
+            "area",
+            obj.categoryKey,
+          );
+        }
+        return;
+      }
       const cols = Math.ceil(Math.sqrt(n));
       for (let i = 0; i < n; i += 1) {
         const col = i % cols;

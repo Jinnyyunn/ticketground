@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import sharp from "sharp";
+import { REFERENCE_ASSET_MAX_BYTES } from "./reference-asset-policy.ts";
 
-const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PIXELS = 100_000_000;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
@@ -76,7 +76,7 @@ export async function prepareReferenceAsset(input: {
   readonly purpose: StoredReferenceAsset["kind"];
   readonly page?: number;
 }): Promise<{ readonly asset: StoredReferenceAsset; readonly storedBytes: Buffer; readonly extension: "png" | "pdf" }> {
-  if (input.bytes.byteLength > MAX_BYTES) throw new ReferenceAssetValidationError("REFERENCE_ASSET_TOO_LARGE");
+  if (input.bytes.byteLength > REFERENCE_ASSET_MAX_BYTES) throw new ReferenceAssetValidationError("REFERENCE_ASSET_TOO_LARGE");
   const source = Buffer.from(input.bytes);
   const detected = sniffMediaType(source);
   const declaredMatches = detected === "pdf"

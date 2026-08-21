@@ -9,6 +9,29 @@ export function verticesOf(object: ChartObject): readonly Point[] {
   return [];
 }
 
+function pointToSegmentDistance(point: Point, start: Point, end: Point): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (start.x + ratio * dx), point.y - (start.y + ratio * dy));
+}
+
+export function insertionIndexForPoint(points: readonly Point[], point: Point, closed: boolean): number {
+  const segmentCount = closed ? points.length : points.length - 1;
+  let closestIndex = 0;
+  let closestDistance = Infinity;
+  for (let index = 0; index < segmentCount; index += 1) {
+    const distance = pointToSegmentDistance(point, points[index], points[(index + 1) % points.length]);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  }
+  return closestIndex + 1;
+}
+
 function withVertices(object: ChartObject, points: readonly Point[]): ChartObject {
   if (object.type === "section" || object.type === "area") return { ...object, points };
   if (object.type === "row") {
