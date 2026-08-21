@@ -75,7 +75,18 @@ export function resizeObject(object: ChartObject, next: ObjectBounds): ChartObje
   switch (object.type) {
     case "row": return rowWith(object, transform);
     case "section": return { ...object, points: object.points.map(transform), nestedRows: object.nestedRows?.map((row) => rowWith(row, transform)) };
-    case "table": return { ...object, center: transform(object.center), radius: Math.max(1, object.radius * (scaleX + scaleY) / 2), width: object.width === undefined ? undefined : object.width * scaleX, height: object.height === undefined ? undefined : object.height * scaleY, seats: object.seats.map((seat) => seatWith(seat, transform)) };
+    case "table": {
+      if (object.shape === "round") {
+        const scale = Math.max(0.01, Math.min(next.width / previous.width, next.height / previous.height));
+        const center = { x: next.x + next.width / 2, y: next.y + next.height / 2 };
+        const uniformTransform = (point: Point): Point => ({
+          x: center.x + (point.x - object.center.x) * scale,
+          y: center.y + (point.y - object.center.y) * scale,
+        });
+        return { ...object, center, radius: Math.max(1, object.radius * scale), seats: object.seats.map((seat) => seatWith(seat, uniformTransform)) };
+      }
+      return { ...object, center: transform(object.center), radius: Math.max(1, object.radius * (scaleX + scaleY) / 2), width: object.width === undefined ? undefined : object.width * scaleX, height: object.height === undefined ? undefined : object.height * scaleY, seats: object.seats.map((seat) => seatWith(seat, transform)) };
+    }
     case "booth":
     case "image": return { ...object, x: next.x, y: next.y, width: Math.max(1, next.width), height: Math.max(1, next.height) };
     case "rectangle": return { ...object, x: next.x, y: next.y, width: Math.max(1, next.width), height: Math.max(1, next.height), points: object.points?.map(transform) };

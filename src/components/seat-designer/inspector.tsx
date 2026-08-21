@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, Check, Search, Settings2, X } from "lucide-react";
 import type { ChartObject } from "@/types/seat-chart";
-import { countPlaces } from "@/lib/seat-designer/chart-ops";
+import { countPlaces, isPlaceBearingObject } from "@/lib/seat-designer/chart-ops";
 import { ko } from "@/lib/seat-designer/i18n";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import type { ValidationItem } from "@/lib/seat-designer/validation";
@@ -167,15 +167,16 @@ export function Inspector({
               {ko.layer}
               <select
                 className="mt-1 w-full rounded border border-black/10 px-2 py-1.5 text-[13px]"
-                value={primary.layer}
+                value={isPlaceBearingObject(primary) ? "interactive" : primary.layer}
+                disabled={isPlaceBearingObject(primary)}
                 onChange={(event) => {
                   if (isObjectLayer(event.target.value)) patchAdvanced({ layer: event.target.value });
                 }}
               >
-                <option value="foreground">전경 장식</option>
+                {!isPlaceBearingObject(primary) && <option value="foreground">전경 장식</option>}
                 <option value="interactive">인터랙티브 객체</option>
-                <option value="background">배경 장식</option>
-                <option value="surroundings">주변 요소</option>
+                {!isPlaceBearingObject(primary) && <option value="background">배경 장식</option>}
+                {!isPlaceBearingObject(primary) && <option value="surroundings">주변 요소</option>}
               </select>
             </label>
             <div className="mt-2 grid grid-cols-2 gap-2">

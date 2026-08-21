@@ -140,7 +140,7 @@ export function SeatDesigner() {
       <ChartSettingsDialog api={api} />
       <FloorsDialog api={api} />
       <FirstTimeTutorial api={api} />
-      <NewChartDialog api={api} open={newChartOpen} onClose={() => setNewChartOpen(false)} />
+      <NewChartDialog api={api} open={newChartOpen && !state.restoredLocalDraft} onClose={() => setNewChartOpen(false)} />
     </div>
   );
 }

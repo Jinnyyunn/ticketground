@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Home, Minus, Plus } from "lucide-react";
-import type { ChartObject, SeatPlace } from "@/types/seat-chart";
+import type { ChartObject, Point, SeatPlace, ToolMode } from "@/types/seat-chart";
 import { countPlaces, fitViewportToChart, normalizeOverlay, objectCenter } from "@/lib/seat-designer/chart-ops";
 import { boundsOfPoints, constrainPointToAngle, polygonPath } from "@/lib/seat-designer/geometry";
 import { ko, toolLabel } from "@/lib/seat-designer/i18n";
@@ -12,6 +12,18 @@ import { marqueeObjectSelection, sameTypeSelection } from "@/lib/seat-designer/s
 import { ImageImportControl } from "./image-import-control";
 import { SelectionOverlay } from "./selection-overlay";
 import { verticesOf } from "@/lib/seat-designer/vertices";
+
+function constrainedDrawEnd(mode: ToolMode, start: Point, end: Point, shiftKey: boolean): Point {
+  if (!shiftKey) return end;
+  if (mode === "row" || mode === "rowsMultiple") return constrainPointToAngle(start, end, 15);
+  if (["areaRectangle", "areaEllipse", "shapeRectangle", "shapeEllipse"].includes(mode)) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const size = Math.max(Math.abs(dx), Math.abs(dy));
+    return { x: start.x + Math.sign(dx || 1) * size, y: start.y + Math.sign(dy || 1) * size };
+  }
+  return end;
+}
 
 function categoryColor(
   chartCats: readonly { key: string; color: string }[],
@@ -549,7 +561,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     if (!object || object.locked || !layerOk(object)) return;
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const world = screenToWorld(e.clientX, e.clientY, rect, !e.altKey);
+    const world = screenToWorld(e.clientX, e.clientY, rect, e.altKey);
 
     if (tool === "selectSame") {
       dispatch({ type: "SELECT", ids: [...sameTypeSelection(chart, id)] });
@@ -581,7 +593,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return;
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-    let world = screenToWorld(e.clientX, e.clientY, rect, !e.altKey);
+    let world = screenToWorld(e.clientX, e.clientY, rect, e.altKey);
     if (e.button === 2 && draftPoints.length > 0) {
       dispatch({ type: "SET_DRAFT", points: draftPoints.slice(0, -1) });
       return;
@@ -669,25 +681,8 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
     if (!drag) return;
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return;
-    let world = screenToWorld(e.clientX, e.clientY, rect, !e.altKey);
-    if (drag.mode === "draw" && e.shiftKey) {
-      if (toolMode === "row" || toolMode === "rowsMultiple") {
-        world = constrainPointToAngle(drag.startWorld, world, 15);
-      } else if (
-        toolMode === "areaRectangle" ||
-        toolMode === "areaEllipse" ||
-        toolMode === "shapeRectangle" ||
-        toolMode === "shapeEllipse"
-      ) {
-        const dx = world.x - drag.startWorld.x;
-        const dy = world.y - drag.startWorld.y;
-        const size = Math.max(Math.abs(dx), Math.abs(dy));
-        world = {
-          x: drag.startWorld.x + Math.sign(dx || 1) * size,
-          y: drag.startWorld.y + Math.sign(dy || 1) * size,
-        };
-      }
-    }
+    let world = screenToWorld(e.clientX, e.clientY, rect, e.altKey);
+    if (drag.mode === "draw") world = constrainedDrawEnd(toolMode, drag.startWorld, world, e.shiftKey);
 
     if (drag.mode === "pan") {
       const dx = e.clientX - drag.startScreen.x;
@@ -770,7 +765,10 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     const rect = wrapRef.current?.getBoundingClientRect();
-    const pointerWorld = rect ? screenToWorld(e.clientX, e.clientY, rect, !e.altKey) : null;
+    const rawPointerWorld = rect ? screenToWorld(e.clientX, e.clientY, rect, e.altKey) : null;
+    const pointerWorld = drag?.mode === "draw" && rawPointerWorld
+      ? constrainedDrawEnd(toolMode, drag.startWorld, rawPointerWorld, e.shiftKey)
+      : rawPointerWorld;
     if (drag?.mode === "move" && dragOffset) {
       if (Math.hypot(dragOffset.x, dragOffset.y) > 1) {
         commitTranslate(selectedIds, dragOffset.x, dragOffset.y);

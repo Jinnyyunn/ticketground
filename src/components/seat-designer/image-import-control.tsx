@@ -59,13 +59,7 @@ export function ImageImportControl({
         href: uploaded.url,
         opacity: 1,
       };
-      api.dispatch({
-        type: "COMMIT",
-        chart: { ...api.state.chart, objects: [...api.state.chart.objects, object] },
-        status: "이미지를 불러왔습니다.",
-      });
-      api.dispatch({ type: "SELECT", ids: [object.id] });
-      api.dispatch({ type: "SET_TOOL", tool: "select" });
+      api.dispatch({ type: "ADD_OBJECT", object, status: "이미지를 불러왔습니다.", select: true });
     } catch {
       setError("이미지를 불러오지 못했습니다. 파일을 확인하고 다시 시도하세요.");
     } finally {

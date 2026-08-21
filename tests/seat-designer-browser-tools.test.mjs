@@ -248,9 +248,8 @@ test("every native designer tool family is operable in the real admin browser", 
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto(`${server.adminUrl}/admin/seat-designer`, { waitUntil: "networkidle" });
   await page.getByTestId("seat-designer-shell").waitFor();
-  const compactDialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
-  await compactDialog.locator("select").selectOption({ index: 1 });
-  await compactDialog.getByRole("button", { name: "빈 캔버스" }).click();
+  assert.equal(await page.getByRole("dialog", { name: "새 좌석 차트 만들기" }).count(), 0, "saved local draft must reopen directly");
+  await page.locator('[data-object-type="row"]').first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   await page.screenshot({ path: path.join(screenshotRoot, "seat-designer-compact.png"), fullPage: true });
   assert.deepEqual(runtimeErrors, []);

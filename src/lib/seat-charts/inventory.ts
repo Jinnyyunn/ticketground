@@ -1,4 +1,6 @@
 import type { ChartDocument, ChartObject, SeatPlace } from "@/types/seat-chart";
+import { objectCenter } from "../seat-designer/chart-ops.ts";
+import { rotateAround } from "../seat-designer/geometry.ts";
 
 export type SellableTier = "VIP" | "R" | "S" | "A";
 
@@ -65,13 +67,16 @@ export function chartToSellableSeats(
 
   const pushSeat = (
     place: SeatPlace,
-    objectId: string,
+    object: ChartObject,
     objectType: ChartObject["type"],
     fallbackCategory?: string,
   ) => {
+    const position = object.rotation
+      ? rotateAround(place, objectCenter(object), object.rotation)
+      : place;
     const catKey = place.categoryKey ?? fallbackCategory;
     const { tier, label: categoryLabel } = tierFromCategory(chart, catKey);
-    expandBounds(b, place.x, place.y);
+    expandBounds(b, position.x, position.y);
     seats.push({
       id: place.id,
       label: place.label,
@@ -79,23 +84,24 @@ export function chartToSellableSeats(
       tier,
       price: prices[tier],
       sold: soldIds.has(place.id),
-      x: place.x,
-      y: place.y,
+      x: position.x,
+      y: position.y,
       categoryKey: catKey,
       categoryLabel,
-      objectId,
+      objectId: object.id,
       objectType,
     });
   };
 
   const walk = (obj: ChartObject) => {
+    if (obj.layer !== "interactive") return;
     if (obj.floorId && chart.activeFloorId && obj.floorId !== chart.activeFloorId) {
       // include all floors for inventory by default when selling
       // skip only if we later add floor-specific events
     }
 
     if (obj.type === "row") {
-      for (const s of obj.seats) pushSeat(s, obj.id, "row", obj.categoryKey);
+      for (const s of obj.seats) pushSeat(s, obj, "row", obj.categoryKey);
       return;
     }
     if (obj.type === "table") {
@@ -109,12 +115,12 @@ export function chartToSellableSeats(
             categoryKey: obj.categoryKey,
             displayedLabel: obj.displayedLabel,
           },
-          obj.id,
+          obj,
           "table",
           obj.categoryKey,
         );
       } else {
-        for (const s of obj.seats) pushSeat(s, obj.id, "table", obj.categoryKey);
+        for (const s of obj.seats) pushSeat(s, obj, "table", obj.categoryKey);
       }
       return;
     }
@@ -127,7 +133,7 @@ export function chartToSellableSeats(
           y: obj.y + obj.height / 2,
           categoryKey: obj.categoryKey,
         },
-        obj.id,
+        obj,
         "booth",
         obj.categoryKey,
       );
@@ -156,7 +162,7 @@ export function chartToSellableSeats(
             y,
             categoryKey: obj.categoryKey,
           },
-          obj.id,
+          obj,
           "area",
           obj.categoryKey,
         );
@@ -165,7 +171,7 @@ export function chartToSellableSeats(
     }
     if (obj.type === "section" && obj.nestedRows) {
       for (const row of obj.nestedRows) {
-        for (const s of row.seats) pushSeat(s, obj.id, "section", obj.categoryKey ?? row.categoryKey);
+        for (const s of row.seats) pushSeat(s, obj, "section", obj.categoryKey ?? row.categoryKey);
       }
     }
   };

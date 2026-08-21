@@ -7,7 +7,8 @@ import type {
   TableObject,
   Viewport,
 } from "@/types/seat-chart";
-import { mirrorPoints, seatsAlongLine, seatsAroundRectangularTable, seatsAroundTable, uid } from "./geometry.ts";
+import { mirrorPoints, seatsAlongLine, seatsAlongPolyline, seatsAroundRectangularTable, seatsAroundTable, uid } from "./geometry.ts";
+import { objectBounds, resizeObject } from "./transforms.ts";
 
 export type ChartBounds = {
   minX: number;
@@ -52,7 +53,11 @@ export function chartBounds(chart: ChartDocument): ChartBounds {
         }
         break;
       case "table":
-        expandBounds(b, obj.center.x, obj.center.y, obj.radius + 20);
+        {
+          const bounds = objectBounds(obj);
+          expandBounds(b, bounds.x, bounds.y);
+          expandBounds(b, bounds.x + bounds.width, bounds.y + bounds.height);
+        }
         break;
       case "booth":
       case "rectangle":
@@ -145,6 +150,14 @@ export function findObject(chart: ChartDocument, id: string): ChartObject | unde
   return chart.objects.find((o) => o.id === id);
 }
 
+export function isPlaceBearingObject(object: ChartObject): boolean {
+  return object.type === "row"
+    || object.type === "section"
+    || object.type === "table"
+    || object.type === "booth"
+    || object.type === "area";
+}
+
 export function updateObject(
   chart: ChartDocument,
   id: string,
@@ -158,7 +171,7 @@ export function updateObject(
 
 export function removeObjects(chart: ChartDocument, ids: readonly string[]): ChartDocument {
   const set = new Set(ids);
-  return { ...chart, objects: chart.objects.filter((o) => !set.has(o.id)) };
+  return { ...chart, objects: chart.objects.filter((o) => !set.has(o.id) || o.locked) };
 }
 
 export function addObject(chart: ChartDocument, obj: ChartObject): ChartDocument {
@@ -169,13 +182,13 @@ export function duplicateObjects(chart: ChartDocument, ids: readonly string[], o
   const set = new Set(ids);
   const clones: ChartObject[] = [];
   for (const obj of chart.objects) {
-    if (!set.has(obj.id)) continue;
-    clones.push(cloneOffset(obj, offset));
+    if (!set.has(obj.id) || obj.locked) continue;
+    clones.push(cloneObjectWithOffset(obj, offset));
   }
   return { ...chart, objects: [...chart.objects, ...clones] };
 }
 
-function cloneOffset(obj: ChartObject, d: number): ChartObject {
+export function cloneObjectWithOffset(obj: ChartObject, d: number): ChartObject {
   const id = uid(obj.type);
   const label = `${obj.label} 복사`;
   switch (obj.type) {
@@ -195,7 +208,7 @@ function cloneOffset(obj: ChartObject, d: number): ChartObject {
         id,
         label,
         points: obj.points.map((p) => ({ x: p.x + d, y: p.y + d })),
-        nestedRows: obj.nestedRows?.map((r) => cloneOffset(r, d) as RowObject),
+        nestedRows: obj.nestedRows?.map((r) => cloneObjectWithOffset(r, d) as RowObject),
       };
     case "table":
       return {
@@ -246,7 +259,7 @@ export function flipObjects(
   return {
     ...chart,
     objects: chart.objects.map((obj) => {
-      if (!set.has(obj.id)) return obj;
+      if (!set.has(obj.id) || obj.locked) return obj;
       return flipOne(obj, axis, origin);
     }),
   };
@@ -304,7 +317,7 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
 
 export function alignCenter(chart: ChartDocument, ids: readonly string[]): ChartDocument {
   const set = new Set(ids);
-  const selected = chart.objects.filter((o) => set.has(o.id));
+  const selected = chart.objects.filter((o) => set.has(o.id) && !o.locked);
   if (selected.length < 2) return chart;
   // Align midpoints of bounding boxes to average center X
   const centers = selected.map(objectCenter);
@@ -312,7 +325,7 @@ export function alignCenter(chart: ChartDocument, ids: readonly string[]): Chart
   return {
     ...chart,
     objects: chart.objects.map((obj) => {
-      if (!set.has(obj.id)) return obj;
+      if (!set.has(obj.id) || obj.locked) return obj;
       const c = objectCenter(obj);
       const dx = avgX - c.x;
       return translateObject(obj, dx, 0);
@@ -466,7 +479,7 @@ export function applyCategory(
   return {
     ...chart,
     objects: chart.objects.map((obj) => {
-      if (!set.has(obj.id)) return obj;
+      if (!set.has(obj.id) || obj.locked) return obj;
       if (obj.type === "row") {
         return {
           ...obj,
@@ -498,6 +511,7 @@ export function applyCategory(
 }
 
 export function setObjectLabel(chart: ChartDocument, id: string, label: string): ChartDocument {
+  if (findObject(chart, id)?.locked) return chart;
   return updateObject(chart, id, { label } as Partial<ChartObject>);
 }
 
@@ -522,7 +536,7 @@ export function setTableProps(
   patch: TablePatch,
 ): ChartDocument {
   const obj = findObject(chart, id);
-  if (!obj || obj.type !== "table") return chart;
+  if (!obj || obj.type !== "table" || obj.locked) return chart;
   const numericValues = [patch.seatCount, patch.radius, patch.minOccupancy, patch.maxOccupancy, patch.width, patch.height].filter((value) => value !== undefined);
   if (numericValues.some((value) => !Number.isFinite(value))) return chart;
   const seatCount = Math.max(1, Math.min(48, patch.seatCount ?? obj.seatCount));
@@ -570,7 +584,7 @@ export function setObjectAdvanced(
   },
 ): ChartDocument {
   const obj = findObject(chart, id);
-  if (!obj) return chart;
+  if (!obj || (obj.locked && patch.locked !== false)) return chart;
   return updateObject(chart, id, {
     label: patch.label ?? obj.label,
     displayedLabel: patch.displayedLabel ?? obj.displayedLabel,
@@ -579,7 +593,7 @@ export function setObjectAdvanced(
     zoneId: patch.zoneId === null ? undefined : (patch.zoneId ?? obj.zoneId),
     floorId: patch.floorId === null ? undefined : (patch.floorId ?? obj.floorId),
     locked: patch.locked ?? obj.locked,
-    layer: patch.layer ?? obj.layer,
+    layer: isPlaceBearingObject(obj) ? "interactive" : (patch.layer ?? obj.layer),
     rotation: Number.isFinite(patch.rotation) ? patch.rotation : obj.rotation,
   } as Partial<ChartObject>);
 }
@@ -590,7 +604,7 @@ export function setRowGeometry(
   patch: { seatCount?: number; curve?: number; label?: string; smooth?: number; displayedLabel?: string },
 ): ChartDocument {
   const obj = findObject(chart, id);
-  if (!obj || obj.type !== "row") return chart;
+  if (!obj || obj.type !== "row" || obj.locked) return chart;
   const numericValues = [patch.seatCount, patch.curve, patch.smooth].filter((value) => value !== undefined);
   if (numericValues.some((value) => !Number.isFinite(value))) return chart;
   const seatCount = Math.max(1, Math.min(200, patch.seatCount ?? obj.seatCount));
@@ -602,13 +616,15 @@ export function setRowGeometry(
     label,
     smooth: patch.smooth ?? obj.smooth,
     displayedLabel: patch.displayedLabel ?? obj.displayedLabel,
-    seats: seatsAlongLine(obj.start, obj.end, seatCount, label, curve, obj.categoryKey),
+    seats: obj.path?.length
+      ? seatsAlongPolyline(obj.path, seatCount, label, obj.categoryKey)
+      : seatsAlongLine(obj.start, obj.end, seatCount, label, curve, obj.categoryKey),
   });
 }
 
 export function setAreaCapacity(chart: ChartDocument, id: string, capacity: number): ChartDocument {
   const obj = findObject(chart, id);
-  if (!obj || obj.type !== "area") return chart;
+  if (!obj || obj.type !== "area" || obj.locked) return chart;
   if (!Number.isFinite(capacity)) return chart;
   return updateObject(chart, id, { capacity: Math.max(1, Math.floor(capacity)) });
 }
@@ -631,11 +647,22 @@ export type DecorationPatch = {
 
 export function setDecorationProps(chart: ChartDocument, id: string, patch: DecorationPatch): ChartDocument {
   const object = findObject(chart, id);
-  if (!object) return chart;
+  if (!object || object.locked) return chart;
   const numeric = [patch.width, patch.height, patch.rotation, patch.fontSize, patch.opacity, patch.size].filter((value) => value !== undefined);
   if (numeric.some((value) => !Number.isFinite(value))) return chart;
   let next: ChartObject;
-  if (object.type === "rectangle") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), fill: patch.fill ?? object.fill, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation };
+  if (object.type === "rectangle") {
+    const width = Math.max(1, patch.width ?? object.width);
+    const height = Math.max(1, patch.height ?? object.height);
+    if (object.shape === "polygon" && object.points?.length) {
+      const resized = resizeObject(object, { x: objectBounds(object).x, y: objectBounds(object).y, width, height });
+      next = resized.type === "rectangle"
+        ? { ...resized, fill: patch.fill ?? object.fill, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation }
+        : object;
+    } else {
+      next = { ...object, width, height, fill: patch.fill ?? object.fill, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation };
+    }
+  }
   else if (object.type === "booth") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), rotation: patch.rotation ?? object.rotation };
   else if (object.type === "line") next = { ...object, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation };
   else if (object.type === "text") next = { ...object, text: patch.text ?? object.text, fontSize: Math.max(6, patch.fontSize ?? object.fontSize ?? 16), color: patch.color ?? object.color, weight: patch.weight ?? object.weight, align: patch.align ?? object.align, rotation: patch.rotation ?? object.rotation };
@@ -652,7 +679,7 @@ export function setPolygonPoint(
   point: Point,
 ): ChartDocument {
   const obj = findObject(chart, id);
-  if (!obj || (obj.type !== "section" && obj.type !== "area")) return chart;
+  if (!obj || obj.locked || (obj.type !== "section" && obj.type !== "area")) return chart;
   if (pointIndex < 0 || pointIndex >= obj.points.length) return chart;
   const points = obj.points.map((p, i) => (i === pointIndex ? point : p));
   return updateObject(chart, id, { points });
@@ -665,7 +692,7 @@ export function setRowEndpoints(
   end: Point,
 ): ChartDocument {
   const obj = findObject(chart, id);
-  if (!obj || obj.type !== "row") return chart;
+  if (!obj || obj.type !== "row" || obj.locked) return chart;
   return updateObject(chart, id, {
     start,
     end,
@@ -682,6 +709,6 @@ export function translateMany(
   const set = new Set(ids);
   return {
     ...chart,
-    objects: chart.objects.map((obj) => (set.has(obj.id) ? translateObject(obj, dx, dy) : obj)),
+    objects: chart.objects.map((obj) => (set.has(obj.id) && !obj.locked ? translateObject(obj, dx, dy) : obj)),
   };
 }

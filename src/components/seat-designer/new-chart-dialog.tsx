@@ -62,7 +62,7 @@ export function NewChartDialog({ api, open, onClose }: { readonly api: SeatEdito
             <button type="button" className="rounded-xl border border-[#9dccf8] bg-[#f5f9ff] p-5 text-left hover:border-[#0784fa]" onClick={() => { if (begin()) setMode("reference"); }}><FileImage className="mb-8 size-7 text-[#0784fa]" /><strong className="block text-sm">도면 불러오기</strong><span className="mt-1 block text-xs leading-5 text-[#667085]">이미지를 불러와 편집하거나 좌석을 자동 인식합니다.</span></button>
           </div>
         ) : (
-          <ReferenceChartPanel onComplete={(input) => { api.startFromReference(input); close(); }} />
+          <ReferenceChartPanel onComplete={(input) => { api.startFromReference({ ...input, name: name.trim() }); close(); }} />
         )}
       </div>
     </div>

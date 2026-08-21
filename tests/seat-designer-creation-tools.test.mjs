@@ -38,7 +38,7 @@ test("reference defaults are preserved by the matching creation modes", () => {
   const roundTable = createObjectForTool({ ...common, tool: "table", mode: "tableRound" });
   assert.equal(roundTable.seatCount, 6);
 
-  const rectangularTable = createObjectForTool({ ...common, tool: "table", mode: "tableRectangular" });
+  const rectangularTable = createObjectForTool({ ...common, tool: "table", mode: "tableRectangular", end: start });
   assert.equal(rectangularTable.shape, "rectangle");
   assert.equal(rectangularTable.width, 120);
   assert.equal(rectangularTable.height, 36);

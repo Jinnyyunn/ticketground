@@ -16,6 +16,7 @@ import {
   addObject,
   alignCenter,
   applyCategory,
+  cloneObjectWithOffset,
   createRow,
   duplicateObjects,
   flipObjects,
@@ -29,7 +30,7 @@ import {
   setTableProps,
   translateMany,
 } from "./chart-ops";
-import { seatsAlongLine, seatsAroundTable, snapPoint, uid } from "./geometry";
+import { snapPoint, uid } from "./geometry";
 import { ko } from "./i18n";
 import { buildTemplate, type TemplateId } from "./templates";
 import { blockingValidationItems, validateChart } from "./validation";
@@ -74,6 +75,7 @@ export type EditorState = {
   serverStatus: string;
   searchQuery: string;
   searchOpen: boolean;
+  restoredLocalDraft: boolean;
 };
 
 type HistorySnapshot = {
@@ -84,6 +86,9 @@ type HistorySnapshot = {
 
 type Action =
   | { type: "LOAD"; chart: ChartDocument }
+  | { type: "RESTORE_LOCAL"; chart: ChartDocument }
+  | { type: "ADD_OBJECT"; object: ChartObject; status: string; select?: boolean }
+  | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; height: number; label: string; status: string }
   | { type: "SET_TOOL"; tool: ToolId }
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_VIEWPORT"; viewport: Partial<Viewport> }
@@ -147,6 +152,7 @@ function initialState(): EditorState {
     serverStatus: "",
     searchQuery: "",
     searchOpen: false,
+    restoredLocalDraft: false,
   };
 }
 
@@ -171,7 +177,33 @@ function reducer(state: EditorState, action: Action): EditorState {
         selectedIds: [],
         selectedSeatIds: [],
         fitGeneration: state.fitGeneration + 1,
+        restoredLocalDraft: false,
       };
+    case "RESTORE_LOCAL":
+      return {
+        ...state,
+        chart: action.chart,
+        past: [],
+        future: [],
+        selectedIds: [],
+        selectedSeatIds: [],
+        fitGeneration: state.fitGeneration + 1,
+        restoredLocalDraft: true,
+      };
+    case "ADD_OBJECT": {
+      const next = pushHistory(state, addObject(state.chart, action.object), action.status);
+      return action.select
+        ? { ...next, selectedIds: [action.object.id], selectedSeatIds: [], tool: "select", toolMode: "select" }
+        : next;
+    }
+    case "PATCH_IMAGE_ASSET": {
+      const current = state.chart.objects.find((object) => object.id === action.id);
+      if (!current || current.type !== "image") return state;
+      return pushHistory(state, {
+        ...state.chart,
+        objects: state.chart.objects.map((object) => object.id === action.id ? { ...current, href: action.href, height: action.height, label: action.label } : object),
+      }, action.status);
+    }
     case "REQUEST_FIT":
       return { ...state, fitGeneration: state.fitGeneration + 1 };
     case "SET_TOOL":
@@ -315,7 +347,7 @@ export function useSeatEditor() {
       if (raw) {
         const parsed = JSON.parse(raw) as ChartDocument;
         if (parsed?.objects && parsed?.categories) {
-          dispatch({ type: "LOAD", chart: parsed });
+          dispatch({ type: "RESTORE_LOCAL", chart: parsed });
           dispatch({ type: "SET_STATUS", status: ko.loadedSaved });
         }
       }
@@ -482,6 +514,7 @@ export function useSeatEditor() {
   }, []);
 
   const startFromReference = useCallback((input: {
+    readonly name: string;
     readonly href: string;
     readonly width: number;
     readonly height: number;
@@ -492,6 +525,7 @@ export function useSeatEditor() {
       type: "LOAD",
       chart: {
         ...chart,
+        name: input.name,
         objects: input.rows ?? [],
         referenceChart: {
           href: input.href,
@@ -534,7 +568,7 @@ export function useSeatEditor() {
     if (state.clipboard.length === 0) return;
     const clones = state.clipboard.map((obj) => {
       const json = JSON.parse(JSON.stringify(obj)) as ChartObject;
-      return remapClone(json, 32);
+      return cloneObjectWithOffset(json, 32);
     });
     dispatch({
       type: "COMMIT",
@@ -598,10 +632,10 @@ export function useSeatEditor() {
   );
 
   const screenToWorld = useCallback(
-    (sx: number, sy: number, rect: DOMRect, snapOverride?: boolean): Point => {
+    (sx: number, sy: number, rect: DOMRect, disableSnap = false): Point => {
       const x = (sx - rect.left - state.viewport.x) / state.viewport.zoom;
       const y = (sy - rect.top - state.viewport.y) / state.viewport.zoom;
-      return snapPoint({ x, y }, state.settings.gridSize, snapOverride ?? state.settings.snapToGrid);
+      return snapPoint({ x, y }, state.settings.gridSize, state.settings.snapToGrid && !disableSnap);
     },
     [state.viewport, state.settings.gridSize, state.settings.snapToGrid],
   );
@@ -718,8 +752,7 @@ export function useSeatEditor() {
               height: asset.height * scale,
               href,
             };
-            dispatch({ type: "COMMIT", chart: addObject(chart, obj), status: ko.imageAdded });
-            dispatch({ type: "SELECT", ids: [obj.id] });
+            dispatch({ type: "ADD_OBJECT", object: obj, status: ko.imageAdded, select: true });
             })
             .catch(() => dispatch({ type: "SET_STATUS", status: "이미지 업로드 실패" }));
         };
@@ -791,7 +824,8 @@ export function useSeatEditor() {
       const height = Math.abs(b.y - a.y);
       const isRow = state.toolMode === "row" || state.toolMode === "rowsMultiple";
       if (isRow && Math.hypot(width, height) < 8) return;
-      if (!isRow && state.tool !== "booth" && (width < 4 || height < 4)) return;
+      const defaultRectangularTable = state.toolMode === "tableRectangular" && width < 4 && height < 4;
+      if (!isRow && state.tool !== "booth" && !defaultRectangularTable && (width < 4 || height < 4)) return;
       commitCreatedObjects(a, b, [a, b]);
     },
     [commitCreatedObjects, state.tool, state.toolMode],
@@ -952,10 +986,12 @@ export function useSeatEditor() {
       const { apiUploadReferenceAsset } = await import("@/lib/seat-charts/client");
       const uploaded = await apiUploadReferenceAsset({ file, purpose: "object" });
       const ratio = uploaded.asset.height / uploaded.asset.width;
-      const replacement = { ...selected, href: uploaded.url, height: selected.width * ratio, label: file.name };
       dispatch({
-        type: "COMMIT",
-        chart: { ...state.chart, objects: state.chart.objects.map((object) => object.id === selected.id ? replacement : object) },
+        type: "PATCH_IMAGE_ASSET",
+        id: selected.id,
+        href: uploaded.url,
+        height: selected.width * ratio,
+        label: file.name,
         status: "이미지 교체",
       });
       return true;
@@ -1180,70 +1216,6 @@ export function useSeatEditor() {
       });
     },
   };
-}
-
-function remapClone(obj: ChartObject, d: number): ChartObject {
-  const id = uid(obj.type);
-  const label = `${obj.label} 복사`;
-  switch (obj.type) {
-    case "row": {
-      const start = { x: obj.start.x + d, y: obj.start.y + d };
-      const end = { x: obj.end.x + d, y: obj.end.y + d };
-      return {
-        ...obj,
-        id,
-        label,
-        start,
-        end,
-        seats: seatsAlongLine(start, end, obj.seatCount, label, obj.curve, obj.categoryKey),
-      };
-    }
-    case "table": {
-      const center = { x: obj.center.x + d, y: obj.center.y + d };
-      return {
-        ...obj,
-        id,
-        label,
-        center,
-        seats: seatsAroundTable(center, obj.radius, obj.seatCount, label, obj.categoryKey),
-      };
-    }
-    case "section":
-      return {
-        ...obj,
-        id,
-        label,
-        points: obj.points.map((p) => ({ x: p.x + d, y: p.y + d })),
-        nestedRows: obj.nestedRows?.map((r) => remapClone(r, d) as typeof r),
-      };
-    case "area":
-      return {
-        ...obj,
-        id,
-        label,
-        points: obj.points.map((p) => ({ x: p.x + d, y: p.y + d })),
-      };
-    case "booth":
-    case "rectangle":
-    case "image":
-      return { ...obj, id, label, x: obj.x + d, y: obj.y + d };
-    case "line":
-      return {
-        ...obj,
-        id,
-        label,
-        start: { x: obj.start.x + d, y: obj.start.y + d },
-        end: { x: obj.end.x + d, y: obj.end.y + d },
-      };
-    case "text":
-    case "icon":
-      return {
-        ...obj,
-        id,
-        label,
-        position: { x: obj.position.x + d, y: obj.position.y + d },
-      };
-  }
 }
 
 export type SeatEditorApi = ReturnType<typeof useSeatEditor>;

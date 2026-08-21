@@ -32,6 +32,7 @@ function minimumVertices(object: ChartObject): number {
 }
 
 export function insertVertex(object: ChartObject, index: number, point: Point): ChartObject {
+  if (object.locked) return object;
   const points = [...verticesOf(object)];
   if (points.length === 0 || index < 0 || index > points.length) return object;
   points.splice(index, 0, point);
@@ -39,6 +40,7 @@ export function insertVertex(object: ChartObject, index: number, point: Point): 
 }
 
 export function moveVertex(object: ChartObject, index: number, point: Point): ChartObject {
+  if (object.locked) return object;
   const points = [...verticesOf(object)];
   if (!points[index]) return object;
   points[index] = point;
@@ -46,6 +48,7 @@ export function moveVertex(object: ChartObject, index: number, point: Point): Ch
 }
 
 export function removeVertex(object: ChartObject, index: number): ChartObject {
+  if (object.locked) return object;
   const points = [...verticesOf(object)];
   if (!points[index] || points.length <= minimumVertices(object)) return object;
   points.splice(index, 1);

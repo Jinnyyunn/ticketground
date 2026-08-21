@@ -1,4 +1,5 @@
 import type { ChartDocument, ChartObject, ObjectLayer, Point, SelectionLayer } from "../../types/seat-chart.ts";
+import { objectBounds } from "./transforms.ts";
 
 type Bounds = { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
 
@@ -26,19 +27,8 @@ export function sameTypeSelection(chart: Pick<ChartDocument, "objects">, id: str
 }
 
 function boundsOf(object: ChartObject): Bounds {
-  if (object.type === "row" || object.type === "line") {
-    return { minX: Math.min(object.start.x, object.end.x), minY: Math.min(object.start.y, object.end.y), maxX: Math.max(object.start.x, object.end.x), maxY: Math.max(object.start.y, object.end.y) };
-  }
-  if (object.type === "section" || object.type === "area") {
-    return { minX: Math.min(...object.points.map((point) => point.x)), minY: Math.min(...object.points.map((point) => point.y)), maxX: Math.max(...object.points.map((point) => point.x)), maxY: Math.max(...object.points.map((point) => point.y)) };
-  }
-  if (object.type === "table") {
-    return { minX: object.center.x - object.radius, minY: object.center.y - object.radius, maxX: object.center.x + object.radius, maxY: object.center.y + object.radius };
-  }
-  if (object.type === "text" || object.type === "icon") {
-    return { minX: object.position.x - 12, minY: object.position.y - 12, maxX: object.position.x + 12, maxY: object.position.y + 12 };
-  }
-  return { minX: object.x, minY: object.y, maxX: object.x + object.width, maxY: object.y + object.height };
+  const bounds = objectBounds(object);
+  return { minX: bounds.x, minY: bounds.y, maxX: bounds.x + bounds.width, maxY: bounds.y + bounds.height };
 }
 
 function matchesLayer(layer: ObjectLayer, selectedLayer: SelectionLayer): boolean {

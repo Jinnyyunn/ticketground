@@ -99,6 +99,8 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
   }
   if (input.tool === "table") {
     if (input.mode === "tableRectangular") {
+      const tableWidth = width < 4 ? 120 : width;
+      const tableHeight = height < 4 ? 36 : height;
       const center = { x: (input.start.x + input.end.x) / 2, y: (input.start.y + input.end.y) / 2 };
       return {
         id: uid("table"),
@@ -110,10 +112,10 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
         radius: 18,
         seatCount: 8,
         shape: "rectangle",
-        width: 120,
-        height: 36,
+        width: tableWidth,
+        height: tableHeight,
         chairs: { top: 4, right: 0, bottom: 4, left: 0 },
-        seats: rectangularTableSeats(center, 120, 36),
+        seats: rectangularTableSeats(center, tableWidth, tableHeight),
         ...common,
       };
     }

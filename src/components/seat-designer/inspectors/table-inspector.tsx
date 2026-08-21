@@ -53,6 +53,12 @@ export function TableInspector({ object, onChange }: { readonly object: TableObj
       <NumberField label="반지름" value={object.radius} min={8} max={120} onChange={(radius) => onChange({ radius })} />
       <label className="flex items-center gap-2 text-[12px] text-[#666]"><input type="checkbox" checked={Boolean(object.bookAsWhole)} onChange={(event) => onChange({ bookAsWhole: event.target.checked })} />전체 테이블로 예매</label>
       <label className="flex items-center gap-2 text-[12px] text-[#666]"><input type="checkbox" checked={Boolean(object.variableOccupancy)} onChange={(event) => onChange({ variableOccupancy: event.target.checked })} />가변 점유</label>
+      {object.variableOccupancy && (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="최소 인원" value={object.minOccupancy ?? 1} min={1} max={48} onChange={(minOccupancy) => onChange({ minOccupancy })} />
+          <NumberField label="최대 인원" value={object.maxOccupancy ?? object.seatCount} min={1} max={48} onChange={(maxOccupancy) => onChange({ maxOccupancy })} />
+        </div>
+      )}
     </div>
   );
 }
