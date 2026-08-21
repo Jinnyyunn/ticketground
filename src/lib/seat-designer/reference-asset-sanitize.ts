@@ -2,11 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import sharp from "sharp";
 
-const MAX_BYTES = 15 * 1024 * 1024;
+const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PIXELS = 100_000_000;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
 const WEBP_SIGNATURE = Buffer.from("RIFF");
+const GIF87_SIGNATURE = Buffer.from("GIF87a");
+const GIF89_SIGNATURE = Buffer.from("GIF89a");
 const PDF_SIGNATURE = Buffer.from("%PDF-");
 
 export type StoredReferenceAsset = {
@@ -28,12 +30,28 @@ export class ReferenceAssetValidationError extends Error {
   }
 }
 
-function sniffMediaType(bytes: Buffer): "raster" | "pdf" | null {
+function sniffMediaType(bytes: Buffer): "raster" | "svg" | "pdf" | null {
   if (bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) return "raster";
   if (bytes.subarray(0, JPEG_SIGNATURE.length).equals(JPEG_SIGNATURE)) return "raster";
   if (bytes.subarray(0, WEBP_SIGNATURE.length).equals(WEBP_SIGNATURE) && bytes.subarray(8, 12).toString() === "WEBP") return "raster";
+  if (bytes.subarray(0, GIF87_SIGNATURE.length).equals(GIF87_SIGNATURE)) return "raster";
+  if (bytes.subarray(0, GIF89_SIGNATURE.length).equals(GIF89_SIGNATURE)) return "raster";
   if (bytes.subarray(0, PDF_SIGNATURE.length).equals(PDF_SIGNATURE)) return "pdf";
+  if (/^(?:\uFEFF|\s)*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(bytes.subarray(0, 4096).toString("utf8"))) return "svg";
   return null;
+}
+
+function assertSafeSvg(bytes: Buffer): void {
+  const source = bytes.toString("utf8");
+  if (
+    /<\s*(?:script|foreignObject|iframe|object|embed)\b/i.test(source) ||
+    /\b(?:href|xlink:href)\s*=\s*["']\s*(?:https?:|data:|\/\/)/i.test(source) ||
+    /\burl\s*\(/i.test(source) ||
+    /<!DOCTYPE|<!ENTITY/i.test(source) ||
+    /\bon\w+\s*=/i.test(source)
+  ) {
+    throw new ReferenceAssetValidationError("REFERENCE_ASSET_UNSAFE_SVG");
+  }
 }
 
 function pdfDetails(bytes: Buffer): { pageCount: number; width: number; height: number } {
@@ -63,7 +81,9 @@ export async function prepareReferenceAsset(input: {
   const detected = sniffMediaType(source);
   const declaredMatches = detected === "pdf"
     ? input.declaredMediaType === "application/pdf"
-    : detected === "raster" && input.declaredMediaType.startsWith("image/");
+    : detected === "svg"
+      ? input.declaredMediaType === "image/svg+xml"
+      : detected === "raster" && input.declaredMediaType.startsWith("image/");
   if (!detected || !declaredMatches) throw new ReferenceAssetValidationError("REFERENCE_ASSET_TYPE_MISMATCH");
 
   const id = `asset_${randomUUID().replaceAll("-", "")}` as const;
@@ -89,6 +109,8 @@ export async function prepareReferenceAsset(input: {
       extension: "pdf",
     };
   }
+
+  if (detected === "svg") assertSafeSvg(source);
 
   const image = sharp(source, { failOn: "warning", limitInputPixels: MAX_PIXELS });
   const metadata = await image.metadata();

@@ -8,6 +8,7 @@ import type {
   Point,
   SelectionLayer,
   ToolId,
+  ToolMode,
   Viewport,
   RowObject,
 } from "@/types/seat-chart";
@@ -16,8 +17,6 @@ import {
   alignCenter,
   applyCategory,
   createRow,
-  createSection,
-  createTable,
   duplicateObjects,
   flipObjects,
   removeObjects,
@@ -25,7 +24,6 @@ import {
   setDecorationProps,
   setObjectAdvanced,
   setObjectLabel,
-  setPolygonPoint,
   setRowEndpoints,
   setRowGeometry,
   setTableProps,
@@ -35,7 +33,7 @@ import { seatsAlongLine, seatsAroundTable, snapPoint, uid } from "./geometry";
 import { ko } from "./i18n";
 import { buildTemplate, type TemplateId } from "./templates";
 import { blockingValidationItems, validateChart } from "./validation";
-import { mutatePolygonNode, toggleSelection } from "./selection";
+import { toggleSelection } from "./selection";
 import {
   addZone as addZoneToChart,
   removeZone as removeZoneFromChart,
@@ -43,6 +41,10 @@ import {
   setSeatProperties,
 } from "./chart-structure";
 import type { SeatChartVenue } from "@/lib/seat-charts/types";
+import { defaultModeForTool, primaryToolForMode } from "./tool-catalog";
+import { createObjectsForMode } from "./tools/create-objects";
+import { resizeObject, rotateObject, type ObjectBounds } from "./transforms";
+import { insertVertex, moveVertex, removeVertex, verticesOf } from "./vertices";
 
 const STORAGE_KEY = "ticketground.seat-designer.chart.v5";
 const TUTORIAL_KEY = "ticketground.seat-designer.tutorial.v1";
@@ -50,11 +52,12 @@ const ICON_CYCLE = ["stage", "entrance", "wc", "star"] as const;
 
 export type EditorState = {
   chart: ChartDocument;
-  past: ChartDocument[];
-  future: ChartDocument[];
+  past: HistorySnapshot[];
+  future: HistorySnapshot[];
   selectedIds: string[];
   selectedSeatIds: string[];
   tool: ToolId;
+  toolMode: ToolMode;
   settings: EditorSettings;
   viewport: Viewport;
   /** Bumps when chart should be re-centered/fitted in the canvas. */
@@ -73,9 +76,16 @@ export type EditorState = {
   searchOpen: boolean;
 };
 
+type HistorySnapshot = {
+  readonly chart: ChartDocument;
+  readonly selectedIds: readonly string[];
+  readonly selectedSeatIds: readonly string[];
+};
+
 type Action =
   | { type: "LOAD"; chart: ChartDocument }
   | { type: "SET_TOOL"; tool: ToolId }
+  | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_VIEWPORT"; viewport: Partial<Viewport> }
   | { type: "SELECT"; ids: string[]; additive?: boolean }
   | { type: "SELECT_SEATS"; ids: string[]; additive?: boolean; remove?: boolean }
@@ -114,12 +124,13 @@ const defaultSettings: EditorSettings = {
 
 function initialState(): EditorState {
   return {
-    chart: buildTemplate("large-theatre"),
+    chart: buildTemplate("blank"),
     past: [],
     future: [],
     selectedIds: [],
     selectedSeatIds: [],
     tool: "select",
+    toolMode: "select",
     settings: defaultSettings,
     // Placeholder until canvas measures and fits (see DesignerCanvas)
     viewport: { x: 0, y: 0, zoom: 0.5 },
@@ -130,7 +141,7 @@ function initialState(): EditorState {
     categoriesOpen: false,
     chartSettingsOpen: false,
     floorsOpen: false,
-    tutorialOpen: true,
+    tutorialOpen: false,
     boundVenue: null,
     status: ko.toolHints.select,
     serverStatus: "",
@@ -143,7 +154,7 @@ function pushHistory(state: EditorState, chart: ChartDocument, status?: string):
   return {
     ...state,
     chart,
-    past: [...state.past.slice(-79), state.chart],
+    past: [...state.past.slice(-79), { chart: state.chart, selectedIds: state.selectedIds, selectedSeatIds: state.selectedSeatIds }],
     future: [],
     status: status ?? state.status,
   };
@@ -167,9 +178,20 @@ function reducer(state: EditorState, action: Action): EditorState {
       return {
         ...state,
         tool: action.tool,
+        toolMode: defaultModeForTool(action.tool),
         draftPoints: [],
         status: toolStatus(action.tool),
       };
+    case "SET_TOOL_MODE": {
+      const tool = primaryToolForMode(action.mode);
+      return {
+        ...state,
+        tool,
+        toolMode: action.mode,
+        draftPoints: [],
+        status: toolStatus(tool),
+      };
+    }
     case "SET_VIEWPORT":
       return { ...state, viewport: { ...state.viewport, ...action.viewport } };
     case "SELECT": {
@@ -195,9 +217,11 @@ function reducer(state: EditorState, action: Action): EditorState {
       const prev = state.past[state.past.length - 1];
       return {
         ...state,
-        chart: prev,
+        chart: prev.chart,
+        selectedIds: [...prev.selectedIds],
+        selectedSeatIds: [...prev.selectedSeatIds],
         past: state.past.slice(0, -1),
-        future: [state.chart, ...state.future],
+        future: [{ chart: state.chart, selectedIds: state.selectedIds, selectedSeatIds: state.selectedSeatIds }, ...state.future],
         status: ko.undone,
       };
     }
@@ -206,8 +230,10 @@ function reducer(state: EditorState, action: Action): EditorState {
       const next = state.future[0];
       return {
         ...state,
-        chart: next,
-        past: [...state.past, state.chart],
+        chart: next.chart,
+        selectedIds: [...next.selectedIds],
+        selectedSeatIds: [...next.selectedSeatIds],
+        past: [...state.past, { chart: state.chart, selectedIds: state.selectedIds, selectedSeatIds: state.selectedSeatIds }],
         future: state.future.slice(1),
         status: ko.redone,
       };
@@ -485,7 +511,7 @@ export function useSeatEditor() {
   }, []);
 
   const resetDemo = useCallback(() => {
-    loadTemplate("large-theatre");
+    loadTemplate("blank");
   }, [loadTemplate]);
 
   const deleteSelected = useCallback(() => {
@@ -572,17 +598,41 @@ export function useSeatEditor() {
   );
 
   const screenToWorld = useCallback(
-    (sx: number, sy: number, rect: DOMRect): Point => {
+    (sx: number, sy: number, rect: DOMRect, snapOverride?: boolean): Point => {
       const x = (sx - rect.left - state.viewport.x) / state.viewport.zoom;
       const y = (sy - rect.top - state.viewport.y) / state.viewport.zoom;
-      return snapPoint({ x, y }, state.settings.gridSize, state.settings.snapToGrid);
+      return snapPoint({ x, y }, state.settings.gridSize, snapOverride ?? state.settings.snapToGrid);
     },
     [state.viewport, state.settings.gridSize, state.settings.snapToGrid],
   );
 
+  const commitCreatedObjects = useCallback(
+    (start: Point, end: Point, points: readonly Point[]) => {
+      const sequence = state.chart.objects.length + 1;
+      const objects = createObjectsForMode({
+        mode: state.toolMode,
+        start,
+        end,
+        points,
+        sequence,
+        floorId: state.chart.activeFloorId,
+        categoryKey: state.chart.categories[0]?.key,
+      });
+      if (objects.length === 0) return false;
+      dispatch({
+        type: "COMMIT",
+        chart: { ...state.chart, objects: [...state.chart.objects, ...objects] },
+        status: `${objects.length}개 객체 추가`,
+      });
+      dispatch({ type: "SELECT", ids: objects.map((object) => object.id) });
+      return true;
+    },
+    [state.chart, state.toolMode],
+  );
+
   const placeObjectAt = useCallback(
     (world: Point) => {
-      const { tool, chart, settings, draftPoints } = state;
+      const { tool, toolMode, chart, settings, draftPoints } = state;
       const cat = chart.categories[0]?.key;
       const floorId = chart.activeFloorId;
 
@@ -595,13 +645,8 @@ export function useSeatEditor() {
         return;
       }
 
-      if (tool === "table") {
-        const table = {
-          ...createTable(world, 28, 8, `테이블 ${chart.objects.filter((o) => o.type === "table").length + 1}`, cat),
-          floorId,
-        };
-        dispatch({ type: "COMMIT", chart: addObject(chart, table), status: ko.tableAdded });
-        dispatch({ type: "SELECT", ids: [table.id] });
+      if (tool === "table" && toolMode === "tableRound") {
+        commitCreatedObjects(world, { x: world.x + 28, y: world.y }, [world]);
         return;
       }
 
@@ -639,7 +684,7 @@ export function useSeatEditor() {
           floorId,
           position: world,
           icon,
-          size: 20,
+          size: 40,
         };
         dispatch({ type: "COMMIT", chart: addObject(chart, obj), status: ko.iconAdded });
         dispatch({ type: "SELECT", ids: [obj.id] });
@@ -649,13 +694,18 @@ export function useSeatEditor() {
       if (tool === "image") {
         const input = document.createElement("input");
         input.type = "file";
-        input.accept = "image/*";
+        input.accept = "image/png,image/jpeg,image/gif,image/webp,image/svg+xml";
         input.onchange = () => {
           const file = input.files?.[0];
           if (!file) return;
+          if (file.size > 10 * 1024 * 1024) {
+            dispatch({ type: "SET_STATUS", status: "이미지는 10MB 이하여야 합니다." });
+            return;
+          }
           void import("@/lib/seat-charts/client")
             .then(({ apiUploadReferenceAsset }) => apiUploadReferenceAsset({ file, purpose: "object" }))
-            .then(({ url: href }) => {
+            .then(({ asset, url: href }) => {
+            const scale = Math.min(1, 560 / asset.width, 420 / asset.height);
             const obj: ChartObject = {
               id: uid("image"),
               type: "image",
@@ -664,8 +714,8 @@ export function useSeatEditor() {
               floorId,
               x: world.x,
               y: world.y,
-              width: 200,
-              height: 140,
+              width: asset.width * scale,
+              height: asset.height * scale,
               href,
             };
             dispatch({ type: "COMMIT", chart: addObject(chart, obj), status: ko.imageAdded });
@@ -677,25 +727,12 @@ export function useSeatEditor() {
         return;
       }
 
-      if (tool === "booth") {
-        const obj: ChartObject = {
-          id: uid("booth"),
-          type: "booth",
-          label: `부스 ${chart.objects.filter((o) => o.type === "booth").length + 1}`,
-          layer: "interactive",
-          categoryKey: cat,
-          floorId,
-          x: world.x,
-          y: world.y,
-          width: 80,
-          height: 60,
-        };
-        dispatch({ type: "COMMIT", chart: addObject(chart, obj), status: ko.boothAdded });
-        dispatch({ type: "SELECT", ids: [obj.id] });
-        return;
-      }
-
       if (tool === "row") {
+        if (toolMode === "rowSegmented") {
+          dispatch({ type: "SET_DRAFT", points: [...draftPoints, world] });
+          dispatch({ type: "SET_STATUS", status: `구간이 있는 열 (${draftPoints.length + 1}개 노드)` });
+          return;
+        }
         if (draftPoints.length === 0) {
           dispatch({ type: "SET_DRAFT", points: [world] });
           dispatch({ type: "SET_STATUS", status: ko.rowEnd });
@@ -711,107 +748,53 @@ export function useSeatEditor() {
       }
 
       if (tool === "line") {
-        if (draftPoints.length === 0) {
-          dispatch({ type: "SET_DRAFT", points: [world] });
-        } else {
-          const obj: ChartObject = {
-            id: uid("line"),
-            type: "line",
-            label: "선",
-            layer: "background",
-            floorId,
-            start: draftPoints[0],
-            end: world,
-            stroke: "#666",
-          };
-          dispatch({ type: "COMMIT", chart: addObject(chart, obj), status: ko.lineAdded });
-          dispatch({ type: "SET_DRAFT", points: [] });
-        }
+        dispatch({ type: "SET_DRAFT", points: [...draftPoints, world] });
+        dispatch({ type: "SET_STATUS", status: `선 (${draftPoints.length + 1}개 노드, Enter로 완료)` });
         return;
       }
 
-      if (tool === "section" || tool === "area") {
+      if (
+        tool === "section" ||
+        toolMode === "areaPolygon" ||
+        toolMode === "shapePolygon"
+      ) {
         dispatch({ type: "SET_DRAFT", points: [...draftPoints, world] });
         dispatch({
           type: "SET_STATUS",
-          status: `${tool === "section" ? ko.sectionPoints : ko.areaPoints} (${draftPoints.length + 1})`,
+          status: `${tool === "section" ? ko.sectionPoints : "다각형 노드"} (${draftPoints.length + 1})`,
         });
       }
     },
-    [state],
+    [commitCreatedObjects, state],
   );
 
   const finishPolygon = useCallback(() => {
-    const { tool, chart, draftPoints } = state;
-    if ((tool !== "section" && tool !== "area") || draftPoints.length < 3) {
+    const { tool, toolMode, draftPoints } = state;
+    const minimum = tool === "line" || toolMode === "rowSegmented" ? 2 : 3;
+    const supportsNodes =
+      tool === "section" ||
+      tool === "line" ||
+      toolMode === "rowSegmented" ||
+      toolMode === "areaPolygon" ||
+      toolMode === "shapePolygon";
+    if (!supportsNodes || draftPoints.length < minimum) {
       dispatch({ type: "SET_DRAFT", points: [] });
       return;
     }
-    const cat = chart.categories[0]?.key;
-    if (tool === "section") {
-      const label = `구역 ${chart.objects.filter((o) => o.type === "section").length + 1}`;
-      const sec = {
-        ...createSection(draftPoints, label, cat, chart.categories[0]?.color),
-        floorId: chart.activeFloorId,
-      };
-      dispatch({ type: "COMMIT", chart: addObject(chart, sec), status: ko.sectionAdded });
-      dispatch({ type: "SELECT", ids: [sec.id] });
-    } else {
-      const obj: ChartObject = {
-        id: uid("area"),
-        type: "area",
-        label: `영역 ${chart.objects.filter((o) => o.type === "area").length + 1}`,
-        layer: "interactive",
-        categoryKey: cat,
-        floorId: chart.activeFloorId,
-        points: [...draftPoints],
-        capacity: 50,
-      };
-      dispatch({ type: "COMMIT", chart: addObject(chart, obj), status: ko.areaAdded });
-      dispatch({ type: "SELECT", ids: [obj.id] });
-    }
+    commitCreatedObjects(draftPoints[0], draftPoints[draftPoints.length - 1], draftPoints);
     dispatch({ type: "SET_DRAFT", points: [] });
-  }, [state]);
+  }, [commitCreatedObjects, state]);
 
   const finishRectangle = useCallback(
     (a: Point, b: Point) => {
-      const x = Math.min(a.x, b.x);
-      const y = Math.min(a.y, b.y);
       const width = Math.abs(b.x - a.x);
       const height = Math.abs(b.y - a.y);
-      if (width < 4 || height < 4) return;
-      if (state.tool === "rectangle") {
-        const obj: ChartObject = {
-          id: uid("rect"),
-          type: "rectangle",
-          label: "사각형",
-          layer: "background",
-          floorId: state.chart.activeFloorId,
-          x,
-          y,
-          width,
-          height,
-          fill: "#e5e7eb",
-          stroke: "#9ca3af",
-        };
-        dispatch({ type: "COMMIT", chart: addObject(state.chart, obj), status: ko.rectangleAdded });
-      } else if (state.tool === "booth") {
-        const obj: ChartObject = {
-          id: uid("booth"),
-          type: "booth",
-          label: `부스 ${state.chart.objects.filter((o) => o.type === "booth").length + 1}`,
-          layer: "interactive",
-          categoryKey: state.chart.categories[0]?.key,
-          floorId: state.chart.activeFloorId,
-          x,
-          y,
-          width,
-          height,
-        };
-        dispatch({ type: "COMMIT", chart: addObject(state.chart, obj), status: ko.boothAdded });
-      }
+      const isRow = state.toolMode === "row" || state.toolMode === "rowsMultiple";
+      if (isRow && Math.hypot(width, height) < 8) return;
+      if (!isRow && state.tool !== "booth" && (width < 4 || height < 4)) return;
+      commitCreatedObjects(a, b, [a, b]);
     },
-    [state.chart, state.tool],
+    [commitCreatedObjects, state.tool, state.toolMode],
   );
 
   // keyboard
@@ -853,6 +836,11 @@ export function useSeatEditor() {
         deleteSelected();
         return;
       }
+      if (e.key === "Enter" && state.draftPoints.length > 0) {
+        e.preventDefault();
+        finishPolygon();
+        return;
+      }
       if (e.key === "Escape") {
         dispatch({ type: "CLEAR_SELECTION" });
         dispatch({ type: "SET_DRAFT", points: [] });
@@ -882,7 +870,7 @@ export function useSeatEditor() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [copySelected, pasteClipboard, duplicateSelected, deleteSelected]);
+  }, [copySelected, pasteClipboard, duplicateSelected, deleteSelected, finishPolygon, state.draftPoints.length]);
 
   const patchSelectedLabel = useCallback(
     (label: string) => {
@@ -956,6 +944,27 @@ export function useSeatEditor() {
     [state.chart, state.selectedIds],
   );
 
+  const replaceSelectedImage = useCallback(async (file: File) => {
+    if (state.selectedIds.length !== 1 || file.size > 10 * 1024 * 1024) return false;
+    const selected = state.chart.objects.find((object) => object.id === state.selectedIds[0]);
+    if (!selected || selected.type !== "image") return false;
+    try {
+      const { apiUploadReferenceAsset } = await import("@/lib/seat-charts/client");
+      const uploaded = await apiUploadReferenceAsset({ file, purpose: "object" });
+      const ratio = uploaded.asset.height / uploaded.asset.width;
+      const replacement = { ...selected, href: uploaded.url, height: selected.width * ratio, label: file.name };
+      dispatch({
+        type: "COMMIT",
+        chart: { ...state.chart, objects: state.chart.objects.map((object) => object.id === selected.id ? replacement : object) },
+        status: "이미지 교체",
+      });
+      return true;
+    } catch {
+      dispatch({ type: "SET_STATUS", status: "이미지 교체 실패" });
+      return false;
+    }
+  }, [state.chart, state.selectedIds]);
+
   const updateChartMeta = useCallback(
     (patch: Partial<ChartDocument>, status = "차트 설정 변경") => {
       dispatch({
@@ -969,8 +978,8 @@ export function useSeatEditor() {
 
   const addPolygonNode = useCallback((objectId: string, index: number, point: Point) => {
     const object = state.chart.objects.find((candidate) => candidate.id === objectId);
-    if (!object || (object.type !== "section" && object.type !== "area")) return;
-    const updated = mutatePolygonNode(object, { type: "add", index, point });
+    if (!object || verticesOf(object).length === 0) return;
+    const updated = insertVertex(object, index, point);
     dispatch({
       type: "COMMIT",
       chart: { ...state.chart, objects: state.chart.objects.map((candidate) => candidate.id === objectId ? updated : candidate) },
@@ -980,8 +989,8 @@ export function useSeatEditor() {
 
   const removePolygonNode = useCallback((objectId: string, index: number) => {
     const object = state.chart.objects.find((candidate) => candidate.id === objectId);
-    if (!object || (object.type !== "section" && object.type !== "area") || object.points.length <= 3) return;
-    const updated = mutatePolygonNode(object, { type: "remove", index });
+    if (!object || verticesOf(object).length === 0) return;
+    const updated = removeVertex(object, index);
     dispatch({
       type: "COMMIT",
       chart: { ...state.chart, objects: state.chart.objects.map((candidate) => candidate.id === objectId ? updated : candidate) },
@@ -1110,6 +1119,7 @@ export function useSeatEditor() {
     patchArea,
     patchAdvanced,
     patchDecoration,
+    replaceSelectedImage,
     updateChartMeta,
     addPolygonNode,
     removePolygonNode,
@@ -1131,9 +1141,14 @@ export function useSeatEditor() {
       });
     },
     commitNodeMove: (objectId: string, pointIndex: number, point: Point) => {
+      const object = state.chart.objects.find((candidate) => candidate.id === objectId);
+      if (!object || verticesOf(object).length === 0) return;
       dispatch({
         type: "COMMIT",
-        chart: setPolygonPoint(state.chart, objectId, pointIndex, point),
+        chart: {
+          ...state.chart,
+          objects: state.chart.objects.map((candidate) => candidate.id === objectId ? moveVertex(candidate, pointIndex, point) : candidate),
+        },
         status: "노드 이동",
       });
     },
@@ -1142,6 +1157,26 @@ export function useSeatEditor() {
         type: "COMMIT",
         chart: setRowEndpoints(state.chart, id, start, end),
         status: "열 끝점 이동",
+      });
+    },
+    commitResize: (id: string, bounds: ObjectBounds) => {
+      dispatch({
+        type: "COMMIT",
+        chart: {
+          ...state.chart,
+          objects: state.chart.objects.map((object) => object.id === id ? resizeObject(object, bounds) : object),
+        },
+        status: "객체 크기 변경",
+      });
+    },
+    commitRotation: (id: string, rotation: number) => {
+      dispatch({
+        type: "COMMIT",
+        chart: {
+          ...state.chart,
+          objects: state.chart.objects.map((object) => object.id === id ? rotateObject(object, rotation) : object),
+        },
+        status: "객체 회전",
       });
     },
   };

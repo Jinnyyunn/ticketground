@@ -48,13 +48,39 @@ test("MIME spoofing and oversized uploads fail closed", async () => {
   );
   await assert.rejects(
     sanitizeReferenceAsset({
-      bytes: new Uint8Array(15 * 1024 * 1024 + 1),
+      bytes: new Uint8Array(10 * 1024 * 1024 + 1),
       fileName: "huge.jpg",
       declaredMediaType: "image/jpeg",
       purpose: "reference",
       storageDir,
     }),
     /REFERENCE_ASSET_TOO_LARGE/,
+  );
+});
+
+test("safe SVG plans are rasterized while executable SVG payloads fail closed", async () => {
+  const storageDir = await mkdtemp(path.join(os.tmpdir(), "ticketground-reference-svg-"));
+  const safe = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="#fff"/><circle cx="40" cy="40" r="10"/></svg>');
+  const asset = await sanitizeReferenceAsset({
+    bytes: safe,
+    fileName: "공연장.svg",
+    declaredMediaType: "image/svg+xml",
+    purpose: "object",
+    storageDir,
+  });
+  assert.equal(asset.mediaType, "image/png");
+  assert.equal(asset.width, 120);
+  assert.equal(asset.height, 80);
+
+  await assert.rejects(
+    sanitizeReferenceAsset({
+      bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+      fileName: "unsafe.svg",
+      declaredMediaType: "image/svg+xml",
+      purpose: "object",
+      storageDir,
+    }),
+    /REFERENCE_ASSET_UNSAFE_SVG/,
   );
 });
 

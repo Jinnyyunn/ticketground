@@ -49,7 +49,7 @@ function TbBtn({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "seat-designer-control flex size-8 items-center justify-center disabled:opacity-35",
+        "seat-designer-control flex size-8 shrink-0 items-center justify-center disabled:opacity-35",
         active && "bg-[#0784fa]/10 text-[#0784fa]",
       )}
     >
@@ -61,15 +61,15 @@ function TbBtn({
 export function TopToolbar({
   api,
   allValid,
+  onSaveAndExit,
 }: {
   readonly api: SeatEditorApi;
   readonly allValid: boolean;
+  readonly onSaveAndExit: () => void;
 }) {
   const {
     state,
     dispatch,
-    saveLocal,
-    saveToServer,
     exportJson,
     deleteSelected,
     copySelected,
@@ -84,18 +84,16 @@ export function TopToolbar({
 
   return (
     <header className="seat-designer-toolbar flex h-[45px] shrink-0 items-center gap-1 overflow-x-auto border-b px-2">
-      <TbBtn title="서버에 저장 (예매 적용 전 단계)" onClick={() => void saveToServer()}>
+      <TbBtn title="저장 후 나가기" onClick={onSaveAndExit}>
         <Save className="size-4" />
       </TbBtn>
-      <TbBtn title={`${ko.saveLocal} (이 브라우저만)`} onClick={saveLocal}>
-        <span className="text-[9px] font-bold">LOC</span>
-      </TbBtn>
       <input
-        className="ml-1 w-[160px] truncate border-0 bg-transparent text-sm font-medium text-[#333] outline-none"
+        className="ml-1 w-[160px] shrink-0 truncate border-0 bg-transparent text-sm font-medium text-[#333] outline-none"
         value={chart.name}
         onChange={(e) => dispatch({ type: "SET_NAME", name: e.target.value })}
       />
-      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">{ko.editable}</span>
+      <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">{ko.editable}</span>
+      {state.serverStatus && <span aria-live="polite" className="max-w-40 truncate text-[11px] text-[#777]">{state.serverStatus}</span>}
 
       <div className="mx-2 h-5 w-px bg-black/10" />
 
@@ -209,7 +207,7 @@ export function TopToolbar({
 
       <div className="mx-1 h-5 w-px bg-black/10" />
 
-      <div className="flex items-center gap-0.5 rounded border border-black/10 px-1">
+      <div className="flex shrink-0 items-center gap-0.5 rounded border border-black/10 px-1">
         {chart.floors.map((f) => (
           <button
             key={f.id}
@@ -217,7 +215,7 @@ export function TopToolbar({
             title={f.name}
             onClick={() => dispatch({ type: "SET_ACTIVE_FLOOR", floorId: f.id })}
             className={cn(
-              "rounded px-1.5 py-0.5 text-[11px] font-medium",
+              "whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium",
               f.id === chart.activeFloorId ? "bg-[#0784fa] text-white" : "text-[#555] hover:bg-black/5",
             )}
           >
@@ -231,21 +229,22 @@ export function TopToolbar({
 
       <button
         type="button"
-        data-testid="seat-designer-publish"
+        data-testid="seat-designer-settings"
         title="차트 설정 (공연장 연결·배경·참조도면·존)"
         onClick={() => dispatch({ type: "SET_CHART_SETTINGS_OPEN", open: true })}
-        className="inline-flex h-8 items-center gap-1 rounded-md border border-[#0784fa]/40 bg-[#0784fa]/10 px-2 text-[12px] font-semibold text-[#0784fa] hover:bg-[#0784fa]/15"
+        className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[#0784fa]/40 bg-[#0784fa]/10 px-2 text-[12px] font-semibold text-[#0784fa] hover:bg-[#0784fa]/15"
       >
         <Settings2 className="size-3.5" />
         설정
       </button>
       <button
         type="button"
-        title={chart.published ? "게시 취소" : boundVenue ? "서버에 게시" : "공연장을 먼저 선택하세요"}
+        data-testid="seat-designer-publish"
+        title={chart.published ? "게시 취소" : boundVenue ? "게시" : "공연장을 먼저 선택하세요"}
         disabled={!chart.published && !boundVenue}
         onClick={publishChart}
         className={cn(
-          "inline-flex h-8 items-center gap-1 rounded-md border px-2 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40",
+          "inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40",
           chart.published
             ? "border-blue-400 bg-blue-50 text-blue-700"
             : "border-emerald-500/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
@@ -260,7 +259,7 @@ export function TopToolbar({
       <span
         title={chart.published ? "게시됨" : allValid ? ko.valid : ko.review}
         className={cn(
-          "ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+          "ml-1 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold",
           chart.published
             ? "bg-blue-50 text-blue-700"
             : allValid

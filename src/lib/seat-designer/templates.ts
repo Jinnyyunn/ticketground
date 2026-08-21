@@ -320,7 +320,7 @@ export function buildTradeShowChart(): ChartDocument {
 }
 
 export function emptyChart(name = "새 차트"): ChartDocument {
-  return baseChart(
+  const chart = baseChart(
     "chart_blank",
     name,
     [CAT.premium, CAT.stalls, CAT.circle, CAT.choir, CAT.ga],
@@ -328,6 +328,7 @@ export function emptyChart(name = "새 차트"): ChartDocument {
     { x: 400, y: 300 },
     "simple",
   );
+  return { ...chart, focalPoint: undefined };
 }
 
 export const CHART_TEMPLATES: readonly ChartTemplate[] = [

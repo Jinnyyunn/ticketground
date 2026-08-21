@@ -39,6 +39,10 @@ test("every native designer tool family is operable in the real admin browser", 
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
   await page.goto(`${server.adminUrl}/admin/seat-designer`, { waitUntil: "networkidle" });
   await page.getByTestId("seat-designer-shell").waitFor();
+  const initialDialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
+  await initialDialog.locator("select").selectOption({ index: 1 });
+  await initialDialog.getByRole("button", { name: "빈 캔버스" }).click();
+  await initialDialog.waitFor({ state: "hidden" });
   const screenshotRoot = path.resolve(".omo/evidence/seat-designer-parity/browser");
   await mkdir(screenshotRoot, { recursive: true });
   await page.screenshot({ path: path.join(screenshotRoot, "seat-designer-default.png"), fullPage: true });
@@ -53,17 +57,15 @@ test("every native designer tool family is operable in the real admin browser", 
   await page.getByTestId("tool-hand").click();
   assert.equal(await page.getByTestId("tool-hand").getAttribute("aria-pressed"), "true");
 
-  await page.getByRole("button", { name: "새 차트 만들기" }).click();
-  await page.getByRole("dialog", { name: "새 좌석 차트 만들기" }).getByRole("button", { name: /빈 차트/ }).click();
   const canvas = page.getByTestId("designer-canvas");
   const box = await canvas.boundingBox();
   assert.ok(box);
   const point = (x, y) => ({ x: box.x + x, y: box.y + y });
 
   const initialTransform = await canvas.locator("svg > g").first().getAttribute("transform");
-  await page.getByTitle("확대").click();
+  await page.getByRole("banner").getByTitle("확대").click();
   assert.notEqual(await canvas.locator("svg > g").first().getAttribute("transform"), initialTransform);
-  await page.getByTitle("축소").click();
+  await page.getByRole("banner").getByTitle("축소").click();
   for (const title of ["그리드에 맞추기", "구역 내부 좌석 표시", "항상 라벨 표시", "참조 도면 표시", "배경 이미지 표시", "다크 캔버스"]) {
     await page.getByTitle(title).click();
     await page.getByTitle(title).click();
@@ -86,8 +88,11 @@ test("every native designer tool family is operable in the real admin browser", 
   await page.getByTestId("chart-focal-point").waitFor({ state: "attached" });
 
   await page.getByTestId("tool-row").click();
-  await page.mouse.click(...Object.values(point(360, 280)));
-  await page.mouse.click(...Object.values(point(560, 280)));
+  await page.locator('[role="menuitem"][data-mode="row"]').click();
+  await page.mouse.move(...Object.values(point(360, 280)));
+  await page.mouse.down();
+  await page.mouse.move(...Object.values(point(560, 280)));
+  await page.mouse.up();
   await page.locator('[data-object-type="row"]').first().waitFor({ state: "attached" });
 
   await page.getByTestId("tool-table").click();
@@ -98,11 +103,12 @@ test("every native designer tool family is operable in the real admin browser", 
   await page.mouse.click(...Object.values(point(180, 620)));
   await page.waitForTimeout(80);
   await page.mouse.click(...Object.values(point(430, 620)));
-  await page.waitForTimeout(100);
+  await page.keyboard.press("Enter");
   assert.equal(await page.locator('[data-object-type="line"]').count(), 1, await canvas.innerText());
 
   for (const tool of ["rectangle", "booth"]) {
     await page.getByTestId(`tool-${tool}`).click();
+    if (tool === "rectangle") await page.locator('[role="menuitem"][data-mode="shapeRectangle"]').click();
     await page.mouse.move(...Object.values(point(tool === "rectangle" ? 340 : 520, 500)));
     await page.mouse.down();
     await page.mouse.move(...Object.values(point(tool === "rectangle" ? 460 : 640, 570)));
@@ -112,6 +118,7 @@ test("every native designer tool family is operable in the real admin browser", 
 
   for (const tool of ["section", "area"]) {
     await page.getByTestId(`tool-${tool}`).click();
+    if (tool === "area") await page.locator('[role="menuitem"][data-mode="areaPolygon"]').click();
     const polygon = tool === "section"
       ? [point(760, 300), point(880, 320), point(840, 420)]
       : [point(740, 600), point(920, 600), point(860, 710)];
@@ -121,7 +128,7 @@ test("every native designer tool family is operable in the real admin browser", 
     await page.waitForTimeout(50);
     await page.mouse.click(...Object.values(polygon[2]));
     await page.waitForTimeout(50);
-    await page.mouse.dblclick(...Object.values(polygon[0]));
+    await page.keyboard.press("Enter");
     await page.locator(`[data-object-type="${tool}"]`).first().waitFor({ state: "attached" });
   }
 
@@ -223,8 +230,11 @@ test("every native designer tool family is operable in the real admin browser", 
   await page.getByRole("button", { name: "미리보기 종료", exact: true }).click();
   await page.screenshot({ path: path.join(screenshotRoot, "seat-designer-tools.png"), fullPage: true });
 
+  await page.getByRole("button", { name: "저장 후 나가기", exact: true }).click();
+  await page.getByTestId("seat-chart-library-screen").waitFor();
   await page.getByRole("button", { name: "새 차트 만들기" }).click();
   const dialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
+  await dialog.locator("select").selectOption({ index: 1 });
   await dialog.getByRole("button", { name: /도면 불러오기/ }).click();
   await dialog.locator('input[type="file"]').setInputFiles(referencePath);
   await dialog.getByRole("button", { name: "좌석 자동 인식", exact: true }).click();
@@ -238,6 +248,9 @@ test("every native designer tool family is operable in the real admin browser", 
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto(`${server.adminUrl}/admin/seat-designer`, { waitUntil: "networkidle" });
   await page.getByTestId("seat-designer-shell").waitFor();
+  const compactDialog = page.getByRole("dialog", { name: "새 좌석 차트 만들기" });
+  await compactDialog.locator("select").selectOption({ index: 1 });
+  await compactDialog.getByRole("button", { name: "빈 캔버스" }).click();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   await page.screenshot({ path: path.join(screenshotRoot, "seat-designer-compact.png"), fullPage: true });
   assert.deepEqual(runtimeErrors, []);

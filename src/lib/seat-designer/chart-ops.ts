@@ -7,7 +7,7 @@ import type {
   TableObject,
   Viewport,
 } from "@/types/seat-chart";
-import { mirrorPoints, seatsAlongLine, seatsAroundTable, uid } from "./geometry.ts";
+import { mirrorPoints, seatsAlongLine, seatsAroundRectangularTable, seatsAroundTable, uid } from "./geometry.ts";
 
 export type ChartBounds = {
   minX: number;
@@ -41,8 +41,7 @@ export function chartBounds(chart: ChartDocument): ChartBounds {
     any = true;
     switch (obj.type) {
       case "row":
-        expandBounds(b, obj.start.x, obj.start.y, 8);
-        expandBounds(b, obj.end.x, obj.end.y, 8);
+        for (const point of obj.path ?? [obj.start, obj.end]) expandBounds(b, point.x, point.y, 8);
         for (const s of obj.seats) expandBounds(b, s.x, s.y, 6);
         break;
       case "section":
@@ -62,8 +61,7 @@ export function chartBounds(chart: ChartDocument): ChartBounds {
         expandBounds(b, obj.x + obj.width, obj.y + obj.height);
         break;
       case "line":
-        expandBounds(b, obj.start.x, obj.start.y);
-        expandBounds(b, obj.end.x, obj.end.y);
+        for (const point of obj.points ?? [obj.start, obj.end]) expandBounds(b, point.x, point.y);
         break;
       case "text":
       case "icon":
@@ -188,14 +186,8 @@ function cloneOffset(obj: ChartObject, d: number): ChartObject {
         label,
         start: { x: obj.start.x + d, y: obj.start.y + d },
         end: { x: obj.end.x + d, y: obj.end.y + d },
-        seats: seatsAlongLine(
-          { x: obj.start.x + d, y: obj.start.y + d },
-          { x: obj.end.x + d, y: obj.end.y + d },
-          obj.seatCount,
-          label,
-          obj.curve,
-          obj.categoryKey,
-        ),
+        path: obj.path?.map((point) => ({ x: point.x + d, y: point.y + d })),
+        seats: obj.seats.map((seat) => ({ ...seat, id: uid("seat"), x: seat.x + d, y: seat.y + d })),
       };
     case "section":
       return {
@@ -211,18 +203,12 @@ function cloneOffset(obj: ChartObject, d: number): ChartObject {
         id,
         label,
         center: { x: obj.center.x + d, y: obj.center.y + d },
-        seats: seatsAroundTable(
-          { x: obj.center.x + d, y: obj.center.y + d },
-          obj.radius,
-          obj.seatCount,
-          label,
-          obj.categoryKey,
-        ),
+        seats: obj.seats.map((seat) => ({ ...seat, id: uid("seat"), x: seat.x + d, y: seat.y + d })),
       };
     case "booth":
     case "rectangle":
     case "image":
-      return { ...obj, id, label, x: obj.x + d, y: obj.y + d };
+      return { ...obj, id, label, x: obj.x + d, y: obj.y + d, ...(obj.type === "rectangle" && obj.points ? { points: obj.points.map((point) => ({ x: point.x + d, y: point.y + d })) } : {}) };
     case "area":
       return {
         ...obj,
@@ -237,6 +223,7 @@ function cloneOffset(obj: ChartObject, d: number): ChartObject {
         label,
         start: { x: obj.start.x + d, y: obj.start.y + d },
         end: { x: obj.end.x + d, y: obj.end.y + d },
+        points: obj.points?.map((point) => ({ x: point.x + d, y: point.y + d })),
       };
     case "text":
     case "icon":
@@ -279,7 +266,8 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
         ...obj,
         start,
         end,
-        seats: seatsAlongLine(start, end, obj.seatCount, obj.label, obj.curve, obj.categoryKey),
+        path: obj.path?.map(flipP),
+        seats: obj.seats.map((seat) => ({ ...seat, ...flipP(seat) })),
       };
     }
     case "section":
@@ -293,19 +281,19 @@ function flipOne(obj: ChartObject, axis: "h" | "v", origin: Point): ChartObject 
       return {
         ...obj,
         center,
-        seats: seatsAroundTable(center, obj.radius, obj.seatCount, obj.label, obj.categoryKey),
+        seats: obj.seats.map((seat) => ({ ...seat, ...flipP(seat) })),
       };
     }
     case "booth":
     case "rectangle":
     case "image": {
       const c = flipP({ x: obj.x + obj.width / 2, y: obj.y + obj.height / 2 });
-      return { ...obj, x: c.x - obj.width / 2, y: c.y - obj.height / 2 };
+      return { ...obj, x: c.x - obj.width / 2, y: c.y - obj.height / 2, ...(obj.type === "rectangle" && obj.points ? { points: obj.points.map(flipP) } : {}) };
     }
     case "area":
       return { ...obj, points: mirrorPoints(obj.points, axis, origin) };
     case "line":
-      return { ...obj, start: flipP(obj.start), end: flipP(obj.end) };
+      return { ...obj, start: flipP(obj.start), end: flipP(obj.end), points: obj.points?.map(flipP) };
     case "text":
     case "icon":
       return { ...obj, position: flipP(obj.position) };
@@ -335,6 +323,9 @@ export function alignCenter(chart: ChartDocument, ids: readonly string[]): Chart
 export function objectCenter(obj: ChartObject): Point {
   switch (obj.type) {
     case "row":
+      if (obj.path?.length) {
+        return { x: obj.path.reduce((sum, point) => sum + point.x, 0) / obj.path.length, y: obj.path.reduce((sum, point) => sum + point.y, 0) / obj.path.length };
+      }
       return { x: (obj.start.x + obj.end.x) / 2, y: (obj.start.y + obj.end.y) / 2 };
     case "table":
       return obj.center;
@@ -349,6 +340,9 @@ export function objectCenter(obj: ChartObject): Point {
       return { x: sx, y: sy };
     }
     case "line":
+      if (obj.points?.length) {
+        return { x: obj.points.reduce((sum, point) => sum + point.x, 0) / obj.points.length, y: obj.points.reduce((sum, point) => sum + point.y, 0) / obj.points.length };
+      }
       return { x: (obj.start.x + obj.end.x) / 2, y: (obj.start.y + obj.end.y) / 2 };
     case "text":
     case "icon":
@@ -368,7 +362,8 @@ export function translateObject(obj: ChartObject, dx: number, dy: number): Chart
         ...obj,
         start,
         end,
-        seats: seatsAlongLine(start, end, obj.seatCount, obj.label, obj.curve, obj.categoryKey),
+        path: obj.path?.map(t),
+        seats: obj.seats.map((seat) => ({ ...seat, ...t(seat) })),
       };
     }
     case "section":
@@ -382,17 +377,17 @@ export function translateObject(obj: ChartObject, dx: number, dy: number): Chart
       return {
         ...obj,
         center,
-        seats: seatsAroundTable(center, obj.radius, obj.seatCount, obj.label, obj.categoryKey),
+        seats: obj.seats.map((seat) => ({ ...seat, ...t(seat) })),
       };
     }
     case "booth":
     case "rectangle":
     case "image":
-      return { ...obj, x: obj.x + dx, y: obj.y + dy };
+      return { ...obj, x: obj.x + dx, y: obj.y + dy, ...(obj.type === "rectangle" && obj.points ? { points: obj.points.map(t) } : {}) };
     case "area":
       return { ...obj, points: obj.points.map(t) };
     case "line":
-      return { ...obj, start: t(obj.start), end: t(obj.end) };
+      return { ...obj, start: t(obj.start), end: t(obj.end), points: obj.points?.map(t) };
     case "text":
     case "icon":
       return { ...obj, position: t(obj.position) };
@@ -506,33 +501,41 @@ export function setObjectLabel(chart: ChartDocument, id: string, label: string):
   return updateObject(chart, id, { label } as Partial<ChartObject>);
 }
 
-export function setTableProps(
-  chart: ChartDocument,
-  id: string,
-  patch: {
+export type TablePatch = {
     seatCount?: number;
     radius?: number;
     bookAsWhole?: boolean;
     variableOccupancy?: boolean;
     minOccupancy?: number;
     maxOccupancy?: number;
+    width?: number;
+    height?: number;
+    chairs?: NonNullable<TableObject["chairs"]>;
     label?: string;
     displayedLabel?: string;
     viewFromSeatHref?: string | null;
-  },
+};
+
+export function setTableProps(
+  chart: ChartDocument,
+  id: string,
+  patch: TablePatch,
 ): ChartDocument {
   const obj = findObject(chart, id);
   if (!obj || obj.type !== "table") return chart;
-  const numericValues = [patch.seatCount, patch.radius, patch.minOccupancy, patch.maxOccupancy].filter((value) => value !== undefined);
+  const numericValues = [patch.seatCount, patch.radius, patch.minOccupancy, patch.maxOccupancy, patch.width, patch.height].filter((value) => value !== undefined);
   if (numericValues.some((value) => !Number.isFinite(value))) return chart;
   const seatCount = Math.max(1, Math.min(48, patch.seatCount ?? obj.seatCount));
   const radius = Math.max(8, patch.radius ?? obj.radius);
   const label = patch.label ?? obj.label;
+  const width = Math.max(20, patch.width ?? obj.width ?? 120);
+  const height = Math.max(20, patch.height ?? obj.height ?? 36);
+  const chairs = patch.chairs ?? obj.chairs ?? { top: 4, right: 0, bottom: 4, left: 0 };
+  const rectangularSeatCount = chairs.top + chairs.right + chairs.bottom + chairs.left;
   const variableOccupancy = patch.variableOccupancy ?? obj.variableOccupancy;
   const minOccupancy = Math.max(1, patch.minOccupancy ?? obj.minOccupancy ?? 1);
   const maxOccupancy = Math.max(minOccupancy, patch.maxOccupancy ?? obj.maxOccupancy ?? seatCount);
   return updateObject(chart, id, {
-    seatCount,
     radius,
     label,
     bookAsWhole: patch.bookAsWhole ?? obj.bookAsWhole,
@@ -542,7 +545,13 @@ export function setTableProps(
     displayedLabel: patch.displayedLabel ?? obj.displayedLabel,
     viewFromSeatHref:
       patch.viewFromSeatHref === null ? undefined : (patch.viewFromSeatHref ?? obj.viewFromSeatHref),
-    seats: seatsAroundTable(obj.center, radius, seatCount, label, obj.categoryKey),
+    width,
+    height,
+    chairs,
+    seatCount: obj.shape === "rectangle" ? rectangularSeatCount : seatCount,
+    seats: obj.shape === "rectangle"
+      ? seatsAroundRectangularTable(obj.center, width, height, chairs, label, obj.categoryKey)
+      : seatsAroundTable(obj.center, radius, seatCount, label, obj.categoryKey),
   });
 }
 
@@ -556,6 +565,8 @@ export function setObjectAdvanced(
     zoneId?: string | null;
     floorId?: string | null;
     locked?: boolean;
+    layer?: ChartObject["layer"];
+    rotation?: number;
   },
 ): ChartDocument {
   const obj = findObject(chart, id);
@@ -568,6 +579,8 @@ export function setObjectAdvanced(
     zoneId: patch.zoneId === null ? undefined : (patch.zoneId ?? obj.zoneId),
     floorId: patch.floorId === null ? undefined : (patch.floorId ?? obj.floorId),
     locked: patch.locked ?? obj.locked,
+    layer: patch.layer ?? obj.layer,
+    rotation: Number.isFinite(patch.rotation) ? patch.rotation : obj.rotation,
   } as Partial<ChartObject>);
 }
 
@@ -612,6 +625,8 @@ export type DecorationPatch = {
   readonly opacity?: number;
   readonly icon?: "stage" | "entrance" | "wc" | "star";
   readonly size?: number;
+  readonly weight?: 400 | 500 | 600 | 700;
+  readonly align?: "left" | "center" | "right";
 };
 
 export function setDecorationProps(chart: ChartDocument, id: string, patch: DecorationPatch): ChartDocument {
@@ -623,9 +638,9 @@ export function setDecorationProps(chart: ChartDocument, id: string, patch: Deco
   if (object.type === "rectangle") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), fill: patch.fill ?? object.fill, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation };
   else if (object.type === "booth") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), rotation: patch.rotation ?? object.rotation };
   else if (object.type === "line") next = { ...object, stroke: patch.stroke ?? object.stroke, rotation: patch.rotation ?? object.rotation };
-  else if (object.type === "text") next = { ...object, text: patch.text ?? object.text, fontSize: Math.max(6, patch.fontSize ?? object.fontSize ?? 16), color: patch.color ?? object.color, rotation: patch.rotation ?? object.rotation };
+  else if (object.type === "text") next = { ...object, text: patch.text ?? object.text, fontSize: Math.max(6, patch.fontSize ?? object.fontSize ?? 16), color: patch.color ?? object.color, weight: patch.weight ?? object.weight, align: patch.align ?? object.align, rotation: patch.rotation ?? object.rotation };
   else if (object.type === "image") next = { ...object, width: Math.max(1, patch.width ?? object.width), height: Math.max(1, patch.height ?? object.height), opacity: Math.max(0.05, Math.min(1, patch.opacity ?? object.opacity ?? 1)), rotation: patch.rotation ?? object.rotation };
-  else if (object.type === "icon") next = { ...object, icon: patch.icon ?? object.icon, size: Math.max(8, patch.size ?? object.size ?? 32), rotation: patch.rotation ?? object.rotation };
+  else if (object.type === "icon") next = { ...object, icon: patch.icon ?? object.icon, size: Math.max(8, patch.size ?? object.size ?? 40), color: patch.color ?? object.color, rotation: patch.rotation ?? object.rotation };
   else return chart;
   return { ...chart, objects: chart.objects.map((candidate) => candidate.id === id ? next : candidate) };
 }
