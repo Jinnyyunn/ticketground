@@ -128,6 +128,11 @@ test("the image-first editor stays usable without horizontal overflow at tablet 
   assert.ok(closeInspectorBox, "mobile inspector close control must be visible");
   assert.ok(closeInspectorBox.width >= 44, "mobile inspector close control must be at least 44px wide");
   assert.ok(closeInspectorBox.height >= 44, "mobile inspector close control must be at least 44px high");
+  assert.notEqual(
+    await closeInspector.evaluate((element) => getComputedStyle(element).backgroundColor),
+    "rgba(0, 0, 0, 0)",
+    "mobile inspector close control must stay visually distinct over scrolling actions",
+  );
   const mobileInspector = page.getByTestId("seat-designer-v2-inspector").last();
   await mobileInspector.getByText("캔버스 표시", { exact: true }).waitFor();
   assert.equal(await mobileInspector.getByLabel("스냅").isChecked(), true);
