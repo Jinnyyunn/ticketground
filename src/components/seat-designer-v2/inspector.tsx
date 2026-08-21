@@ -1,5 +1,3 @@
-"use client";
-
 import { Check, Eye, EyeOff, Lock, Maximize2, Unlock } from "lucide-react";
 import type { ChangeEvent, ReactNode } from "react";
 import type {
@@ -66,10 +64,10 @@ export function Inspector({
   };
   return (
     <aside
-      className="flex w-[336px] shrink-0 flex-col border-l border-[#ddd] bg-[#f5f5f5]"
+      className="flex w-[336px] shrink-0 flex-col border-l border-[var(--editor-border)] bg-[var(--editor-panel)]"
       data-testid="seat-designer-v2-inspector"
     >
-      <h2 className="border-b border-[#ddd] bg-white px-4 py-4 text-base font-semibold">
+      <h2 className="border-b border-[var(--editor-border)] bg-white px-4 py-4 text-base font-semibold">
         {selectedSeat ? "좌석 설정" : selected ? "객체 설정" : `${spec.label} 도구`}
       </h2>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -80,9 +78,19 @@ export function Inspector({
         ) : (
           <ToolFields state={state} onState={onState} />
         )}
+        <section className="mt-6 border-t border-[var(--editor-border)] pt-4">
+          <h3 className="mb-3 font-semibold">캔버스 표시</h3>
+          <div className="space-y-3">
+            <ToggleField label="격자" checked={state.showGrid} onChange={(showGrid) => onState({ ...state, showGrid })} />
+            <ToggleField label="스냅" checked={state.snapToGrid} onChange={(snapToGrid) => onState({ ...state, snapToGrid })} />
+            <ToggleField label="좌석 라벨" checked={state.showLabels} onChange={(showLabels) => onState({ ...state, showLabels })} />
+            <ToggleField label="구역 내용" checked={state.showSectionContents} onChange={(showSectionContents) => onState({ ...state, showSectionContents })} />
+            <ToggleField label="어두운 캔버스" checked={state.darkCanvas} onChange={(darkCanvas) => onState({ ...state, darkCanvas })} />
+          </div>
+        </section>
         {reference && (
           <section
-            className="mt-6 border-t border-[#d4d4d4] pt-4"
+            className="mt-6 border-t border-[var(--editor-border)] pt-4"
             data-testid="seat-designer-v2-reference-controls"
           >
             <h3 className="mb-3 font-semibold">참조 도면</h3>
@@ -163,7 +171,7 @@ export function Inspector({
             </div>
             <button
               type="button"
-              className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded border border-[#ccc] bg-white px-3 hover:bg-[#eee]"
+              className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded border border-[var(--editor-border)] bg-white px-3 hover:bg-[var(--editor-hover)]"
               onClick={() =>
                 patchReference({
                   ...fitReferenceAsset(
@@ -178,7 +186,7 @@ export function Inspector({
               <Maximize2 className="size-4" />
               캔버스에 맞춤
             </button>
-            <label className="mt-2 flex h-9 cursor-pointer items-center justify-center rounded border border-[#ccc] bg-white px-3 hover:bg-[#eee]">
+            <label className="mt-2 flex h-9 cursor-pointer items-center justify-center rounded border border-[var(--editor-border)] bg-white px-3 hover:bg-[var(--editor-hover)]">
               도면 교체
               <input
                 type="file"
@@ -201,14 +209,14 @@ export function Inspector({
           </section>
         )}
       </div>
-      <div className="border-t border-[#ddd] bg-white p-4">
+      <div className="border-t border-[var(--editor-border)] bg-white p-4">
         <p className="flex items-center gap-2 text-green-600">
           <Check className="size-4" />
           중복 객체 없음
         </p>
-        <p className="mt-3 text-[#666]">{countPlaces(state.objects)} places</p>
+        <p className="mt-3 text-[var(--editor-muted)]">{countPlaces(state.objects)} places</p>
         {state.selectedSeatIds.length > 0 && (
-          <p className="mt-1 font-medium text-[#087ffa]">
+          <p className="mt-1 font-medium text-[var(--editor-accent)]">
             {state.selectedSeatIds.length}개 좌석 선택됨
           </p>
         )}
@@ -253,7 +261,7 @@ function ToolFields({
             <select
               aria-label="여러 행 배치"
               data-testid="seat-designer-v2-multiple-layout"
-              className="h-9 rounded border border-[#ccc] bg-white px-2"
+              className="h-9 rounded border border-[var(--editor-border)] bg-white px-2"
               value={state.multipleRowLayout}
               onChange={(event) => onState({
                 ...state,
@@ -311,7 +319,7 @@ function ToolFields({
       />
     );
   return (
-    <p className="text-sm leading-6 text-[#666]">
+    <p className="text-sm leading-6 text-[var(--editor-muted)]">
       캔버스에서 {toolSpec(state.tool).label} 도구를 사용하세요. 선택한 도구의
       제스처는 아래 도움말에 표시됩니다.
     </p>
@@ -348,7 +356,7 @@ function ObjectFields({
         <span>레이어</span>
         <select
           aria-label="레이어"
-          className="h-9 rounded border border-[#ccc] bg-white px-2"
+          className="h-9 rounded border border-[var(--editor-border)] bg-white px-2"
           value={object.layer}
           onChange={(event) =>
             onObject({
@@ -383,7 +391,7 @@ function ObjectFields({
             suffix=" pt"
             onChange={(seatSpacing) => onObject({ ...object, seatSpacing })}
           />
-          <p className="rounded border bg-white px-3 py-2 text-sm text-[#555]">
+          <p className="rounded border bg-white px-3 py-2 text-sm text-[var(--editor-muted)]">
             좌석 {object.seatCount}개 ·{" "}
             {object.rowStyle === "segmented"
               ? "구간 행"
@@ -497,7 +505,7 @@ function ObjectFields({
           />
           <button
             type="button"
-            className="h-10 w-full rounded bg-[#087ffa] px-3 font-semibold text-white hover:bg-[#066fd9]"
+            className="h-10 w-full rounded bg-[var(--editor-accent)] px-3 font-semibold text-white hover:bg-[var(--editor-accent-strong)]"
             onClick={() => onEnterSection(object.id)}
           >
             구역 내부 편집
@@ -522,12 +530,12 @@ function ObjectFields({
           />
           <ColorField
             label="채우기"
-            value={object.fill ?? "#d9dfe5"}
+            value={object.fill ?? "var(--editor-object)"}
             onChange={(fill) => onObject({ ...object, fill })}
           />
           <ColorField
             label="테두리"
-            value={object.stroke ?? "#6b7280"}
+            value={object.stroke ?? "var(--editor-object-stroke)"}
             onChange={(stroke) => onObject({ ...object, stroke })}
           />
           <NumberField
@@ -543,7 +551,7 @@ function ObjectFields({
       {object.type === "line" && (
         <ColorField
           label="선 색상"
-          value={object.stroke ?? "#5b6570"}
+          value={object.stroke ?? "var(--editor-line)"}
           onChange={(stroke) => onObject({ ...object, stroke })}
         />
       )}
@@ -563,14 +571,14 @@ function ObjectFields({
           />
           <ColorField
             label="글자 색상"
-            value={object.color ?? "#333333"}
+            value={object.color ?? "var(--editor-text)"}
             onChange={(color) => onObject({ ...object, color })}
           />
           <label className="flex items-center justify-between">
             <span>정렬</span>
             <select
               aria-label="텍스트 정렬"
-              className="h-9 rounded border border-[#ccc] bg-white px-2"
+              className="h-9 rounded border border-[var(--editor-border)] bg-white px-2"
               value={object.align ?? "center"}
               onChange={(event) =>
                 onObject({
@@ -641,7 +649,7 @@ function ObjectFields({
                   type="button"
                   title={label}
                   aria-pressed={object.icon === icon}
-                  className={`h-11 rounded border text-xs ${object.icon === icon ? "border-[#087ffa] bg-[#087ffa] text-white" : "border-[#ccc] bg-white hover:bg-[#eee]"}`}
+                  className={`h-11 rounded border text-xs ${object.icon === icon ? "border-[var(--editor-accent)] bg-[var(--editor-accent)] text-white" : "border-[var(--editor-border)] bg-white hover:bg-[var(--editor-hover)]"}`}
                   onClick={() => onObject({ ...object, icon })}
                 >
                   {label}
@@ -658,7 +666,7 @@ function ObjectFields({
           />
           <ColorField
             label="색상"
-            value={object.color ?? "#495057"}
+            value={object.color ?? "var(--editor-text)"}
             onChange={(color) => onObject({ ...object, color })}
           />
         </>
@@ -685,6 +693,11 @@ function SeatFields({
         label="관객 표시 라벨"
         value={seat.displayedLabel ?? ""}
         onChange={(displayedLabel) => onSeat({ ...seat, displayedLabel })}
+      />
+      <TextField
+        label="좌석 시점 이미지 URL"
+        value={seat.viewFromSeatHref ?? ""}
+        onChange={(viewFromSeatHref) => onSeat({ ...seat, viewFromSeatHref })}
       />
       <ToggleField
         label="휠체어 좌석"
@@ -732,10 +745,10 @@ function NumberField({
   return (
     <label className="flex items-center justify-between gap-3">
       <span>{label}</span>
-      <span className="flex h-8 items-center overflow-hidden rounded border border-[#ccc] bg-white">
+      <span className="flex h-8 items-center overflow-hidden rounded border border-[var(--editor-border)] bg-white">
         <button
           type="button"
-          className="w-8 text-[#888] hover:bg-[#eee]"
+          className="w-8 text-[var(--editor-muted)] hover:bg-[var(--editor-hover)]"
           onClick={() => clamp(value - 1)}
         >
           −
@@ -750,10 +763,10 @@ function NumberField({
           max={max}
           onChange={(event) => clamp(event.currentTarget.valueAsNumber)}
         />
-        <span className="pr-2 text-xs text-[#777]">{suffix}</span>
+        <span className="pr-2 text-xs text-[var(--editor-muted)]">{suffix}</span>
         <button
           type="button"
-          className="w-8 text-[#888] hover:bg-[#eee]"
+          className="w-8 text-[var(--editor-muted)] hover:bg-[var(--editor-hover)]"
           onClick={() => clamp(value + 1)}
         >
           ＋
@@ -777,10 +790,10 @@ function TextField({
   }
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-[#666]">{label}</span>
+      <span className="mb-1 block text-xs text-[var(--editor-muted)]">{label}</span>
       <input
         aria-label={label}
-        className="h-9 w-full rounded border border-[#ccc] bg-white px-3 outline-none focus:border-[#087ffa]"
+        className="h-9 w-full rounded border border-[var(--editor-border)] bg-white px-3 outline-none focus:border-[var(--editor-accent)]"
         value={value}
         onChange={change}
       />
@@ -800,7 +813,7 @@ function ColorField({
   return (
     <label className="flex items-center justify-between">
       <span>{label}</span>
-      <span className="flex h-9 items-center gap-2 rounded border border-[#ccc] bg-white px-2">
+      <span className="flex h-9 items-center gap-2 rounded border border-[var(--editor-border)] bg-white px-2">
         <input
           aria-label={label}
           type="color"
@@ -831,7 +844,7 @@ function ToggleField({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.currentTarget.checked)}
-        className="size-4 accent-[#087ffa]"
+        className="size-4 accent-[var(--editor-accent)]"
       />
     </label>
   );
@@ -847,7 +860,7 @@ function ActionButton({
   return (
     <button
       type="button"
-      className="flex h-9 items-center justify-center gap-2 rounded border border-[#ccc] bg-white px-3 hover:bg-[#eee]"
+      className="flex h-9 items-center justify-center gap-2 rounded border border-[var(--editor-border)] bg-white px-3 hover:bg-[var(--editor-hover)]"
       onClick={onClick}
     >
       {children}
@@ -860,7 +873,7 @@ function Defaults({ rows }: { readonly rows: readonly string[] }) {
       {rows.map((row) => (
         <p
           key={row}
-          className="rounded border border-[#ddd] bg-white px-3 py-2 text-sm text-[#555]"
+          className="rounded border border-[var(--editor-border)] bg-white px-3 py-2 text-sm text-[var(--editor-muted)]"
         >
           {row}
         </p>

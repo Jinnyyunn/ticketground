@@ -29,6 +29,7 @@ type CanvasObjectsProps = {
   readonly selectedIds: readonly string[];
   readonly selectedSeatIds: readonly string[];
   readonly nodeMode: boolean;
+  readonly showLabels?: boolean;
   readonly hideNodeInsertHandles?: boolean;
   readonly onInsertNode?: (
     objectId: string,
@@ -42,12 +43,12 @@ function pointsValue(points: readonly Point[]): string {
 }
 
 function seatFill(seat: SeatPlace, selected: boolean): string {
-  if (selected) return "#087ffa";
-  if (seat.accessible) return "#2e9b60";
-  if (seat.companion) return "#7a5af8";
-  if (seat.transferSeat) return "#e09518";
-  if (seat.restrictedView) return "#d45151";
-  return "#c4c9ce";
+  if (selected) return "var(--editor-accent)";
+  if (seat.accessible) return "var(--editor-seat-accessible)";
+  if (seat.companion) return "var(--editor-seat-companion)";
+  if (seat.transferSeat) return "var(--editor-seat-transfer)";
+  if (seat.restrictedView) return "var(--editor-seat-restricted)";
+  return "var(--editor-seat)";
 }
 
 function selectionBox(object: ChartObject): ReactNode {
@@ -60,7 +61,7 @@ function selectionBox(object: ChartObject): ReactNode {
         width={bounds.width + 10}
         height={bounds.height + 10}
         fill="none"
-        stroke="#087ffa"
+        stroke="var(--editor-accent)"
         strokeDasharray="4 3"
       />
       <circle
@@ -68,42 +69,42 @@ function selectionBox(object: ChartObject): ReactNode {
         cy={bounds.y - 5}
         r="4"
         fill="white"
-        stroke="#087ffa"
+        stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x + bounds.width + 5}
         cy={bounds.y - 5}
         r="4"
         fill="white"
-        stroke="#087ffa"
+        stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x - 5}
         cy={bounds.y + bounds.height + 5}
         r="4"
         fill="white"
-        stroke="#087ffa"
+        stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x + bounds.width + 5}
         cy={bounds.y + bounds.height + 5}
         r="4"
         fill="white"
-        stroke="#087ffa"
+        stroke="var(--editor-accent)"
       />
       <circle
         cx={bounds.x + bounds.width / 2}
         cy={bounds.y - 22}
         r="5"
         fill="white"
-        stroke="#087ffa"
+        stroke="var(--editor-accent)"
       />
       <line
         x1={bounds.x + bounds.width / 2}
         y1={bounds.y - 5}
         x2={bounds.x + bounds.width / 2}
         y2={bounds.y - 17}
-        stroke="#087ffa"
+        stroke="var(--editor-accent)"
       />
     </g>
   );
@@ -120,9 +121,9 @@ function rectangleNode(object: RectangleObject): ReactNode {
         cy={object.y + object.height / 2}
         rx={object.width / 2}
         ry={object.height / 2}
-        fill={object.fill ?? "#d9dfe5"}
+        fill={object.fill ?? "var(--editor-object)"}
         fillOpacity={object.opacity ?? 0.68}
-        stroke={object.stroke ?? "#6b7280"}
+        stroke={object.stroke ?? "var(--editor-object-stroke)"}
         transform={transform}
       />
     );
@@ -130,9 +131,9 @@ function rectangleNode(object: RectangleObject): ReactNode {
     return (
       <polygon
         points={pointsValue(object.points)}
-        fill={object.fill ?? "#d9dfe5"}
+        fill={object.fill ?? "var(--editor-object)"}
         fillOpacity={object.opacity ?? 0.68}
-        stroke={object.stroke ?? "#6b7280"}
+        stroke={object.stroke ?? "var(--editor-object-stroke)"}
       />
     );
   return (
@@ -141,9 +142,9 @@ function rectangleNode(object: RectangleObject): ReactNode {
       y={object.y}
       width={object.width}
       height={object.height}
-      fill={object.fill ?? "#d9dfe5"}
+      fill={object.fill ?? "var(--editor-object)"}
       fillOpacity={object.opacity ?? 0.68}
-      stroke={object.stroke ?? "#6b7280"}
+      stroke={object.stroke ?? "var(--editor-object-stroke)"}
       transform={transform}
     />
   );
@@ -156,7 +157,7 @@ function iconNode(object: IconObject): ReactNode {
     y: object.position.y - size / 2,
     width: size,
     height: size,
-    color: object.color ?? "#495057",
+    color: object.color ?? "var(--editor-text)",
     strokeWidth: 1.5,
   } as const;
   if (object.icon === "stage") return <Theater {...props} />;
@@ -180,6 +181,7 @@ function iconNode(object: IconObject): ReactNode {
 function renderObject(
   object: ChartObject,
   selectedSeatIds: readonly string[],
+  showLabels: boolean,
 ): ReactNode {
   if (object.type === "row")
     return (
@@ -191,18 +193,20 @@ function renderObject(
               cy={seat.y}
               r="7"
               fill={seatFill(seat, selectedSeatIds.includes(seat.id))}
-              stroke={selectedSeatIds.includes(seat.id) ? "#0369c9" : "#59626b"}
+              stroke={selectedSeatIds.includes(seat.id) ? "var(--editor-accent-strong)" : "var(--editor-seat-stroke)"}
               strokeWidth="1.5"
             />
-            <text
-              x={seat.x}
-              y={seat.y + 3}
-              textAnchor="middle"
-              fontSize="7"
-              fill="#30363c"
-            >
-              {seat.label}
-            </text>
+            {showLabels && (
+              <text
+                x={seat.x}
+                y={seat.y + 3}
+                textAnchor="middle"
+                fontSize="7"
+                fill="var(--editor-text)"
+              >
+                {seat.label}
+              </text>
+            )}
           </g>
         ))}
       </g>
@@ -217,8 +221,8 @@ function renderObject(
             width={object.width ?? 120}
             height={object.height ?? 36}
             rx="2"
-            fill="#b4bdc6"
-            stroke="#59626b"
+            fill="var(--editor-table)"
+            stroke="var(--editor-seat-stroke)"
             transform={
               object.rotation
                 ? `rotate(${object.rotation} ${object.center.x} ${object.center.y})`
@@ -230,8 +234,8 @@ function renderObject(
             cx={object.center.x}
             cy={object.center.y}
             r={object.radius}
-            fill="#b4bdc6"
-            stroke="#59626b"
+            fill="var(--editor-table)"
+            stroke="var(--editor-seat-stroke)"
           />
         )}
         {object.seats.map((seat) => (
@@ -242,7 +246,7 @@ function renderObject(
             cy={seat.y}
             r="7"
             fill={seatFill(seat, selectedSeatIds.includes(seat.id))}
-            stroke={selectedSeatIds.includes(seat.id) ? "#0369c9" : "#59626b"}
+            stroke={selectedSeatIds.includes(seat.id) ? "var(--editor-accent-strong)" : "var(--editor-seat-stroke)"}
           />
         ))}
       </g>
@@ -263,8 +267,8 @@ function renderObject(
           width={object.width}
           height={object.height}
           rx="2"
-          fill="#d9e4ec"
-          stroke="#59626b"
+          fill="var(--editor-booth)"
+          stroke="var(--editor-seat-stroke)"
         />
         <text
           x={object.x + object.width / 2}
@@ -287,23 +291,23 @@ function renderObject(
         ry={
           Math.abs((object.points[2]?.y ?? 0) - (object.points[0]?.y ?? 0)) / 2
         }
-        fill="#def1e7"
-        stroke="#5a8a70"
+        fill="var(--editor-area)"
+        stroke="var(--editor-area-stroke)"
       />
     ) : (
       <polygon
         points={pointsValue(object.points)}
-        fill="#def1e7"
-        stroke="#5a8a70"
+        fill="var(--editor-area)"
+        stroke="var(--editor-area-stroke)"
       />
     );
   if (object.type === "section")
     return (
       <polygon
         points={pointsValue(object.points)}
-        fill={object.fill ?? "#d9e9f8"}
+        fill={object.fill ?? "var(--editor-section)"}
         fillOpacity="0.7"
-        stroke="#5c83a7"
+        stroke="var(--editor-section-stroke)"
       />
     );
   if (object.type === "line")
@@ -311,7 +315,7 @@ function renderObject(
       <polyline
         points={pointsValue(object.points ?? [object.start, object.end])}
         fill="none"
-        stroke={object.stroke ?? "#5b6570"}
+        stroke={object.stroke ?? "var(--editor-line)"}
         strokeWidth="3"
       />
     );
@@ -329,7 +333,7 @@ function renderObject(
         }
         fontSize={object.fontSize ?? 18}
         fontWeight={object.weight ?? 500}
-        fill={object.color ?? "#333333"}
+        fill={object.color ?? "var(--editor-text)"}
         transform={
           object.rotation
             ? `rotate(${object.rotation} ${object.position.x} ${object.position.y})`
@@ -374,6 +378,7 @@ export function CanvasObjects({
   selectedIds,
   selectedSeatIds,
   nodeMode,
+  showLabels = true,
   hideNodeInsertHandles = false,
   onInsertNode,
 }: CanvasObjectsProps) {
@@ -385,7 +390,7 @@ export function CanvasObjects({
           data-object-id={object.id}
           data-object-type={object.type}
         >
-          {renderObject(object, selectedSeatIds)}
+          {renderObject(object, selectedSeatIds, showLabels)}
           {selectedIds.includes(object.id) && !object.locked && selectionBox(object)}
           {nodeMode &&
             selectedIds.includes(object.id) &&
@@ -411,8 +416,8 @@ export function CanvasObjects({
                         cx={midpoint.x}
                         cy={midpoint.y}
                         r="4"
-                        fill="#eaf4ff"
-                        stroke="#087ffa"
+                        fill="var(--editor-accent-soft)"
+                        stroke="var(--editor-accent)"
                         data-testid="seat-designer-v2-node-add-handle"
                         onPointerDown={(event) => {
                           event.stopPropagation();
@@ -428,7 +433,7 @@ export function CanvasObjects({
                     cy={point.y}
                     r="5"
                     fill="white"
-                    stroke="#087ffa"
+                    stroke="var(--editor-accent)"
                     data-testid="seat-designer-v2-node-handle"
                   />
                 ))}

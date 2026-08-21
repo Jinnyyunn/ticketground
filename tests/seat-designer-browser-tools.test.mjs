@@ -12,6 +12,8 @@ import {
 test("every clean-room designer tool family is operable in the real admin browser", async (t) => {
   const { page, server, runtimeErrors } = await openV2Editor(t);
   await selectVenue(page);
+  const evidenceRoot = path.resolve(".omo/evidence/seat-designer-v2/browser");
+  await mkdir(evidenceRoot, { recursive: true });
   const venueId = await page.getByTestId("seat-designer-v2-venue").inputValue();
   await page.getByRole("button", { name: "빈 캔버스로 시작" }).click();
   await page.getByTestId("seat-designer-v2-reference-start").waitFor({ state: "hidden" });
@@ -79,6 +81,8 @@ test("every clean-room designer tool family is operable in the real admin browse
   const seatFields = page.getByTestId("seat-designer-v2-seat-fields");
   await seatFields.waitFor();
   await seatFields.getByText("휠체어 좌석", { exact: true }).click();
+  await seatFields.getByLabel("좌석 시점 이미지 URL").fill("/images/seats/a-1.webp");
+  await page.screenshot({ path: path.join(evidenceRoot, "seat-properties.png"), fullPage: true });
   await chooseTool(page, "brush");
   const seat = await page.locator('[data-object-type="row"] circle').nth(1).boundingBox();
   assert.ok(seat);
@@ -92,6 +96,18 @@ test("every clean-room designer tool family is operable in the real admin browse
   assert.ok(await page.getByTestId("seat-designer-v2-selection-handles").count() >= 6);
   await page.getByTitle("가로 균등 배치").click();
   await page.getByTitle("세로 균등 배치").click();
+  await page.getByTitle("좌우 반전").click();
+  await page.getByTitle("상하 반전").click();
+
+  await page.getByTitle("스냅").click();
+  await page.getByTitle("스냅").click();
+  await page.getByTitle("좌석 라벨").click();
+  await page.getByTitle("좌석 라벨").click();
+  await page.getByTitle("구역 내용").click();
+  await page.getByTitle("구역 내용").click();
+  await page.getByTitle("캔버스 테마").click();
+  assert.equal(await canvas.locator("rect").first().getAttribute("fill"), "var(--editor-canvas-dark)");
+  await page.getByTitle("캔버스 테마").click();
 
   await chooseTool(page, "select");
   await page.keyboard.press("Escape");
@@ -117,6 +133,18 @@ test("every clean-room designer tool family is operable in the real admin browse
   await page.mouse.up();
   assert.notEqual(await canvas.locator("g").first().getAttribute("transform"), beforePan);
 
+  await chooseTool(page, "select");
+  await page.keyboard.press("Escape");
+  const beforeSpacePan = await canvas.locator("g").first().getAttribute("transform");
+  await page.keyboard.down("Space");
+  await page.waitForTimeout(30);
+  await page.mouse.move(point(420, 620).x, point(420, 620).y);
+  await page.mouse.down();
+  await page.mouse.move(point(455, 645).x, point(455, 645).y);
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+  assert.notEqual(await canvas.locator("g").first().getAttribute("transform"), beforeSpacePan);
+
   await page.getByTitle("미리보기").click();
   await page.getByTestId("seat-designer-v2-preview").waitFor();
   await page.getByTestId("seat-designer-v2-preview").getByRole("button").click();
@@ -124,6 +152,7 @@ test("every clean-room designer tool family is operable in the real admin browse
   await page.getByTitle("도움말").click();
   const help = page.getByTestId("seat-designer-v2-help-dialog");
   await help.getByText("도구와 단축키", { exact: true }).waitFor();
+  await page.screenshot({ path: path.join(evidenceRoot, "help-dialog.png"), fullPage: true });
   await help.getByTitle("도움말 닫기").click();
   await page.getByTitle("층 추가").click();
   await page.getByRole("button", { name: "2F", exact: true }).waitFor();
@@ -152,8 +181,6 @@ test("every clean-room designer tool family is operable in the real admin browse
   await credentials.locator("header button").click();
   await credentials.waitFor({ state: "hidden" });
 
-  const evidenceRoot = path.resolve(".omo/evidence/seat-designer-v2/browser");
-  await mkdir(evidenceRoot, { recursive: true });
   await page.screenshot({ path: path.join(evidenceRoot, "all-tools.png"), fullPage: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   assert.deepEqual(runtimeErrors, []);

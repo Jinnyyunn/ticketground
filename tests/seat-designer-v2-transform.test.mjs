@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createDraggedObject } from "../src/components/seat-designer-v2/object-factory.ts";
-import { alignObjects, distributeObjects, duplicateObject, resizeObject } from "../src/components/seat-designer-v2/object-transform.ts";
+import { alignObjects, distributeObjects, duplicateObject, flipObjects, resizeObject } from "../src/components/seat-designer-v2/object-transform.ts";
 
 test("duplicating a place-bearing object rotates every persisted identity", () => {
   const original = createDraggedObject("row", { x: 0, y: 0 }, { x: 180, y: 0 }, { seatSpacing: 5, objects: [] });
@@ -46,4 +46,13 @@ test("image resize preserves its source ratio while the ratio lock is active", (
   assert.equal(resized.type, "image");
   assert.equal(resized.width, 400);
   assert.equal(resized.height, 200);
+});
+
+test("horizontal and vertical flip mirror selected geometry around the group center", () => {
+  const first = { id: "first", label: "첫째", layer: "interactive", type: "booth", x: 10, y: 20, width: 20, height: 20 };
+  const last = { id: "last", label: "둘째", layer: "interactive", type: "booth", x: 90, y: 80, width: 30, height: 40 };
+  const horizontal = flipObjects([first, last], [first.id, last.id], "horizontal");
+  assert.deepEqual(horizontal.map((object) => object.type === "booth" ? object.x : null), [100, 10]);
+  const vertical = flipObjects([first, last], [first.id, last.id], "vertical");
+  assert.deepEqual(vertical.map((object) => object.type === "booth" ? object.y : null), [100, 20]);
 });

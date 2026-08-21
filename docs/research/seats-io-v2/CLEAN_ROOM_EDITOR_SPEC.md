@@ -40,6 +40,9 @@
 - Reference and object images preserve their source ratio by default. Reference imports accept up to `15 MB`.
 - Multi-selection supports edge/center alignment plus horizontal and vertical equal distribution.
 - Help opens a complete tool and keyboard reference rather than acting as a decorative button.
+- Grid visibility and snapping are independent. Theme, labels, section-content visibility, horizontal/vertical flip, and temporary `Space` pan remain available as global editor commands.
+- Mobile keeps the inspector and selected-object commands in a responsive property drawer, and the complete active-tool help reflows instead of clipping.
+- Editor colors, selection states, guide colors, surfaces, borders, and elevation consume shared semantic `--editor-*` tokens; persisted object defaults are centralized in `design-tokens.ts`.
 
 ## Shape defaults
 

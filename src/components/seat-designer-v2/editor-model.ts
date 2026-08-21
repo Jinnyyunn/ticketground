@@ -41,6 +41,10 @@ export type V2EditorState = {
   readonly pan: V2Point;
   readonly zoom: number;
   readonly showGrid: boolean;
+  readonly snapToGrid: boolean;
+  readonly showLabels: boolean;
+  readonly showSectionContents: boolean;
+  readonly darkCanvas: boolean;
   readonly selectionLayer: "all" | "interactive";
   readonly status: string;
   readonly chartId: string;
@@ -66,6 +70,10 @@ export const INITIAL_STATE: V2EditorState = {
   pan: { x: 0, y: 0 },
   zoom: 1,
   showGrid: true,
+  snapToGrid: true,
+  showLabels: true,
+  showSectionContents: false,
+  darkCanvas: false,
   selectionLayer: "all",
   status: "새 도면",
   chartId: `chart_${crypto.randomUUID()}`,

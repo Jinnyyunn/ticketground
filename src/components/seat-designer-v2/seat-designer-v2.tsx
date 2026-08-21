@@ -13,12 +13,18 @@ import {
   ClipboardPaste,
   Copy,
   Eye,
+  FlipHorizontal2,
+  FlipVertical2,
   Grid3X3,
   HelpCircle,
   KeyRound,
+  Magnet,
+  Moon,
   Redo2,
   Save,
   Send,
+  SlidersHorizontal,
+  Tags,
   Trash2,
   Undo2,
   X,
@@ -65,12 +71,14 @@ import {
   alignObjects,
   distributeObjects,
   duplicateObject,
+  flipObjects,
   objectBounds,
   resizeObject,
   rotateObject,
   translateObject,
   type AlignmentMode,
   type DistributionMode,
+  type FlipAxis,
 } from "./object-transform";
 import { ReferenceStart } from "./reference-start";
 import { fitReferenceAsset } from "./reference-layout";
@@ -114,6 +122,7 @@ function canvasPoint(
     y: (event.clientY - bounds.top - state.pan.y) / state.zoom,
   };
   if (event.altKey) return raw;
+  if (!state.snapToGrid) return raw;
   return { x: Math.round(raw.x / 5) * 5, y: Math.round(raw.y / 5) * 5 };
 }
 
@@ -139,11 +148,14 @@ export function SeatDesignerV2() {
   const [preview, setPreview] = useState(false);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [imagePoint, setImagePoint] = useState<V2Point | null>(null);
   const [multipleBase, setMultipleBase] = useState<RowObject | null>(null);
   const [smartGuides, setSmartGuides] = useState<readonly SmartGuide[]>([]);
   const [altPressed, setAltPressed] = useState(false);
+  const [spacePressed, setSpacePressed] = useState(false);
+  const [panDrag, setPanDrag] = useState(false);
   const [nodeDrag, setNodeDrag] = useState<{
     readonly objectId: string;
     readonly index: number;
@@ -179,9 +191,11 @@ export function SeatDesignerV2() {
   const visibleObjects = useMemo(
     () => state.objects.filter((object) =>
       (object.floorId ?? "floor_1") === state.activeFloorId &&
-      (object.sectionId ?? null) === state.activeSectionId,
+      (state.activeSectionId
+        ? object.sectionId === state.activeSectionId
+        : object.sectionId === undefined || state.showSectionContents),
     ),
-    [state.activeFloorId, state.activeSectionId, state.objects],
+    [state.activeFloorId, state.activeSectionId, state.objects, state.showSectionContents],
   );
 
   function inCurrentScope(object: ChartObject): ChartObject {
@@ -314,6 +328,13 @@ export function SeatDesignerV2() {
       objects: distributeObjects(state.objects, state.selectedIds, mode),
     });
   }
+  function flipSelected(axis: FlipAxis): void {
+    if (state.selectedIds.length === 0) return;
+    commit({
+      ...state,
+      objects: flipObjects(state.objects, state.selectedIds, axis),
+    });
+  }
 
   function selectAt(point: Point, additive: boolean): void {
     const selectable =
@@ -418,6 +439,15 @@ export function SeatDesignerV2() {
     if (PATH_TOOLS.includes(state.tool) && lastPathPoint && event.shiftKey) {
       point = constrainedEnd(lastPathPoint, point, true);
     }
+    if (state.tool === "hand" || spacePressed) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setPanDrag(true);
+      setState((current) => ({
+        ...current,
+        draft: { start: point, current: point, points: [] },
+      }));
+      return;
+    }
     if (state.tool === "select") {
       if (!event.shiftKey && beginObjectDrag(point, event)) return;
       selectAt(point, event.shiftKey);
@@ -490,7 +520,7 @@ export function SeatDesignerV2() {
         });
       return;
     }
-    if (state.tool === "hand" || DRAG_TOOLS.includes(state.tool)) {
+    if (DRAG_TOOLS.includes(state.tool)) {
       event.currentTarget.setPointerCapture(event.pointerId);
       setState((current) => ({
         ...current,
@@ -583,7 +613,7 @@ export function SeatDesignerV2() {
     }
     if (!state.draft) return;
     setShift(event.shiftKey);
-    if (state.tool === "hand") {
+    if (panDrag) {
       const dx = (point.x - state.draft.start.x) * state.zoom;
       const dy = (point.y - state.draft.start.y) * state.zoom;
       setState((current) => ({
@@ -602,6 +632,13 @@ export function SeatDesignerV2() {
   }
 
   function pointerUp(event: ReactPointerEvent<SVGSVGElement>): void {
+    if (panDrag) {
+      setPanDrag(false);
+      setState((current) => ({ ...current, draft: null }));
+      if (event.currentTarget.hasPointerCapture(event.pointerId))
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      return;
+    }
     if (objectDrag || nodeDrag) {
       const origin = dragOrigin.current;
       if (origin) setPast((items) => [...items, origin]);
@@ -885,6 +922,11 @@ export function SeatDesignerV2() {
         target instanceof HTMLSelectElement
       )
         return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        setSpacePressed(true);
+        return;
+      }
       if (event.metaKey || event.ctrlKey) {
         const key = event.key.toLowerCase();
         if (key === "z") {
@@ -921,6 +963,7 @@ export function SeatDesignerV2() {
     }
     function keyup(event: KeyboardEvent): void {
       if (event.key === "Alt") setAltPressed(false);
+      if (event.code === "Space") setSpacePressed(false);
     }
     window.addEventListener("keydown", keydown);
     window.addEventListener("keyup", keyup);
@@ -932,7 +975,7 @@ export function SeatDesignerV2() {
 
   return (
     <div
-      className="flex h-[100dvh] min-h-[620px] flex-col overflow-hidden bg-white text-[13px] text-[#333]"
+      className="seat-designer-shell flex h-[100dvh] min-h-[620px] flex-col overflow-hidden bg-white text-[13px] text-[var(--editor-text)]"
       data-testid="seat-designer-v2-shell"
     >
       {!started && (
@@ -941,12 +984,12 @@ export function SeatDesignerV2() {
           onReady={(plan, venue) => start(plan, venue)}
         />
       )}
-      <header className="flex h-[46px] shrink-0 items-center border-b border-[#ddd] bg-[#fafafa]">
+      <header className="flex h-[46px] shrink-0 items-center border-b border-[var(--editor-border)] bg-[var(--editor-panel)]">
         <div className="flex min-w-0 flex-1 items-center gap-3 px-3">
           <button
             type="button"
             title="닫기"
-            className="grid size-8 place-items-center rounded hover:bg-[#eee]"
+            className="grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)]"
           >
             <X className="size-4" />
           </button>
@@ -959,7 +1002,7 @@ export function SeatDesignerV2() {
               setState((current) => ({ ...current, name }));
             }}
           />
-          <span className="hidden rounded bg-[#e9f7ed] px-2 py-1 text-xs text-[#287b42] sm:inline">
+          <span className="hidden rounded bg-[var(--editor-status-soft)] px-2 py-1 text-xs text-[var(--editor-status)] sm:inline">
             {state.status}
           </span>
         </div>
@@ -984,6 +1027,12 @@ export function SeatDesignerV2() {
           >
             <Grid3X3 />
           </TopButton>
+          <span className="hidden md:contents">
+            <TopButton label="스냅" onClick={() => setState((current) => ({ ...current, snapToGrid: !current.snapToGrid }))}><Magnet /></TopButton>
+            <TopButton label="좌석 라벨" onClick={() => setState((current) => ({ ...current, showLabels: !current.showLabels }))}><Tags /></TopButton>
+            <TopButton label="구역 내용" onClick={() => setState((current) => ({ ...current, showSectionContents: !current.showSectionContents }))}><Eye /></TopButton>
+            <TopButton label="캔버스 테마" onClick={() => setState((current) => ({ ...current, darkCanvas: !current.darkCanvas }))}><Moon /></TopButton>
+          </span>
           <span className="hidden xl:contents">
             <TopButton
               label="왼쪽 정렬"
@@ -1041,6 +1090,12 @@ export function SeatDesignerV2() {
             >
               <AlignVerticalSpaceBetween />
             </TopButton>
+            <TopButton label="좌우 반전" onClick={() => flipSelected("horizontal")} disabled={!state.selectedIds.length}>
+              <FlipHorizontal2 />
+            </TopButton>
+            <TopButton label="상하 반전" onClick={() => flipSelected("vertical")} disabled={!state.selectedIds.length}>
+              <FlipVertical2 />
+            </TopButton>
           </span>
           <span className="hidden md:contents">
             <TopButton label="복사" onClick={copySelected}>
@@ -1072,7 +1127,7 @@ export function SeatDesignerV2() {
           <button
             type="button"
             disabled={pendingUploads > 0}
-            className="ml-1 hidden h-8 items-center gap-1 rounded border border-[#bbb] px-3 font-semibold disabled:cursor-not-allowed disabled:opacity-40 sm:flex"
+            className="ml-1 hidden h-8 items-center gap-1 rounded border border-[var(--editor-border)] px-3 font-semibold disabled:cursor-not-allowed disabled:opacity-40 sm:flex"
             onClick={() => void save()}
           >
             <Save className="size-4" />
@@ -1081,7 +1136,7 @@ export function SeatDesignerV2() {
           <button
             type="button"
             disabled={pendingUploads > 0}
-            className="ml-1 flex h-8 items-center gap-1 rounded border border-[#087ffa] px-3 font-semibold text-[#087ffa] hover:bg-[#eaf4ff] disabled:cursor-not-allowed disabled:opacity-40"
+            className="ml-1 flex h-8 items-center gap-1 rounded border border-[var(--editor-accent)] px-3 font-semibold text-[var(--editor-accent)] hover:bg-[var(--editor-accent-soft)] disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => void publish()}
           >
             <Send className="size-4" />
@@ -1093,13 +1148,13 @@ export function SeatDesignerV2() {
         <Toolbar active={state.tool} onSelect={selectTool} />
         <main className="relative min-w-0 flex-1 overflow-hidden bg-white">
           <FloorBar state={state} onState={setState} />
-          <label className="absolute left-3 top-14 z-10 w-44 rounded border border-[#d4d4d4] bg-white px-3 py-2 shadow-sm">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#777]">
+          <label className="absolute left-3 top-14 z-10 w-44 rounded border border-[var(--editor-border)] bg-white px-3 py-2 shadow-sm">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--editor-muted)]">
               선택 레이어
             </span>
             <select
               data-testid="seat-designer-v2-selection-layer"
-              className="w-full bg-transparent text-sm font-medium text-[#087ffa] outline-none"
+              className="w-full bg-transparent text-sm font-medium text-[var(--editor-accent)] outline-none"
               value={state.selectionLayer}
               onChange={(event) => {
                 const selectionLayer = event.currentTarget.value as
@@ -1116,7 +1171,7 @@ export function SeatDesignerV2() {
             </select>
           </label>
           <svg
-            className="size-full touch-none"
+            className={`size-full touch-none ${spacePressed || state.tool === "hand" ? "cursor-grab" : ""}`}
             data-testid="seat-designer-v2-canvas"
             onPointerDown={pointerDown}
             onPointerMove={pointerMove}
@@ -1134,7 +1189,7 @@ export function SeatDesignerV2() {
                 <path
                   d="M 20 0 L 0 0 0 20"
                   fill="none"
-                  stroke="#eeeeee"
+                  stroke={state.darkCanvas ? "var(--editor-grid-dark)" : "var(--editor-hover)"}
                   strokeWidth="1"
                 />
               </pattern>
@@ -1142,8 +1197,9 @@ export function SeatDesignerV2() {
             <rect
               width="100%"
               height="100%"
-              fill={state.showGrid ? "url(#v2-grid)" : "white"}
+              fill={state.darkCanvas ? "var(--editor-canvas-dark)" : "white"}
             />
+            {state.showGrid && <rect width="100%" height="100%" fill="url(#v2-grid)" />}
             <g
               transform={`translate(${state.pan.x} ${state.pan.y}) scale(${state.zoom})`}
             >
@@ -1165,6 +1221,7 @@ export function SeatDesignerV2() {
                 selectedIds={state.selectedIds}
                 selectedSeatIds={state.selectedSeatIds}
                 nodeMode={state.tool === "node"}
+                showLabels={state.showLabels}
                 hideNodeInsertHandles={altPressed}
                 onInsertNode={(objectId, afterIndex, point) => {
                   const target = state.objects.find((object) => object.id === objectId);
@@ -1180,7 +1237,7 @@ export function SeatDesignerV2() {
                   y1={guide.axis === "y" ? guide.value : -4000}
                   x2={guide.axis === "x" ? guide.value : 4000}
                   y2={guide.axis === "y" ? guide.value : 4000}
-                  stroke={guide.color === "red" ? "#ef4444" : guide.color === "blue" ? "#2787ff" : "#22a55b"}
+                  stroke={guide.color === "red" ? "var(--editor-guide-center)" : guide.color === "blue" ? "var(--editor-guide-projection)" : "var(--editor-guide-axis)"}
                   strokeWidth="1"
                   vectorEffect="non-scaling-stroke"
                   pointerEvents="none"
@@ -1193,6 +1250,7 @@ export function SeatDesignerV2() {
                     selectedIds={[]}
                     selectedSeatIds={[]}
                     nodeMode={false}
+                    showLabels={state.showLabels}
                   />
                   {previewObjects[0]?.type === "row" && (
                     <>
@@ -1213,7 +1271,7 @@ export function SeatDesignerV2() {
                           previewObjects[0].end.y +
                           (previewObjects[0].end.y - previewObjects[0].start.y) * 2
                         }
-                        stroke="#f59e0b"
+                        stroke="var(--editor-guide-extension)"
                       />
                       <g
                         transform={`translate(${(previewObjects[0].start.x + previewObjects[0].end.x) / 2},${(previewObjects[0].start.y + previewObjects[0].end.y) / 2 - 20})`}
@@ -1225,7 +1283,7 @@ export function SeatDesignerV2() {
                           width="56"
                           height="24"
                           rx="4"
-                          fill="#111"
+                          fill="var(--editor-text)"
                         />
                         <text
                           textAnchor="middle"
@@ -1248,7 +1306,7 @@ export function SeatDesignerV2() {
                     .map((point) => `${point.x},${point.y}`)
                     .join(" ")}
                   fill="none"
-                  stroke="#087ffa"
+                  stroke="var(--editor-accent)"
                   strokeWidth="2"
                 />
               )}
@@ -1257,13 +1315,13 @@ export function SeatDesignerV2() {
                   transform={`translate(${state.focalPoint.x} ${state.focalPoint.y})`}
                   data-testid="seat-designer-v2-focal-point"
                 >
-                  <circle r="10" fill="none" stroke="#e11d48" />
-                  <path d="M-15 0H15M0-15V15" stroke="#e11d48" />
+                  <circle r="10" fill="none" stroke="var(--editor-danger)" />
+                  <path d="M-15 0H15M0-15V15" stroke="var(--editor-danger)" />
                 </g>
               )}
             </g>
           </svg>
-          <div className="absolute bottom-3 left-3 flex items-center rounded-full border border-[#ddd] bg-white p-1 shadow-sm">
+          <div className="absolute bottom-3 left-3 flex items-center rounded-full border border-[var(--editor-border)] bg-white p-1 shadow-sm">
             <button
               className="size-8"
               type="button"
@@ -1309,9 +1367,17 @@ export function SeatDesignerV2() {
             onRemoveReference={removeReference}
           />
         </div>
+        <button
+          type="button"
+          title="속성 패널"
+          className="absolute bottom-14 right-3 z-20 grid size-10 place-items-center rounded-full bg-[var(--editor-accent)] text-white shadow-lg lg:hidden"
+          onClick={() => setInspectorOpen(true)}
+        >
+          <SlidersHorizontal className="size-4" />
+        </button>
       </div>
       <footer
-        className="flex h-9 shrink-0 items-center gap-2 overflow-x-auto border-t border-[#ddd] bg-white px-4 whitespace-nowrap"
+        className="flex min-h-9 shrink-0 flex-wrap items-center gap-2 overflow-x-auto border-t border-[var(--editor-border)] bg-white px-4 py-1 sm:h-9 sm:flex-nowrap sm:py-0 sm:whitespace-nowrap"
         data-testid="seat-designer-v2-help-strip"
       >
         <strong>{activeSpec.label}</strong>
@@ -1319,12 +1385,12 @@ export function SeatDesignerV2() {
           index % 2 === 0 ? (
             <kbd
               key={`${part}-${index}`}
-              className="rounded bg-[#eee] px-2 py-1 text-[11px] font-semibold"
+              className="rounded bg-[var(--editor-hover)] px-2 py-1 text-[11px] font-semibold"
             >
               {part}
             </kbd>
           ) : (
-            <span key={`${part}-${index}`} className="text-[#555]">
+            <span key={`${part}-${index}`} className="text-[var(--editor-muted)]">
               {part}
             </span>
           ),
@@ -1369,6 +1435,29 @@ export function SeatDesignerV2() {
         <ServiceCredentialsPanel onClose={() => setCredentialsOpen(false)} />
       )}
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+      {inspectorOpen && (
+        <div className="fixed inset-y-[46px] right-0 z-[60] flex w-[min(336px,92vw)] flex-col bg-white shadow-2xl lg:hidden">
+          <button type="button" title="속성 패널 닫기" className="absolute right-2 top-2 z-10 grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)]" onClick={() => setInspectorOpen(false)}><X className="size-4" /></button>
+          <div className="flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--editor-border)] px-3 pr-12 whitespace-nowrap" data-testid="seat-designer-v2-mobile-actions">
+            <button type="button" disabled={pendingUploads > 0} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:cursor-not-allowed disabled:opacity-40" onClick={() => void save()}>저장</button>
+            <button type="button" disabled={pendingUploads > 0} className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)] disabled:cursor-not-allowed disabled:opacity-40" onClick={() => void publish()}>게시</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={copySelected}>복사</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={pasteCopied}>붙여넣기</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={duplicateSelected}>복제</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={deleteSelected}>삭제</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => flipSelected("horizontal")}>좌우 반전</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => flipSelected("vertical")}>상하 반전</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => { setInspectorOpen(false); setCredentialsOpen(true); }}>API 연결</button>
+            <button type="button" className="shrink-0 rounded px-2 py-1 text-xs hover:bg-[var(--editor-hover)]" onClick={() => { setInspectorOpen(false); setHelpOpen(true); }}>도움말</button>
+          </div>
+          <div className="shrink-0 border-b border-[var(--editor-border)] bg-[var(--editor-status-soft)] px-3 py-1.5 text-xs font-medium text-[var(--editor-status)]" data-testid="seat-designer-v2-mobile-status">
+            {state.status}
+          </div>
+          <div className="min-h-0 flex-1 [&>aside]:h-full">
+            <Inspector state={state} onState={setState} onObject={updateObject} onSeat={updateSeat} onEnterSection={(activeSectionId) => setState((current) => ({ ...current, activeSectionId, selectedIds: [], selectedSeatIds: [] }))} onReplaceReference={(file) => void replaceReference(file)} onRemoveReference={removeReference} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1408,7 +1497,7 @@ function TopButton({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="grid size-8 place-items-center rounded hover:bg-[#eee] disabled:opacity-30 [&>svg]:size-4"
+      className="grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)] disabled:opacity-30 [&>svg]:size-4"
     >
       {children}
     </button>

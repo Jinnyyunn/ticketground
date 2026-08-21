@@ -40,6 +40,7 @@ test("published documents preserve the configured floors and active floor", () =
     selectedSeatIds: [], referencePlan: null, rowSpacing: 14, seatSpacing: 5,
     multipleRowLayout: "aligned", focalPoint: null, draft: null,
     pan: { x: 0, y: 0 }, zoom: 1, showGrid: true, selectionLayer: "all",
+    snapToGrid: true, showLabels: true, showSectionContents: false, darkCanvas: false,
     status: "준비", chartId: "chart_floor", assets: [], floors,
     activeFloorId: "floor_2", activeSectionId: null,
   });
