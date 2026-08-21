@@ -3,6 +3,7 @@ import {
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceBetween,
   ClipboardCopy, ClipboardPaste, Copy, Eye, FlipHorizontal2, FlipVertical2, Grid3X3, HelpCircle, KeyRound, Magnet, Moon, Redo2, Save, Send, Tags, Trash2, Undo2, X,
 } from "lucide-react";
+import Link from "next/link";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { V2EditorState } from "./editor-model";
 import type { AlignmentMode, DistributionMode, FlipAxis } from "./object-transform";
@@ -39,7 +40,7 @@ export function EditorHeader(props: HeaderProps) {
   return (
     <header className="flex h-[var(--editor-header-height)] shrink-0 items-center border-b border-[var(--editor-border)] bg-[var(--editor-panel)]">
       <div className="flex min-w-0 flex-1 items-center gap-3 px-3">
-        <button type="button" title="닫기" className="grid size-8 place-items-center rounded hover:bg-[var(--editor-hover)]"><X className="size-4" /></button>
+        <Link aria-label="닫기" title="닫기" href="/console" className="grid size-8 place-items-center rounded text-inherit hover:bg-[var(--editor-hover)]"><X aria-hidden="true" className="size-4" /></Link>
         <input aria-label="좌석 배치도 이름" className="min-w-0 max-w-52 bg-transparent text-sm outline-none" value={state.name} onChange={(event) => { const name = event.currentTarget.value; setState((current) => ({ ...current, name })); }} />
         <span className={`hidden rounded px-2 py-1 text-xs sm:inline ${editorStatusClassName(state.status)}`}>{state.status}</span>
       </div>
