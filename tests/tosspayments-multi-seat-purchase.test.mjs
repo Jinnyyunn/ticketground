@@ -15,6 +15,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { createTicketgroundApp } from "../backend/app.js";
 import { adminApi, api, startServer as startBackendServer, verifyIdentity } from "./backend-test-utils.mjs";
+import { createTosspaymentsOrderId } from "../src/lib/tosspayments/order-id.ts";
 
 function startServer(t, options = {}) {
   return startBackendServer(t, {
@@ -230,17 +231,39 @@ test("a duplicate ticketId within the same purchase request is rejected", async 
   assert.equal(state.data.tickets.find((item) => item.id === ticket.id).status, "ON_SALE");
 });
 
-test("a purchase request over the 48-seat group limit is rejected before touching inventory", async (t) => {
+test("a 96-seat rectangular table reaches inventory validation instead of the group cap", async (t) => {
   const server = await startServer(t);
   await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
   const rejected = await api(server.baseUrl, "/api/payments/tosspayments/purchase", {
     userId: "user_fan_a",
-    ticketIds: Array.from({ length: 49 }, (_, index) => `ticket-${index + 1}`),
+    ticketIds: Array.from({ length: 96 }, (_, index) => `ticket-${index + 1}`),
+    paymentMethod: "CREDIT_CARD",
+    tossPaymentKey: "toss_test_key_rectangular_table",
+    orderId: "order_rectangular_table"
+  }, 404, { "X-Idempotency-Key": "toss-rectangular-table" });
+  assert.equal(rejected.error.code, "TICKET_NOT_FOUND");
+});
+
+test("a purchase request over the 96-seat group limit is rejected before touching inventory", async (t) => {
+  const server = await startServer(t);
+  await verifyIdentity(server.baseUrl, "user_fan_a", "010-9000-0001");
+  const rejected = await api(server.baseUrl, "/api/payments/tosspayments/purchase", {
+    userId: "user_fan_a",
+    ticketIds: Array.from({ length: 97 }, (_, index) => `ticket-${index + 1}`),
     paymentMethod: "CREDIT_CARD",
     tossPaymentKey: "toss_test_key_too_many",
     orderId: "order_too_many"
   }, 422, { "X-Idempotency-Key": "toss-group-too-many-seats" });
   assert.equal(rejected.error.code, "TOO_MANY_SEATS");
+});
+
+test("multi-seat Toss order IDs stay opaque and within the provider limit", () => {
+  const ticketIds = Array.from({ length: 96 }, (_, index) => `ticket_event_123_${String(index + 1).padStart(3, "0")}`);
+  const orderId = createTosspaymentsOrderId(ticketIds, "01234567-89ab-cdef-0123-456789abcdef");
+  assert.equal(orderId, "order_0123456789abcdef0123456789abcdef");
+  assert.ok(orderId.length <= 64);
+  assert.equal(ticketIds.some((ticketId) => orderId.includes(ticketId)), false);
+  assert.equal(createTosspaymentsOrderId([ticketIds[0]], "unused"), ticketIds[0]);
 });
 
 test("tickets from two different performances cannot be purchased together", async (t) => {

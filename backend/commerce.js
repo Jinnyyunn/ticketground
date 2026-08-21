@@ -172,7 +172,7 @@ export function createCommerceBackend({
     return { user, ticket, event, performanceDate, payment: { ...payment, amount: paidAmount }, admissionCredential: credential };
   }
 
-  const MAX_GROUP_PURCHASE_SEATS = 48;
+  const MAX_GROUP_PURCHASE_SEATS = 96;
 
   // Shape-validates a ticketIds array (present, non-empty, no duplicates,
   // within the group size cap) and returns the deduplicated list. Exposed

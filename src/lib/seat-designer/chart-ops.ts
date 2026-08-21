@@ -633,10 +633,20 @@ export function setTableProps(
     const sides = ["top", "right", "bottom", "left"] as const;
     let previousOffset = 0;
     let nextOffset = 0;
+    const usedLabels = new Set(obj.seats.map((seat) => seat.label));
+    const canonicalRoot = obj.seats[0]?.label.replace(/-\d+$/, "") || label;
+    let nextLabelIndex = 1;
+    const nextLabel = () => {
+      while (usedLabels.has(`${canonicalRoot}-${nextLabelIndex}`)) nextLabelIndex += 1;
+      const value = `${canonicalRoot}-${nextLabelIndex}`;
+      usedLabels.add(value);
+      nextLabelIndex += 1;
+      return value;
+    };
     return sides.flatMap((side) => {
       const mapped = generatedSeats.slice(nextOffset, nextOffset + chairs[side]).map((seat, index) => {
         const previous = index < previousChairs[side] ? obj.seats[previousOffset + index] : undefined;
-        return previous ? { ...previous, label: seat.label, x: seat.x, y: seat.y } : seat;
+        return previous ? { ...previous, x: seat.x, y: seat.y } : { ...seat, label: nextLabel() };
       });
       previousOffset += previousChairs[side];
       nextOffset += chairs[side];

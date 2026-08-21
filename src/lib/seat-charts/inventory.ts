@@ -32,6 +32,50 @@ export type InventoryResult = {
   readonly bounds: { minX: number; minY: number; maxX: number; maxY: number };
 };
 
+type AreaObject = Extract<ChartObject, { readonly type: "area" }>;
+
+export function areaMarkerPositions(obj: AreaObject): readonly { readonly x: number; readonly y: number }[] {
+  const xs = obj.points.map((point) => point.x);
+  const ys = obj.points.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const count = Math.max(1, obj.capacity);
+  if (obj.shape === "ellipse") {
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const radiusX = (maxX - minX) / 2;
+    const radiusY = (maxY - minY) / 2;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const positions = Array.from({ length: count }, (_, index) => {
+      const radial = Math.sqrt((index + 0.5) / count) * 0.92;
+      return {
+        x: centerX + Math.cos(index * goldenAngle) * radiusX * radial,
+        y: centerY + Math.sin(index * goldenAngle) * radiusY * radial,
+      };
+    });
+    return new Set(positions.map((point) => `${point.x}:${point.y}`)).size === count ? positions : [];
+  }
+  let density = Math.max(4, Math.ceil(Math.sqrt(count * 2)));
+  let candidates: { x: number; y: number }[] = [];
+  while (candidates.length < count && density <= 2048) {
+    candidates = [];
+    for (let row = 0; row < density; row += 1) {
+      for (let col = 0; col < density; col += 1) {
+        const point = {
+          x: minX + ((col + 0.5) / density) * (maxX - minX || 40),
+          y: minY + ((row + 0.5) / density) * (maxY - minY || 40),
+        };
+        if (pointInPolygon(point, obj.points)) candidates.push(point);
+      }
+    }
+    density *= 2;
+  }
+  if (candidates.length < count) return [];
+  return Array.from({ length: count }, (_, index) => candidates[Math.floor(index * candidates.length / count)]);
+}
+
 function tierFromCategory(
   chart: ChartDocument,
   categoryKey?: string,
@@ -160,55 +204,11 @@ export function chartToSellableSeats(
       return;
     }
     if (obj.type === "area") {
-      // GA: one selectable unit per capacity slot, placed in a grid inside bounds
-      const xs = obj.points.map((p) => p.x);
-      const ys = obj.points.map((p) => p.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
       const n = Math.max(1, obj.capacity);
-      if (obj.shape === "ellipse") {
-        const centerX = (minX + maxX) / 2;
-        const centerY = (minY + maxY) / 2;
-        const radiusX = (maxX - minX) / 2;
-        const radiusY = (maxY - minY) / 2;
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-        for (let i = 0; i < n; i += 1) {
-          const radial = Math.sqrt((i + 0.5) / n) * 0.92;
-          pushSeat(
-            {
-              id: `${obj.id}__ga_${i + 1}`,
-              label: `${obj.label}-${i + 1}`,
-              x: centerX + Math.cos(i * goldenAngle) * radiusX * radial,
-              y: centerY + Math.sin(i * goldenAngle) * radiusY * radial,
-              categoryKey: obj.categoryKey,
-            },
-            obj,
-            "area",
-            obj.categoryKey,
-          );
-        }
-        return;
-      }
-      let density = Math.max(4, Math.ceil(Math.sqrt(n * 2)));
-      let candidates: { x: number; y: number }[] = [];
-      while (candidates.length < n && density <= 2048) {
-        candidates = [];
-        for (let row = 0; row < density; row += 1) {
-          for (let col = 0; col < density; col += 1) {
-            const point = {
-              x: minX + ((col + 0.5) / density) * (maxX - minX || 40),
-              y: minY + ((row + 0.5) / density) * (maxY - minY || 40),
-            };
-            if (pointInPolygon(point, obj.points)) candidates.push(point);
-          }
-        }
-        density *= 2;
-      }
-      if (candidates.length === 0) candidates = [...obj.points];
+      const positions = areaMarkerPositions(obj);
+      if (positions.length < n) return;
       for (let i = 0; i < n; i += 1) {
-        const point = candidates[Math.floor(i * candidates.length / n) % candidates.length];
+        const point = positions[i];
         pushSeat(
           {
             id: `${obj.id}__ga_${i + 1}`,

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   createRow,
   createTable,
+  setObjectLabel,
   setAreaCapacity,
   setDecorationProps,
   setRowGeometry,
@@ -52,7 +53,7 @@ test("table booking options preserve existing chair identities and attributes", 
   assert.deepEqual(reconfigured.objects[0].seats.slice(0, 2).map((seat) => seat.id), ["stable-0", "stable-1"]);
   assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.id), ["stable-2", "stable-3"]);
   assert.equal(new Set(reconfigured.objects[0].seats.map((seat) => seat.label)).size, reconfigured.objects[0].seats.length);
-  assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.label), ["T1-4", "T1-5"]);
+  assert.deepEqual(reconfigured.objects[0].seats.slice(3).map((seat) => seat.label), ["T1-3", "T1-4"]);
   assert.equal(reconfigured.objects[0].maxOccupancy, undefined);
   const widthOnly = setTableProps(chart, table.id, { width: 180 });
   assert.equal(widthOnly.objects[0].maxOccupancy, undefined);
@@ -61,6 +62,24 @@ test("table booking options preserve existing chair identities and attributes", 
   assert.equal(afterWidthAndChairChange.objects[0].maxOccupancy, undefined);
   const explicit = setTableProps(chart, table.id, { maxOccupancy: 3 });
   assert.equal(setTableProps(explicit, table.id, { width: 200 }).objects[0].maxOccupancy, 3);
+});
+
+test("rectangular table geometry edits preserve canonical chair labels after a rename", () => {
+  const table = {
+    ...createTable({ x: 50, y: 50 }, 30, 4, "T1"),
+    shape: "rectangle",
+    width: 120,
+    height: 36,
+    chairs: { top: 2, right: 0, bottom: 2, left: 0 },
+  };
+  const chart = setObjectLabel(base([table]), table.id, "VIP 테이블");
+  const resized = setTableProps(chart, table.id, { width: 180 });
+  assert.deepEqual(resized.objects[0].seats.map((seat) => seat.label), table.seats.map((seat) => seat.label));
+
+  const expanded = setTableProps(resized, table.id, { chairs: { top: 3, right: 0, bottom: 2, left: 0 } });
+  const labels = expanded.objects[0].seats.map((seat) => seat.label);
+  for (const label of table.seats.map((seat) => seat.label)) assert.ok(labels.includes(label));
+  assert.equal(new Set(labels).size, labels.length);
 });
 
 test("table occupancy and rectangular chair counts remain valid after direct numeric edits", () => {

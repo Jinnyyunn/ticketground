@@ -3,6 +3,7 @@ import test from "node:test";
 import { chartToSellableSeats } from "../src/lib/seat-charts/inventory.ts";
 import { createObjectForTool } from "../src/lib/seat-designer/tools/create-object.ts";
 import { objectBounds } from "../src/lib/seat-designer/transforms.ts";
+import { blockingValidationItems } from "../src/lib/seat-designer/validation.ts";
 
 const common = { sequence: 1, floorId: "floor-1" };
 
@@ -36,6 +37,22 @@ test("ellipse capacity positions stay inside the published ellipse", () => {
     const normalized = ((seat.x - 100) / 100) ** 2 + ((seat.y - 50) / 50) ** 2;
     assert.ok(normalized <= 1, `${seat.id} is outside the ellipse`);
   }
+});
+
+test("degenerate polygon areas cannot publish duplicate marker positions", () => {
+  const area = {
+    id: "flat-area",
+    type: "area",
+    shape: "polygon",
+    label: "퇴화 영역",
+    layer: "interactive",
+    categoryKey: "vip",
+    capacity: 4,
+    points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }],
+  };
+  const chart = { id: "chart", name: "degenerate", categories: [{ key: "vip", label: "VIP", color: "#111111" }], objects: [area] };
+  assert.equal(chartToSellableSeats(chart, {}).seats.length, 0);
+  assert.ok(blockingValidationItems(chart).some((item) => item.id === "areaGeometry"));
 });
 
 test("text bounds follow content width and alignment", () => {
