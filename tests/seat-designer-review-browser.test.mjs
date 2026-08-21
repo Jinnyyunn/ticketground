@@ -131,6 +131,12 @@ test("snap, Shift, clipboard, lock, and table inspectors preserve their visible 
   const rectangular = page.locator('[data-object-type="table"]').last();
   assert.equal(Number(await rectangular.locator("rect").getAttribute("width")), 120);
   assert.equal(Number(await rectangular.locator("rect").getAttribute("height")), 36);
+  await page.getByTestId("tool-select").click();
+  await rectangular.locator("rect").click({ force: true });
+  await page.getByLabel("전체 테이블로 예매").waitFor();
+  await page.getByLabel("가변 점유").check();
+  await page.getByLabel("최소 인원").waitFor();
+  await page.getByLabel("최대 인원").waitFor();
 });
 
 test("reference names and concurrent image imports merge into the latest chart", async (t) => {
@@ -170,6 +176,16 @@ test("reference names and concurrent image imports merge into the latest chart",
   releaseUpload();
   await page.locator('[data-object-type="image"]').waitFor();
   assert.equal(await page.locator('[data-object-type="icon"]').count(), 1, "upload completion must preserve intervening edits");
+  await page.getByRole("button", { name: "저장 후 나가기" }).click();
+  await page.getByText("저장된 좌석 차트", { exact: true }).waitFor();
+  const savedAssets = await page.evaluate(async () => {
+    const list = await fetch("/api/seat-charts").then((response) => response.json());
+    const latest = list.charts[0];
+    const detail = await fetch(`/api/seat-charts/${latest.id}`).then((response) => response.json());
+    return detail.record.chart.assets;
+  });
+  assert.equal(savedAssets.length, 2);
+  assert.deepEqual(savedAssets.map((asset) => asset.kind).sort(), ["object", "reference"]);
 });
 
 test("reference import rejects files above ten megabytes before upload", async (t) => {
@@ -249,4 +265,47 @@ test("active image mode accepts a file dropped on the canvas", async (t) => {
     element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
   }, png.toString("base64"));
   await page.locator('[data-object-type="image"]').waitFor();
+});
+
+test("locked objects remain selectable so they can be unlocked", async (t) => {
+  const locked = { id: "locked", type: "rectangle", shape: "rectangle", label: "잠긴 도형", layer: "background", locked: true, x: 100, y: 100, width: 220, height: 100 };
+  const restored = { id: "locked-chart", name: "잠금", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [locked] };
+  const { page } = await openEditor(t, restored);
+  await page.locator('[data-object-id="locked"] rect').click({ force: true });
+  const control = page.getByLabel("잠금");
+  await control.waitFor();
+  assert.equal(await control.isChecked(), true);
+  assert.equal(await page.getByTestId("selection-overlay").count(), 0, "locked objects must not expose move handles");
+  await control.uncheck();
+  await page.getByTestId("selection-overlay").waitFor();
+});
+
+test("selection overlay rotates around the rendered object pivot", async (t) => {
+  const section = { id: "section", type: "section", label: "비대칭 구역", layer: "interactive", rotation: 45, points: [{ x: 100, y: 100 }, { x: 340, y: 100 }, { x: 180, y: 180 }], capacity: 30 };
+  const restored = { id: "pivot-chart", name: "회전 중심", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [section] };
+  const { page } = await openEditor(t, restored);
+  const shape = page.locator('[data-object-id="section"] path');
+  await shape.click({ force: true });
+  const transforms = await shape.evaluate((element) => ({
+    object: element.parentElement?.parentElement?.getAttribute("transform"),
+    overlay: document.querySelector('[data-testid="selection-overlay"]')?.getAttribute("transform"),
+  }));
+  assert.equal(transforms.overlay, transforms.object);
+});
+
+test("Enter inside inspector search never commits an unfinished draft", async (t) => {
+  const { page } = await openEditor(t);
+  await beginBlank(page);
+  const canvas = page.getByTestId("designer-canvas");
+  const box = await canvas.boundingBox();
+  assert.ok(box);
+  await page.getByTestId("tool-row").click();
+  await page.locator('[role="menuitem"][data-mode="rowSegmented"]').click();
+  await page.mouse.click(box.x + 200, box.y + 200);
+  await page.mouse.click(box.x + 280, box.y + 240);
+  await page.getByTitle("검색").click();
+  const input = page.getByPlaceholder("검색");
+  await input.fill("A열");
+  await input.press("Enter");
+  assert.equal(await page.locator('[data-object-type="row"]').count(), 0);
 });

@@ -79,3 +79,12 @@ test("Shift angle constraints match row and node tool increments", () => {
   const lineAngle = Math.round(Math.atan2(linePoint.y, linePoint.x) * 180 / Math.PI);
   assert.equal(lineAngle, 45);
 });
+
+test("segmented rows validate their complete path instead of endpoint distance", () => {
+  const points = [{ x: 0, y: 0 }, { x: 160, y: 0 }, { x: 160, y: 120 }, { x: 3, y: 2 }];
+  const row = createObjectForTool({ tool: "row", mode: "rowSegmented", start: points[0], end: points.at(-1), points, sequence: 1, floorId: "floor-1" });
+  assert.ok(row);
+  assert.equal(row.type, "row");
+  assert.deepEqual(row.path, points);
+  assert.ok(row.seats.length > 10);
+});

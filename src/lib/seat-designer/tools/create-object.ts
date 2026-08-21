@@ -76,10 +76,10 @@ export function createObjectForTool(input: CreationInput): ChartObject | null {
   const y = Math.min(input.start.y, input.end.y);
   const common = { floorId: input.floorId };
   if (input.tool === "row") {
-    if (Math.hypot(width, height) < 8) return null;
     const seatSpacing = 5;
     const seatDiameter = 10;
     const rowPath = input.mode === "rowSegmented" ? input.points : [input.start, input.end];
+    if (pathLength(rowPath) < 8) return null;
     const seatCount = Math.max(2, Math.floor(pathLength(rowPath) / (seatDiameter + seatSpacing)) + 1);
     return {
       id: uid("row"),

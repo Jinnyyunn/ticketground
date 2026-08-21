@@ -41,3 +41,30 @@ test("segmented row node edits regenerate seats on the edited path", () => {
   assert.deepEqual(moved.path[1], { x: 50, y: 60 });
   assert.equal(moved.seats.some((seat) => seat.y > 30), true);
 });
+
+test("segmented row node edits preserve stable seat identities and attributes", () => {
+  const row = {
+    id: "row-stable",
+    type: "row",
+    label: "A",
+    layer: "interactive",
+    start: { x: 0, y: 0 },
+    end: { x: 100, y: 0 },
+    seatCount: 3,
+    path: [{ x: 0, y: 0 }, { x: 50, y: 30 }, { x: 100, y: 0 }],
+    seats: [
+      { id: "stable-1", label: "A-1", displayedLabel: "1번", x: 0, y: 0, accessible: true },
+      { id: "stable-2", label: "A-2", x: 50, y: 30, companion: true, categoryKey: "vip" },
+      { id: "stable-3", label: "A-3", x: 100, y: 0, restrictedView: true, viewFromSeatHref: "/seat.jpg" },
+    ],
+  };
+  const moved = moveVertex(row, 1, { x: 50, y: 80 });
+  const logicalSeat = (seat) => Object.fromEntries(Object.entries(seat).filter(([key]) => key !== "x" && key !== "y"));
+  assert.deepEqual(moved.seats.map(logicalSeat), row.seats.map(logicalSeat));
+  assert.equal(moved.seats.some((seat) => seat.y > 30), true);
+});
+
+test("ellipse areas do not expose unrelated polygon node handles", () => {
+  const ellipse = { id: "ellipse", type: "area", label: "타원", layer: "interactive", shape: "ellipse", capacity: 20, points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }] };
+  assert.deepEqual(verticesOf(ellipse), []);
+});

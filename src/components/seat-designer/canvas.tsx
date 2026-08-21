@@ -561,7 +561,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
 
   const beginMove = (id: string, e: ReactPointerEvent) => {
     const object = chart.objects.find((candidate) => candidate.id === id);
-    if (!object || object.locked || !layerOk(object)) return;
+    if (!object || !layerOk(object)) return;
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return;
     const world = screenToWorld(e.clientX, e.clientY, rect, e.altKey);
@@ -579,7 +579,7 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
       if (!already) dispatch({ type: "SELECT", ids: [id], additive });
       else if (additive) dispatch({ type: "SELECT", ids: [id], additive: true });
 
-      if (tool === "select") {
+      if (tool === "select" && !object.locked) {
         dragRef.current = {
           mode: "move",
           startScreen: { x: e.clientX, y: e.clientY },
@@ -837,7 +837,6 @@ export function DesignerCanvas({ api }: { readonly api: SeatEditorApi }) {
       return;
     }
     if (tool === "select" || tool === "node") {
-      if (chart.objects.find((object) => object.id === id)?.locked) return;
       dispatch({ type: "SELECT", ids: [id], additive });
     }
   };

@@ -93,7 +93,7 @@ export async function saveSeatChart(input: {
     venueName: venue.name,
     venueType: input.chart.venueType ?? "simple",
     zones: input.chart.zones ?? [],
-    assets: isV2(input.chart) ? input.chart.assets : [],
+    assets: input.chart.assets ?? [],
     draftRevision: expectedDraftRevision + 1,
   };
   const draft = await saveSeatChartDraft({ rootDir: STORE_ROOT, document, expectedDraftRevision });

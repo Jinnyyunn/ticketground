@@ -2,6 +2,7 @@
 
 import { useRef, useState, type PointerEvent } from "react";
 import type { ChartObject, Point } from "@/types/seat-chart";
+import { objectCenter } from "@/lib/seat-designer/chart-ops";
 import { objectBounds, pointInObjectFrame, type ObjectBounds } from "@/lib/seat-designer/transforms";
 
 type Corner = "nw" | "ne" | "se" | "sw";
@@ -27,6 +28,7 @@ export function SelectionOverlay({
   readonly onRotate: (rotation: number) => void;
 }) {
   const initial = objectBounds(object);
+  const initialCenter = objectCenter(object);
   const [liveBounds, setLiveBounds] = useState<ObjectBounds | null>(null);
   const [liveRotation, setLiveRotation] = useState<number | null>(null);
   const drag = useRef<{ readonly kind: "resize"; readonly corner: Corner; readonly bounds: ObjectBounds } | { readonly kind: "rotate"; readonly center: Point } | null>(null);
@@ -38,7 +40,10 @@ export function SelectionOverlay({
     { id: "se", x: bounds.x + bounds.width, y: bounds.y + bounds.height },
     { id: "sw", x: bounds.x, y: bounds.y + bounds.height },
   ];
-  const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  const center = {
+    x: bounds.x + (initial.width === 0 ? 0.5 : (initialCenter.x - initial.x) / initial.width) * bounds.width,
+    y: bounds.y + (initial.height === 0 ? 0.5 : (initialCenter.y - initial.y) / initial.height) * bounds.height,
+  };
   const rotation = liveRotation ?? object.rotation ?? 0;
 
   const move = (event: PointerEvent<SVGCircleElement>) => {
@@ -47,8 +52,7 @@ export function SelectionOverlay({
     const point = toWorld(event.clientX, event.clientY);
     if (!point) return;
     if (current.kind === "resize") {
-      const resizeCenter = { x: current.bounds.x + current.bounds.width / 2, y: current.bounds.y + current.bounds.height / 2 };
-      setLiveBounds(resized(current.bounds, current.corner, pointInObjectFrame(point, resizeCenter, object.rotation ?? 0)));
+      setLiveBounds(resized(current.bounds, current.corner, pointInObjectFrame(point, initialCenter, object.rotation ?? 0)));
       return;
     }
     const degrees = Math.atan2(point.y - current.center.y, point.x - current.center.x) * 180 / Math.PI + 90;

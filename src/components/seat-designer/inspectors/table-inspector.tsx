@@ -22,6 +22,18 @@ function NumberField({ label, value, min, max, onChange }: { readonly label: str
 
 export function TableInspector({ object, onChange }: { readonly object: TableObject; readonly onChange: (patch: TablePatch) => void }) {
   const chairs = object.chairs ?? { top: 4, right: 0, bottom: 4, left: 0 };
+  const bookingControls = (
+    <>
+      <label className="flex items-center gap-2 text-[12px] text-[#666]"><input type="checkbox" checked={Boolean(object.bookAsWhole)} onChange={(event) => onChange({ bookAsWhole: event.target.checked })} />전체 테이블로 예매</label>
+      <label className="flex items-center gap-2 text-[12px] text-[#666]"><input type="checkbox" checked={Boolean(object.variableOccupancy)} onChange={(event) => onChange({ variableOccupancy: event.target.checked })} />가변 점유</label>
+      {object.variableOccupancy && (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="최소 인원" value={object.minOccupancy ?? 1} min={1} max={48} onChange={(minOccupancy) => onChange({ minOccupancy })} />
+          <NumberField label="최대 인원" value={object.maxOccupancy ?? object.seatCount} min={1} max={48} onChange={(maxOccupancy) => onChange({ maxOccupancy })} />
+        </div>
+      )}
+    </>
+  );
   if (object.shape === "rectangle") {
     const chairField = (side: keyof typeof chairs, label: string) => (
       <NumberField
@@ -38,6 +50,7 @@ export function TableInspector({ object, onChange }: { readonly object: TableObj
           <NumberField label="너비" value={object.width ?? 120} min={20} max={1000} onChange={(width) => onChange({ width })} />
           <NumberField label="높이" value={object.height ?? 36} min={20} max={1000} onChange={(height) => onChange({ height })} />
         </div>
+        {bookingControls}
         <div className="grid grid-cols-2 gap-2">
           {chairField("top", "위쪽 의자")}
           {chairField("bottom", "아래쪽 의자")}
@@ -51,14 +64,7 @@ export function TableInspector({ object, onChange }: { readonly object: TableObj
     <div className="mt-3 space-y-2" data-testid="round-table-inspector">
       <NumberField label="의자 수" value={object.seatCount} min={1} max={48} onChange={(seatCount) => onChange({ seatCount })} />
       <NumberField label="반지름" value={object.radius} min={8} max={120} onChange={(radius) => onChange({ radius })} />
-      <label className="flex items-center gap-2 text-[12px] text-[#666]"><input type="checkbox" checked={Boolean(object.bookAsWhole)} onChange={(event) => onChange({ bookAsWhole: event.target.checked })} />전체 테이블로 예매</label>
-      <label className="flex items-center gap-2 text-[12px] text-[#666]"><input type="checkbox" checked={Boolean(object.variableOccupancy)} onChange={(event) => onChange({ variableOccupancy: event.target.checked })} />가변 점유</label>
-      {object.variableOccupancy && (
-        <div className="grid grid-cols-2 gap-2">
-          <NumberField label="최소 인원" value={object.minOccupancy ?? 1} min={1} max={48} onChange={(minOccupancy) => onChange({ minOccupancy })} />
-          <NumberField label="최대 인원" value={object.maxOccupancy ?? object.seatCount} min={1} max={48} onChange={(maxOccupancy) => onChange({ maxOccupancy })} />
-        </div>
-      )}
+      {bookingControls}
     </div>
   );
 }

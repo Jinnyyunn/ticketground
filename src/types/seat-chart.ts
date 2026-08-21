@@ -254,12 +254,13 @@ export type ChartDocument = {
   readonly referenceChart?: OverlayImage;
   readonly venueType?: VenueType;
   readonly zones?: readonly Zone[];
+  readonly assets?: readonly SeatChartAsset[];
   /** publishing feature */
   readonly published?: boolean;
   readonly publishedAt?: string;
 };
 
-export type SeatChartDocumentV2 = Omit<ChartDocument, "published" | "publishedAt"> & {
+export type SeatChartDocumentV2 = Omit<ChartDocument, "published" | "publishedAt" | "assets"> & {
   readonly version: 2;
   readonly chartKey: `chart_${string}`;
   readonly venueId: string;

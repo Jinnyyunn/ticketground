@@ -2,7 +2,8 @@ import type { ChartObject, Point } from "../../types/seat-chart.ts";
 import { seatsAlongPolyline } from "./geometry.ts";
 
 export function verticesOf(object: ChartObject): readonly Point[] {
-  if (object.type === "section" || object.type === "area") return object.points;
+  if (object.type === "section") return object.points;
+  if (object.type === "area") return object.shape === "polygon" || object.shape === undefined ? object.points : [];
   if (object.type === "row") return object.path ?? [object.start, object.end];
   if (object.type === "line") return object.points ?? [object.start, object.end];
   if (object.type === "rectangle" && object.shape === "polygon") return object.points ?? [];
@@ -35,12 +36,13 @@ export function insertionIndexForPoint(points: readonly Point[], point: Point, c
 function withVertices(object: ChartObject, points: readonly Point[]): ChartObject {
   if (object.type === "section" || object.type === "area") return { ...object, points };
   if (object.type === "row") {
+    const generated = seatsAlongPolyline(points, object.seatCount, object.label, object.categoryKey);
     return {
       ...object,
       start: points[0],
       end: points[points.length - 1],
       path: points,
-      seats: seatsAlongPolyline(points, object.seatCount, object.label, object.categoryKey),
+      seats: generated.map((seat, index) => object.seats[index] ? { ...object.seats[index], x: seat.x, y: seat.y } : seat),
     };
   }
   if (object.type === "line") {

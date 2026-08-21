@@ -1,4 +1,6 @@
 import type { ChartDocument, ChartObject, ObjectLayer, Point, SelectionLayer } from "../../types/seat-chart.ts";
+import { objectCenter } from "./chart-ops.ts";
+import { rotateAround } from "./geometry.ts";
 import { objectBounds } from "./transforms.ts";
 
 type Bounds = { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
@@ -28,7 +30,21 @@ export function sameTypeSelection(chart: Pick<ChartDocument, "objects">, id: str
 
 function boundsOf(object: ChartObject): Bounds {
   const bounds = objectBounds(object);
-  return { minX: bounds.x, minY: bounds.y, maxX: bounds.x + bounds.width, maxY: bounds.y + bounds.height };
+  const rotation = object.rotation ?? 0;
+  if (rotation === 0) return { minX: bounds.x, minY: bounds.y, maxX: bounds.x + bounds.width, maxY: bounds.y + bounds.height };
+  const center = objectCenter(object);
+  const corners = [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+    { x: bounds.x, y: bounds.y + bounds.height },
+  ].map((point) => rotateAround(point, center, rotation));
+  return {
+    minX: Math.min(...corners.map((point) => point.x)),
+    minY: Math.min(...corners.map((point) => point.y)),
+    maxX: Math.max(...corners.map((point) => point.x)),
+    maxY: Math.max(...corners.map((point) => point.y)),
+  };
 }
 
 function matchesLayer(layer: ObjectLayer, selectedLayer: SelectionLayer): boolean {

@@ -32,6 +32,22 @@ test("brush supports additive and subtractive seat selection", () => {
   assert.deepEqual(brushSeatSelection(["s1", "s2"], ["s1"], "remove"), ["s2"]);
 });
 
+test("marquee selection uses the rendered bounds of rotated objects", () => {
+  const rotated = {
+    id: "rotated",
+    type: "rectangle",
+    label: "회전 도형",
+    layer: "background",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 20,
+    rotation: 90,
+  };
+  assert.deepEqual(marqueeObjectSelection({ objects: [rotated] }, { x: 35, y: -45 }, { x: 65, y: 65 }, "all"), [rotated.id]);
+  assert.deepEqual(marqueeObjectSelection({ objects: [rotated] }, { x: -5, y: 5 }, { x: 105, y: 15 }, "all"), []);
+});
+
 test("node editing adds, moves, and removes polygon nodes without mutating the source", () => {
   const source = chart.objects[2];
   const added = mutatePolygonNode(source, { type: "add", index: 1, point: { x: 45, y: 58 } });

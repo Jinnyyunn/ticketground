@@ -6,6 +6,7 @@ import { apiUploadReferenceAsset } from "@/lib/seat-charts/client";
 import { referenceAssetSizeError } from "@/lib/seat-designer/reference-asset-policy";
 import { acceptScannerRows, type ScannerRow } from "@/lib/seat-designer/scanner";
 import { ScannerReview } from "./scanner-review";
+import type { SeatChartAsset } from "@/types/seat-chart";
 
 type PreparedReference = {
   readonly file: File;
@@ -50,7 +51,7 @@ async function renderReference(file: File, pageNumber: number): Promise<Prepared
 export function ReferenceChartPanel({
   onComplete,
 }: {
-  readonly onComplete: (input: { readonly href: string; readonly width: number; readonly height: number; readonly rows?: ReturnType<typeof acceptScannerRows> }) => void;
+  readonly onComplete: (input: { readonly href: string; readonly width: number; readonly height: number; readonly asset: SeatChartAsset; readonly rows?: ReturnType<typeof acceptScannerRows> }) => void;
 }) {
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [page, setPage] = useState(1);
@@ -69,7 +70,7 @@ export function ReferenceChartPanel({
       setPrepared(next);
       if (!scan) {
         const upload = await apiUploadReferenceAsset({ file: next.file, purpose: "reference" });
-        onComplete({ href: upload.url, width: next.width, height: next.height });
+        onComplete({ href: upload.url, width: next.width, height: next.height, asset: upload.asset });
         return;
       }
       const worker = new Worker(new URL("../../lib/seat-designer/scanner-worker.ts", import.meta.url), { type: "module" });
@@ -92,7 +93,7 @@ export function ReferenceChartPanel({
     setBusy(true);
     try {
       const upload = await apiUploadReferenceAsset({ file: prepared.file, purpose: "reference" });
-      onComplete({ href: upload.url, width: prepared.width, height: prepared.height, rows: acceptScannerRows({ candidates: rows.flatMap((row) => row.candidates), rows }) });
+      onComplete({ href: upload.url, width: prepared.width, height: prepared.height, asset: upload.asset, rows: acceptScannerRows({ candidates: rows.flatMap((row) => row.candidates), rows }) });
     } catch {
       setError("좌석 도면을 저장하지 못했습니다.");
     } finally {

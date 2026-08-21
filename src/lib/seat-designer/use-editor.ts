@@ -11,6 +11,7 @@ import type {
   ToolMode,
   Viewport,
   RowObject,
+  SeatChartAsset,
 } from "@/types/seat-chart";
 import {
   addObject,
@@ -47,6 +48,7 @@ import { defaultModeForTool, primaryToolForMode } from "./tool-catalog";
 import { createObjectsForMode } from "./tools/create-objects";
 import { resizeObject, rotateObject, type ObjectBounds } from "./transforms";
 import { insertVertex, moveVertex, removeVertex, verticesOf } from "./vertices";
+import { withChartAsset } from "./assets";
 
 const STORAGE_KEY = "ticketground.seat-designer.chart.v5";
 const TUTORIAL_KEY = "ticketground.seat-designer.tutorial.v1";
@@ -88,8 +90,8 @@ type HistorySnapshot = {
 type Action =
   | { type: "LOAD"; chart: ChartDocument }
   | { type: "RESTORE_LOCAL"; chart: ChartDocument }
-  | { type: "ADD_OBJECT"; object: ChartObject; status: string; select?: boolean }
-  | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; height: number; label: string; status: string }
+  | { type: "ADD_OBJECT"; object: ChartObject; asset?: SeatChartAsset; status: string; select?: boolean }
+  | { type: "PATCH_IMAGE_ASSET"; id: string; href: string; height: number; label: string; asset: SeatChartAsset; status: string }
   | { type: "SET_TOOL"; tool: ToolId }
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_VIEWPORT"; viewport: Partial<Viewport> }
@@ -192,7 +194,8 @@ function reducer(state: EditorState, action: Action): EditorState {
         restoredLocalDraft: true,
       };
     case "ADD_OBJECT": {
-      const next = pushHistory(state, addObject(state.chart, action.object), action.status);
+      const chart = addObject(state.chart, action.object);
+      const next = pushHistory(state, action.asset ? withChartAsset(chart, action.asset) : chart, action.status);
       return action.select
         ? { ...next, selectedIds: [action.object.id], selectedSeatIds: [], tool: "select", toolMode: "select" }
         : next;
@@ -200,10 +203,10 @@ function reducer(state: EditorState, action: Action): EditorState {
     case "PATCH_IMAGE_ASSET": {
       const current = state.chart.objects.find((object) => object.id === action.id);
       if (!current || current.type !== "image") return state;
-      return pushHistory(state, {
+      return pushHistory(state, withChartAsset({
         ...state.chart,
         objects: state.chart.objects.map((object) => object.id === action.id ? { ...current, href: action.href, height: action.height, label: action.label } : object),
-      }, action.status);
+      }, action.asset), action.status);
     }
     case "REQUEST_FIT":
       return { ...state, fitGeneration: state.fitGeneration + 1 };
@@ -520,11 +523,12 @@ export function useSeatEditor() {
     readonly width: number;
     readonly height: number;
     readonly rows?: readonly RowObject[];
+    readonly asset: SeatChartAsset;
   }) => {
     const chart = buildTemplate("blank");
     dispatch({
       type: "LOAD",
-      chart: {
+      chart: withChartAsset({
         ...chart,
         name: input.name,
         objects: input.rows ?? [],
@@ -537,7 +541,7 @@ export function useSeatEditor() {
           opacity: 0.48,
           locked: true,
         },
-      },
+      }, input.asset),
     });
     dispatch({
       type: "SET_STATUS",
@@ -686,7 +690,7 @@ export function useSeatEditor() {
         height: asset.height * scale,
         href,
       };
-      dispatch({ type: "ADD_OBJECT", object, status: ko.imageAdded, select: true });
+      dispatch({ type: "ADD_OBJECT", object, asset, status: ko.imageAdded, select: true });
       return true;
     } catch {
       dispatch({ type: "SET_STATUS", status: "이미지 업로드 실패" });
@@ -842,6 +846,8 @@ export function useSeatEditor() {
   // keyboard
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select") || target?.isContentEditable) return;
       const meta = e.metaKey || e.ctrlKey;
       if (e.key === " " && !meta) {
         e.preventDefault();
@@ -1004,6 +1010,7 @@ export function useSeatEditor() {
         href: uploaded.url,
         height: selected.width * ratio,
         label: file.name,
+        asset: uploaded.asset,
         status: "이미지 교체",
       });
       return true;

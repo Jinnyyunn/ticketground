@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import type { OverlayImage, VenueType } from "@/types/seat-chart";
+import type { OverlayImage, SeatChartAsset, VenueType } from "@/types/seat-chart";
 import { normalizeOverlay } from "@/lib/seat-designer/chart-ops";
+import { withChartAsset } from "@/lib/seat-designer/assets";
 import type { SeatEditorApi } from "@/lib/seat-designer/use-editor";
 import type { SeatChartVenue } from "@/lib/seat-charts/types";
 import { listBindableVenues } from "@/lib/seat-charts/venues";
 import { ServiceCredentialPanel } from "./service-credential-panel";
 
-function pickImage(purpose: "reference" | "background", onDone: (url: string) => void) {
+function pickImage(purpose: "reference" | "background", onDone: (url: string, asset: SeatChartAsset) => void) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -18,7 +19,7 @@ function pickImage(purpose: "reference" | "background", onDone: (url: string) =>
     if (!file) return;
     void import("@/lib/seat-charts/client")
       .then(({ apiUploadReferenceAsset }) => apiUploadReferenceAsset({ file, purpose }))
-      .then(({ url }) => onDone(url));
+      .then(({ url, asset }) => onDone(url, asset));
   };
   input.click();
 }
@@ -129,8 +130,8 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               type="button"
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
-                pickImage("background", (href) =>
-                  updateChartMeta({ backgroundImage: bg ? { ...bg, href } : defaultOverlay(href) }),
+                pickImage("background", (href, asset) =>
+                  updateChartMeta(withChartAsset({ ...chart, backgroundImage: bg ? { ...bg, href } : defaultOverlay(href) }, asset)),
                 )
               }
             >
@@ -176,10 +177,11 @@ export function ChartSettingsDialog({ api }: { readonly api: SeatEditorApi }) {
               type="button"
               className="rounded-md border border-black/10 px-3 py-1.5 text-[13px] hover:bg-black/[0.03]"
               onClick={() =>
-                pickImage("reference", (href) =>
-                  updateChartMeta({
+                pickImage("reference", (href, asset) =>
+                  updateChartMeta(withChartAsset({
+                    ...chart,
                     referenceChart: ref ? { ...ref, href } : { ...defaultOverlay(href), opacity: 0.55 },
-                  }),
+                  }, asset)),
                 )
               }
             >
