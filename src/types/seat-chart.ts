@@ -211,7 +211,7 @@ export type ImageObject = BaseObject & {
 export type IconObject = BaseObject & {
   readonly type: "icon";
   readonly position: Point;
-  readonly icon: "stage" | "entrance" | "wc" | "star";
+  readonly icon: "people" | "male" | "female" | "cone" | "entrance" | "emergencyExit" | "stairs" | "tools" | "signpost" | "elevator" | "coffee" | "warning" | "stage" | "wc" | "star";
   readonly size?: number;
   readonly color?: string;
 };
