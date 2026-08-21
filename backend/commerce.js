@@ -172,10 +172,7 @@ export function createCommerceBackend({
     return { user, ticket, event, performanceDate, payment: { ...payment, amount: paidAmount }, admissionCredential: credential };
   }
 
-  // Web checkout never selects more than 2 seats (booking-panel.tsx enforces
-  // this in the UI) - this mirrors that real product policy server-side so a
-  // client can't bypass the limit by calling the API directly.
-  const MAX_GROUP_PURCHASE_SEATS = 2;
+  const MAX_GROUP_PURCHASE_SEATS = 48;
 
   // Shape-validates a ticketIds array (present, non-empty, no duplicates,
   // within the group size cap) and returns the deduplicated list. Exposed

@@ -11,6 +11,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   Grid3x3,
+  HardDriveDownload,
   HelpCircle,
   Layers2,
   Moon,
@@ -78,6 +79,7 @@ export function TopToolbar({
     flip,
     align,
     publishChart,
+    saveLocal,
   } = api;
   const { settings, past, future, chart, preview, viewport, boundVenue } = state;
   const assetUploadPending = Object.keys(state.assetRequestIds).length > 0;
@@ -85,6 +87,9 @@ export function TopToolbar({
 
   return (
     <header className="seat-designer-toolbar flex h-[45px] shrink-0 items-center gap-1 overflow-x-auto border-b px-2">
+      <TbBtn title={ko.saveLocal} disabled={assetUploadPending} onClick={saveLocal}>
+        <HardDriveDownload className="size-4" />
+      </TbBtn>
       <TbBtn title="저장 후 나가기" disabled={assetUploadPending} onClick={onSaveAndExit}>
         <Save className="size-4" />
       </TbBtn>

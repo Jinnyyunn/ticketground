@@ -54,7 +54,7 @@ export function ImageImportControl({
       const object = {
         id: uid("image"),
         type: "image" as const,
-        label: file.name,
+        label: "이미지",
         layer: "background" as const,
         floorId: api.state.chart.activeFloorId,
         x: 100,

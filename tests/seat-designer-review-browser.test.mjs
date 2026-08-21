@@ -31,7 +31,9 @@ async function openEditor(t, initialize) {
   await context.addCookies([{ ...cookie, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Lax" }]);
   await context.addInitScript((seed) => {
     localStorage.setItem("ticketground.seat-designer.tutorial.v1", "done");
-    if (seed) localStorage.setItem("ticketground.seat-designer.chart.v5", JSON.stringify(seed));
+    if (seed && !localStorage.getItem("ticketground.seat-designer.chart.v5")) {
+      localStorage.setItem("ticketground.seat-designer.chart.v5", JSON.stringify(seed));
+    }
   }, initialize ?? null);
   const page = await context.newPage();
   page.setDefaultTimeout(8_000);
@@ -60,6 +62,43 @@ test("a restored local draft bypasses the destructive new-chart dialog", async (
   assert.equal(await page.locator(".seat-designer-toolbar input").inputValue(), "복원된 초안");
   assert.equal(await page.getByRole("dialog", { name: "새 좌석 차트 만들기" }).count(), 0);
   assert.equal(await page.locator('[data-object-id="row-1"]').count(), 1);
+});
+
+test("new rows avoid canonical labels retained by renamed objects", async (t) => {
+  const retained = {
+    id: "renamed-row",
+    type: "row",
+    label: "B",
+    layer: "interactive",
+    start: { x: 100, y: 100 },
+    end: { x: 300, y: 100 },
+    seatCount: 2,
+    seats: [{ id: "r2-1", label: "R2-1", x: 100, y: 100 }, { id: "r2-2", label: "R2-2", x: 300, y: 100 }],
+  };
+  const restored = { id: "row-collision", name: "행 라벨", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [retained] };
+  const { page } = await openEditor(t, restored);
+  const canvas = page.getByTestId("designer-canvas");
+  const box = await canvas.boundingBox();
+  assert.ok(box);
+  await page.getByTestId("tool-row").click();
+  await page.locator('[role="menuitem"][data-mode="row"]').click();
+  await page.mouse.move(box.x + 500, box.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 700, box.y + 300);
+  await page.mouse.up();
+  const labelInput = page.getByTestId("seat-designer-inspector").locator("input").first();
+  assert.notEqual(await labelInput.inputValue(), "R2");
+});
+
+test("browser draft save persists edits without exiting the designer", async (t) => {
+  const restored = { id: "save-draft", name: "저장 전", categories: [], floors: [{ id: "floor-1", name: "1층", index: 1 }], activeFloorId: "floor-1", objects: [] };
+  const { page } = await openEditor(t, restored);
+  const name = page.locator(".seat-designer-toolbar input");
+  await name.fill("저장 후");
+  await page.getByTitle("브라우저에 저장").click();
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByTestId("seat-designer-shell").waitFor();
+  assert.equal(await page.locator(".seat-designer-toolbar input").inputValue(), "저장 후");
 });
 
 test("the initial dialog opens the existing server chart library without saving", async (t) => {

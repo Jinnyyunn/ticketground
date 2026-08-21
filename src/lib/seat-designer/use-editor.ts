@@ -22,6 +22,7 @@ import {
   createRow,
   duplicateObjects,
   flipObjects,
+  hasCanonicalLabelCollision,
   removeObjects,
   setAreaCapacity,
   setDecorationProps,
@@ -366,6 +367,8 @@ function toolStatus(tool: ToolId): string {
 
 export function useSeatEditor() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
+  const chartRef = useRef(state.chart);
+  chartRef.current = state.chart;
   const dragRef = useRef<{
     mode: "pan" | "move" | "marquee" | "draw" | "brush" | "node" | "row-end";
     startScreen: Point;
@@ -401,9 +404,9 @@ export function useSeatEditor() {
   const allValid = blockingValidationItems(state.chart).length === 0;
 
   const saveLocal = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.chart));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(chartRef.current));
     dispatch({ type: "SET_STATUS", status: ko.saved });
-  }, [state.chart]);
+  }, []);
 
   const saveToServer = useCallback(async () => {
     try {
@@ -683,17 +686,22 @@ export function useSeatEditor() {
 
   const commitCreatedObjects = useCallback(
     (start: Point, end: Point, points: readonly Point[]) => {
-      const sequence = state.chart.objects.length + 1;
-      const objects = createObjectsForMode({
-        mode: state.toolMode,
-        start,
-        end,
-        points,
-        sequence,
-        floorId: state.chart.activeFloorId,
-        categoryKey: state.chart.categories[0]?.key,
-      });
-      if (objects.length === 0) return false;
+      let sequence = 1;
+      let objects: readonly ChartObject[] = [];
+      do {
+        objects = createObjectsForMode({
+          mode: state.toolMode,
+          start,
+          end,
+          points,
+          sequence,
+          floorId: state.chart.activeFloorId,
+          categoryKey: state.chart.categories[0]?.key,
+        });
+        if (objects.length === 0) return false;
+        if (!hasCanonicalLabelCollision(state.chart.objects, objects)) break;
+        sequence += Math.max(1, objects.length);
+      } while (true);
       dispatch({
         type: "COMMIT",
         chart: { ...state.chart, objects: [...state.chart.objects, ...objects] },
@@ -722,7 +730,7 @@ export function useSeatEditor() {
       const object: ChartObject = {
         id: uid("image"),
         type: "image",
-        label: file.name || "이미지",
+        label: "이미지",
         layer: "background",
         floorId: state.chart.activeFloorId,
         x: world.x,
@@ -1056,7 +1064,7 @@ export function useSeatEditor() {
         id: selected.id,
         href: uploaded.url,
         aspectRatio: ratio,
-        label: file.name,
+        label: selected.label,
         asset: uploaded.asset,
         status: "이미지 교체",
         targetChartId,

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -60,7 +60,7 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   await page.getByTestId("tool-image").click();
   const imageChooser = page.waitForEvent("filechooser");
   await page.mouse.click(canvasBox.x + 700, canvasBox.y + 380);
-  await (await imageChooser).setFiles(path.resolve("public/images/header/partner-nol.png"));
+  await (await imageChooser).setFiles({ name: "Jinny-private-plan.png", mimeType: "image/png", buffer: await readFile(path.resolve("public/images/header/partner-nol.png")) });
   await page.locator('[data-object-type="image"]').waitFor();
 
   const beforePublish = await fetch(`${server.baseUrl}/api/seat-charts/for-show/${encodeURIComponent(event.slug)}`);
@@ -88,7 +88,7 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   await publishButton.click();
   const publishResponse = await publishResponsePromise;
   assert.equal(publishResponse.status(), 200, `${publishResponse.url()} ${await publishResponse.text()}`);
-  await page.getByText("게시됨", { exact: true }).first().waitFor();
+  await page.getByRole("button", { name: "게시됨", exact: true }).waitFor();
 
   const response = await fetch(`${server.baseUrl}/api/seat-charts/for-show/${encodeURIComponent(event.slug)}`);
   assert.equal(response.status, 200);
@@ -97,6 +97,7 @@ test("publishing a chart applies it to the selected venue", async (t) => {
   assert.deepEqual(published.record.boundVenue, { id: venue.id, name: venue.name });
   assert.ok(published.chart.assets.length > 0);
   assert.equal(published.chart.assets.some((asset) => "originalName" in asset), false, "buyer chart must not expose admin file names");
+  assert.equal(published.chart.objects.some((object) => object.label.includes("Jinny-private-plan")), false, "buyer objects must not expose local file names");
 
   const credentialResponse = await fetch(`${server.adminUrl}/api/seat-charts`, {
     method: "POST",
